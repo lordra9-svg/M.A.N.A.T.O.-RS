@@ -240,6 +240,58 @@ fn projectile_state_is_rollback_deterministic() {
 }
 
 #[test]
+fn life_controllers_work() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let damage = manato_formats::Controller {
+        kind: "lifeadd".into(),
+        params: vec![
+            ("type".into(), "LifeAdd".into()),
+            ("value".into(), "-100".into()),
+            ("kill".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &damage, &assets);
+    assert_eq!(sim.fighters[0].life, 900);
+    sim.fighters[0].life = 50;
+    manato_sim::controller::execute(&mut sim, 0, &damage, &assets);
+    assert_eq!(sim.fighters[0].life, 1, "kill=0 must prevent KO");
+
+    let set = manato_formats::Controller {
+        kind: "lifeset".into(),
+        params: vec![
+            ("type".into(), "LifeSet".into()),
+            ("value".into(), "750".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &set, &assets);
+    assert_eq!(sim.fighters[0].life, 750);
+}
+
+#[test]
+fn facep2_turns_toward_opponent() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    sim.fighters[0].pos.x = 0.0;
+    sim.fighters[1].pos.x = -200.0;
+    let assets = sim.assets.clone();
+    sim.fighters[1].enter_state(40, &assets.characters[1], true);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].facing, 1);
+}
+
+#[test]
 fn intro_locks_control() {
     let Some(mut sim) = load(
         "mugen-1.1b1/chars/kfm/kfm.def",

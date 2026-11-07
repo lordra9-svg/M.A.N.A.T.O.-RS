@@ -73,6 +73,19 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             let value = num_param(sim, who, control, "value").unwrap_or(0.0);
             sim.fighters[who].power = clamp(value, 0.0, MAX_POWER);
         }
+        "lifeadd" => life_add(sim, who, control),
+        "lifeset" => life_set(sim, who, control),
+        "hitadd" => {
+            let value = int_param(sim, who, control, "value").unwrap_or(0);
+            sim.fighters[who].attack.hit_count =
+                sim.fighters[who].attack.hit_count.saturating_add(value);
+        }
+        "movehitreset" => {
+            sim.fighters[who].attack.move_contact = false;
+            sim.fighters[who].attack.move_hit = false;
+            sim.fighters[who].attack.move_guarded = false;
+            sim.fighters[who].attack.hit_count = 0;
+        }
         "playsnd" => play_snd(sim, who, control),
         "stopsnd" => {}
         "hitdef" => hit_def(sim, who, control),
@@ -95,21 +108,31 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "screenbound" => {}
         "envshake" => env_shake(sim, who, control),
         "explod" => explod(sim, who, control, assets),
-        "modifyexplod" | "removeexplod" => {}
+        "modifyexplod" => modify_explod(sim, who, control),
+        "removeexplod" => remove_explod(sim, who, control),
         "makedust" => make_dust(sim, who, control),
+        "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
         "targetbind" => target_bind(sim, who, control),
         "targetfacing" => target_facing(sim, who, control),
         "targetstate" => target_state(sim, who, control, assets),
         "targetlifeadd" => target_life_add(sim, who, control),
-        "targetpoweradd" => {}
-        "targetvelset" | "targetveladd" => {}
+        "targetpoweradd" => target_power_add(sim, who, control),
+        "targetvelset" => target_vel_set(sim, who, control),
+        "targetveladd" => target_vel_add(sim, who, control),
         "afterimage" | "afterimagetime" => {}
         "palfx" | "remappal" | "trans" | "forcefeedback" => {}
         "projectile" => projectile(sim, who, control, assets),
+        "playerpush" => {
+            let value = int_param(sim, who, control, "value").unwrap_or(1) != 0;
+            sim.fighters[who].player_push = value;
+        }
+        "gravity" => {
+            let value = num_param(sim, who, control, "value");
+            sim.fighters[who].gravity = value;
+        }
         "bindtoroot" | "bindtotarget" | "bindtoparent" => {}
-        "playerpush" => {}
         _ => {
             log::debug!("unimplemented state controller: {kind}");
         }
@@ -287,6 +310,137 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     }
 }
 
+fn life_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let kill = int_param(sim, who, control, "kill").unwrap_or(1) != 0;
+    let fighter = &mut sim.fighters[who];
+    fighter.life = (fighter.life.saturating_add(value)).clamp(0, fighter.life_max);
+    if !kill && fighter.life <= 0 {
+        fighter.life = 1;
+    }
+}
+
+fn life_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let kill = int_param(sim, who, control, "kill").unwrap_or(1) != 0;
+    let fighter = &mut sim.fighters[who];
+    fighter.life = value.clamp(0, fighter.life_max);
+    if !kill && fighter.life <= 0 {
+        fighter.life = 1;
+    }
+}
+
+fn target_power_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = num_param(sim, who, control, "value").unwrap_or(0.0);
+    if let Some(target) = sim.fighters[who].target {
+        sim.fighters[target].power = clamp(sim.fighters[target].power + value, 0.0, MAX_POWER);
+    }
+}
+
+fn target_vel_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let x = num_param(sim, who, control, "x").unwrap_or(0.0);
+    let y = num_param(sim, who, control, "y").unwrap_or(0.0);
+    if let Some(target) = sim.fighters[who].target {
+        let facing = sim.fighters[target].facing as f32;
+        sim.fighters[target].vel = Vec2::new(x * facing, y);
+    }
+}
+
+fn target_vel_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let x = num_param(sim, who, control, "x").unwrap_or(0.0);
+    let y = num_param(sim, who, control, "y").unwrap_or(0.0);
+    if let Some(target) = sim.fighters[who].target {
+        let facing = sim.fighters[target].facing as f32;
+        sim.fighters[target].vel.x += x * facing;
+        sim.fighters[target].vel.y += y;
+    }
+}
+
+fn game_make_anim(sim: &mut SimState, who: usize, control: &Controller) {
+    let Some(anim) = int_param(sim, who, control, "anim") else {
+        return;
+    };
+    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let pos_type = str_param(control, "postype")
+        .unwrap_or("p1")
+        .to_ascii_lowercase();
+    let facing = sim.fighters[who].facing;
+    let base = match pos_type.as_str() {
+        "p2" => sim.fighters[sim.other(who)].pos,
+        "front" => Vec2::new(
+            sim.fighters[who].pos.x + facing as f32 * 100.0,
+            sim.fighters[who].pos.y,
+        ),
+        "back" => Vec2::new(
+            sim.fighters[who].pos.x - facing as f32 * 100.0,
+            sim.fighters[who].pos.y,
+        ),
+        _ => sim.fighters[who].pos,
+    };
+    let duration = sim
+        .assets
+        .effects
+        .animations
+        .get(&anim)
+        .map(|animation| animation.total_time())
+        .unwrap_or(10);
+    sim.effects.push(Effect {
+        source: EffectSource::FightFx,
+        anim,
+        pos: Vec2::new(base.x + px * facing as f32, base.y + py),
+        vel: Vec2::ZERO,
+        accel: Vec2::ZERO,
+        scale: Vec2::new(1.0, 1.0),
+        facing,
+        flip_h: false,
+        flip_v: false,
+        blend: EffectBlend::Add,
+        alpha: 1.0,
+        sprite_priority: int_param(sim, who, control, "sprpriority").unwrap_or(0),
+        time: 0,
+        duration,
+        remove_on_anim_end: true,
+        id: int_param(sim, who, control, "id").unwrap_or(0),
+        owner: who,
+        behind: false,
+    });
+}
+
+fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    let pos = control.get_pair("pos");
+    let scale = control.get_pair("scale");
+    let vel = control.get_pair("vel");
+    let accel = control.get_pair("accel");
+    let alpha = num_param(sim, who, control, "alpha");
+    for effect in &mut sim.effects {
+        if effect.id != id || effect.owner != who {
+            continue;
+        }
+        if let Some((x, y)) = pos {
+            effect.pos = Vec2::new(x, y);
+        }
+        if let Some((x, y)) = scale {
+            effect.scale = Vec2::new(x, y);
+        }
+        if let Some((x, y)) = vel {
+            effect.vel = Vec2::new(x, y);
+        }
+        if let Some((x, y)) = accel {
+            effect.accel = Vec2::new(x, y);
+        }
+        if let Some(alpha) = alpha {
+            effect.alpha = alpha.clamp(0.0, 1.0);
+        }
+    }
+}
+
+fn remove_explod(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    sim.effects
+        .retain(|effect| effect.id != id || effect.owner != who);
+}
+
 fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let char = char_of(assets, sim, who);
     let anim = int_param(sim, who, control, "projanim").unwrap_or(0);
@@ -423,18 +577,41 @@ fn hit_filter(sim: &mut SimState, who: usize, control: &Controller, not_hit_by: 
 }
 
 fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
-    let Some(flag) = str_param(control, "flag") else {
-        return;
+    let mut apply = |name: &str| {
+        let flag = match name {
+            "invisible" => crate::fighter::ASSERT_INVISIBLE,
+            "noshadow" => crate::fighter::ASSERT_NOSHADOW,
+            "nowalk" => crate::fighter::ASSERT_NOWALK,
+            "noairguard" => crate::fighter::ASSERT_NOAIRGUARD,
+            "nostandguard" => crate::fighter::ASSERT_NOSTANDGUARD,
+            "nocrouchguard" => crate::fighter::ASSERT_NOCROUCHGUARD,
+            "unguardable" => crate::fighter::ASSERT_UNGUARDABLE,
+            "nojugglecheck" => crate::fighter::ASSERT_NOJUGGLECHECK,
+            "noautoturn" => crate::fighter::ASSERT_NOAUTOTURN,
+            "intro" => crate::fighter::ASSERT_INTRO,
+            "nobg" => crate::fighter::ASSERT_NOBG,
+            "nofg" => crate::fighter::ASSERT_NOFG,
+            "noko" => crate::fighter::ASSERT_NOKO,
+            "nokoslow" => crate::fighter::ASSERT_NOKOSLOW,
+            "nokosnd" => crate::fighter::ASSERT_NOKOSND,
+            "nomusic" => crate::fighter::ASSERT_NOMUSIC,
+            "globalnoshadow" => crate::fighter::ASSERT_GLOBALNOSHADOW,
+            "nobardisplay" => crate::fighter::ASSERT_NOBARDISPLAY,
+            _ => 0,
+        };
+        if flag != 0 {
+            sim.fighters[who].assert_flags |= flag;
+        }
     };
-    let lower = flag.to_ascii_lowercase();
-    if lower.contains("invisible") {
-        sim.fighters[who].assert_flags |= crate::fighter::ASSERT_INVISIBLE;
-    }
-    if lower.contains("nowalk") {
-        sim.fighters[who].assert_flags |= crate::fighter::ASSERT_NOWALK;
-    }
-    if lower.contains("noshadow") {
-        sim.fighters[who].assert_flags |= crate::fighter::ASSERT_NOSHADOW;
+    // M.U.G.E.N writes assertion flags as keys (`invisible = 1`); some
+    // content uses the older `flag = invisible` form.
+    for (key, value) in &control.params {
+        let lower = key.to_ascii_lowercase();
+        if lower == "flag" {
+            apply(&value.to_ascii_lowercase());
+        } else if value.trim() != "0" {
+            apply(&lower);
+        }
     }
 }
 

@@ -51,7 +51,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Unit tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Unit tests |
 | T-03 | Command/command timers | Required | Required | Partial | Roster |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Roster |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers; oracle pending |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Projectiles |
 | T-06 | Const/expressions/random | Required | Required | Partial | Unit tests |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
@@ -61,12 +61,12 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Roster |
+| C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | LifeAdd/LifeSet/PlayerPush/Gravity added |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | Roster |
-| C-03 | HitDef/ReversalDef | Required | Required | Partial | Roster |
+| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef done; ReversalDef pending |
 | C-04 | Projectile | Required | Required | Partial | Projectile tests |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | TBD |
-| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Target controllers present; helper TBD |
+| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Target controllers present; Helper/Bind pending |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Missing | TBD |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | TBD |

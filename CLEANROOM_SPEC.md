@@ -82,7 +82,7 @@ The limitation is recorded explicitly rather than hidden.
 | `manato-formats` text/DEF/CNS/CMD/AIR | AIR, CNS, and CMD rewritten from approved specs; text/DEF pending | Rewrite/validate from Ikemen-GO docs + oracle |
 | `manato-formats` SFF v1/v2 | Rewritten from `docs/spec/sff.md` | Oracle verification pending |
 | `manato-formats` SND/stage | SND rewritten from `docs/spec/snd.md`; stage pending | Rewrite/validate from spec |
-| `manato-sim` state machine/triggers | CNS/CMD parser rewritten; execution still pending | Rewrite from frozen spec |
+| `manato-sim` state machine/triggers | CNS/CMD parser rewritten; core execution extended | Advanced controllers/triggers still pending |
 | `manato-sim` collision/HitDef | Partly informed by `mugen-reimpl` | Rewrite from frozen spec |
 | `manato-sim` projectiles | Implemented from MIT reference notes | Keep after spec review |
 | `manato-sim` AI | Original Rust | Keep |

@@ -89,14 +89,26 @@ fn can_guard(sim: &SimState, _attacker: usize, defender: usize, hitdef: &HitDef)
     if !f.ctrl && !(130..=155).contains(&f.state_no) && f.state_no != 0 && f.state_no != 11 {
         return false;
     }
+    if f.assert_flags & crate::fighter::ASSERT_UNGUARDABLE != 0 {
+        return false;
+    }
     let airborne = f.state_type == StateType::Air || f.pos.y < -1.0;
     let flag = &hitdef.guardflag;
     if airborne {
+        if f.assert_flags & crate::fighter::ASSERT_NOAIRGUARD != 0 {
+            return false;
+        }
         return flag.contains('A');
     }
     if f.state_type == StateType::Crouch {
+        if f.assert_flags & crate::fighter::ASSERT_NOCROUCHGUARD != 0 {
+            return false;
+        }
         flag.contains('L') || flag.contains('M')
     } else {
+        if f.assert_flags & crate::fighter::ASSERT_NOSTANDGUARD != 0 {
+            return false;
+        }
         flag.contains('H') || flag.contains('M')
     }
 }

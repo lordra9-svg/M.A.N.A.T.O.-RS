@@ -161,6 +161,9 @@ pub struct Fighter {
     pub extra_exec: [Vec<u32>; 3],
     pub pos_freeze: i32,
     pub assert_flags: u32,
+    pub face_p2_pending: bool,
+    pub player_push: bool,
+    pub gravity: Option<f32>,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
 
@@ -224,6 +227,9 @@ impl Fighter {
             extra_exec: [Vec::new(), Vec::new(), Vec::new()],
             pos_freeze: 0,
             assert_flags: 0,
+            face_p2_pending: false,
+            player_push: true,
+            gravity: None,
             target: None,
             pal_remap: None,
             state_changed: false,
@@ -275,14 +281,14 @@ impl Fighter {
         self.ctrl_exec.clear();
         self.attack = AttackState::default();
         self.hitdef = None;
+        self.face_p2_pending = false;
+        self.gravity = None;
         self.hit.hit_targets.clear();
         self.width_override = None;
 
+        let _ = face_p2;
         if let Some(state) = char.state(number) {
             self.apply_state_def(state, char);
-            if state.get_i32("facep2").unwrap_or(0) != 0 && face_p2 {
-                // Facing is corrected by the simulation once the opponent is known.
-            }
         } else if number >= 0 {
             log::warn!("character {} has no statedef {number}", char.name());
         }
@@ -347,10 +353,8 @@ impl Fighter {
         if let Some(p) = state.get_i32("sprpriority") {
             self.sprite_priority = p;
         }
-        if let Some(p) = state.get_i32("facep2") {
-            if p != 0 {
-                self.facing = 1; // corrected by caller that knows the opponent
-            }
+        if state.get_i32("facep2").unwrap_or(0) != 0 {
+            self.face_p2_pending = true;
         }
     }
 
@@ -642,3 +646,18 @@ pub const ALL_BUTTONS: u8 = Buttons::ALL;
 pub const ASSERT_INVISIBLE: u32 = 1 << 0;
 pub const ASSERT_NOSHADOW: u32 = 1 << 1;
 pub const ASSERT_NOWALK: u32 = 1 << 2;
+pub const ASSERT_NOAIRGUARD: u32 = 1 << 3;
+pub const ASSERT_NOSTANDGUARD: u32 = 1 << 4;
+pub const ASSERT_NOCROUCHGUARD: u32 = 1 << 5;
+pub const ASSERT_UNGUARDABLE: u32 = 1 << 6;
+pub const ASSERT_NOJUGGLECHECK: u32 = 1 << 7;
+pub const ASSERT_NOAUTOTURN: u32 = 1 << 8;
+pub const ASSERT_INTRO: u32 = 1 << 9;
+pub const ASSERT_NOBG: u32 = 1 << 10;
+pub const ASSERT_NOFG: u32 = 1 << 11;
+pub const ASSERT_NOKO: u32 = 1 << 12;
+pub const ASSERT_NOKOSLOW: u32 = 1 << 13;
+pub const ASSERT_NOKOSND: u32 = 1 << 14;
+pub const ASSERT_NOMUSIC: u32 = 1 << 15;
+pub const ASSERT_GLOBALNOSHADOW: u32 = 1 << 16;
+pub const ASSERT_NOBARDISPLAY: u32 = 1 << 17;

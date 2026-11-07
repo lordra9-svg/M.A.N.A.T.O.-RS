@@ -491,6 +491,16 @@ impl SimState {
                 break;
             }
         }
+        if self.fighters[who].face_p2_pending {
+            let other = self.other(who);
+            let facing = if self.fighters[other].pos.x >= self.fighters[who].pos.x {
+                1
+            } else {
+                -1
+            };
+            self.fighters[who].facing = facing;
+            self.fighters[who].face_p2_pending = false;
+        }
         self.fighters[who].state_changed = false;
 
         // Advance animation last so triggers observe this tick's frame.
@@ -641,6 +651,8 @@ impl SimState {
             fighter::Physics::Air => {
                 let accel = if fall_state && fighter.hit.vars.y_accel > 0.0 {
                     fighter.hit.vars.y_accel
+                } else if let Some(gravity) = fighter.gravity {
+                    gravity
                 } else {
                     char.constants.get_or("movement.yaccel", 0.44)
                 };
@@ -704,6 +716,9 @@ impl SimState {
             self.fighters[i].pos.x = clamp(p, stage_left, stage_right);
         }
         let (a, b) = (0usize, 1usize);
+        if !self.fighters[a].player_push || !self.fighters[b].player_push {
+            return;
+        }
         let box_a = self.fighters[a].push_box();
         let box_b = self.fighters[b].push_box();
         if !box_a.intersects(box_b) {
@@ -851,6 +866,9 @@ impl SimState {
             fighter.extra_exec = [Vec::new(), Vec::new(), Vec::new()];
             fighter.pos_freeze = 0;
             fighter.assert_flags = 0;
+            fighter.face_p2_pending = false;
+            fighter.player_push = true;
+            fighter.gravity = None;
             fighter.target = None;
             fighter.state_changed = false;
             fighter.enter_state(0, char, false);
@@ -1003,6 +1021,12 @@ impl SimState {
             h.write_i32(f.life);
             h.write_f32(f.power);
             h.write_bool(f.ctrl);
+            h.write_bool(f.face_p2_pending);
+            h.write_bool(f.player_push);
+            h.write_bool(f.gravity.is_some());
+            if let Some(gravity) = f.gravity {
+                h.write_f32(gravity);
+            }
             h.write_u8(f.state_type as u8);
             h.write_u8(f.move_type as u8);
             h.write_u8(f.physics as u8);

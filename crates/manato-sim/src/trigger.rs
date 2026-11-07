@@ -99,6 +99,17 @@ fn redirect_target(sim: &SimState, who: usize, name: &str) -> usize {
     if lower == "p2" {
         return 1;
     }
+    if let Some(rest) = lower.strip_prefix("playerid(") {
+        if let Some(value) = rest
+            .strip_suffix(')')
+            .and_then(|value| value.parse::<usize>().ok())
+        {
+            return value.min(1);
+        }
+    }
+    if lower == "enemy" || lower == "enemynear" || lower.starts_with("enemy(") {
+        return sim.other(who);
+    }
     if lower == "self" || lower == "root" || lower == "parent" {
         return who;
     }
@@ -328,7 +339,22 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 })
                 .count() as i32,
         ),
-        "numproj" | "numprojid" | "numhelper" => Value::Int(0),
+        "numproj" => Value::Int(
+            sim.projectiles
+                .iter()
+                .filter(|projectile| projectile.owner == who)
+                .count() as i32,
+        ),
+        "numprojid" => {
+            let id = arg_i32(sim, who, args, 0);
+            Value::Int(
+                sim.projectiles
+                    .iter()
+                    .filter(|projectile| projectile.owner == who && projectile.id == id)
+                    .count() as i32,
+            )
+        }
+        "numhelper" => Value::Int(0),
         "projcontact" | "projhit" | "projguarded" | "projmiss" | "projcontacttime"
         | "projhittime" | "projguardedtime" | "projmissetime" => Value::Int(0),
         "numtarget" => Value::Int(sim.fighters[who].target.is_some() as i32),
@@ -441,6 +467,29 @@ fn is_trigger_name(name: &str) -> bool {
             | "author"
             | "backedgebodydist"
             | "backedgedist"
+            | "camerazoom"
+            | "drawgame"
+            | "gameheight"
+            | "gametime"
+            | "gamewidth"
+            | "ishometeam"
+            | "lose"
+            | "loseko"
+            | "losetime"
+            | "matchno"
+            | "name"
+            | "p1name"
+            | "p2name"
+            | "palno"
+            | "parentdist"
+            | "parentexist"
+            | "rootdist"
+            | "roundswon"
+            | "screenheight"
+            | "screenwidth"
+            | "teammode"
+            | "tickspersecond"
+            | "timemod"
             | "canrecover"
             | "command"
             | "ctrl"
@@ -569,6 +618,28 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
         "hitpausetime" => Value::Int(f.hit.hit_pause),
+        "screenwidth" | "gamewidth" => Value::Float(manato_core::GAME_WIDTH),
+        "screenheight" | "gameheight" => Value::Float(manato_core::GAME_HEIGHT),
+        "tickspersecond" => Value::Int(60),
+        "gametime" => Value::Int(sim.frame as i32),
+        "matchno" => Value::Int(1),
+        "roundswon" => Value::Int(sim.round.wins[who] as i32),
+        "lose" => Value::Bool(sim.round.winner == Some(other)),
+        "loseko" => {
+            Value::Bool(sim.round.winner == Some(other) && sim.round.phase == crate::RoundPhase::Ko)
+        }
+        "losetime" => Value::Bool(sim.round.timer <= 0 && sim.round.winner == Some(other)),
+        "drawgame" => Value::Bool(sim.round.winner.is_none()),
+        "teammode" => Value::Int(1),
+        "ishometeam" => Value::Int(1),
+        "parentexist" => Value::Int(0),
+        "rootdist" | "parentdist" => Value::Float(0.0),
+        "camerazoom" => Value::Float(1.0),
+        "name" => Value::Str(sim.character(who).display_name().to_string()),
+        "p1name" => Value::Str(sim.character(0).display_name().to_string()),
+        "p2name" => Value::Str(sim.character(1).display_name().to_string()),
+        "palno" => Value::Int(1),
+        "timemod" => Value::Int(0),
         _ => Value::Int(0),
     }
 }

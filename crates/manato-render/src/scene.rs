@@ -230,7 +230,10 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
 
 fn draw_shadows(painter: &mut Painter, sim: &SimState) {
     for fighter in &sim.fighters {
-        if !fighter.active {
+        if !fighter.active
+            || fighter.assert_flags & manato_sim::fighter::ASSERT_INVISIBLE != 0
+            || fighter.assert_flags & manato_sim::fighter::ASSERT_NOSHADOW != 0
+        {
             continue;
         }
         let ground = sim.screen_pos(Vec2::new(fighter.pos.x, 0.0));
@@ -370,7 +373,7 @@ fn draw_atlas_quad(
 
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
     let fighter = &sim.fighters[who];
-    if !fighter.active {
+    if !fighter.active || fighter.assert_flags & manato_sim::fighter::ASSERT_INVISIBLE != 0 {
         return;
     }
     let character: &Character = &sim.assets.characters[fighter.char_id];
