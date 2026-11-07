@@ -1,6 +1,6 @@
 # Helper entity specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/char.go`, `src/bytecode.go`), public M.U.G.E.N documentation, and
 observed content.
 

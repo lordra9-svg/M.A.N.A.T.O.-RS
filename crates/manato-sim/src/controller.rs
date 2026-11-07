@@ -172,7 +172,15 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             let value = num_param(sim, who, control, "value");
             sim.fighters[who].gravity = value;
         }
-        "bindtoroot" | "bindtotarget" | "bindtoparent" => {}
+        "helper" => helper(sim, who, control, assets),
+        "destroyself" => sim.fighters[who].helper_destroy = true,
+        "bindtoroot" => bind_to(sim, who, control, BindTarget::Root),
+        "bindtoparent" => bind_to(sim, who, control, BindTarget::Parent),
+        "bindtotarget" => bind_to(sim, who, control, BindTarget::Target),
+        "parentvarset" => var_op(sim, sim.parent_of(who), control, VarOp::Set),
+        "parentvaradd" => var_op(sim, sim.parent_of(who), control, VarOp::Add),
+        "rootvarset" => var_op(sim, sim.root_of(who), control, VarOp::Set),
+        "rootvaradd" => var_op(sim, sim.root_of(who), control, VarOp::Add),
         _ => {
             log::debug!("unimplemented state controller: {kind}");
         }
@@ -412,6 +420,73 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
         sim.fighters[who].pal_alpha = trigger::num(sim, who, value).clamp(0.0, 1.0);
     }
     sim.fighters[who].pal_time = int_param(sim, who, control, "time").unwrap_or(1);
+}
+
+enum BindTarget {
+    Root,
+    Parent,
+    Target,
+}
+
+fn bind_to(sim: &mut SimState, who: usize, control: &Controller, target: BindTarget) {
+    let anchor = match target {
+        BindTarget::Root => sim.root_of(who),
+        BindTarget::Parent => sim.parent_of(who),
+        BindTarget::Target => sim.fighters[who].target.unwrap_or(who),
+    };
+    if anchor == who {
+        return;
+    }
+    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let facing = sim.fighters[anchor].facing;
+    let base = sim.fighters[anchor].pos;
+    sim.fighters[who].pos = Vec2::new(base.x + px * facing as f32, base.y + py);
+}
+
+fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
+    if sim.helper_count() >= 32 {
+        log::warn!("helper cap reached; skipping Helper");
+        return;
+    }
+    let char_id = sim.fighters[who].char_id;
+    let character = &assets.characters[char_id];
+    let stateno = int_param(sim, who, control, "stateno").unwrap_or(0);
+    if character.state(stateno).is_none() {
+        log::warn!("Helper uses missing state {stateno}");
+        return;
+    }
+    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let postype = str_param(control, "postype")
+        .unwrap_or("p1")
+        .to_ascii_lowercase();
+    let facing = int_param(sim, who, control, "facing").unwrap_or(sim.fighters[who].facing);
+    let owner_pos = sim.fighters[who].pos;
+    let opponent = sim.opponent_of(who);
+    let base = match postype.as_str() {
+        "p2" => sim.fighters[opponent].pos,
+        "front" => Vec2::new(owner_pos.x + facing as f32 * 100.0, owner_pos.y),
+        "back" => Vec2::new(owner_pos.x - facing as f32 * 100.0, owner_pos.y),
+        "left" => Vec2::new(owner_pos.x - 100.0, owner_pos.y),
+        "right" => Vec2::new(owner_pos.x + 100.0, owner_pos.y),
+        _ => owner_pos,
+    };
+    let pos = Vec2::new(base.x + px * facing as f32, base.y + py);
+    let mut entity = crate::fighter::Fighter::new(
+        character,
+        char_id,
+        sim.fighters[who].side,
+        sim.fighters[who].slot,
+        pos,
+        facing,
+    );
+    entity.owner = Some(who);
+    entity.parent = Some(who);
+    entity.root = Some(sim.root_of(who));
+    entity.helper_id = id;
+    entity.helper_remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
+    entity.enter_state(stateno, character, false);
+    sim.fighters.push(entity);
 }
 
 fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {

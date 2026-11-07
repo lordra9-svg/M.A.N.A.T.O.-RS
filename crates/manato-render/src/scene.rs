@@ -246,7 +246,8 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
 
 fn draw_shadows(painter: &mut Painter, sim: &SimState) {
     for fighter in &sim.fighters {
-        if !fighter.active
+        if fighter.owner.is_some()
+            || !fighter.active
             || fighter.assert_flags & manato_sim::fighter::ASSERT_INVISIBLE != 0
             || fighter.assert_flags & manato_sim::fighter::ASSERT_NOSHADOW != 0
         {

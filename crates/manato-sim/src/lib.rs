@@ -397,7 +397,49 @@ impl SimState {
     }
 
     pub fn other(&self, who: usize) -> usize {
-        1 - who
+        self.opponent_of(who)
+    }
+
+    pub fn opponent_of(&self, who: usize) -> usize {
+        if let Some(owner) = self.fighters.get(who).and_then(|fighter| fighter.owner) {
+            1 - owner
+        } else {
+            1 - who
+        }
+    }
+
+    pub fn root_of(&self, who: usize) -> usize {
+        self.fighters
+            .get(who)
+            .and_then(|fighter| fighter.root)
+            .unwrap_or(who)
+    }
+
+    pub fn parent_of(&self, who: usize) -> usize {
+        self.fighters
+            .get(who)
+            .and_then(|fighter| fighter.parent)
+            .unwrap_or(who)
+    }
+
+    pub fn is_helper(&self, who: usize) -> bool {
+        self.fighters
+            .get(who)
+            .map(|fighter| fighter.owner.is_some())
+            .unwrap_or(false)
+    }
+
+    pub fn helper_count(&self) -> usize {
+        self.fighters.len().saturating_sub(2)
+    }
+
+    pub fn helper_by_id(&self, owner: usize, id: i32) -> Option<usize> {
+        self.fighters
+            .iter()
+            .enumerate()
+            .skip(2)
+            .find(|(_, fighter)| fighter.owner == Some(owner) && fighter.helper_id == id)
+            .map(|(index, _)| index)
     }
 
     /// Advances the match by exactly one 60 Hz tick.
@@ -429,7 +471,7 @@ impl SimState {
             return;
         }
 
-        for who in 0..2 {
+        for who in 0..self.fighters.len() {
             if self.fighters[who].hit.hit_pause > 0 {
                 self.fighters[who].hit.hit_pause -= 1;
                 self.fighters[who].state_changed = false;
@@ -444,6 +486,11 @@ impl SimState {
 
         collision::resolve(self);
         self.separate_pushboxes();
+        self.fighters.retain(|fighter| {
+            fighter.owner.is_none()
+                || (!fighter.helper_destroy
+                    && (fighter.helper_remove_time < 0 || fighter.helper_remove_time > 0))
+        });
         for projectile in &mut self.projectiles {
             projectile.advance();
         }
@@ -481,6 +528,12 @@ impl SimState {
                 fighter.reversal_time -= 1;
                 if fighter.reversal_time <= 0 {
                     fighter.reversal = None;
+                }
+            }
+            if fighter.helper_remove_time > 0 {
+                fighter.helper_remove_time -= 1;
+                if fighter.helper_remove_time == 0 {
+                    fighter.helper_destroy = true;
                 }
             }
             // AssertSpecial is a per-tick assertion; states must re-assert it.
@@ -893,6 +946,7 @@ impl SimState {
     }
 
     fn start_round(&mut self) {
+        self.fighters.truncate(2);
         let stage = &self.assets.stage;
         for slot in 0..2 {
             let char = &self.assets.characters[slot];
@@ -1111,6 +1165,13 @@ impl SimState {
             h.write_bool(f.ctrl);
             h.write_bool(f.face_p2_pending);
             h.write_bool(f.player_push);
+            h.write_bool(f.owner.is_some());
+            if let Some(owner) = f.owner {
+                h.write_i32(owner as i32);
+            }
+            h.write_i32(f.helper_id);
+            h.write_i32(f.helper_remove_time);
+            h.write_bool(f.helper_destroy);
             h.write_bool(f.screen_bound.0);
             h.write_bool(f.screen_bound.1);
             h.write_f32(f.draw_offset.x);

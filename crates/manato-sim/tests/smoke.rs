@@ -398,6 +398,104 @@ fn reversal_and_trans_execute() {
 }
 
 #[test]
+fn helper_spawn_bind_and_remove() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("type".into(), "Helper".into()),
+            ("stateno".into(), "0".into()),
+            ("id".into(), "7".into()),
+            ("pos".into(), "10,0".into()),
+            ("postype".into(), "p1".into()),
+            ("removetime".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    assert_eq!(sim.fighters.len(), 3);
+    let helper_index = 2;
+    assert_eq!(sim.fighters[helper_index].owner, Some(0));
+    assert_eq!(sim.fighters[helper_index].helper_id, 7);
+    assert_eq!(
+        sim.fighters[helper_index].pos.x,
+        sim.fighters[0].pos.x + 10.0
+    );
+
+    let bind = manato_formats::Controller {
+        kind: "bindtoroot".into(),
+        params: vec![
+            ("type".into(), "BindToRoot".into()),
+            ("pos".into(), "0,-20".into()),
+        ],
+        line: 0,
+    };
+    sim.fighters[0].pos.x = -50.0;
+    manato_sim::controller::execute(&mut sim, helper_index, &bind, &assets);
+    assert_eq!(sim.fighters[helper_index].pos.x, -50.0);
+    assert_eq!(sim.fighters[helper_index].pos.y, -20.0);
+
+    let parent_var = manato_formats::Controller {
+        kind: "parentvarset".into(),
+        params: vec![
+            ("type".into(), "ParentVarSet".into()),
+            ("v".into(), "5".into()),
+            ("value".into(), "42".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &parent_var, &assets);
+    assert_eq!(sim.fighters[0].vars[5], 42);
+
+    for _ in 0..6 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters.len(), 2, "helper should expire");
+}
+
+#[test]
+fn helper_hitdef_damages_player() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    sim.fighters[0].pos.x = -20.0;
+    sim.fighters[1].pos.x = 20.0;
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("type".into(), "Helper".into()),
+            ("stateno".into(), "200".into()),
+            ("id".into(), "1".into()),
+            ("pos".into(), "0,0".into()),
+            ("postype".into(), "p1".into()),
+            ("removetime".into(), "60".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            break;
+        }
+    }
+    assert!(
+        sim.fighters[1].life < sim.fighters[1].life_max,
+        "helper HitDef should damage the player"
+    );
+}
+
+#[test]
 fn intro_locks_control() {
     let Some(mut sim) = load(
         "mugen-1.1b1/chars/kfm/kfm.def",

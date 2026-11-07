@@ -9,8 +9,11 @@ use crate::trigger::command_active;
 use crate::{SimState, SoundEvent, SoundSource};
 
 pub fn resolve(sim: &mut SimState) {
-    for attacker in 0..2 {
-        let defender = 1 - attacker;
+    for attacker in 0..sim.fighters.len() {
+        let defender = sim.opponent_of(attacker);
+        if defender >= 2 || attacker == defender {
+            continue;
+        }
         if !sim.fighters[attacker].active || !sim.fighters[defender].active {
             continue;
         }
@@ -395,8 +398,8 @@ pub fn resolve_projectiles(sim: &mut SimState) {
         if hits <= 0 {
             continue;
         }
-        let defender = 1 - owner;
-        if !sim.fighters[defender].active {
+        let defender = sim.opponent_of(owner);
+        if defender >= 2 || !sim.fighters[defender].active {
             continue;
         }
         if sim.fighters[defender].hit.not_hit_by.is_some()

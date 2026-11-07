@@ -110,14 +110,26 @@ fn redirect_target(sim: &SimState, who: usize, name: &str) -> usize {
     if lower == "enemy" || lower == "enemynear" || lower.starts_with("enemy(") {
         return sim.other(who);
     }
-    if lower == "self" || lower == "root" || lower == "parent" {
+    if lower == "self" {
         return who;
+    }
+    if lower == "root" {
+        return sim.root_of(who);
+    }
+    if lower == "parent" {
+        return sim.parent_of(who);
     }
     if lower == "target" || lower.starts_with("target(") || lower.starts_with("target,") {
         return sim.fighters[who].target.unwrap_or(who);
     }
     if lower.starts_with("helper") {
-        return who;
+        let id = lower
+            .split_once('(')
+            .and_then(|(_, rest)| rest.split_once(')'))
+            .and_then(|(value, _)| value.parse::<i32>().ok())
+            .unwrap_or(0);
+        let owner = sim.root_of(who);
+        return sim.helper_by_id(owner, id).unwrap_or(who);
     }
     // enemy / enemynear / playerid(n)
     if lower == "playerid" {
@@ -418,7 +430,12 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                     .count() as i32,
             )
         }
-        "numhelper" => Value::Int(0),
+        "numhelper" => Value::Int(
+            sim.fighters
+                .iter()
+                .filter(|fighter| fighter.owner == Some(sim.root_of(who)))
+                .count() as i32,
+        ),
         "projcontact" | "projhit" | "projguarded" | "projmiss" | "projcontacttime"
         | "projhittime" | "projguardedtime" | "projmissetime" => Value::Int(0),
         "numtarget" => Value::Int(sim.fighters[who].target.is_some() as i32),
@@ -495,8 +512,9 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Float(f.vel.y)
             }
         }
-        "ishelper" => Value::Int(0),
-        "playerid" => Value::Int(who as i32),
+        "ishelper" => Value::Int(sim.is_helper(who) as i32),
+        "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
+        "helperindex" => Value::Int(who.saturating_sub(2) as i32),
         "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause),
         _ => Value::Int(0),
     }
@@ -567,6 +585,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "hitcount"
             | "hitdefattr"
             | "hitbyattr"
+            | "helperindex"
             | "hitfall"
             | "hitvel"
             | "hitover"
@@ -701,8 +720,27 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "drawgame" => Value::Bool(sim.round.winner.is_none()),
         "teammode" => Value::Int(1),
         "ishometeam" => Value::Int(1),
-        "parentexist" => Value::Int(0),
-        "rootdist" | "parentdist" => Value::Float(0.0),
+        "parentexist" => Value::Int((sim.parent_of(who) != who) as i32),
+        "rootdist" => {
+            let root = sim.root_of(who);
+            if root == who {
+                Value::Float(0.0)
+            } else {
+                let a = sim.fighters[who].pos;
+                let b = sim.fighters[root].pos;
+                Value::Float(((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt())
+            }
+        }
+        "parentdist" => {
+            let parent = sim.parent_of(who);
+            if parent == who {
+                Value::Float(0.0)
+            } else {
+                let a = sim.fighters[who].pos;
+                let b = sim.fighters[parent].pos;
+                Value::Float(((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt())
+            }
+        }
         "camerazoom" => Value::Float(1.0),
         "camerapos" => Value::Float(sim.camera.x),
         "hitvel" => Value::Float(f.hit.vars.x_vel),
