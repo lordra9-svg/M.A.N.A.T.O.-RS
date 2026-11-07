@@ -1,0 +1,27 @@
+# Example M.A.N.A.T.O.-RS configuration.
+#
+# Copy this file, adjust the paths, then run:
+#   cargo run -p manato-app -- --config manato.toml
+#
+# Command-line flags override values from this file. Relative character and
+# stage paths are resolved against `root`; a relative `root` is resolved
+# against the directory containing this file.
+
+root = "/path/to/mugen"
+
+# Character definition files.
+p1 = "mugen-1.1b1/chars/kfm/kfm.def"
+p2 = "content/chars/nival/nival.def"
+
+# Stage definition file.
+stage = "content/stages/stage1.def"
+
+# CPU level for slot 2. Set to 0 for local two-player.
+ai = 6
+
+# Rounds needed to win and round timer in seconds.
+rounds = 2
+round_time = 99
+
+# Window integer scale (320x240 * scale).
+scale = 3

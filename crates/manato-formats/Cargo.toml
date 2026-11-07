@@ -1,0 +1,16 @@
+[package]
+name = "manato-formats"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "M.U.G.E.N asset and script parsers (DEF/CNS/CMD/AIR/SFF/SND)"
+
+[dependencies]
+manato-core = { path = "../manato-core" }
+anyhow.workspace = true
+thiserror.workspace = true
+log.workspace = true
+image.workspace = true
+png.workspace = true
+hound.workspace = true
+serde.workspace = true

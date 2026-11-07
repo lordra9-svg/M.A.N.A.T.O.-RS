@@ -1,0 +1,635 @@
+use std::collections::VecDeque;
+
+use manato_core::{Buttons, Dir8, PlayerInput, Rect, Vec2};
+use manato_formats::{Animation, Character, CommandDef, CommandStep, StateDef};
+
+use crate::hitdef::{HitDef, HitState};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateType {
+    #[default]
+    Stand,
+    Crouch,
+    Air,
+    Liedown,
+}
+
+impl StateType {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_uppercase().as_str() {
+            "S" => Some(Self::Stand),
+            "C" => Some(Self::Crouch),
+            "A" => Some(Self::Air),
+            "L" => Some(Self::Liedown),
+            "U" => None,
+            _ => None,
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Stand => "S",
+            Self::Crouch => "C",
+            Self::Air => "A",
+            Self::Liedown => "L",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MoveType {
+    #[default]
+    Idle,
+    Attack,
+    Hit,
+}
+
+impl MoveType {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_uppercase().as_str() {
+            "I" => Some(Self::Idle),
+            "A" => Some(Self::Attack),
+            "H" => Some(Self::Hit),
+            "U" => None,
+            _ => None,
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Idle => "I",
+            Self::Attack => "A",
+            Self::Hit => "H",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Physics {
+    #[default]
+    Stand,
+    Crouch,
+    Air,
+    None,
+}
+
+impl Physics {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_uppercase().as_str() {
+            "S" => Some(Self::Stand),
+            "C" => Some(Self::Crouch),
+            "A" => Some(Self::Air),
+            "N" => Some(Self::None),
+            "U" => None,
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AttackState {
+    pub hit_count: i32,
+    pub move_contact: bool,
+    pub move_hit: bool,
+    pub move_guarded: bool,
+    pub move_reversed: bool,
+    pub guard_count: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HistoryFrame {
+    pub input: PlayerInput,
+    pub dir: Dir8,
+    pub prev_dir: Dir8,
+    pub pressed_buttons: u8,
+    pub released_buttons: u8,
+}
+
+/// Mutable state of one fighter. This is the unit of rollback snapshots, so it
+/// must not contain references to OS resources or unordered collections.
+#[derive(Debug, Clone)]
+pub struct Fighter {
+    pub char_id: usize,
+    pub side: usize,
+    pub slot: usize,
+    pub active: bool,
+
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub facing: i32,
+
+    pub state_no: i32,
+    pub prev_state_no: i32,
+    pub state_time: i32,
+
+    pub anim_no: i32,
+    pub anim_clock: i32,
+    pub anim_frame: usize,
+    pub anim_time: i32,
+    pub anim_looped: i32,
+
+    pub ctrl: bool,
+    pub state_type: StateType,
+    pub move_type: MoveType,
+    pub physics: Physics,
+
+    pub life: i32,
+    pub life_max: i32,
+    pub power: f32,
+    pub defence_mul: f32,
+    pub attack_mul: f32,
+
+    pub vars: [i32; 60],
+    pub fvars: [f32; 40],
+    pub sysvars: [i32; 5],
+    pub sysfvars: [f32; 5],
+
+    pub juggle_points: i32,
+    pub sprite_priority: i32,
+    pub width_back: f32,
+    pub width_front: f32,
+    pub height: f32,
+    /// A `Width` controller override that lasts until the state changes.
+    pub width_override: Option<(f32, f32)>,
+
+    pub hitdef: Option<HitDef>,
+    pub hit: HitState,
+    pub attack: AttackState,
+
+    pub history: VecDeque<HistoryFrame>,
+    pub ctrl_exec: Vec<u32>,
+    pub extra_exec: [Vec<u32>; 3],
+    pub pos_freeze: i32,
+    pub assert_flags: u32,
+    pub target: Option<usize>,
+    pub pal_remap: Option<(i32, i32)>,
+
+    /// Set when the fighter changed state this tick (skip duplicate updates).
+    pub state_changed: bool,
+}
+
+impl Fighter {
+    pub fn new(
+        char: &Character,
+        char_id: usize,
+        side: usize,
+        slot: usize,
+        pos: Vec2,
+        facing: i32,
+    ) -> Self {
+        let life = char
+            .constants
+            .get_or("data.life", char.constants.get_or("life", 1000.0)) as i32;
+        let life = if life <= 0 { 1000 } else { life };
+        let mut f = Self {
+            char_id,
+            side,
+            slot,
+            active: true,
+            pos,
+            vel: Vec2::ZERO,
+            facing,
+            state_no: 0,
+            prev_state_no: 0,
+            state_time: 0,
+            anim_no: 0,
+            anim_clock: 0,
+            anim_frame: 0,
+            anim_time: 0,
+            anim_looped: 0,
+            ctrl: true,
+            state_type: StateType::Stand,
+            move_type: MoveType::Idle,
+            physics: Physics::Stand,
+            life,
+            life_max: life,
+            power: 0.0,
+            defence_mul: 1.0,
+            attack_mul: 1.0,
+            vars: [0; 60],
+            fvars: [0.0; 40],
+            sysvars: [0; 5],
+            sysfvars: [0.0; 5],
+            juggle_points: 0,
+            sprite_priority: 0,
+            width_back: char.constants.get_or("size.ground.back", 15.0),
+            width_front: char.constants.get_or("size.ground.front", 16.0),
+            height: char.constants.get_or("size.height", 60.0),
+            width_override: None,
+            hitdef: None,
+            hit: HitState::default(),
+            attack: AttackState::default(),
+            history: VecDeque::with_capacity(128),
+            ctrl_exec: Vec::new(),
+            extra_exec: [Vec::new(), Vec::new(), Vec::new()],
+            pos_freeze: 0,
+            assert_flags: 0,
+            target: None,
+            pal_remap: None,
+            state_changed: false,
+        };
+        f.enter_state(0, char, false);
+        f.ctrl = true;
+        f
+    }
+
+    pub fn alive(&self) -> bool {
+        self.life > 0
+    }
+
+    pub fn is_airborne(&self) -> bool {
+        self.pos.y < 0.0 || self.state_type == StateType::Air
+    }
+
+    pub fn relative_dir(&self) -> Dir8 {
+        self.history.back().map(|h| h.dir).unwrap_or(Dir8::Neutral)
+    }
+
+    pub fn held_input(&self) -> PlayerInput {
+        self.history.back().map(|h| h.input).unwrap_or_default()
+    }
+
+    pub fn append_input(&mut self, input: PlayerInput) {
+        let prev = self.history.back().copied();
+        let dir = Dir8::relative(input, self.facing);
+        let prev_dir = prev.map(|p| p.dir).unwrap_or(Dir8::Neutral);
+        let prev_buttons = prev.map(|p| p.input.buttons).unwrap_or(0);
+        let frame = HistoryFrame {
+            input,
+            dir,
+            prev_dir,
+            pressed_buttons: input.buttons & !prev_buttons,
+            released_buttons: !input.buttons & prev_buttons,
+        };
+        self.history.push_back(frame);
+        while self.history.len() > 180 {
+            self.history.pop_front();
+        }
+    }
+
+    pub fn enter_state(&mut self, number: i32, char: &Character, face_p2: bool) {
+        self.prev_state_no = self.state_no;
+        self.state_no = number;
+        self.state_time = 0;
+        self.state_changed = true;
+        self.ctrl_exec.clear();
+        self.attack = AttackState::default();
+        self.hitdef = None;
+        self.hit.hit_targets.clear();
+        self.width_override = None;
+
+        if let Some(state) = char.state(number) {
+            self.apply_state_def(state, char);
+            if state.get_i32("facep2").unwrap_or(0) != 0 && face_p2 {
+                // Facing is corrected by the simulation once the opponent is known.
+            }
+        } else if number >= 0 {
+            log::warn!("character {} has no statedef {number}", char.name());
+        }
+        if number == 0 {
+            self.ctrl = true;
+        }
+        self.refresh_widths(char);
+    }
+
+    pub fn change_state_override(
+        &mut self,
+        number: i32,
+        char: &Character,
+        ctrl: Option<bool>,
+        anim: Option<i32>,
+        velset: Option<Vec2>,
+        face_p2: bool,
+    ) {
+        self.enter_state(number, char, face_p2);
+        if let Some(c) = ctrl {
+            self.ctrl = c;
+        }
+        if let Some(a) = anim {
+            self.set_anim(a, char, None);
+        }
+        if let Some(v) = velset {
+            self.vel = v;
+        }
+    }
+
+    fn apply_state_def(&mut self, state: &StateDef, char: &Character) {
+        // Statedef defaults per the CNS docs: type = S, movetype = I,
+        // physics = N. An explicit "U" means "unchanged", so only absent keys
+        // get the default and a present-but-unparsable key keeps the old value.
+        self.state_type = match state.get("type") {
+            Some(v) => StateType::parse(v).unwrap_or(self.state_type),
+            None => StateType::Stand,
+        };
+        self.move_type = match state.get("movetype") {
+            Some(v) => MoveType::parse(v).unwrap_or(self.move_type),
+            None => MoveType::Idle,
+        };
+        self.physics = match state.get("physics") {
+            Some(v) => Physics::parse(v).unwrap_or(self.physics),
+            None => Physics::None,
+        };
+        if let Some(a) = state.get_i32("anim") {
+            self.set_anim(a, char, None);
+        }
+        if let Some(c) = state.get_i32("ctrl") {
+            self.ctrl = c != 0;
+        }
+        if let Some((x, y)) = state.get_pair("velset") {
+            self.vel = Vec2::new(x, y);
+        }
+        if let Some(p) = state.get_f32("poweradd") {
+            self.power = (self.power + p).min(3000.0);
+        }
+        if let Some(j) = state.get_i32("juggle") {
+            self.juggle_points = j;
+        }
+        if let Some(p) = state.get_i32("sprpriority") {
+            self.sprite_priority = p;
+        }
+        if let Some(p) = state.get_i32("facep2") {
+            if p != 0 {
+                self.facing = 1; // corrected by caller that knows the opponent
+            }
+        }
+    }
+
+    pub fn set_anim(&mut self, number: i32, char: &Character, elem: Option<i32>) {
+        self.anim_no = number;
+        self.anim_clock = 0;
+        self.anim_frame = 0;
+        self.anim_time = 0;
+        self.anim_looped = 0;
+        if let Some(e) = elem {
+            if let Some(anim) = char.animation(number) {
+                let idx = ((e - 1).max(0) as usize).min(anim.frames.len().saturating_sub(1));
+                let start = anim.frames[..idx]
+                    .iter()
+                    .fold(0i32, |acc, f| acc.saturating_add(f.effective_duration()));
+                self.anim_frame = idx;
+                self.anim_clock = start;
+                self.anim_time = start;
+            }
+        }
+        if char.animation(number).is_none() && number >= 0 {
+            log::debug!("character {} has no animation {number}", char.name());
+        }
+    }
+
+    pub fn current_anim<'a>(&self, char: &'a Character) -> Option<&'a Animation> {
+        char.animation(self.anim_no)
+    }
+
+    pub fn current_frame<'a>(&self, char: &'a Character) -> Option<&'a manato_formats::AnimFrame> {
+        let anim = self.current_anim(char)?;
+        anim.frames
+            .get(self.anim_frame.min(anim.frames.len().saturating_sub(1)))
+    }
+
+    /// `AnimElem` trigger (1-based).
+    pub fn anim_elem(&self) -> i32 {
+        self.anim_frame as i32 + 1
+    }
+
+    /// `AnimTime` trigger: ticks remaining in the whole animation. A finite
+    /// animation reports 0 for exactly one tick before it loops.
+    pub fn anim_time_remaining(&self, char: &Character) -> i32 {
+        let Some(anim) = self.current_anim(char) else {
+            return 0;
+        };
+        if anim.is_infinite() {
+            return -1;
+        }
+        (anim.total_time() - self.anim_time).max(0)
+    }
+
+    pub fn anim_elem_time(&self, char: &Character, elem: i32) -> i32 {
+        let Some(anim) = self.current_anim(char) else {
+            return -1000000;
+        };
+        if elem <= 0 || anim.frames.is_empty() || elem as usize > anim.frames.len() {
+            return -1000000;
+        }
+        let idx = elem as usize - 1;
+        let start = anim.frames[..idx]
+            .iter()
+            .fold(0i32, |acc, f| acc.saturating_add(f.effective_duration()));
+        self.anim_time - start
+    }
+
+    pub fn advance_anim(&mut self, char: &Character) {
+        let Some(anim) = char.animation(self.anim_no) else {
+            self.anim_clock = self.anim_clock.saturating_add(1);
+            return;
+        };
+        if anim.frames.is_empty() {
+            return;
+        }
+        self.anim_time = self.anim_time.saturating_add(1);
+        self.anim_clock = self.anim_time;
+        if anim.is_infinite() {
+            if let Some((idx, _)) = anim.frame_at(self.anim_time) {
+                self.anim_frame = idx;
+            }
+            return;
+        }
+        let total = anim.total_time();
+        if total <= 0 {
+            self.anim_frame = 0;
+            return;
+        }
+        if self.anim_time > total {
+            // The extra tick at `total` is where `AnimTime = 0` fires.
+            self.anim_time %= total;
+            self.anim_clock = self.anim_time;
+            self.anim_looped += 1;
+        }
+        if self.anim_time >= total {
+            self.anim_frame = anim.frames.len() - 1;
+            return;
+        }
+        if let Some((idx, _)) = anim.frame_at(self.anim_time) {
+            self.anim_frame = idx;
+        }
+    }
+
+    pub fn refresh_widths(&mut self, char: &Character) {
+        if let Some((back, front)) = self.width_override {
+            self.width_back = back;
+            self.width_front = front;
+            return;
+        }
+        if self.state_type == StateType::Air {
+            self.width_back = char.constants.get_or("size.air.back", 12.0);
+            self.width_front = char.constants.get_or("size.air.front", 12.0);
+        } else {
+            self.width_back = char.constants.get_or("size.ground.back", 15.0);
+            self.width_front = char.constants.get_or("size.ground.front", 16.0);
+        }
+    }
+
+    pub fn push_box(&self) -> Rect {
+        let (back, front) = if self.facing >= 0 {
+            (self.width_back, self.width_front)
+        } else {
+            (self.width_front, self.width_back)
+        };
+        Rect::new(
+            (self.pos.x - back).round() as i32,
+            (self.pos.y - self.height).round() as i32,
+            (self.pos.x + front).round() as i32,
+            self.pos.y.round() as i32,
+        )
+    }
+
+    /// Converts an animation-local collision box to world space.
+    pub fn world_box(&self, bx: &manato_formats::CollisionBox) -> Rect {
+        let mut r = bx.rect();
+        if self.facing < 0 {
+            r = r.mirror_x();
+        }
+        r.translate(self.pos.x.round() as i32, self.pos.y.round() as i32)
+    }
+
+    pub fn hit_pause(&self) -> i32 {
+        self.hit.hit_pause.max(self.hit.super_pause).max(0)
+    }
+
+    pub fn command_active(&self, name: &str) -> bool {
+        let lower = name.trim().to_ascii_lowercase();
+        match lower.as_str() {
+            "holdfwd" => return self.relative_dir().is_forward(),
+            "holdback" => return self.relative_dir().is_back(),
+            "holdup" => return self.relative_dir().is_up(),
+            "holddown" => return self.relative_dir().is_down(),
+            _ => {}
+        }
+        if self.history.is_empty() {
+            return false;
+        }
+        // Commands are stored on the character, not the fighter. The caller
+        // (SimState) passes the evaluated result of all matching definitions,
+        // so this method only covers pseudo-commands.
+        false
+    }
+
+    pub fn match_command(&self, def: &CommandDef) -> bool {
+        if def.steps.is_empty() || self.history.is_empty() {
+            return false;
+        }
+        let n = self.history.len();
+        let buffer = def.buffer_time.max(0) as usize;
+        let window = def.time.max(1) as usize + 2;
+        let window_start = n.saturating_sub(window + buffer + 1);
+        let last_step = *def.steps.last().unwrap();
+
+        // The final step may be buffered for `buffer.time` ticks.
+        let search_end = n.saturating_sub(1);
+        let search_start = n.saturating_sub(1 + buffer);
+        for last_idx in (search_start..=search_end).rev() {
+            if !step_matches(self.history.get(last_idx).unwrap(), last_step, true) {
+                continue;
+            }
+            let mut cursor = last_idx;
+            let mut ok = true;
+            let mut first = last_idx;
+            for step in def.steps[..def.steps.len() - 1].iter().rev() {
+                // Hold / release / pooled direction steps may share the frame
+                // with the following input; taps must be strictly earlier.
+                let start = if step.hold || step.pool4 || step.release {
+                    Some(cursor)
+                } else {
+                    cursor.checked_sub(1)
+                };
+                let Some(start) = start else {
+                    ok = false;
+                    break;
+                };
+                let mut found = None;
+                for j in (window_start..=start).rev() {
+                    if step_matches(self.history.get(j).unwrap(), *step, !step.hold) {
+                        found = Some(j);
+                        break;
+                    }
+                }
+                match found {
+                    Some(j) => {
+                        cursor = j;
+                        first = j;
+                    }
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            if ok && last_idx.saturating_sub(first) <= def.time.max(1) as usize {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+fn dir_matches(frame_dir: Dir8, want: Dir8, pool4: bool) -> bool {
+    if frame_dir == want {
+        return true;
+    }
+    if !pool4 {
+        return false;
+    }
+    matches!(
+        (want, frame_dir),
+        (Dir8::Down, Dir8::DnFwd | Dir8::DnBack)
+            | (Dir8::Fwd, Dir8::UpFwd | Dir8::DnFwd)
+            | (Dir8::Back, Dir8::UpBack | Dir8::DnBack)
+            | (Dir8::Up, Dir8::UpFwd | Dir8::UpBack)
+    )
+}
+
+fn step_matches(frame: &HistoryFrame, step: CommandStep, require_press: bool) -> bool {
+    if let Some(dir) = step.dir {
+        let matches = |d: Dir8| dir_matches(d, dir, step.pool4);
+        if step.release {
+            if !matches(frame.prev_dir) || matches(frame.dir) {
+                return false;
+            }
+        } else if step.hold {
+            if !matches(frame.dir) {
+                return false;
+            }
+        } else if require_press {
+            if !matches(frame.dir) || matches(frame.prev_dir) {
+                return false;
+            }
+        } else if !matches(frame.dir) {
+            return false;
+        }
+    }
+    if step.buttons != 0 {
+        if step.button_release {
+            if frame.released_buttons & step.buttons != step.buttons {
+                return false;
+            }
+        } else if frame.pressed_buttons & step.buttons != step.buttons {
+            return false;
+        }
+    }
+    true
+}
+
+/// Convenience: is this input pressing any of the given buttons?
+pub fn pressed(input: PlayerInput, prev: PlayerInput, buttons: u8) -> bool {
+    input.buttons & buttons != 0 && prev.buttons & buttons == 0
+}
+
+pub fn buttons_mask(buttons: &[u8]) -> u8 {
+    buttons.iter().fold(0, |a, b| a | b)
+}
+
+pub const ALL_BUTTONS: u8 = Buttons::ALL;
+
+/// `AssertSpecial` flags.
+pub const ASSERT_INVISIBLE: u32 = 1 << 0;
+pub const ASSERT_NOSHADOW: u32 = 1 << 1;
+pub const ASSERT_NOWALK: u32 = 1 << 2;

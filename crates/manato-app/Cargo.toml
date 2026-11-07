@@ -1,0 +1,33 @@
+[package]
+name = "manato-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "M.A.N.A.T.O.-RS executable"
+
+[features]
+default = []
+# Real audio output (requires ALSA development headers on Linux).
+audio = ["manato-audio/cpal-backend"]
+
+[[bin]]
+name = "manato"
+path = "src/main.rs"
+
+[dependencies]
+manato-core = { path = "../manato-core" }
+manato-formats = { path = "../manato-formats" }
+manato-sim = { path = "../manato-sim" }
+manato-render = { path = "../manato-render" }
+manato-audio = { path = "../manato-audio" }
+manato-net = { path = "../manato-net" }
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+winit.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+serde.workspace = true
+toml.workspace = true

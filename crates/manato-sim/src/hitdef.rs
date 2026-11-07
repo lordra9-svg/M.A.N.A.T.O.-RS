@@ -1,0 +1,356 @@
+use manato_core::{Rect, Vec2};
+use manato_formats::Controller;
+
+use crate::expr::{Expr, Value};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AnimType {
+    #[default]
+    Light,
+    Medium,
+    Heavy,
+    Back,
+    Up,
+    DiagUp,
+}
+
+impl AnimType {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "medium" => Self::Medium,
+            "hard" | "heavy" => Self::Heavy,
+            "back" => Self::Back,
+            "up" => Self::Up,
+            "diagup" => Self::DiagUp,
+            _ => Self::Light,
+        }
+    }
+
+    pub fn code(self) -> i32 {
+        match self {
+            Self::Light => 0,
+            Self::Medium => 1,
+            Self::Heavy => 2,
+            Self::Back => 3,
+            Self::Up => 4,
+            Self::DiagUp => 5,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GroundType {
+    #[default]
+    High,
+    Low,
+    Trip,
+}
+
+impl GroundType {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "low" => Self::Low,
+            "trip" => Self::Trip,
+            _ => Self::High,
+        }
+    }
+
+    pub fn code(self) -> i32 {
+        match self {
+            Self::High => 0,
+            Self::Low => 1,
+            Self::Trip => 2,
+        }
+    }
+}
+
+/// Attack attributes (`attr = S, NA`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HitAttr {
+    pub state_types: String,
+    pub class: String,
+}
+
+impl HitAttr {
+    pub fn parse(value: &str) -> Self {
+        let mut parts = value.split(',');
+        let state_types = parts.next().unwrap_or("").trim().to_ascii_uppercase();
+        let class = parts.next().unwrap_or("").trim().to_ascii_uppercase();
+        Self { state_types, class }
+    }
+
+    pub fn state_type_matches(&self, state: &str) -> bool {
+        self.state_types.contains(state)
+    }
+
+    pub fn class_matches(&self, class: &str) -> bool {
+        self.class.contains(class)
+    }
+}
+
+/// A parsed `HitDef` controller. The `activation` counter distinguishes two
+/// consecutive uses of the same attack so `hitonce` is evaluated per swing.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HitDef {
+    pub attr: HitAttr,
+    pub damage: i32,
+    pub guard_damage: i32,
+    pub anim_type: AnimType,
+    pub hitflag: String,
+    pub guardflag: String,
+    pub ground_type: GroundType,
+    pub air_type: GroundType,
+    pub ground_velocity: Vec2,
+    pub air_velocity: Vec2,
+    pub airguard_velocity: Vec2,
+    pub ground_hittime: i32,
+    pub air_hittime: i32,
+    pub ground_slidetime: i32,
+    pub guard_hittime: i32,
+    pub pausetime: (i32, i32),
+    pub sparkno: i32,
+    pub sparkxy: Vec2,
+    pub hitsound: (i32, i32),
+    pub guardsound: (i32, i32),
+    pub hitonce: bool,
+    pub fall: bool,
+    pub fall_recover: bool,
+    pub fall_time: i32,
+    pub fall_damage: i32,
+    pub fall_xvel: f32,
+    pub fall_yvel: f32,
+    pub air_juggle: i32,
+    pub priority: i32,
+    pub activation: u32,
+}
+
+impl Default for HitDef {
+    fn default() -> Self {
+        Self {
+            attr: HitAttr::default(),
+            damage: 0,
+            guard_damage: 0,
+            anim_type: AnimType::Light,
+            hitflag: "MAF".into(),
+            guardflag: "MA".into(),
+            ground_type: GroundType::High,
+            air_type: GroundType::High,
+            ground_velocity: Vec2::ZERO,
+            air_velocity: Vec2::ZERO,
+            airguard_velocity: Vec2::ZERO,
+            ground_hittime: 10,
+            air_hittime: 10,
+            ground_slidetime: 5,
+            guard_hittime: 10,
+            pausetime: (0, 0),
+            sparkno: -1,
+            sparkxy: Vec2::ZERO,
+            hitsound: (-1, -1),
+            guardsound: (-1, -1),
+            hitonce: false,
+            fall: false,
+            fall_recover: false,
+            fall_time: 0,
+            fall_damage: 0,
+            fall_xvel: 0.0,
+            fall_yvel: 0.0,
+            air_juggle: 0,
+            priority: 4,
+            activation: 0,
+        }
+    }
+}
+
+impl HitDef {
+    pub fn from_controller(c: &Controller, activation: u32) -> Self {
+        let mut h = Self {
+            activation,
+            ..Self::default()
+        };
+        for (key, value) in &c.params {
+            match key.as_str() {
+                "attr" => h.attr = HitAttr::parse(value),
+                "damage" => {
+                    let (dmg, guard) = parse_pair(value);
+                    h.damage = dmg as i32;
+                    h.guard_damage = guard as i32;
+                }
+                "animtype" => h.anim_type = AnimType::parse(value),
+                "hitflag" => h.hitflag = value.to_ascii_uppercase(),
+                "guardflag" => h.guardflag = value.to_ascii_uppercase(),
+                "ground.type" => h.ground_type = GroundType::parse(value),
+                "air.type" => h.air_type = GroundType::parse(value),
+                "ground.velocity" => h.ground_velocity = parse_vec(value),
+                "air.velocity" => h.air_velocity = parse_vec(value),
+                "airguard.velocity" => h.airguard_velocity = parse_vec(value),
+                "ground.hittime" => h.ground_hittime = parse_i32(value),
+                "air.hittime" => h.air_hittime = parse_i32(value),
+                "ground.slidetime" => h.ground_slidetime = parse_i32(value),
+                "guard.hittime" => h.guard_hittime = parse_i32(value),
+                "pausetime" => {
+                    let (a, b) = parse_pair(value);
+                    h.pausetime = (a as i32, b as i32);
+                }
+                "sparkno" => h.sparkno = parse_i32(value),
+                "sparkxy" => h.sparkxy = parse_vec(value),
+                "hitsound" => h.hitsound = parse_sound_pair(value),
+                "guardsound" => h.guardsound = parse_sound_pair(value),
+                "hitonce" => h.hitonce = parse_i32(value) != 0,
+                "fall" => h.fall = parse_i32(value) != 0,
+                "fall.recover" => h.fall_recover = parse_i32(value) != 0,
+                "fall.time" => h.fall_time = parse_i32(value),
+                "fall.damage" => h.fall_damage = parse_i32(value),
+                "fall.xvelocity" => h.fall_xvel = parse_f32(value),
+                "fall.yvelocity" => h.fall_yvel = parse_f32(value),
+                "air.juggle" => h.air_juggle = parse_i32(value),
+                "juggle" => h.air_juggle = h.air_juggle.max(parse_i32(value)),
+                "priority" => h.priority = parse_i32(value),
+                _ => {}
+            }
+        }
+        h
+    }
+
+    pub fn can_hit_air(&self) -> bool {
+        self.hitflag.contains('A')
+    }
+
+    pub fn can_guard_air(&self) -> bool {
+        self.guardflag.contains('A')
+    }
+
+    pub fn hit_clsn_area(&self) -> Rect {
+        Rect::default()
+    }
+}
+
+/// Values exposed through `GetHitVar(...)`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GetHitVars {
+    pub anim_type: i32,
+    pub ground_type: i32,
+    pub air_type: i32,
+    pub x_vel: f32,
+    pub y_vel: f32,
+    pub y_accel: f32,
+    pub hittime: i32,
+    pub slidetime: i32,
+    pub ctrltime: i32,
+    pub fall: bool,
+    pub fall_recover: bool,
+    pub fall_time: i32,
+    pub fall_damage: i32,
+    pub hitcount: i32,
+    pub guarded: bool,
+    pub hit_id: i32,
+    pub chain_id: i32,
+    pub is_bound: bool,
+    pub damage: i32,
+}
+
+impl GetHitVars {
+    pub fn get(&self, key: &str) -> Value {
+        match key.trim().to_ascii_lowercase().as_str() {
+            "animtype" => Value::Int(self.anim_type),
+            "groundtype" => Value::Int(self.ground_type),
+            "airtype" => Value::Int(self.air_type),
+            "xvel" => Value::Float(self.x_vel),
+            "yvel" => Value::Float(self.y_vel),
+            "yaccel" => Value::Float(self.y_accel),
+            "hittime" => Value::Int(self.hittime),
+            "slidetime" => Value::Int(self.slidetime),
+            "ctrltime" => Value::Int(self.ctrltime),
+            "fall" => Value::Int(self.fall as i32),
+            "fall.recover" => Value::Int(self.fall_recover as i32),
+            "fall.time" => Value::Int(self.fall_time),
+            "fall.damage" => Value::Int(self.fall_damage),
+            "hitcount" => Value::Int(self.hitcount),
+            "guarded" => Value::Int(self.guarded as i32),
+            "hitid" => Value::Int(self.hit_id),
+            "chainid" => Value::Int(self.chain_id),
+            "isbound" => Value::Int(self.is_bound as i32),
+            "damage" => Value::Int(self.damage),
+            _ => Value::Int(0),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+/// Runtime hit bookkeeping for one fighter.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HitState {
+    pub vars: GetHitVars,
+    pub hit_pause: i32,
+    pub super_pause: i32,
+    pub hit_shake_timer: i32,
+    pub hit_over_timer: i32,
+    pub guarding: bool,
+    pub guard_timer: i32,
+    pub invuln_timer: i32,
+    pub not_hit_by: Option<(String, i32)>,
+    pub hit_by: Option<(String, i32)>,
+    pub hit_override: Option<(String, i32)>,
+    /// Attackers already struck by the current HitDef activation.
+    pub hit_targets: Vec<usize>,
+    pub last_activation: u32,
+    /// Simulation frame on which this fighter last ran a `HitDef`.
+    pub last_activation_frame: i64,
+}
+
+/// Parses expressions used as numeric parameters, falling back to `default`.
+pub fn eval_param(expr: &str, default: f32, env: &mut impl FnMut(&Expr) -> Value) -> f32 {
+    match crate::expr::parse(expr) {
+        Ok(e) => env(&e).as_f32(),
+        Err(_) => expr.trim().parse().unwrap_or(default),
+    }
+}
+
+fn parse_f32(s: &str) -> f32 {
+    s.trim().parse().unwrap_or(0.0)
+}
+
+fn parse_i32(s: &str) -> i32 {
+    s.trim().parse().unwrap_or(0)
+}
+
+/// Parses `group, index` sound references, accepting the `S` prefix used by
+/// some characters for their own sound bank (`S1, 0`).
+fn parse_sound_pair(s: &str) -> (i32, i32) {
+    let mut it = s.split(',');
+    let group = it.next().unwrap_or("0").trim();
+    let group = group
+        .strip_prefix(['S', 's'])
+        .unwrap_or(group)
+        .parse()
+        .unwrap_or(-1);
+    let index = it.next().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+    (group, index)
+}
+
+fn parse_pair(s: &str) -> (f32, f32) {
+    let mut it = s.split(',');
+    let a = it.next().unwrap_or("0").trim().parse().unwrap_or(0.0);
+    let b = it.next().unwrap_or("0").trim().parse().unwrap_or(a);
+    (a, b)
+}
+
+fn parse_vec(s: &str) -> Vec2 {
+    let (x, y) = parse_pair(s);
+    Vec2::new(x, y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_sound_pair;
+
+    #[test]
+    fn parses_character_sound_prefix() {
+        assert_eq!(parse_sound_pair("S1, 0"), (1, 0));
+        assert_eq!(parse_sound_pair("s3,2"), (3, 2));
+        assert_eq!(parse_sound_pair("5, 1"), (5, 1));
+        assert_eq!(parse_sound_pair("bad"), (-1, 0));
+    }
+}

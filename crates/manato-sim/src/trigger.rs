@@ -1,0 +1,654 @@
+//! Trigger expression evaluation.
+//!
+//! Triggers are evaluated against a [`SimState`] and a fighter index. Redirects
+//! (`p2, life`, `enemy, stateno`, ...) switch the target fighter for the inner
+//! expression.
+
+use manato_core::{Dir8, Vec2, GAME_WIDTH};
+use manato_formats::{CommandDef, Controller};
+
+use crate::expr::{BinOp, Expr, UnOp, Value};
+use crate::hitdef::HitAttr;
+use crate::SimState;
+
+/// Parses and evaluates a raw trigger/parameter string. Parse failures fall
+/// back to treating the value as a literal string, which keeps unknown
+/// parameters harmless.
+pub fn eval_str(sim: &SimState, who: usize, source: &str) -> Value {
+    let text = source.trim();
+    if text.is_empty() {
+        return Value::Int(0);
+    }
+    match crate::expr::parse(text) {
+        Ok(expr) => eval(sim, who, &expr),
+        Err(_) => Value::Str(text.to_string()),
+    }
+}
+
+pub fn num(sim: &SimState, who: usize, source: &str) -> f32 {
+    eval_str(sim, who, source).as_f32()
+}
+
+pub fn int(sim: &SimState, who: usize, source: &str) -> i32 {
+    eval_str(sim, who, source).as_i32()
+}
+
+pub fn flag(sim: &SimState, who: usize, source: &str) -> bool {
+    eval_str(sim, who, source).truthy()
+}
+
+/// True when every `triggerall` passes and any numbered trigger group passes.
+pub fn triggers_met(sim: &SimState, who: usize, control: &Controller) -> bool {
+    let (all, groups) = control.trigger_groups();
+    for trigger in all {
+        if !flag(sim, who, trigger) {
+            return false;
+        }
+    }
+    if groups.is_empty() {
+        return true;
+    }
+    groups
+        .iter()
+        .any(|(_, list)| list.iter().all(|trigger| flag(sim, who, trigger)))
+}
+
+pub fn eval(sim: &SimState, who: usize, expr: &Expr) -> Value {
+    match expr {
+        Expr::Int(v) => Value::Int(*v),
+        Expr::Float(v) => Value::Float(*v),
+        Expr::Str(s) => Value::Str(s.clone()),
+        Expr::Ident(name) => {
+            let lower = name.to_ascii_lowercase();
+            if is_trigger_name(&lower) {
+                eval_trigger(sim, who, &lower, &[])
+            } else {
+                Value::Str(name.clone())
+            }
+        }
+        Expr::Unary(op, inner) => {
+            let v = eval(sim, who, inner);
+            match op {
+                UnOp::Not => Value::Bool(!v.truthy()),
+                UnOp::Neg => Value::Float(-v.as_f32()),
+                UnOp::BitNot => Value::Int(!v.as_i32()),
+            }
+        }
+        Expr::Binary(op, left, right) => eval_binary(sim, who, *op, left, right),
+        Expr::Call(name, args) => eval_call(sim, who, name, args),
+        Expr::Redirect(name, inner) => {
+            let target = redirect_target(sim, who, name);
+            eval(sim, target, inner)
+        }
+        Expr::Range { .. } => Value::Int(0),
+        Expr::List(items) => Value::Str(
+            items
+                .iter()
+                .map(|e| eval(sim, who, e).as_str())
+                .collect::<Vec<_>>()
+                .join(","),
+        ),
+    }
+}
+
+fn redirect_target(sim: &SimState, who: usize, name: &str) -> usize {
+    let lower = name.to_ascii_lowercase();
+    if lower == "p1" {
+        return 0;
+    }
+    if lower == "p2" {
+        return 1;
+    }
+    if lower == "self" || lower == "root" || lower == "parent" {
+        return who;
+    }
+    if lower == "target" || lower.starts_with("target(") || lower.starts_with("target,") {
+        return sim.fighters[who].target.unwrap_or(who);
+    }
+    if lower.starts_with("helper") {
+        return who;
+    }
+    // enemy / enemynear / playerid(n)
+    if lower == "playerid" {
+        return who;
+    }
+    sim.other(who)
+}
+
+fn eval_binary(sim: &SimState, who: usize, op: BinOp, left: &Expr, right: &Expr) -> Value {
+    // `command = "name"` is a special string comparison.
+    if let Expr::Ident(name) = left {
+        let lower = name.to_ascii_lowercase();
+        if lower == "command" {
+            let wanted = match right {
+                Expr::Str(s) => s.clone(),
+                _ => eval(sim, who, right).as_str(),
+            };
+            let active = command_active(sim, who, &wanted);
+            return Value::Bool(match op {
+                BinOp::Eq => active,
+                BinOp::Ne => !active,
+                _ => false,
+            });
+        }
+        if lower == "hitdefattr" {
+            if let Expr::List(items) = right {
+                let hitdef = sim.fighters[who].hitdef.clone().unwrap_or_default();
+                let ok = hitdefattr_matches(&hitdef.attr, sim, who, items);
+                return Value::Bool(if op == BinOp::Eq { ok } else { !ok });
+            }
+        }
+    }
+
+    // `x = [a,b)` ranges.
+    if let Expr::Range {
+        lo,
+        hi,
+        lo_incl,
+        hi_incl,
+    } = right
+    {
+        let v = eval(sim, who, left).as_f32();
+        let lo = eval(sim, who, lo).as_f32();
+        let hi = eval(sim, who, hi).as_f32();
+        let inside = (v > lo || (*lo_incl && v == lo)) && (v < hi || (*hi_incl && v == hi));
+        return Value::Bool(match op {
+            BinOp::Eq => inside,
+            BinOp::Ne => !inside,
+            _ => false,
+        });
+    }
+
+    let a = eval(sim, who, left);
+    let b = eval(sim, who, right);
+    binop(op, &a, &b)
+}
+
+fn hitdefattr_matches(attr: &HitAttr, sim: &SimState, who: usize, items: &[Expr]) -> bool {
+    if attr.state_types.is_empty() {
+        return false;
+    }
+    let first = items
+        .first()
+        .map(|e| eval(sim, who, e).as_str().to_ascii_uppercase())
+        .unwrap_or_default();
+    if !first.contains(&attr.state_types) {
+        return false;
+    }
+    if items.len() <= 1 {
+        return true;
+    }
+    items[1..].iter().any(|item| {
+        let wanted = eval(sim, who, item).as_str().to_ascii_uppercase();
+        !wanted.is_empty() && attr.class.contains(&wanted)
+    })
+}
+
+fn binop(op: BinOp, a: &Value, b: &Value) -> Value {
+    match op {
+        BinOp::Add => Value::Float(a.as_f32() + b.as_f32()),
+        BinOp::Sub => Value::Float(a.as_f32() - b.as_f32()),
+        BinOp::Mul => Value::Float(a.as_f32() * b.as_f32()),
+        BinOp::Div => {
+            let d = b.as_f32();
+            if d == 0.0 {
+                Value::Float(0.0)
+            } else {
+                Value::Float(a.as_f32() / d)
+            }
+        }
+        BinOp::Mod => {
+            let d = b.as_i32();
+            if d == 0 {
+                Value::Int(0)
+            } else {
+                Value::Int(a.as_i32() % d)
+            }
+        }
+        BinOp::Pow => Value::Float(a.as_f32().powf(b.as_f32())),
+        BinOp::And => Value::Bool(a.truthy() && b.truthy()),
+        BinOp::Or => Value::Bool(a.truthy() || b.truthy()),
+        BinOp::BitAnd => Value::Int(a.as_i32() & b.as_i32()),
+        BinOp::BitOr => Value::Int(a.as_i32() | b.as_i32()),
+        BinOp::BitXor => Value::Int(a.as_i32() ^ b.as_i32()),
+        BinOp::Eq | BinOp::Ne => {
+            let equal = values_equal(a, b);
+            Value::Bool(if op == BinOp::Eq { equal } else { !equal })
+        }
+        BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+            let (Some(x), Some(y)) = (numeric(a), numeric(b)) else {
+                return Value::Bool(false);
+            };
+            let result = match op {
+                BinOp::Lt => x < y,
+                BinOp::Le => x <= y,
+                BinOp::Gt => x > y,
+                BinOp::Ge => x >= y,
+                _ => unreachable!(),
+            };
+            Value::Bool(result)
+        }
+    }
+}
+
+fn numeric(v: &Value) -> Option<f64> {
+    match v {
+        Value::Int(i) => Some(*i as f64),
+        Value::Float(f) => Some(*f as f64),
+        Value::Bool(b) => Some(*b as i32 as f64),
+        Value::Str(s) => s.trim().parse().ok(),
+    }
+}
+
+fn values_equal(a: &Value, b: &Value) -> bool {
+    if let (Some(x), Some(y)) = (numeric(a), numeric(b)) {
+        return (x - y).abs() < 0.0001;
+    }
+    a.as_str().eq_ignore_ascii_case(&b.as_str())
+}
+
+fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
+    let lower = name.to_ascii_lowercase();
+    match lower.as_str() {
+        "const" => {
+            let key = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default();
+            let value = sim.character(who).constants.get(&key).unwrap_or(0.0);
+            Value::Float(value)
+        }
+        "ifelse" => {
+            if args.len() >= 3 && eval(sim, who, &args[0]).truthy() {
+                eval(sim, who, &args[1])
+            } else if args.len() >= 3 {
+                eval(sim, who, &args[2])
+            } else {
+                Value::Int(0)
+            }
+        }
+        "abs" => Value::Float(arg_f32(sim, who, args, 0).abs()),
+        "ceil" => Value::Float(arg_f32(sim, who, args, 0).ceil()),
+        "floor" => Value::Float(arg_f32(sim, who, args, 0).floor()),
+        "sqrt" => Value::Float(arg_f32(sim, who, args, 0).max(0.0).sqrt()),
+        "sin" => Value::Float(arg_f32(sim, who, args, 0).to_radians().sin()),
+        "cos" => Value::Float(arg_f32(sim, who, args, 0).to_radians().cos()),
+        "tan" => Value::Float(arg_f32(sim, who, args, 0).to_radians().tan()),
+        "atan" => Value::Float(arg_f32(sim, who, args, 0).atan().to_degrees()),
+        "exp" => Value::Float(arg_f32(sim, who, args, 0).exp()),
+        "log" | "ln" => Value::Float(arg_f32(sim, who, args, 0).max(0.0001).ln()),
+        "min" => Value::Float(arg_f32(sim, who, args, 0).min(arg_f32(sim, who, args, 1))),
+        "max" => Value::Float(arg_f32(sim, who, args, 0).max(arg_f32(sim, who, args, 1))),
+        "pow" => Value::Float(arg_f32(sim, who, args, 0).powf(arg_f32(sim, who, args, 1))),
+        "var" => {
+            let idx = arg_i32(sim, who, args, 0).clamp(0, 59) as usize;
+            Value::Int(sim.fighters[who].vars[idx])
+        }
+        "fvar" => {
+            let idx = arg_i32(sim, who, args, 0).clamp(0, 39) as usize;
+            Value::Float(sim.fighters[who].fvars[idx])
+        }
+        "sysvar" => {
+            let idx = arg_i32(sim, who, args, 0).clamp(0, 4) as usize;
+            Value::Int(sim.fighters[who].sysvars[idx])
+        }
+        "sysfvar" => {
+            let idx = arg_i32(sim, who, args, 0).clamp(0, 4) as usize;
+            Value::Float(sim.fighters[who].sysfvars[idx])
+        }
+        "animelemtime" => {
+            let elem = arg_i32(sim, who, args, 0);
+            let char = sim.character(who);
+            Value::Int(sim.fighters[who].anim_elem_time(char, elem))
+        }
+        "animexist" | "selfanimexist" => {
+            let n = arg_i32(sim, who, args, 0);
+            Value::Bool(sim.character(who).animation(n).is_some())
+        }
+        "gethitvar" => {
+            let key = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default();
+            sim.fighters[who].hit.vars.get(&key)
+        }
+        "numexplod" => Value::Int(
+            sim.effects
+                .iter()
+                .filter(|e| {
+                    e.owner == who
+                        && matches!(e.source, crate::EffectSource::Character(_))
+                        && (args.is_empty() || e.id == arg_i32(sim, who, args, 0))
+                })
+                .count() as i32,
+        ),
+        "numproj" | "numprojid" | "numhelper" => Value::Int(0),
+        "projcontact" | "projhit" | "projguarded" | "projmiss" | "projcontacttime"
+        | "projhittime" | "projguardedtime" | "projmissetime" => Value::Int(0),
+        "numtarget" => Value::Int(sim.fighters[who].target.is_some() as i32),
+        "random" => {
+            let x = sim
+                .frame
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407)
+                .wrapping_add(who as u64 * 7919);
+            Value::Int(((x >> 33) % 1000) as i32)
+        }
+        "p2bodydist" => {
+            let axis = axis_arg(sim, who, args);
+            let other = sim.other(who);
+            let a = &sim.fighters[who];
+            let b = &sim.fighters[other];
+            if axis.starts_with('x') {
+                let dx = (b.pos.x - a.pos.x).abs();
+                Value::Float((dx - a.width_front - b.width_back).max(0.0))
+            } else {
+                let dy = (b.pos.y - a.pos.y).abs();
+                Value::Float((dy - a.height).max(0.0))
+            }
+        }
+        "p2dist" => {
+            let axis = axis_arg(sim, who, args);
+            let other = sim.other(who);
+            let a = sim.fighters[who].pos;
+            let b = sim.fighters[other].pos;
+            let facing = sim.fighters[who].facing as f32;
+            if axis.starts_with('x') {
+                Value::Float((b.x - a.x) * facing)
+            } else {
+                Value::Float(b.y - a.y)
+            }
+        }
+        "p2screendist" => Value::Float(0.0),
+        "vel" => {
+            let axis = axis_arg(sim, who, args);
+            let f = &sim.fighters[who];
+            if axis.starts_with('x') {
+                Value::Float(f.vel.x * f.facing as f32)
+            } else {
+                Value::Float(f.vel.y)
+            }
+        }
+        "pos" => {
+            let axis = axis_arg(sim, who, args);
+            let f = &sim.fighters[who];
+            if axis.starts_with('x') {
+                Value::Float(f.pos.x)
+            } else if axis.starts_with('z') {
+                Value::Float(0.0)
+            } else {
+                Value::Float(f.pos.y)
+            }
+        }
+        "screenpos" => {
+            let axis = axis_arg(sim, who, args);
+            let f = &sim.fighters[who];
+            let p = sim.screen_pos(f.pos);
+            if axis.starts_with('x') {
+                Value::Float(p.x)
+            } else {
+                Value::Float(p.y)
+            }
+        }
+        "screenvel" => {
+            let axis = axis_arg(sim, who, args);
+            let f = &sim.fighters[who];
+            if axis.starts_with('x') {
+                Value::Float(f.vel.x)
+            } else {
+                Value::Float(f.vel.y)
+            }
+        }
+        "ishelper" => Value::Int(0),
+        "playerid" => Value::Int(who as i32),
+        "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause),
+        _ => Value::Int(0),
+    }
+}
+
+fn arg_f32(sim: &SimState, who: usize, args: &[Expr], index: usize) -> f32 {
+    args.get(index)
+        .map(|e| eval(sim, who, e).as_f32())
+        .unwrap_or(0.0)
+}
+
+fn arg_i32(sim: &SimState, who: usize, args: &[Expr], index: usize) -> i32 {
+    args.get(index)
+        .map(|e| eval(sim, who, e).as_i32())
+        .unwrap_or(0)
+}
+
+fn axis_arg(sim: &SimState, who: usize, args: &[Expr]) -> String {
+    args.first()
+        .map(|e| eval(sim, who, e).as_str().to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn is_trigger_name(name: &str) -> bool {
+    matches!(
+        name,
+        "ailevel"
+            | "alive"
+            | "anim"
+            | "animelem"
+            | "animtime"
+            | "author"
+            | "backedgebodydist"
+            | "backedgedist"
+            | "canrecover"
+            | "command"
+            | "ctrl"
+            | "drawpal"
+            | "facing"
+            | "frontedgebodydist"
+            | "frontedgedist"
+            | "hitcount"
+            | "hitdefattr"
+            | "hitfall"
+            | "hitover"
+            | "hitshakeover"
+            | "inguarddist"
+            | "ishelper"
+            | "life"
+            | "lifemax"
+            | "matchover"
+            | "movecontact"
+            | "moveguarded"
+            | "movehit"
+            | "movetype"
+            | "numenemy"
+            | "numexplod"
+            | "numhelper"
+            | "numpartner"
+            | "numproj"
+            | "numprojid"
+            | "numtarget"
+            | "p2anim"
+            | "p2bodydist"
+            | "p2ctrl"
+            | "p2dist"
+            | "p2facing"
+            | "p2life"
+            | "p2movetype"
+            | "p2prevstateno"
+            | "p2stateno"
+            | "p2statetype"
+            | "physics"
+            | "playerid"
+            | "pos"
+            | "power"
+            | "prevstateno"
+            | "random"
+            | "roundno"
+            | "roundsexisted"
+            | "roundstate"
+            | "screenpos"
+            | "screenvel"
+            | "stateno"
+            | "statetime"
+            | "statetype"
+            | "teamside"
+            | "time"
+            | "uniqhitcount"
+            | "vel"
+            | "winner"
+            | "loser"
+    )
+}
+
+fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value {
+    let f = &sim.fighters[who];
+    let other = sim.other(who);
+    let o = &sim.fighters[other];
+    match name {
+        "time" | "statetime" => Value::Int(f.state_time),
+        "stateno" => Value::Int(f.state_no),
+        "prevstateno" => Value::Int(f.prev_state_no),
+        "statetype" => Value::Str(f.state_type.code().to_string()),
+        "movetype" => Value::Str(f.move_type.code().to_string()),
+        "physics" => Value::Str(
+            match f.physics {
+                crate::fighter::Physics::Stand => "S",
+                crate::fighter::Physics::Crouch => "C",
+                crate::fighter::Physics::Air => "A",
+                crate::fighter::Physics::None => "N",
+            }
+            .to_string(),
+        ),
+        "ctrl" => Value::Bool(f.ctrl),
+        "alive" => Value::Bool(f.alive()),
+        "life" => Value::Int(f.life),
+        "lifemax" => Value::Int(f.life_max),
+        "power" => Value::Float(f.power),
+        "anim" => Value::Int(f.anim_no),
+        "animelem" => Value::Int(f.anim_elem()),
+        "animtime" => {
+            let char = sim.character(who);
+            Value::Int(f.anim_time_remaining(char))
+        }
+        "facing" => Value::Int(f.facing),
+        "pos" => Value::Float(f.pos.x),
+        "vel" => Value::Float(f.vel.x),
+        "movecontact" => Value::Bool(f.attack.move_contact),
+        "movehit" => Value::Bool(f.attack.move_hit),
+        "moveguarded" => Value::Bool(f.attack.move_guarded),
+        "hitcount" | "uniqhitcount" => Value::Int(f.attack.hit_count),
+        "hitfall" => Value::Bool(f.hit.vars.fall),
+        "hitover" => Value::Bool(hit_over(sim, who)),
+        "hitshakeover" => Value::Bool(hit_shake_over(sim, who)),
+        "canrecover" => Value::Bool(f.hit.vars.fall_recover && (5030..5050).contains(&f.state_no)),
+        "inguarddist" => Value::Bool(inguard_dist(sim, who)),
+        "matchover" => Value::Bool(sim.round.phase == crate::RoundPhase::Over),
+        "roundno" => Value::Int(sim.round.number as i32),
+        "roundsexisted" => Value::Int(sim.round.number.saturating_sub(1) as i32),
+        "roundstate" => Value::Int(sim.round.roundstate_code()),
+        "teamside" => Value::Int(f.side as i32 + 1),
+        "playerid" => Value::Int(who as i32),
+        "numenemy" => Value::Int(1),
+        "numpartner" => Value::Int(0),
+        "numtarget" => Value::Int(f.target.is_some() as i32),
+        "p2stateno" => Value::Int(o.state_no),
+        "p2prevstateno" => Value::Int(o.prev_state_no),
+        "p2statetype" => Value::Str(o.state_type.code().to_string()),
+        "p2movetype" => Value::Str(o.move_type.code().to_string()),
+        "p2life" => Value::Int(o.life),
+        "p2anim" => Value::Int(o.anim_no),
+        "p2ctrl" => Value::Bool(o.ctrl),
+        "p2facing" => Value::Int(o.facing),
+        "backedgedist" => Value::Float(edge_distance(sim, who, false, false)),
+        "frontedgedist" => Value::Float(edge_distance(sim, who, true, false)),
+        "backedgebodydist" => Value::Float(edge_distance(sim, who, false, true)),
+        "frontedgebodydist" => Value::Float(edge_distance(sim, who, true, true)),
+        "ailevel" => Value::Int(sim.options.ai_level),
+        "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
+        "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
+        "hitpausetime" => Value::Int(f.hit.hit_pause),
+        _ => Value::Int(0),
+    }
+}
+
+fn hit_over(sim: &SimState, who: usize) -> bool {
+    let f = &sim.fighters[who];
+    if f.move_type != crate::fighter::MoveType::Hit {
+        return true;
+    }
+    f.state_time >= f.hit.vars.hittime.max(1)
+}
+
+fn hit_shake_over(sim: &SimState, who: usize) -> bool {
+    let f = &sim.fighters[who];
+    f.state_time >= f.hit.vars.hittime.max(1)
+}
+
+fn inguard_dist(sim: &SimState, who: usize) -> bool {
+    let f = &sim.fighters[who];
+    let o = &sim.fighters[sim.other(who)];
+    let dx = (o.pos.x - f.pos.x).abs();
+    dx < 110.0 && (o.move_type == crate::fighter::MoveType::Attack || o.hitdef.is_some())
+}
+
+fn edge_distance(sim: &SimState, who: usize, front: bool, body: bool) -> f32 {
+    let f = &sim.fighters[who];
+    let half = GAME_WIDTH * 0.5;
+    let left = sim.camera.x - half;
+    let right = sim.camera.x + half;
+    let forward = f.facing >= 0;
+    let towards_right = front == forward;
+    if towards_right {
+        let edge = right - (f.pos.x + if body { f.width_front } else { 0.0 });
+        edge.max(0.0)
+    } else {
+        let edge = (f.pos.x - if body { f.width_back } else { 0.0 }) - left;
+        edge.max(0.0)
+    }
+}
+
+/// Checks a named command against the fighter's input history.
+pub fn command_active(sim: &SimState, who: usize, name: &str) -> bool {
+    let f = &sim.fighters[who];
+    let lower = name.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "holdfwd" => return f.relative_dir().is_forward(),
+        "holdback" => return f.relative_dir().is_back(),
+        "holdup" => return f.relative_dir().is_up(),
+        "holddown" => return f.relative_dir().is_down(),
+        _ => {}
+    }
+    sim.character(who)
+        .commands
+        .iter()
+        .any(|c: &CommandDef| c.name.eq_ignore_ascii_case(&lower) && f.match_command(c))
+}
+
+/// Absolute direction for a command relative to a facing (used by tests).
+pub fn command_dir(facing: i32, dir: Dir8) -> Vec2 {
+    let x = match dir {
+        Dir8::Fwd | Dir8::UpFwd | Dir8::DnFwd => facing as f32,
+        Dir8::Back | Dir8::UpBack | Dir8::DnBack => -(facing as f32),
+        _ => 0.0,
+    };
+    let y = match dir {
+        Dir8::Up | Dir8::UpFwd | Dir8::UpBack => -1.0,
+        Dir8::Down | Dir8::DnFwd | Dir8::DnBack => 1.0,
+        _ => 0.0,
+    };
+    Vec2::new(x, y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn value_helpers() {
+        assert_eq!(Value::Int(3).as_i32(), 3);
+        assert!(Value::Str("A".into()).truthy());
+        assert!(!Value::Str("0".into()).truthy());
+    }
+}

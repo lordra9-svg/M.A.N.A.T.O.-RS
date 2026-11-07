@@ -1,0 +1,16 @@
+[package]
+name = "manato-net"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "GGRS rollback integration for M.A.N.A.T.O.-RS"
+
+[dependencies]
+manato-core = { path = "../manato-core" }
+manato-sim = { path = "../manato-sim" }
+ggrs.workspace = true
+anyhow.workspace = true
+log.workspace = true
+serde.workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "manato-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic M.U.G.E.N-compatible match simulation"
+
+[dependencies]
+manato-core = { path = "../manato-core" }
+manato-formats = { path = "../manato-formats" }
+anyhow.workspace = true
+log.workspace = true
+serde.workspace = true

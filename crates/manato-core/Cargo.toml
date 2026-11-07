@@ -1,0 +1,9 @@
+[package]
+name = "manato-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic primitives shared by the M.A.N.A.T.O.-RS engine"
+
+[dependencies]
+serde.workspace = true
