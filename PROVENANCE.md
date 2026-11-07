@@ -6,36 +6,38 @@ binaries, or game assets.
 
 > Not affiliated with Elecbyte. M.U.G.E.N is a trademark of Elecbyte.
 
-## Reference used
+## Current source policy
 
-M.U.G.E.N itself is closed source. This project used four sources of
-behavioral knowledge:
+M.U.G.E.N itself is closed source. The current strict-clean-room policy allows:
 
-1. **Public format documentation and community knowledge** for file layouts,
+1. **Ikemen-GO** (https://github.com/ikemen-engine/Ikemen-GO, MIT licensed) as
+   the primary engine reference and black-box oracle.
+2. **Public format documentation and community knowledge** for file layouts,
    trigger/controller semantics, and the coordinate system.
-2. **Stock and user-provided content** as input data. Content is read in place
-   from the user's M.U.G.E.N installation and is never copied into this
-   repository.
-3. **The `mugen-reimpl` C reference** supplied with the project, consulted for
-   ambiguous behavior (for example SFF v2 sprite prefixes, palette handling, and
-   air-state landing rules). No C code was copied or transliterated into Rust;
-   the Rust modules were written against the observed behavior and validated by
-   running the same content.
-4. **Ikemen-GO** (https://github.com/ikemen-engine/Ikemen-GO, MIT licensed) as a
-   second compatibility reference, especially for `Projectile`/`HitDef`
-   semantics, guard behavior, and M.U.G.E.N 1.1 compatibility. Its source is Go,
-   not C; no Ikemen-GO code was copied or transliterated into Rust.
+3. **Stock and user-provided content** as input data. Content is read in place
+   from the user's M.U.G.E.N installation and is not copied into the engine.
+4. **Derived black-box assertions** recorded from Ikemen-GO behavior. Raw
+   oracle traces and screenshots are not committed.
 
-Important provenance detail: the `mugen-reimpl` README states that its
-architecture was **derived from REA/Ghidra analysis of M.U.G.E.N 1.1b1, 1.0,
-and WinMUGEN Plus binaries**. The reference tree also contains no
-`LICENSE`/`COPYING` file.
+No M.U.G.E.N binaries are used as an oracle. No decompilation or disassembly is
+performed.
 
-This project did not run Ghidra or REA, and did not decompile or disassemble any
-M.U.G.E.N executable. However, because the same contributors read the
-reverse-engineered C reference, read the MIT-licensed Ikemen-GO reference, and
-wrote the Rust code, **this is not a strict clean-room implementation**. It should be described as an independent,
-behavior-compatible reimplementation with a documented reference.
+## Historical note
+
+An early prototype consulted `mugen-reimpl`, a C reference whose README states
+that its architecture was derived from REA/Ghidra analysis of M.U.G.E.N 1.1b1,
+1.0, and WinMUGEN Plus binaries. That checkout has been deleted. The subsystems
+influenced by it are listed in `CLEANROOM_SPEC.md` and are scheduled for
+rewrite from the frozen MIT/docs specification. No `mugen-reimpl` code or binary
+is used going forward.
+
+## Clean-room status
+
+The project now follows a spec-first process: subsystem behavior is written in
+`docs/spec/` from allowed sources, frozen, and then implemented. Because the
+same contributors write the specification and the implementation, this is not a
+legally separated clean room; that limitation is recorded in
+`CLEANROOM_SPEC.md` rather than hidden.
 
 ## Provenance of specific decisions
 
@@ -78,7 +80,7 @@ behavior-compatible reimplementation with a documented reference.
 ## What was deliberately not done
 
 - This project did not decompile or disassemble M.U.G.E.N executables.
-- No `mugen-reimpl` C functions were copied into Rust.
+- No `mugen-reimpl` C functions were copied into Rust; its checkout is deleted.
 - No stock or unlicensed copyrighted sprites, sounds, scripts, or stages were bundled.
 - No attempt was made to replicate undocumented engine bugs; compatibility is
   driven by content behavior and public semantics.
@@ -88,5 +90,6 @@ behavior-compatible reimplementation with a documented reference.
 - Keep any external/stock content directory out of the repository.
 - The bundled characters, sound banks, fight effects, common sounds, and
   Training Grid stage are all MIT licensed.
-- Do not describe this project as strict clean-room; the reference lineage above
-  makes that claim inaccurate.
+- Do not claim legally separated clean-room status until the subsystems listed in
+  `CLEANROOM_SPEC.md` have been rewritten and reviewed. The current status is
+  spec-first with a documented historical reference.

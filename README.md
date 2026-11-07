@@ -103,8 +103,10 @@ command-line flags override file values.
 | `manato-audio` | Event-driven mixer with PulseAudio output (optional `cpal` backend) |
 | `manato-app` | CLI, headless runner, winit window, input |
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and
-[`PROVENANCE.md`](PROVENANCE.md) for the reference and licensing notes.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design,
+[`CLEANROOM_SPEC.md`](CLEANROOM_SPEC.md) for the current clean-room process,
+[`COMPATIBILITY.md`](COMPATIBILITY.md) for the M.U.G.E.N/Ikemen-GO matrix, and
+[`PROVENANCE.md`](PROVENANCE.md) for provenance and licensing notes.
 
 ## Audio
 
