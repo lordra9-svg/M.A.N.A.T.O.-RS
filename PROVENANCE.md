@@ -55,15 +55,18 @@ behavior-compatible reimplementation with a documented reference.
 ## Assets and licensing
 
 - The engine code and tools are MIT licensed (see `LICENSE`).
-- No M.U.G.E.N content is distributed with this repository. Characters, stages,
-  sprites, sounds, and scripts are loaded from a user-supplied root.
-- Stock content (for example `mugen-1.1b1/chars/kfm`) remains the property of
-  its original authors and is used only as local test input.
-- Original test characters and the Training Stage are referenced from the
-  project's external content directory and are not vendored here.
-- The custom characters' sound banks are original synthesized effects. They are
-  produced by `tools/gen_sfx.py` and live in the external content directory, not
-  in this repository.
+- The bundled characters in `content/chars/kaen`, `content/chars/nival`, and
+  `content/chars/ordan` are original works by the M.A.N.A.T.O.-RS contributors
+  and are MIT licensed. Their `common.cns` is an original minimal common-state
+  file, not a copy of Elecbyte's `common1.cns`.
+- The bundled character sound banks are original synthesized effects generated
+  by `tools/gen_sfx.py`; they are MIT licensed with the characters.
+- The bundled Training Stage in `content/stages/training` is by **Gacel** and is
+  licensed under **CC BY 3.0**, separate from the MIT character files. See its
+  `ATTRIBUTION.md`.
+- No stock M.U.G.E.N content is distributed with this repository. Stock
+  characters, stages, sprites, sounds, and scripts can be loaded from a
+  user-supplied root and remain the property of their original authors.
 - Third-party Rust dependencies retain their own licenses. Run
   `cargo deny check licenses` (or `cargo license`) before redistributing a
   binary.
@@ -72,14 +75,14 @@ behavior-compatible reimplementation with a documented reference.
 
 - This project did not decompile or disassemble M.U.G.E.N executables.
 - No `mugen-reimpl` C functions were copied into Rust.
-- No copyrighted sprites, sounds, scripts, or stages were bundled.
+- No stock or unlicensed copyrighted sprites, sounds, scripts, or stages were bundled.
 - No attempt was made to replicate undocumented engine bugs; compatibility is
   driven by content behavior and public semantics.
 
 ## Publishing notes
 
-- Keep the external content directory out of the repository.
-- If you distribute the generated character sound banks separately, include
-  `tools/gen_sfx.py` and state their license.
+- Keep any external/stock content directory out of the repository.
+- The bundled characters and their generated sound banks are MIT; the Training
+  Stage is CC BY 3.0 and must keep its attribution.
 - Do not describe this project as strict clean-room; the reference lineage above
   makes that claim inaccurate.

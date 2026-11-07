@@ -1,0 +1,27 @@
+; License: MIT
+
+[Info]
+name = "Nival, the Frost Weaver"
+displayname = "Nival, the Frost Weaver"
+versiondate = 01,01,2026
+mugenversion = 1.0
+author = "M.A.N.A.T.O.-RS contributors"
+pal.defaults = 1
+localcoord = 320,240
+
+[Files]
+cmd     = nival.cmd
+cns     = nival.cns
+st      = nival.cns
+stcommon = common.cns
+sprite  = nival.sff
+anim    = nival.air
+sound   = nival.snd
+
+[Palette Keymap]
+x = 1
+y = 2
+z = 3
+a = 4
+b = 5
+c = 6

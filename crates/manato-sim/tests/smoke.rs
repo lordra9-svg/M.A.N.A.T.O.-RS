@@ -7,7 +7,7 @@ fn mugen_root() -> PathBuf {
     std::env::var("MANATO_MUGEN_ROOT")
         .or_else(|_| std::env::var("MUGEN_ROOT"))
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("mugen"))
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."))
 }
 
 fn load(p1: &str, p2: &str) -> Option<SimState> {
@@ -16,11 +16,14 @@ fn load(p1: &str, p2: &str) -> Option<SimState> {
         mugen_root: root.clone(),
         p1: PathBuf::from(p1),
         p2: PathBuf::from(p2),
-        stage: PathBuf::from("content/stages/stage1.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
         rounds_to_win: 2,
         round_time: 99,
     };
-    if !config.p1.exists() || !config.p2.exists() {
+    let p1_path = root.join(p1);
+    let p2_path = root.join(p2);
+    let stage_path = root.join("content/stages/training/stage1.def");
+    if !p1_path.exists() || !p2_path.exists() || !stage_path.exists() {
         eprintln!("skipping: content not present at {}", root.display());
         return None;
     }
@@ -74,6 +77,35 @@ fn custom_characters_fight() {
         return;
     };
     run(sim, 3000, 6);
+}
+
+#[test]
+fn bundled_characters_fight() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let start_life = [sim.fighters[0].life, sim.fighters[1].life];
+    let mut min_life = start_life;
+    let mut heard_hit = false;
+    for _ in 0..1_800 {
+        sim.tick([ai::input_for(&sim, 0, 6), ai::input_for(&sim, 1, 6)]);
+        for event in &sim.sounds {
+            if matches!(event.source, manato_sim::SoundSource::Character(_)) && event.group == 5 {
+                heard_hit = true;
+            }
+        }
+        for (i, fighter) in sim.fighters.iter().enumerate() {
+            min_life[i] = min_life[i].min(fighter.life);
+        }
+    }
+    assert!(
+        min_life[0] < start_life[0] || min_life[1] < start_life[1],
+        "bundled characters dealt no damage"
+    );
+    assert!(heard_hit, "bundled characters emitted no hit sound");
 }
 
 #[test]

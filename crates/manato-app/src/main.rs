@@ -38,10 +38,10 @@ impl Default for Options {
         Self {
             root: std::env::var_os("MUGEN_ROOT")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("mugen")),
-            p1: "mugen-1.1b1/chars/kfm/kfm.def".into(),
+                .unwrap_or_else(|| PathBuf::from(".")),
+            p1: "content/chars/kaen/kaen.def".into(),
             p2: "content/chars/nival/nival.def".into(),
-            stage: "content/stages/stage1.def".into(),
+            stage: "content/stages/training/stage1.def".into(),
             ai_level: 6,
             rounds: 2,
             round_time: 99,
@@ -200,7 +200,7 @@ Usage: manato [OPTIONS]
 
 Content:
   --config <toml>     Load defaults from a TOML config file
-  --root <dir>        M.U.G.E.N content root (default $MUGEN_ROOT or ./mugen)
+  --root <dir>        Content root (default $MUGEN_ROOT or the repo root)
   --p1 <def>          Player 1 character definition
   --p2 <def>          Player 2 character definition
   --stage <def>       Stage definition

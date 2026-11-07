@@ -1,0 +1,27 @@
+; License: MIT
+
+[Info]
+name = "Ordan, the Stone Anchor"
+displayname = "Ordan, the Stone Anchor"
+versiondate = 01,01,2026
+mugenversion = 1.0
+author = "M.A.N.A.T.O.-RS contributors"
+pal.defaults = 1
+localcoord = 320,240
+
+[Files]
+cmd     = ordan.cmd
+cns     = ordan.cns
+st      = ordan.cns
+stcommon = common.cns
+sprite  = ordan.sff
+anim    = ordan.air
+sound   = ordan.snd
+
+[Palette Keymap]
+x = 1
+y = 2
+z = 3
+a = 4
+b = 5
+c = 6

@@ -1,0 +1,148 @@
+; M.A.N.A.T.O.-RS minimal common states
+; MIT License
+; Copyright (c) 2026 M.A.N.A.T.O.-RS contributors
+;
+; This is an original, deliberately small common state file for the bundled
+; characters. It implements only the states used by the M.A.N.A.T.O.-RS
+; simulation: stand, crouch, walk, jump, land, guard, and hit reactions.
+
+[Statedef 0]
+type    = S
+physics = S
+anim    = 0
+ctrl    = 1
+sprpriority = 0
+
+[Statedef 10]
+type    = C
+physics = C
+anim    = 10
+ctrl    = 1
+sprpriority = 0
+
+[Statedef 20]
+type    = S
+physics = S
+anim    = 20
+ctrl    = 1
+sprpriority = 0
+
+
+[State 20, Walk forward]
+type = VelSet
+trigger1 = command = "holdfwd"
+x = const(velocity.walk.fwd.x)
+
+[State 20, Walk backward]
+type = VelSet
+trigger1 = command = "holdback"
+x = const(velocity.walk.back.x)
+
+[Statedef 40]
+type    = S
+physics = S
+anim    = 40
+ctrl    = 0
+sprpriority = 1
+facep2  = 1
+
+[State 40, Jump velocity]
+type = VelSet
+trigger1 = AnimTime = 0
+x = 0
+y = const(velocity.jump.neu.y)
+
+[State 40, Start jump]
+type = ChangeState
+trigger1 = AnimTime = 0
+value = 50
+ctrl = 1
+
+[Statedef 50]
+type    = A
+physics = A
+anim    = 41
+ctrl    = 0
+
+[Statedef 52]
+type    = S
+physics = S
+anim    = 47
+ctrl    = 0
+
+[State 52, Land]
+type = VelSet
+trigger1 = Time = 0
+y = 0
+
+[State 52, End]
+type = ChangeState
+trigger1 = AnimTime = 0
+value = 0
+ctrl = 1
+
+[Statedef 150]
+type    = S
+movetype= H
+physics = N
+anim    = 150
+ctrl    = 0
+
+[State 150, End]
+type = ChangeState
+trigger1 = AnimTime = 0
+value = 0
+ctrl = 1
+
+[Statedef 152]
+type    = C
+movetype= H
+physics = N
+anim    = 152
+ctrl    = 0
+
+[State 152, End]
+type = ChangeState
+trigger1 = AnimTime = 0
+value = 0
+ctrl = 1
+
+[Statedef 154]
+type    = A
+movetype= H
+physics = A
+anim    = 155
+ctrl    = 0
+
+[Statedef 5000]
+type    = S
+movetype= H
+physics = N
+anim    = 5000
+ctrl    = 0
+
+[State 5000, End]
+type = ChangeState
+trigger1 = AnimTime = 0
+value = 0
+ctrl = 1
+
+[Statedef 5010]
+type    = C
+movetype= H
+physics = N
+anim    = 5010
+ctrl    = 0
+
+[State 5010, End]
+type = ChangeState
+trigger1 = AnimTime = 0
+value = 0
+ctrl = 1
+
+[Statedef 5020]
+type    = A
+movetype= H
+physics = A
+anim    = 5020
+ctrl    = 0

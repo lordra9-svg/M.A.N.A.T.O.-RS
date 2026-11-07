@@ -48,7 +48,7 @@ impl MatchConfig {
         Self {
             p1: PathBuf::from("content/chars/kaen/kaen.def"),
             p2: PathBuf::from("content/chars/nival/nival.def"),
-            stage: PathBuf::from("content/stages/stage1.def"),
+            stage: PathBuf::from("content/stages/training/stage1.def"),
             mugen_root: root,
             rounds_to_win: DEFAULT_ROUNDS_TO_WIN,
             round_time: DEFAULT_ROUND_TIME,

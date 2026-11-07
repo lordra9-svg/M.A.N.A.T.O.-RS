@@ -8,15 +8,17 @@ engine in Rust, built on `winit` + `wgpu` with GGRS rollback netcode.
 
 The current milestone is a playable vertical slice:
 
-- Stock **Kung Fu Man** versus the original character **Nival, the Frost Warden**
-- The custom **Training Stage** (`stage1.def`)
-- Stock and custom characters can be mixed freely (Kaen, Ordan, Ryu are also
-  supported by the loader)
-- Life/power/timer HUD, rounds, KO flow, hit sparks, sound events, CPU opponent
+- Three original characters: **Kaen**, **Nival**, and **Ordan**
+- The bundled **Training Stage**
+- Stock M.U.G.E.N characters can still be loaded by pointing `--root` at a
+  stock installation
+- Life/power/timer HUD, rounds, KO flow, hit reactions, sound events, CPU opponent
 - Deterministic simulation verified through GGRS rollback (`--synctest`)
 
-Content is **referenced in place**; no M.U.G.E.N assets are copied into this
-repository.
+The three characters and their common state file are MIT licensed and live in
+[`content/`](content/). The Training Stage is CC BY 3.0 by Gacel; see
+[`content/stages/training/ATTRIBUTION.md`](content/stages/training/ATTRIBUTION.md).
+No stock M.U.G.E.N assets are included.
 
 ## Quick start
 
@@ -29,20 +31,26 @@ Requirements:
   to silence when neither is available
 - Optional: ALSA development headers only if you enable the `cpal` backend
 
-There is no bundled game content. Point the engine at an existing M.U.G.E.N
-installation with `MUGEN_ROOT` or `--root` (the default is `./mugen`).
+The repository bundles three original characters (Kaen, Nival, and Ordan) and
+their training stage, so it runs out of the box:
 
 ```sh
-export MUGEN_ROOT=/path/to/mugen
-
 # Headless: run 600 ticks and save the final 320x240 frame.
 cargo run -q -p manato-app -- --frames 600 --screenshot out.png
 
-# Windowed play.
+# Windowed play: Kaen vs Nival.
 cargo run -q -p manato-app
 
 # Rollback determinism check.
 cargo run -q -p manato-app -- --synctest 600
+```
+
+To use a stock M.U.G.E.N installation instead, point `MUGEN_ROOT` or `--root`
+at it and select characters explicitly:
+
+```sh
+export MUGEN_ROOT=/path/to/mugen
+cargo run -q -p manato-app --   --p1 mugen-1.1b1/chars/kfm/kfm.def   --p2 content/chars/nival/nival.def   --stage content/stages/training/stage1.def
 ```
 
 The window opens at `320x240 * scale` (default scale 3). `F12` saves a
@@ -64,7 +72,7 @@ manato [OPTIONS]
 
 Content:
   --config <toml>     Load defaults from a TOML config file
-  --root <dir>        M.U.G.E.N content root (default $MUGEN_ROOT or ./mugen)
+  --root <dir>        Content root (default $MUGEN_ROOT or the repo root)
   --p1 <def>          Player 1 character definition
   --p2 <def>          Player 2 character definition
   --stage <def>       Stage definition
@@ -123,11 +131,11 @@ time.
 ## Tests
 
 ```sh
-MUGEN_ROOT=/path/to/mugen cargo test --workspace
+cargo test --workspace
 ```
 
-Unit tests always run. Content-dependent tests skip when the content root is
-not available.
+Unit tests always run. The bundled character tests use `content/`; stock
+M.U.G.E.N tests skip unless `MUGEN_ROOT` points at a stock installation.
 
 ## License
 

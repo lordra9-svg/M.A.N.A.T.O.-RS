@@ -7,14 +7,14 @@
 # stage paths are resolved against `root`; a relative `root` is resolved
 # against the directory containing this file.
 
-root = "/path/to/mugen"
+root = "."
 
 # Character definition files.
-p1 = "mugen-1.1b1/chars/kfm/kfm.def"
+p1 = "content/chars/kaen/kaen.def"
 p2 = "content/chars/nival/nival.def"
 
 # Stage definition file.
-stage = "content/stages/stage1.def"
+stage = "content/stages/training/stage1.def"
 
 # CPU level for slot 2. Set to 0 for local two-player.
 ai = 6

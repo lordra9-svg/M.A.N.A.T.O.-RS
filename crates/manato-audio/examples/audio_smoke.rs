@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     let root = std::env::var_os("MANATO_MUGEN_ROOT")
         .or_else(|| std::env::var_os("MUGEN_ROOT"))
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("mugen"));
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
     let p1 = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "content/chars/kaen/kaen.def".into());

@@ -6,7 +6,7 @@ fn mugen_root() -> Option<PathBuf> {
     let root = std::env::var_os("MANATO_MUGEN_ROOT")
         .or_else(|| std::env::var_os("MUGEN_ROOT"))
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("mugen"));
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
     root.exists().then_some(root)
 }
 
@@ -16,11 +16,15 @@ fn loads_stock_kfm_and_stage() {
         eprintln!("skipping: M.U.G.E.N content root not available");
         return;
     };
+    let kfm_def = root.join("mugen-1.1b1/chars/kfm/kfm.def");
+    if !kfm_def.exists() {
+        eprintln!("skipping: stock M.U.G.E.N content not available");
+        return;
+    }
     let data = root.join("mugen-1.1b1/data");
     let data_dirs = vec![data.clone(), root.join("mugen-1.1b1")];
 
-    let kfm = Character::load(&root.join("mugen-1.1b1/chars/kfm/kfm.def"), &data_dirs)
-        .expect("KFM should load");
+    let kfm = Character::load(&kfm_def, &data_dirs).expect("KFM should load");
     assert!(kfm.states.contains_key(&0), "common state 0 missing");
     assert!(kfm.states.contains_key(&-1), "cmd state -1 missing");
     assert!(kfm.commands.iter().any(|c| c.name == "QCF_x"));
@@ -98,7 +102,7 @@ fn loads_original_and_community_content() {
         );
     }
 
-    let stage_path = root.join("content/stages/stage1.def");
+    let stage_path = root.join("content/stages/training/stage1.def");
     if stage_path.exists() {
         let stage = Stage::load(&stage_path, &data_dirs).expect("training stage should load");
         assert!(!stage.layers.is_empty());
