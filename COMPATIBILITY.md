@@ -67,10 +67,10 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-04 | Projectile | Required | Required | Partial | Projectile tests |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | TBD |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Target controllers present; Helper/Bind pending |
-| C-07 | AfterImage/PalFX/Trans | Required | Required | Missing | TBD |
+| C-07 | AfterImage/PalFX/Trans | Required | Required | Missing | Still pending |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
-| C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | TBD |
-| C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | TBD |
+| C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | HitOverride added; oracle pending |
+| C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Roster |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | TBD |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |

@@ -38,6 +38,20 @@ pub fn resolve(sim: &mut SimState) {
             continue;
         }
 
+        if let Some(override_) = sim.fighters[defender].hit_override.clone() {
+            if override_.time > 0 && attr_matches(&override_.attr, &hitdef.attr) {
+                let assets = sim.assets.clone();
+                let char_id = sim.fighters[defender].char_id;
+                sim.fighters[defender].enter_state(
+                    override_.state,
+                    &assets.characters[char_id],
+                    false,
+                );
+                sim.fighters[attacker].hit.hit_targets.push(defender);
+                continue;
+            }
+        }
+
         let guarding = can_guard(sim, attacker, defender, &hitdef);
         apply_hit(sim, attacker, defender, &hitdef, guarding);
     }
@@ -122,6 +136,16 @@ fn blocks_by_filter(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
     }
     let state = hitdef.attr.state_types.chars().next().unwrap_or('S');
     attr.contains(state) || attr.contains('*')
+}
+
+fn attr_matches(override_attr: &str, hit_attr: &HitAttr) -> bool {
+    let mut parts = override_attr.split(',');
+    let states = parts.next().unwrap_or("");
+    let classes = parts.next().unwrap_or("");
+    let state = hit_attr.state_types.chars().next().unwrap_or('S');
+    let class = hit_attr.class.chars().next().unwrap_or('N');
+    (states.contains(state) || states.contains('*'))
+        && (classes.contains(class) || classes.contains('*'))
 }
 
 fn anim_duration(char: &Character, anim: i32) -> i32 {

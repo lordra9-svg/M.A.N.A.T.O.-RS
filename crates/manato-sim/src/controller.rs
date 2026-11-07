@@ -98,14 +98,43 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].hit.vars.fall_damage = value;
         }
         "nothitby" | "hitby" => hit_filter(sim, who, control, kind == "nothitby"),
-        "hitoverride" => {}
         "assertspecial" => assert_special(sim, who, control),
         "sprpriority" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
             sim.fighters[who].sprite_priority = value;
         }
         "width" => width(sim, who, control),
-        "screenbound" => {}
+        "screenbound" => {
+            let (x, y) = control.get_pair("value").unwrap_or((1.0, 1.0));
+            sim.fighters[who].screen_bound = (x != 0.0, y != 0.0);
+        }
+        "offset" => {
+            let x = num_param(sim, who, control, "x").unwrap_or(0.0);
+            let y = num_param(sim, who, control, "y").unwrap_or(0.0);
+            sim.fighters[who].draw_offset = Vec2::new(x, y);
+        }
+        "envcolor" => {
+            let raw = control.get("value").unwrap_or("0,0,0");
+            let mut parts = raw.split(',');
+            let r = parts
+                .next()
+                .and_then(|value| trigger::num(sim, who, value).into())
+                .unwrap_or(0.0);
+            let g = parts
+                .next()
+                .and_then(|value| trigger::num(sim, who, value).into())
+                .unwrap_or(0.0);
+            let b = parts
+                .next()
+                .and_then(|value| trigger::num(sim, who, value).into())
+                .unwrap_or(0.0);
+            let time = int_param(sim, who, control, "time").unwrap_or(1);
+            sim.env_color = Some(crate::EnvColor {
+                color: [r / 255.0, g / 255.0, b / 255.0, 1.0],
+                time,
+            });
+        }
+        "fallenvshake" => env_shake(sim, who, control),
         "envshake" => env_shake(sim, who, control),
         "explod" => explod(sim, who, control, assets),
         "modifyexplod" => modify_explod(sim, who, control),
@@ -115,6 +144,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
         "targetbind" => target_bind(sim, who, control),
+        "targetdrop" => sim.fighters[who].target = None,
+        "targetadd" => sim.fighters[who].target = Some(sim.other(who)),
+        "hitoverride" => hit_override(sim, who, control),
         "targetfacing" => target_facing(sim, who, control),
         "targetstate" => target_state(sim, who, control, assets),
         "targetlifeadd" => target_life_add(sim, who, control),
@@ -308,6 +340,21 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(v) = param(control, "physics").and_then(Physics::parse) {
         sim.fighters[who].physics = v;
     }
+}
+
+fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {
+    let Some(attr) = str_param(control, "attr") else {
+        return;
+    };
+    let state = int_param(sim, who, control, "stateno")
+        .or_else(|| int_param(sim, who, control, "state"))
+        .unwrap_or(0);
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
+    sim.fighters[who].hit_override = Some(crate::fighter::HitOverride {
+        attr: attr.to_ascii_uppercase(),
+        state,
+        time: time.max(0),
+    });
 }
 
 fn life_add(sim: &mut SimState, who: usize, control: &Controller) {

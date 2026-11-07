@@ -290,6 +290,12 @@ pub struct SoundEvent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EnvColor {
+    pub color: [f32; 4],
+    pub time: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EnvShake {
     pub time: i32,
     pub freq: f32,
@@ -320,6 +326,7 @@ pub struct SimState {
     pub sounds: Vec<SoundEvent>,
     pub bg_time: f32,
     pub env_shake: EnvShake,
+    pub env_color: Option<EnvColor>,
     pub options: MatchOptions,
     pub rng: Rng,
     pub super_pause: i32,
@@ -373,6 +380,7 @@ impl SimState {
             sounds: Vec::new(),
             bg_time: 0.0,
             env_shake: EnvShake::default(),
+            env_color: None,
             options,
             rng: Rng::new(0x4D41_4E41_544F_5253),
             super_pause: 0,
@@ -461,6 +469,14 @@ impl SimState {
             fighter.hit.hit_over_timer = (fighter.hit.hit_over_timer - 1).max(0);
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.hit.invuln_timer = (fighter.hit.invuln_timer - 1).max(0);
+            if let Some(override_) = fighter.hit_override.as_mut() {
+                if override_.time > 0 {
+                    override_.time -= 1;
+                    if override_.time <= 0 {
+                        fighter.hit_override = None;
+                    }
+                }
+            }
             // AssertSpecial is a per-tick assertion; states must re-assert it.
             fighter.assert_flags = 0;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
@@ -712,8 +728,10 @@ impl SimState {
         let stage_left = self.assets.stage.left_bound;
         let stage_right = self.assets.stage.right_bound;
         for i in 0..2 {
-            let p = self.fighters[i].pos.x;
-            self.fighters[i].pos.x = clamp(p, stage_left, stage_right);
+            if self.fighters[i].screen_bound.0 {
+                let p = self.fighters[i].pos.x;
+                self.fighters[i].pos.x = clamp(p, stage_left, stage_right);
+            }
         }
         let (a, b) = (0usize, 1usize);
         if !self.fighters[a].player_push || !self.fighters[b].player_push {
@@ -884,6 +902,7 @@ impl SimState {
         self.camera.x = self.assets.stage.camera.start.x;
         self.camera.y = self.assets.stage.camera.start.y;
         self.env_shake = EnvShake::default();
+        self.env_color = None;
     }
 
     fn update_camera(&mut self) {
@@ -911,6 +930,14 @@ impl SimState {
     }
 
     fn update_effects(&mut self) {
+        if let Some(color) = self.env_color.as_mut() {
+            if color.time > 0 {
+                color.time -= 1;
+                if color.time <= 0 {
+                    self.env_color = None;
+                }
+            }
+        }
         for effect in &mut self.effects {
             effect.time += 1;
             effect.pos += effect.vel;
@@ -989,6 +1016,13 @@ impl SimState {
             h.write_f32(e.pos.y);
             h.write_i32(e.time);
         }
+        if let Some(color) = self.env_color {
+            h.write_f32(color.color[0]);
+            h.write_f32(color.color[1]);
+            h.write_f32(color.color[2]);
+            h.write_f32(color.color[3]);
+            h.write_i32(color.time);
+        }
         for p in &self.projectiles {
             h.write_i32(p.owner as i32);
             h.write_i32(p.id);
@@ -1023,6 +1057,15 @@ impl SimState {
             h.write_bool(f.ctrl);
             h.write_bool(f.face_p2_pending);
             h.write_bool(f.player_push);
+            h.write_bool(f.screen_bound.0);
+            h.write_bool(f.screen_bound.1);
+            h.write_f32(f.draw_offset.x);
+            h.write_f32(f.draw_offset.y);
+            h.write_bool(f.hit_override.is_some());
+            if let Some(override_) = &f.hit_override {
+                h.write_i32(override_.state);
+                h.write_i32(override_.time);
+            }
             h.write_bool(f.gravity.is_some());
             if let Some(gravity) = f.gravity {
                 h.write_f32(gravity);

@@ -108,6 +108,13 @@ pub struct HistoryFrame {
 /// Mutable state of one fighter. This is the unit of rollback snapshots, so it
 /// must not contain references to OS resources or unordered collections.
 #[derive(Debug, Clone)]
+pub struct HitOverride {
+    pub attr: String,
+    pub state: i32,
+    pub time: i32,
+}
+
+#[derive(Debug, Clone)]
 pub struct Fighter {
     pub char_id: usize,
     pub side: usize,
@@ -164,6 +171,9 @@ pub struct Fighter {
     pub face_p2_pending: bool,
     pub player_push: bool,
     pub gravity: Option<f32>,
+    pub screen_bound: (bool, bool),
+    pub draw_offset: Vec2,
+    pub hit_override: Option<HitOverride>,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
 
@@ -230,6 +240,9 @@ impl Fighter {
             face_p2_pending: false,
             player_push: true,
             gravity: None,
+            screen_bound: (true, true),
+            draw_offset: Vec2::ZERO,
+            hit_override: None,
             target: None,
             pal_remap: None,
             state_changed: false,
@@ -283,6 +296,8 @@ impl Fighter {
         self.hitdef = None;
         self.face_p2_pending = false;
         self.gravity = None;
+        self.draw_offset = Vec2::ZERO;
+        self.hit_override = None;
         self.hit.hit_targets.clear();
         self.width_override = None;
 

@@ -292,6 +292,35 @@ fn facep2_turns_toward_opponent() {
 }
 
 #[test]
+fn hit_override_redirects_instead_of_damage() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    sim.fighters[0].pos.x = -20.0;
+    sim.fighters[1].pos.x = 20.0;
+    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+        attr: "S, NA".into(),
+        state: 0,
+        time: 100,
+    });
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            break;
+        }
+    }
+    assert_eq!(
+        sim.fighters[1].life, sim.fighters[1].life_max,
+        "HitOverride should prevent damage"
+    );
+}
+
+#[test]
 fn intro_locks_control() {
     let Some(mut sim) = load(
         "mugen-1.1b1/chars/kfm/kfm.def",

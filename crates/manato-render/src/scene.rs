@@ -85,6 +85,22 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_effect(painter, deps.atlas, sim, effect);
     }
 
+    if let Some(env_color) = sim.env_color {
+        painter.rect(
+            Blend::Normal,
+            0.0,
+            0.0,
+            GAME_WIDTH,
+            GAME_HEIGHT,
+            [
+                env_color.color[0].clamp(0.0, 1.0),
+                env_color.color[1].clamp(0.0, 1.0),
+                env_color.color[2].clamp(0.0, 1.0),
+                0.35,
+            ],
+        );
+    }
+
     draw_hud(painter, deps.font, sim);
 }
 
@@ -384,8 +400,8 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         return;
     };
     let mut anchor = sim.screen_pos(fighter.pos);
-    anchor.x += character.constants.get_or("draw.offset.x", 0.0);
-    anchor.y += character.constants.get_or("draw.offset.y", 0.0);
+    anchor.x += character.constants.get_or("draw.offset.x", 0.0) + fighter.draw_offset.x;
+    anchor.y += character.constants.get_or("draw.offset.y", 0.0) + fighter.draw_offset.y;
     let base_scale = Vec2::new(
         character.constants.get_or("size.xscale", 1.0),
         character.constants.get_or("size.yscale", 1.0),
