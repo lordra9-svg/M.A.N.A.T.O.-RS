@@ -1,6 +1,6 @@
 # CNS/CMD specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/compiler.go`, `src/compiler_functions.go`, `src/input.go`,
 `src/char.go`), public M.U.G.E.N documentation, and observed content.
 
@@ -203,22 +203,24 @@ time = 15
 buffer.time = 1
 ```
 
-- `time` is the command window in ticks.
-- `buffer.time` is how long a matched command remains active.
-- Missing `time` defaults to 1; missing `buffer.time` defaults to 1.
+- `time` is the command window in ticks; default 15.
+- `buffer.time` is how long a matched command remains active; default 1.
+- `[Defaults]` entries `command.time`, `command.steptime`, and
+  `command.buffer.time` override the defaults for all commands.
 
 ### 6.2 Command symbols
 
-Directions: `U`, `D`, `B`, `F`, `UB`, `UF`, `DB`, `DF`.
+Directions: `U`, `D`, `B`, `F`, `L`, `R`, `N`, `UB`, `UF`, `DB`, `DF`,
+`UL`, `UR`, `DL`, `DR`.
 Buttons: `a`, `b`, `c`, `x`, `y`, `z`, `s`.
-Combinations: `x+y`, `a+b+c`.
-
+Combinations: `x+y` (all required) and `a|b` (either).
 Prefixes:
 
-- `$`: direction tap (pressed and released within the window)
-- `/`: direction hold (charge)
-- `~`: release
-- `>` and `^`: Ikemen-only variants; preserve if parsed, otherwise defer
+- `$`: pooled four-way direction tap
+- `*`: exact-direction tap
+- `/`: direction hold (optional charge digits, e.g. `/12D`)
+- `~`: release (optional charge digits)
+- `>`: greater-direction expansion
 
 Commands are matched facing-relative. Absolute input directions are converted
 to forward/back using the character's facing.

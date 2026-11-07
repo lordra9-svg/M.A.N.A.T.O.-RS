@@ -168,137 +168,142 @@ impl StateFile {
         for section in &text.sections {
             let header = section.header_lower();
             let kind = section.kind();
-            if kind == "statedef" {
-                let number = header
-                    .strip_prefix("statedef")
-                    .and_then(|s| s.trim().parse::<i32>().ok())
-                    .unwrap_or(0);
-                let params = section
-                    .entries
-                    .iter()
-                    .map(|e| {
-                        (
-                            e.key.trim().to_ascii_lowercase(),
-                            e.value.trim().to_string(),
-                        )
-                    })
-                    .collect();
-                file.states.push(StateDef {
-                    number,
-                    params,
-                    controllers: Vec::new(),
-                    line: section.line,
-                    source: source.to_string(),
-                });
-                current_state = Some(file.states.len() - 1);
-            } else if kind == "state" {
-                let number = header
-                    .split_whitespace()
-                    .nth(1)
-                    .and_then(|s| s.trim_end_matches(',').parse::<i32>().ok())
-                    .unwrap_or(0);
-                let params: Vec<(String, String)> = section
-                    .entries
-                    .iter()
-                    .map(|e| {
-                        (
-                            e.key.trim().to_ascii_lowercase(),
-                            e.value.trim().to_string(),
-                        )
-                    })
-                    .collect();
-                let kind_name = params
-                    .iter()
-                    .find(|(k, _)| k == "type")
-                    .map(|(_, v)| v.to_ascii_lowercase())
-                    .unwrap_or_else(|| "null".into());
-                let controller = Controller {
-                    kind: kind_name,
-                    params,
-                    line: section.line,
-                };
-                // Controllers belong to the enclosing `[Statedef]`; the number
-                // in `[State N, name]` is only a label. `.cmd` files have no
-                // Statedef, so fall back to the state number there (usually -1).
-                let index = if let Some(current) = current_state {
-                    Some(current)
-                } else {
-                    file.states
+            match kind.as_str() {
+                "statedef" => {
+                    let number = header
+                        .strip_prefix("statedef")
+                        .and_then(|rest| rest.trim().parse::<i32>().ok())
+                        .unwrap_or(0);
+                    let params = section
+                        .entries
                         .iter()
-                        .rposition(|s| s.number == number)
-                        .or_else(|| {
-                            file.states.push(StateDef {
-                                number,
-                                params: Vec::new(),
-                                controllers: Vec::new(),
-                                line: section.line,
-                                source: source.to_string(),
-                            });
-                            Some(file.states.len() - 1)
+                        .map(|entry| {
+                            (
+                                entry.key.trim().to_ascii_lowercase(),
+                                entry.value.trim().to_string(),
+                            )
                         })
-                };
-                if let Some(i) = index {
-                    file.states[i].controllers.push(controller);
-                    current_state = Some(i);
+                        .collect();
+                    file.states.push(StateDef {
+                        number,
+                        params,
+                        controllers: Vec::new(),
+                        line: section.line,
+                        source: source.to_string(),
+                    });
+                    current_state = Some(file.states.len() - 1);
                 }
-            } else if !section.header.trim().is_empty() {
-                let prefix = header.split_whitespace().next().unwrap_or("").to_string();
-                for e in &section.entries {
-                    let key = e.key.trim().to_ascii_lowercase();
-                    if key.is_empty() {
-                        continue;
-                    }
-                    let full = if prefix == "data" {
-                        key.clone()
-                    } else {
-                        format!("{prefix}.{key}")
+                "state" => {
+                    let label = header
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|value| value.trim_end_matches(',').parse::<i32>().ok())
+                        .unwrap_or(0);
+                    let params: Vec<(String, String)> = section
+                        .entries
+                        .iter()
+                        .map(|entry| {
+                            (
+                                entry.key.trim().to_ascii_lowercase(),
+                                entry.value.trim().to_string(),
+                            )
+                        })
+                        .collect();
+                    let kind_name = params
+                        .iter()
+                        .find(|(key, _)| key == "type")
+                        .map(|(_, value)| value.to_ascii_lowercase())
+                        .unwrap_or_else(|| "null".into());
+                    let controller = Controller {
+                        kind: kind_name,
+                        params,
+                        line: section.line,
                     };
-                    if let Ok(v) = e.value.trim().parse::<f32>() {
-                        file.constants.insert(full.clone(), v);
-                        if prefix == "velocity" {
-                            // `[Velocity] walk.fwd = 2.4` is a vector with a
-                            // zero y-component.
-                            file.constants.insert(format!("{full}.x"), v);
-                            file.constants.insert(format!("{full}.y"), 0.0);
-                        }
-                        if prefix == "data" {
-                            file.constants.insert(format!("data.{full}"), v);
-                        }
-                    } else if e.value.contains(',') {
-                        let (x, y) = parse_pair(&e.value);
-                        file.constants.insert(format!("{full}.x"), x);
-                        file.constants.insert(format!("{full}.y"), y);
+                    // Controllers belong to the enclosing Statedef. CMD files
+                    // have no Statedef, so the label (usually -1) creates or
+                    // selects the state there.
+                    let index = if let Some(current) = current_state {
+                        Some(current)
+                    } else {
+                        file.states
+                            .iter()
+                            .rposition(|state| state.number == label)
+                            .or_else(|| {
+                                file.states.push(StateDef {
+                                    number: label,
+                                    params: Vec::new(),
+                                    controllers: Vec::new(),
+                                    line: section.line,
+                                    source: source.to_string(),
+                                });
+                                Some(file.states.len() - 1)
+                            })
+                    };
+                    if let Some(index) = index {
+                        file.states[index].controllers.push(controller);
+                        current_state = Some(index);
                     }
-                    file.constants
-                        .raw
-                        .insert(full.to_ascii_lowercase(), e.value.clone());
                 }
-                let _ = current_state;
+                _ if !section.header.trim().is_empty() => {
+                    let prefix = header.split_whitespace().next().unwrap_or("").to_string();
+                    for entry in &section.entries {
+                        let key = entry.key.trim().to_ascii_lowercase();
+                        if key.is_empty() {
+                            continue;
+                        }
+                        let full = if prefix == "data" {
+                            key.clone()
+                        } else {
+                            format!("{prefix}.{key}")
+                        };
+                        if let Ok(value) = entry.value.trim().parse::<f32>() {
+                            file.constants.insert(full.clone(), value);
+                            if prefix == "velocity" {
+                                file.constants.insert(format!("{full}.x"), value);
+                                file.constants.insert(format!("{full}.y"), 0.0);
+                            }
+                            if prefix == "data" {
+                                file.constants.insert(format!("data.{full}"), value);
+                            }
+                        } else if entry.value.contains(',') {
+                            let (x, y) = parse_pair(&entry.value);
+                            file.constants.insert(format!("{full}.x"), x);
+                            file.constants.insert(format!("{full}.y"), y);
+                        }
+                        file.constants
+                            .raw
+                            .insert(full.to_ascii_lowercase(), entry.value.clone());
+                    }
+                }
+                _ => {}
             }
         }
         file
     }
 
     pub fn state(&self, number: i32) -> Option<&StateDef> {
-        self.states.iter().rev().find(|s| s.number == number)
+        self.states
+            .iter()
+            .rev()
+            .find(|state| state.number == number)
     }
 
     pub fn merge(&mut self, other: StateFile) {
-        // Later files win, matching M.U.G.E.N's load order
-        // (stcommon -> cns -> st -> cmd).
-        for (k, v) in other.constants.values {
-            self.constants.values.insert(k, v);
+        // M.U.G.E.N load order: stcommon -> cns -> st -> st1..st9 -> cmd.
+        for (key, value) in other.constants.values {
+            self.constants.values.insert(key, value);
         }
-        for (k, v) in other.constants.raw {
-            self.constants.raw.insert(k, v);
+        for (key, value) in other.constants.raw {
+            self.constants.raw.insert(key, value);
         }
-        // Later files override earlier definitions for the same state number.
         for state in other.states {
-            if let Some(existing) = self.states.iter_mut().find(|s| s.number == state.number) {
-                existing.params = state.params;
-                existing.source = state.source;
-                existing.controllers = state.controllers;
-                existing.line = state.line;
+            if let Some(existing) = self
+                .states
+                .iter_mut()
+                .rposition(|candidate| candidate.number == state.number)
+                .map(|index| &mut self.states[index])
+            {
+                *existing = state;
             } else {
                 self.states.push(state);
             }

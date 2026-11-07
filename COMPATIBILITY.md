@@ -19,8 +19,8 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | F-01 | Text/INI parsing | Required | Required | Verified | Unit tests |
 | F-02 | DEF character/stage | Required | Required | Partial | Bundled + stock tests |
-| F-03 | CNS states/controllers | Required | Required | Partial | Bundled roster |
-| F-04 | CMD commands | Required | Required | Partial | Bundled roster |
+| F-03 | CNS states/controllers | Required | Required | Partial | CNS spec + parser; execution gaps remain |
+| F-04 | CMD commands | Required | Required | Partial | CMD spec + parser/defaults/prefixes; oracle pending |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR spec + parser tests; SubAdd/interpolation rendering pending |
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |

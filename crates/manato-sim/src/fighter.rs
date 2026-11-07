@@ -589,7 +589,7 @@ fn dir_matches(frame_dir: Dir8, want: Dir8, pool4: bool) -> bool {
 
 fn step_matches(frame: &HistoryFrame, step: CommandStep, require_press: bool) -> bool {
     if let Some(dir) = step.dir {
-        let matches = |d: Dir8| dir_matches(d, dir, step.pool4);
+        let matches = |d: Dir8| dir_matches(d, dir, step.pool4 && !step.star);
         if step.release {
             if !matches(frame.prev_dir) || matches(frame.dir) {
                 return false;
@@ -612,6 +612,15 @@ fn step_matches(frame: &HistoryFrame, step: CommandStep, require_press: bool) ->
                 return false;
             }
         } else if frame.pressed_buttons & step.buttons != step.buttons {
+            return false;
+        }
+    }
+    if step.or_buttons != 0 {
+        if step.button_release {
+            if frame.released_buttons & step.or_buttons == 0 {
+                return false;
+            }
+        } else if frame.pressed_buttons & step.or_buttons == 0 {
             return false;
         }
     }
