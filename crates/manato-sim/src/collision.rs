@@ -230,10 +230,16 @@ fn apply_hit(
     }
 
     // Hit spark and sound.
-    let spark_anim = if hitdef.sparkno >= 0 {
+    let spark_anim = if guarding {
+        if hitdef.guard_sparkno >= 0 {
+            hitdef.guard_sparkno
+        } else if hitdef.sparkno >= 0 {
+            hitdef.sparkno
+        } else {
+            40
+        }
+    } else if hitdef.sparkno >= 0 {
         hitdef.sparkno
-    } else if guarding {
-        40
     } else {
         0
     };

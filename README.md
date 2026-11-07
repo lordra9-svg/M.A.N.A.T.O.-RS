@@ -12,13 +12,13 @@ The current milestone is a playable vertical slice:
 - The bundled **Training Stage**
 - Stock M.U.G.E.N characters can still be loaded by pointing `--root` at a
   stock installation
-- Life/power/timer HUD, rounds, KO flow, hit reactions, sound events, CPU opponent
+- Life/power/timer HUD, rounds, KO flow, hit/guard sparks, sound events, CPU opponent
 - Deterministic simulation verified through GGRS rollback (`--synctest`)
 
-The three characters and their common state file are MIT licensed and live in
-[`content/`](content/). The Training Stage is CC BY 3.0 by Gacel; see
-[`content/stages/training/ATTRIBUTION.md`](content/stages/training/ATTRIBUTION.md).
-No stock M.U.G.E.N assets are included.
+All bundled content — the three characters, their common state file, the
+procedural hit/guard effects, the common fight sounds, and the Training Grid
+stage — is MIT licensed and lives in [`content/`](content/). No stock
+M.U.G.E.N assets are included.
 
 ## Quick start
 

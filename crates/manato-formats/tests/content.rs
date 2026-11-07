@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use manato_formats::{Character, EffectsBank, Stage};
+use manato_formats::{Character, EffectsBank, SoundBank, Stage};
 
 fn mugen_root() -> Option<PathBuf> {
     let root = std::env::var_os("MANATO_MUGEN_ROOT")
@@ -108,4 +108,37 @@ fn loads_original_and_community_content() {
         assert!(!stage.layers.is_empty());
         assert!(!stage.sprites.sprites.is_empty());
     }
+}
+
+#[test]
+fn loads_bundled_mit_assets() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let content = root.join("content");
+
+    let fx = EffectsBank::load(&[content.clone()]);
+    for action in [0, 1, 2, 40] {
+        assert!(
+            fx.animations.contains_key(&action),
+            "missing fightfx action {action}"
+        );
+    }
+    assert!(!fx.sprites.sprites.is_empty(), "fightfx sprites missing");
+
+    let fight = SoundBank::load(&content.join("fight.snd")).expect("fight.snd");
+    for key in [(0, 0), (0, 2), (1, 0), (2, 0), (21, 0)] {
+        assert!(
+            fight.get(key.0, key.1).is_some(),
+            "missing fight sound {key:?}"
+        );
+    }
+
+    let stage = Stage::load(
+        &content.join("stages/training/stage1.def"),
+        &[content.clone()],
+    )
+    .expect("training stage");
+    assert!(stage.zoffset > 0.0);
+    assert!(!stage.layers.is_empty());
+    assert!(!stage.sprites.sprites.is_empty());
+    assert_eq!(stage.name, "Training Grid");
 }

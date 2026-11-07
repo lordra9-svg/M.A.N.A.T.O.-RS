@@ -109,6 +109,7 @@ pub struct HitDef {
     pub guard_hittime: i32,
     pub pausetime: (i32, i32),
     pub sparkno: i32,
+    pub guard_sparkno: i32,
     pub sparkxy: Vec2,
     pub hitsound: (i32, i32),
     pub guardsound: (i32, i32),
@@ -144,7 +145,8 @@ impl Default for HitDef {
             guard_hittime: 10,
             pausetime: (0, 0),
             sparkno: -1,
-            sparkxy: Vec2::ZERO,
+            guard_sparkno: 40,
+            sparkxy: Vec2::new(-10.0, -55.0),
             hitsound: (-1, -1),
             guardsound: (-1, -1),
             hitonce: false,
@@ -192,6 +194,7 @@ impl HitDef {
                     h.pausetime = (a as i32, b as i32);
                 }
                 "sparkno" => h.sparkno = parse_i32(value),
+                "guard.sparkno" => h.guard_sparkno = parse_i32(value),
                 "sparkxy" => h.sparkxy = parse_vec(value),
                 "hitsound" => h.hitsound = parse_sound_pair(value),
                 "guardsound" => h.guardsound = parse_sound_pair(value),

@@ -71,6 +71,8 @@ impl MatchConfig {
         dirs.push(stock.join("data"));
         dirs.push(stock.clone());
         dirs.push(stock.join("chars"));
+        // Bundled original effects, common sounds, and characters.
+        dirs.push(self.mugen_root.join("content"));
         // Community characters sometimes ship their own common1.cns.
         for def in [self.resolve(&self.p1), self.resolve(&self.p2)] {
             if let Some(dir) = def.parent() {
