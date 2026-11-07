@@ -153,8 +153,15 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "targetpoweradd" => target_power_add(sim, who, control),
         "targetvelset" => target_vel_set(sim, who, control),
         "targetveladd" => target_vel_add(sim, who, control),
-        "afterimage" | "afterimagetime" => {}
-        "palfx" | "remappal" | "trans" | "forcefeedback" => {}
+        "afterimage" => after_image(sim, who, control),
+        "afterimagetime" => {
+            let time = int_param(sim, who, control, "time");
+            if let (Some(state), Some(time)) = (sim.fighters[who].after_image.as_mut(), time) {
+                state.time = time;
+            }
+        }
+        "palfx" => pal_fx(sim, who, control),
+        "remappal" | "trans" | "forcefeedback" => {}
         "projectile" => projectile(sim, who, control, assets),
         "playerpush" => {
             let value = int_param(sim, who, control, "value").unwrap_or(1) != 0;
@@ -340,6 +347,51 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(v) = param(control, "physics").and_then(Physics::parse) {
         sim.fighters[who].physics = v;
     }
+}
+
+fn after_image(sim: &mut SimState, who: usize, control: &Controller) {
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
+    let interval = int_param(sim, who, control, "timegap").unwrap_or(1).max(1);
+    let life = int_param(sim, who, control, "length").unwrap_or(10).max(1);
+    let add = str_param(control, "trans")
+        .map(|value| {
+            let value = value.to_ascii_lowercase();
+            value == "add" || value == "add1"
+        })
+        .unwrap_or(false);
+    sim.fighters[who].after_image = Some(crate::fighter::AfterImageState {
+        time: time.max(0),
+        interval,
+        tick: 0,
+        life,
+        alpha: 0.45,
+        add,
+    });
+}
+
+fn parse_triplet(sim: &SimState, who: usize, value: &str) -> Option<[f32; 3]> {
+    let mut parts = value.split(',');
+    let r = trigger::num(sim, who, parts.next()?.trim());
+    let g = trigger::num(sim, who, parts.next()?.trim());
+    let b = trigger::num(sim, who, parts.next()?.trim());
+    Some([r, g, b])
+}
+
+fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
+    if let Some(value) = control.get("add") {
+        if let Some(add) = parse_triplet(sim, who, value) {
+            sim.fighters[who].pal_add = add;
+        }
+    }
+    if let Some(value) = control.get("mul") {
+        if let Some(mul) = parse_triplet(sim, who, value) {
+            sim.fighters[who].pal_mul = mul;
+        }
+    }
+    if let Some(value) = control.get("alpha") {
+        sim.fighters[who].pal_alpha = trigger::num(sim, who, value).clamp(0.0, 1.0);
+    }
+    sim.fighters[who].pal_time = int_param(sim, who, control, "time").unwrap_or(1);
 }
 
 fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {

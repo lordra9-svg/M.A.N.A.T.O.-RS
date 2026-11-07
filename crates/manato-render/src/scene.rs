@@ -408,6 +408,47 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     );
     let pose = Pose::from_frame(frame);
     let scale = Vec2::new(base_scale.x * pose.scale.x, base_scale.y * pose.scale.y);
+
+    for ghost in &fighter.after_images {
+        let Some(anim) = character.animation(ghost.anim_no) else {
+            continue;
+        };
+        let Some(frame) = anim
+            .frames
+            .get(ghost.anim_frame.min(anim.frames.len().saturating_sub(1)))
+        else {
+            continue;
+        };
+        let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+            continue;
+        };
+        let ghost_pose = Pose::from_frame(frame);
+        draw_sprite(
+            painter,
+            atlas,
+            bank::CHARACTER_BASE + fighter.char_id as u8,
+            sprite,
+            sim.screen_pos(ghost.pos),
+            ghost_pose.offset,
+            ghost.facing,
+            Vec2::new(
+                base_scale.x * ghost_pose.scale.x,
+                base_scale.y * ghost_pose.scale.y,
+            ),
+            ghost_pose.flip_h,
+            ghost_pose.flip_v,
+            if ghost.add { Blend::Add } else { Blend::Normal },
+            [1.0, 1.0, 1.0, ghost.alpha],
+            ghost_pose.angle,
+        );
+    }
+
+    let tint = [
+        (fighter.pal_mul[0] + fighter.pal_add[0]).clamp(0.0, 1.0),
+        (fighter.pal_mul[1] + fighter.pal_add[1]).clamp(0.0, 1.0),
+        (fighter.pal_mul[2] + fighter.pal_add[2]).clamp(0.0, 1.0),
+        (pose.alpha * fighter.pal_alpha).clamp(0.0, 1.0),
+    ];
     draw_sprite(
         painter,
         atlas,
@@ -420,7 +461,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         pose.flip_h,
         pose.flip_v,
         pose.blend,
-        [1.0, 1.0, 1.0, pose.alpha],
+        tint,
         pose.angle,
     );
 }

@@ -524,6 +524,48 @@ impl SimState {
         let char = &assets.characters[self.fighters[who].char_id];
         self.fighters[who].advance_anim(char);
         self.fighters[who].refresh_widths(char);
+        self.update_after_image(who);
+        self.update_pal_fx(who);
+    }
+
+    fn update_after_image(&mut self, who: usize) {
+        let fighter = &mut self.fighters[who];
+        if let Some(state) = fighter.after_image.as_mut() {
+            if state.time > 0 {
+                state.time -= 1;
+                state.tick += 1;
+                if state.tick >= state.interval {
+                    state.tick = 0;
+                    fighter.after_images.push(crate::fighter::AfterImageFrame {
+                        pos: fighter.pos,
+                        facing: fighter.facing,
+                        anim_no: fighter.anim_no,
+                        anim_frame: fighter.anim_frame,
+                        life: state.life,
+                        alpha: state.alpha,
+                        add: state.add,
+                    });
+                }
+            } else {
+                fighter.after_image = None;
+            }
+        }
+        for frame in &mut fighter.after_images {
+            frame.life -= 1;
+        }
+        fighter.after_images.retain(|frame| frame.life > 0);
+    }
+
+    fn update_pal_fx(&mut self, who: usize) {
+        let fighter = &mut self.fighters[who];
+        if fighter.pal_time > 0 {
+            fighter.pal_time -= 1;
+            if fighter.pal_time == 0 {
+                fighter.pal_add = [0.0, 0.0, 0.0];
+                fighter.pal_mul = [1.0, 1.0, 1.0];
+                fighter.pal_alpha = 1.0;
+            }
+        }
     }
 
     /// Runs `[Statedef n]` controllers in file order. Returns true when a
@@ -887,6 +929,12 @@ impl SimState {
             fighter.face_p2_pending = false;
             fighter.player_push = true;
             fighter.gravity = None;
+            fighter.after_image = None;
+            fighter.after_images.clear();
+            fighter.pal_add = [0.0, 0.0, 0.0];
+            fighter.pal_mul = [1.0, 1.0, 1.0];
+            fighter.pal_alpha = 1.0;
+            fighter.pal_time = 0;
             fighter.target = None;
             fighter.state_changed = false;
             fighter.enter_state(0, char, false);
@@ -1066,6 +1114,29 @@ impl SimState {
                 h.write_i32(override_.state);
                 h.write_i32(override_.time);
             }
+            h.write_bool(f.after_image.is_some());
+            if let Some(after) = &f.after_image {
+                h.write_i32(after.time);
+                h.write_i32(after.interval);
+                h.write_i32(after.life);
+            }
+            h.write_i32(f.after_images.len() as i32);
+            for frame in &f.after_images {
+                h.write_f32(frame.pos.x);
+                h.write_f32(frame.pos.y);
+                h.write_i32(frame.facing);
+                h.write_i32(frame.anim_no);
+                h.write_i32(frame.anim_frame as i32);
+                h.write_i32(frame.life);
+            }
+            h.write_f32(f.pal_add[0]);
+            h.write_f32(f.pal_add[1]);
+            h.write_f32(f.pal_add[2]);
+            h.write_f32(f.pal_mul[0]);
+            h.write_f32(f.pal_mul[1]);
+            h.write_f32(f.pal_mul[2]);
+            h.write_f32(f.pal_alpha);
+            h.write_i32(f.pal_time);
             h.write_bool(f.gravity.is_some());
             if let Some(gravity) = f.gravity {
                 h.write_f32(gravity);

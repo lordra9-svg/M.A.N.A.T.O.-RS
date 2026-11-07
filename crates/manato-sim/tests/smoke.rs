@@ -321,6 +321,47 @@ fn hit_override_redirects_instead_of_damage() {
 }
 
 #[test]
+fn afterimage_and_palfx_execute() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let after = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![
+            ("type".into(), "AfterImage".into()),
+            ("time".into(), "10".into()),
+            ("length".into(), "5".into()),
+            ("timegap".into(), "1".into()),
+            ("trans".into(), "add".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(!sim.fighters[0].after_images.is_empty());
+
+    let palfx = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("type".into(), "PalFX".into()),
+            ("add".into(), "32,0,0".into()),
+            ("mul".into(), "1,1,1".into()),
+            ("time".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &palfx, &assets);
+    assert_eq!(sim.fighters[0].pal_add, [32.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_time, 5);
+}
+
+#[test]
 fn intro_locks_control() {
     let Some(mut sim) = load(
         "mugen-1.1b1/chars/kfm/kfm.def",

@@ -67,7 +67,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-04 | Projectile | Required | Required | Partial | Projectile tests |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | TBD |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Target controllers present; Helper/Bind pending |
-| C-07 | AfterImage/PalFX/Trans | Required | Required | Missing | Still pending |
+| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX added; Trans/RemapPal pending |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | HitOverride added; oracle pending |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
@@ -109,7 +109,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Training Grid |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Screenshots |
 | V-05 | Explods/projectiles | Required | Required | Partial | Projectile tests |
-| V-06 | Afterimages | Required | Required | Missing | TBD |
+| V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
 | V-07 | Screenpack/motifs | Required | Required | Missing | TBD |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Missing | TBD |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |

@@ -48,7 +48,8 @@ legally separated clean room; that limitation is recorded in
   `bytes_per_line * height` and then tightened to `width`.
 - **SND** was rewritten from `docs/spec/snd.md`; **AIR** was rewritten from
   `docs/spec/air.md`; **CNS/CMD** parsing and command matching were rewritten
-  from `docs/spec/cns-cmd.md`. All three specs are derived from Ikemen-GO,
+  from `docs/spec/cns-cmd.md`. Controller/trigger execution is being extended
+  from the same frozen spec. All three specs are derived from Ikemen-GO,
   public documentation, and observed content.
 - **SFF v2** indexed sprites (RLE8, RLE5, LZ5) and PNG sprites begin with a
   four-byte little-endian uncompressed-size field. PNG8 sprites are indexed

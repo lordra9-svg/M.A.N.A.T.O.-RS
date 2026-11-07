@@ -108,6 +108,27 @@ pub struct HistoryFrame {
 /// Mutable state of one fighter. This is the unit of rollback snapshots, so it
 /// must not contain references to OS resources or unordered collections.
 #[derive(Debug, Clone)]
+pub struct AfterImageFrame {
+    pub pos: Vec2,
+    pub facing: i32,
+    pub anim_no: i32,
+    pub anim_frame: usize,
+    pub life: i32,
+    pub alpha: f32,
+    pub add: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AfterImageState {
+    pub time: i32,
+    pub interval: i32,
+    pub tick: i32,
+    pub life: i32,
+    pub alpha: f32,
+    pub add: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct HitOverride {
     pub attr: String,
     pub state: i32,
@@ -174,6 +195,12 @@ pub struct Fighter {
     pub screen_bound: (bool, bool),
     pub draw_offset: Vec2,
     pub hit_override: Option<HitOverride>,
+    pub after_image: Option<AfterImageState>,
+    pub after_images: Vec<AfterImageFrame>,
+    pub pal_add: [f32; 3],
+    pub pal_mul: [f32; 3],
+    pub pal_alpha: f32,
+    pub pal_time: i32,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
 
@@ -243,6 +270,12 @@ impl Fighter {
             screen_bound: (true, true),
             draw_offset: Vec2::ZERO,
             hit_override: None,
+            after_image: None,
+            after_images: Vec::new(),
+            pal_add: [0.0, 0.0, 0.0],
+            pal_mul: [1.0, 1.0, 1.0],
+            pal_alpha: 1.0,
+            pal_time: 0,
             target: None,
             pal_remap: None,
             state_changed: false,
