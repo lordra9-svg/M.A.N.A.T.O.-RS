@@ -111,10 +111,32 @@ fn draw_bg_layer(
     stage: &Stage,
     layer: &manato_formats::stage::BgLayer,
 ) {
+    if !layer.visible || !layer.enabled {
+        return;
+    }
     let camera = &sim.camera;
+    let time = sim.bg_time;
+    let sin_offset = |motion: [f32; 3]| {
+        if motion[1].abs() > f32::EPSILON {
+            motion[0] * (std::f32::consts::TAU * time / motion[1] + motion[2].to_radians()).sin()
+        } else {
+            0.0
+        }
+    };
+    let cos_offset = |motion: [f32; 3]| {
+        if motion[1].abs() > f32::EPSILON {
+            motion[0] * (std::f32::consts::TAU * time / motion[1] + motion[2].to_radians()).cos()
+        } else {
+            0.0
+        }
+    };
+    let motion = Vec2::new(
+        layer.velocity.x * time + sin_offset(layer.sin_x) + cos_offset(layer.cos_x),
+        layer.velocity.y * time + sin_offset(layer.sin_y) + cos_offset(layer.cos_y),
+    );
     let base = Vec2::new(
-        layer.start.x - camera.x * layer.delta.x + camera.shake.x,
-        layer.start.y - camera.y * layer.delta.y + camera.shake.y,
+        layer.start.x - camera.x * layer.delta.x + camera.shake.x + motion.x,
+        layer.start.y - camera.y * layer.delta.y + camera.shake.y + motion.y,
     );
 
     let (sprite, pose, anim) = if let Some(action) = layer.action {
@@ -158,18 +180,23 @@ fn draw_bg_layer(
     let _ = anim;
 
     let blend = blend_of(layer.trans);
-    let (w, h) = (sprite.width as f32, sprite.height as f32);
+    let (w, h) = (
+        sprite.width as f32 * layer.xscale,
+        sprite.height as f32 * layer.yscale,
+    );
     let base_left = base.x
         + if pose.flip_h {
-            pose.offset.x - (sprite.width as f32 - sprite.axis_x as f32)
+            pose.offset.x
+                - (sprite.width as f32 * layer.xscale - sprite.axis_x as f32 * layer.xscale)
         } else {
-            pose.offset.x - sprite.axis_x as f32
+            pose.offset.x - sprite.axis_x as f32 * layer.xscale
         };
     let base_top = base.y
         + if pose.flip_v {
-            pose.offset.y - (sprite.height as f32 - sprite.axis_y as f32)
+            pose.offset.y
+                - (sprite.height as f32 * layer.yscale - sprite.axis_y as f32 * layer.yscale)
         } else {
-            pose.offset.y - sprite.axis_y as f32
+            pose.offset.y - sprite.axis_y as f32 * layer.yscale
         };
     let step_x = w + layer.tile_spacing.0 as f32;
     let step_y = h + layer.tile_spacing.1 as f32;
@@ -202,8 +229,8 @@ fn draw_bg_layer(
                 pose.flip_v,
                 blend,
                 [1.0, 1.0, 1.0, pose.alpha],
-                pose.scale.x,
-                pose.scale.y,
+                layer.xscale * pose.scale.x,
+                layer.yscale * pose.scale.y,
                 pose.angle,
             );
         }
@@ -255,7 +282,9 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
         }
         let ground = sim.screen_pos(Vec2::new(fighter.pos.x, 0.0));
         let height = (-fighter.pos.y).max(0.0);
-        let alpha = (0.42 - height / 400.0).clamp(0.08, 0.42);
+        let shadow = &sim.assets.stage.shadow;
+        let base_alpha = (shadow.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.6;
+        let alpha = (base_alpha - height / 400.0).clamp(0.05, base_alpha.max(0.05));
         let w = (fighter.width_back + fighter.width_front) * 1.35;
         let h = 7.0;
         painter.quad(
@@ -270,7 +299,12 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
             [0.0, 0.0, 1.0, 1.0],
             false,
             false,
-            [0.0, 0.0, 0.0, alpha],
+            [
+                shadow.color[0] as f32 / 255.0,
+                shadow.color[1] as f32 / 255.0,
+                shadow.color[2] as f32 / 255.0,
+                alpha,
+            ],
         );
     }
 }

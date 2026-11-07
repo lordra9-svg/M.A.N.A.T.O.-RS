@@ -1,6 +1,6 @@
 # Stage DEF/BG specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/stage.go`), public M.U.G.E.N stage documentation, and observed
 stages.
 

@@ -1,3 +1,7 @@
+//! M.U.G.E.N/Ikemen-GO stage DEF and background parsing.
+//!
+//! The layout and rendering rules are specified in `docs/spec/stage.md`.
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -5,6 +9,7 @@ use anyhow::Context;
 use manato_core::Vec2;
 
 use crate::air::{parse_air_str, Animation, BlendMode};
+use crate::cns::Controller;
 use crate::def::{section_map, StageDefFile};
 use crate::sff::SffFile;
 use crate::text::{decode_text, parse_pair};
@@ -19,6 +24,10 @@ pub struct CameraDef {
     pub vertical_follow: f32,
     pub floor_tension: f32,
     pub tension: f32,
+    pub overdraw_high: f32,
+    pub overdraw_low: f32,
+    pub cut_high: f32,
+    pub cut_low: f32,
 }
 
 impl Default for CameraDef {
@@ -32,11 +41,44 @@ impl Default for CameraDef {
             vertical_follow: 0.2,
             floor_tension: 0.0,
             tension: 50.0,
+            overdraw_high: 0.0,
+            overdraw_low: 0.0,
+            cut_high: 0.0,
+            cut_low: 0.0,
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ShadowDef {
+    pub intensity: i32,
+    pub color: [u8; 3],
+    pub xscale: f32,
+    pub yscale: f32,
+    pub ydelta: f32,
+    pub fade_start: f32,
+    pub fade_end: f32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ReflectionDef {
+    pub intensity: i32,
+    pub color: [u8; 3],
+    pub xscale: f32,
+    pub yscale: f32,
+    pub ydelta: f32,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MusicDef {
+    pub path: Option<PathBuf>,
+    pub volume: i32,
+    pub loop_start: i32,
+    pub loop_end: i32,
+    pub ratio: f32,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct BgLayer {
     pub kind: String,
     pub sprite: Option<(i32, i32)>,
@@ -49,46 +91,58 @@ pub struct BgLayer {
     pub layer_no: i32,
     pub mask: bool,
     pub velocity: Vec2,
+    pub sin_x: [f32; 3],
+    pub sin_y: [f32; 3],
+    pub cos_x: [f32; 3],
+    pub cos_y: [f32; 3],
+    pub position_link: bool,
+    pub visible: bool,
+    pub enabled: bool,
+    pub xscale: f32,
+    pub yscale: f32,
+    pub window: [f32; 4],
+    pub start_rect: [f32; 4],
+    pub window_delta: Vec2,
     pub id: i32,
 }
 
-impl Default for BgLayer {
-    fn default() -> Self {
-        Self {
-            kind: "normal".into(),
-            sprite: None,
-            action: None,
-            start: Vec2::ZERO,
-            delta: Vec2::new(1.0, 1.0),
-            trans: BlendMode::Normal,
-            tile: (0, 0),
-            tile_spacing: (0, 0),
-            layer_no: 0,
-            mask: false,
-            velocity: Vec2::ZERO,
-            id: 0,
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct BgCtrl {
+    pub layer: usize,
+    pub controller: Controller,
 }
 
 #[derive(Debug, Clone)]
 pub struct Stage {
     pub name: String,
     pub display_name: String,
+    pub author: String,
     pub localcoord: (f32, f32),
     pub camera: CameraDef,
     pub ground_level: f32,
     pub left_bound: f32,
     pub right_bound: f32,
+    pub screen_left: f32,
+    pub screen_right: f32,
     pub zoffset: f32,
+    pub autoturn: bool,
+    pub reset_bg: bool,
+    pub debug_bg: bool,
+    pub bg_clear_color: [u8; 3],
+    pub xscale: f32,
+    pub yscale: f32,
+    pub portrait_scale: f32,
     pub p1_start: Vec2,
     pub p2_start: Vec2,
     pub p1_facing: i32,
     pub p2_facing: i32,
+    pub shadow: ShadowDef,
+    pub reflection: ReflectionDef,
+    pub music: MusicDef,
     pub sprites: SffFile,
     pub animations: HashMap<i32, Animation>,
     pub layers: Vec<BgLayer>,
-    pub music: Option<PathBuf>,
+    pub bg_ctrls: Vec<BgCtrl>,
     pub path: PathBuf,
 }
 
@@ -97,11 +151,11 @@ impl Stage {
         let def = StageDefFile::load(path)
             .with_context(|| format!("failed to load stage def {}", path.display()))?;
         let raw = std::fs::read(path)
-            .map(|b| decode_text(&b))
+            .map(|bytes| decode_text(&bytes))
             .unwrap_or_default();
         let animations: HashMap<i32, Animation> = parse_air_str(&raw)
             .into_iter()
-            .map(|a| (a.number, a))
+            .map(|animation| (animation.number, animation))
             .collect();
 
         let spr_name = def
@@ -118,9 +172,9 @@ impl Stage {
                     .with_context(|| format!("failed to load stage SFF {}", candidate.display()))?;
             } else {
                 for dir in data_dirs {
-                    let p = dir.join(&spr_name);
-                    if p.exists() {
-                        sprites = SffFile::load(&p).unwrap_or_default();
+                    let candidate = dir.join(&spr_name);
+                    if candidate.exists() {
+                        sprites = SffFile::load(&candidate).unwrap_or_default();
                         break;
                     }
                 }
@@ -128,88 +182,63 @@ impl Stage {
         }
 
         let mut layers = Vec::new();
+        let mut bg_ctrls = Vec::new();
         for section in &def.text.sections {
-            if section.kind() != "bg" {
-                continue;
+            match section.kind().as_str() {
+                "bg" => layers.push(parse_layer(section_map(section))),
+                "bgctrl" => {
+                    let layer = section
+                        .header_lower()
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    let params: Vec<(String, String)> = section
+                        .entries
+                        .iter()
+                        .map(|entry| {
+                            (
+                                entry.key.trim().to_ascii_lowercase(),
+                                entry.value.trim().to_string(),
+                            )
+                        })
+                        .collect();
+                    let kind = params
+                        .iter()
+                        .find(|(key, _)| key == "type")
+                        .map(|(_, value)| value.to_ascii_lowercase())
+                        .unwrap_or_else(|| "null".into());
+                    bg_ctrls.push(BgCtrl {
+                        layer,
+                        controller: Controller {
+                            kind,
+                            params,
+                            line: section.line,
+                        },
+                    });
+                }
+                _ => {}
             }
-            let m = section_map(section);
-            let mut layer = BgLayer::default();
-            layer.kind = m
-                .get("type")
-                .map(|s| s.to_ascii_lowercase())
-                .unwrap_or_else(|| "normal".into());
-            layer.sprite = m.get("spriteno").map(|v| {
-                let (x, y) = parse_pair(v);
-                (x as i32, y as i32)
-            });
-            layer.action = m.get("actionno").and_then(|v| v.trim().parse::<i32>().ok());
-            layer.start = m
-                .get("start")
-                .map(|v| {
-                    let (x, y) = parse_pair(v);
-                    Vec2::new(x, y)
-                })
-                .unwrap_or(Vec2::ZERO);
-            layer.delta = m
-                .get("delta")
-                .map(|v| {
-                    let (x, y) = parse_pair(v);
-                    Vec2::new(x, y)
-                })
-                .unwrap_or(Vec2::new(1.0, 1.0));
-            layer.trans = match m.get("trans").map(|s| s.to_ascii_lowercase()).as_deref() {
-                Some("add") | Some("add1") => BlendMode::Add,
-                Some("sub") => BlendMode::Sub,
-                _ => BlendMode::Normal,
-            };
-            if let Some(v) = m.get("tile") {
-                let (x, y) = parse_pair(v);
-                layer.tile = (x as i32, y as i32);
-            }
-            if let Some(v) = m.get("tilespacing") {
-                let (x, y) = parse_pair(v);
-                layer.tile_spacing = (x as i32, y as i32);
-            }
-            layer.layer_no = m
-                .get("layerno")
-                .and_then(|v| v.trim().parse().ok())
-                .unwrap_or(0);
-            layer.mask = m.get("mask").map(|v| v.trim() != "0").unwrap_or(false);
-            layer.velocity = m
-                .get("velocity")
-                .map(|v| {
-                    let (x, y) = parse_pair(v);
-                    Vec2::new(x, y)
-                })
-                .unwrap_or(Vec2::ZERO);
-            layer.id = m.get("id").and_then(|v| v.trim().parse().ok()).unwrap_or(0);
-            layers.push(layer);
         }
 
-        // Fall back to a solid background if a stage declares no layers.
         if layers.is_empty() {
             layers.push(BgLayer {
                 kind: "normal".into(),
                 sprite: Some((0, 0)),
-                ..Default::default()
+                visible: true,
+                enabled: true,
+                xscale: 1.0,
+                yscale: 1.0,
+                ..BgLayer::default()
             });
         }
 
         let camera_map = &def.camera;
         let camera = CameraDef {
-            start: camera_map
-                .get("startx")
-                .and_then(|v| v.trim().parse().ok())
-                .map(|x| {
-                    Vec2::new(
-                        x,
-                        camera_map
-                            .get("starty")
-                            .and_then(|v| v.trim().parse().ok())
-                            .unwrap_or(0.0),
-                    )
-                })
-                .unwrap_or(Vec2::ZERO),
+            start: Vec2::new(
+                num(camera_map, "startx", 0.0),
+                num(camera_map, "starty", 0.0),
+            ),
             bound_left: num(camera_map, "boundleft", -1000.0),
             bound_right: num(camera_map, "boundright", 1000.0),
             bound_high: num(camera_map, "boundhigh", -100.0),
@@ -217,25 +246,45 @@ impl Stage {
             vertical_follow: num(camera_map, "verticalfollow", 0.2),
             floor_tension: num(camera_map, "floortension", 0.0),
             tension: num(camera_map, "tension", 50.0),
+            overdraw_high: num(camera_map, "overdrawhigh", 0.0),
+            overdraw_low: num(camera_map, "overdrawlow", 0.0),
+            cut_high: num(camera_map, "cuthigh", 0.0),
+            cut_low: num(camera_map, "cutlow", 0.0),
         };
 
-        let zoffset = num(&dashboard_map(&def), "zoffset", 204.0);
-        let music = def
+        let stage_info = def
             .text
-            .find("music")
-            .and_then(|s| s.get("bgmusic"))
-            .map(|m| def.dir.join(m.trim()))
-            .filter(|p| p.exists());
+            .find("stageinfo")
+            .map(section_map)
+            .unwrap_or_default();
+        let shadow_map = def.text.find("shadow").map(section_map).unwrap_or_default();
+        let reflection_map = def
+            .text
+            .find("reflection")
+            .map(section_map)
+            .unwrap_or_default();
+        let music_map = def.text.find("music").map(section_map).unwrap_or_default();
+        let bgdef = &def.bgdef;
 
         Ok(Self {
             name: def.name,
             display_name: def.display_name,
+            author: def.author,
             localcoord: def.localcoord,
             camera,
             ground_level: 0.0,
             left_bound: num(&def.player_info, "leftbound", -1000.0),
             right_bound: num(&def.player_info, "rightbound", 1000.0),
-            zoffset,
+            screen_left: num(&def.player_info, "screenleft", 15.0),
+            screen_right: num(&def.player_info, "screenright", 15.0),
+            zoffset: num(&stage_info, "zoffset", 204.0),
+            autoturn: num(&stage_info, "autoturn", 1.0) != 0.0,
+            reset_bg: num(&stage_info, "resetbg", 1.0) != 0.0,
+            debug_bg: num(bgdef, "debugbg", 0.0) != 0.0,
+            bg_clear_color: parse_color(bgdef.get("bgclearcolor")),
+            xscale: num(&stage_info, "xscale", 1.0),
+            yscale: num(&stage_info, "yscale", 1.0),
+            portrait_scale: num(&stage_info, "portraitscale", 0.41666),
             p1_start: Vec2::new(
                 num(&def.player_info, "p1startx", -70.0),
                 num(&def.player_info, "p1starty", 0.0),
@@ -246,10 +295,48 @@ impl Stage {
             ),
             p1_facing: num(&def.player_info, "p1facing", 1.0) as i32,
             p2_facing: num(&def.player_info, "p2facing", -1.0) as i32,
+            shadow: ShadowDef {
+                intensity: num(&shadow_map, "intensity", 128.0) as i32,
+                color: parse_color(shadow_map.get("color")),
+                xscale: num(&shadow_map, "xscale", 1.0),
+                yscale: num(&shadow_map, "yscale", 0.3),
+                ydelta: num(&shadow_map, "ydelta", 1.0),
+                fade_start: parse_pair(
+                    shadow_map
+                        .get("fade.range")
+                        .map(String::as_str)
+                        .unwrap_or("0,0"),
+                )
+                .0,
+                fade_end: parse_pair(
+                    shadow_map
+                        .get("fade.range")
+                        .map(String::as_str)
+                        .unwrap_or("0,0"),
+                )
+                .1,
+            },
+            reflection: ReflectionDef {
+                intensity: num(&reflection_map, "intensity", 0.0) as i32,
+                color: parse_color(reflection_map.get("color")),
+                xscale: num(&reflection_map, "xscale", 1.0),
+                yscale: num(&reflection_map, "yscale", 1.0),
+                ydelta: num(&reflection_map, "ydelta", 1.0),
+            },
+            music: MusicDef {
+                path: music_map
+                    .get("bgmusic")
+                    .map(|value| def.dir.join(value.trim()))
+                    .filter(|path| path.exists()),
+                volume: num(&music_map, "bgmvolume", 100.0) as i32,
+                loop_start: num(&music_map, "bgmloopstart", 0.0) as i32,
+                loop_end: num(&music_map, "bgmloopend", 0.0) as i32,
+                ratio: num(&music_map, "bgmratio", 0.3),
+            },
             sprites,
             animations,
             layers,
-            music,
+            bg_ctrls,
             path: path.to_path_buf(),
         })
     }
@@ -259,15 +346,208 @@ impl Stage {
     }
 }
 
-fn dashboard_map(def: &StageDefFile) -> HashMap<String, String> {
-    def.text
-        .find("stageinfo")
-        .map(section_map)
-        .unwrap_or_default()
+fn parse_layer(map: HashMap<String, String>) -> BgLayer {
+    BgLayer {
+        kind: map
+            .get("type")
+            .map(|value| value.to_ascii_lowercase())
+            .unwrap_or_else(|| "normal".into()),
+        sprite: map.get("spriteno").map(|value| {
+            let (x, y) = parse_pair(value);
+            (x as i32, y as i32)
+        }),
+        action: map
+            .get("actionno")
+            .and_then(|value| value.trim().parse::<i32>().ok()),
+        start: map
+            .get("start")
+            .map(|value| pair(value))
+            .unwrap_or(Vec2::ZERO),
+        delta: map
+            .get("delta")
+            .map(|value| pair(value))
+            .unwrap_or(Vec2::new(1.0, 1.0)),
+        trans: match map
+            .get("trans")
+            .map(|value| value.to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("add") | Some("add1") => BlendMode::Add,
+            Some("sub") => BlendMode::Sub,
+            _ => BlendMode::Normal,
+        },
+        tile: map
+            .get("tile")
+            .map(|value| {
+                let (x, y) = parse_pair(value);
+                (x as i32, y as i32)
+            })
+            .unwrap_or((0, 0)),
+        tile_spacing: map
+            .get("tilespacing")
+            .map(|value| {
+                let (x, y) = parse_pair(value);
+                (x as i32, y as i32)
+            })
+            .unwrap_or((0, 0)),
+        layer_no: map
+            .get("layerno")
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or(0),
+        mask: map
+            .get("mask")
+            .map(|value| value.trim() != "0")
+            .unwrap_or(false),
+        velocity: map
+            .get("velocity")
+            .map(|value| pair(value))
+            .unwrap_or(Vec2::ZERO),
+        sin_x: map
+            .get("sin.x")
+            .map(|value| triple(value))
+            .unwrap_or([0.0; 3]),
+        sin_y: map
+            .get("sin.y")
+            .map(|value| triple(value))
+            .unwrap_or([0.0; 3]),
+        cos_x: map
+            .get("cos.x")
+            .map(|value| triple(value))
+            .unwrap_or([0.0; 3]),
+        cos_y: map
+            .get("cos.y")
+            .map(|value| triple(value))
+            .unwrap_or([0.0; 3]),
+        position_link: map
+            .get("positionlink")
+            .map(|value| value.trim() != "0")
+            .unwrap_or(false),
+        visible: map
+            .get("visible")
+            .map(|value| value.trim() != "0")
+            .unwrap_or(true),
+        enabled: map
+            .get("enabled")
+            .map(|value| value.trim() != "0")
+            .unwrap_or(true),
+        xscale: map
+            .get("xscale")
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or(1.0),
+        yscale: map
+            .get("yscale")
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or(1.0),
+        window: map
+            .get("window")
+            .map(|value| quad(value))
+            .unwrap_or([0.0; 4]),
+        start_rect: map
+            .get("startrect")
+            .map(|value| quad(value))
+            .unwrap_or([0.0; 4]),
+        window_delta: map
+            .get("windowdelta")
+            .map(|value| pair(value))
+            .unwrap_or(Vec2::ZERO),
+        id: map
+            .get("id")
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or(0),
+    }
+}
+
+fn pair(value: &str) -> Vec2 {
+    let (x, y) = parse_pair(value);
+    Vec2::new(x, y)
+}
+
+fn triple(value: &str) -> [f32; 3] {
+    let mut parts = value.split(',');
+    [
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+    ]
+}
+
+fn quad(value: &str) -> [f32; 4] {
+    let mut parts = value.split(',');
+    [
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0),
+    ]
+}
+
+fn parse_color(value: Option<&String>) -> [u8; 3] {
+    let Some(value) = value else {
+        return [0, 0, 0];
+    };
+    let mut parts = value.split(',');
+    [
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0),
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0),
+    ]
 }
 
 fn num(map: &HashMap<String, String>, key: &str, default: f32) -> f32 {
     map.get(key)
-        .and_then(|v| v.trim().parse().ok())
+        .and_then(|value| value.trim().parse().ok())
         .unwrap_or(default)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_layer_motion_and_visibility() {
+        let mut map = HashMap::new();
+        map.insert("type".into(), "anim".into());
+        map.insert("actionno".into(), "1".into());
+        map.insert("velocity".into(), "2,-1".into());
+        map.insert("sin.x".into(), "3,60,0".into());
+        map.insert("visible".into(), "0".into());
+        map.insert("xscale".into(), "2".into());
+        let layer = parse_layer(map);
+        assert_eq!(layer.kind, "anim");
+        assert_eq!(layer.action, Some(1));
+        assert_eq!(layer.velocity, Vec2::new(2.0, -1.0));
+        assert_eq!(layer.sin_x, [3.0, 60.0, 0.0]);
+        assert!(!layer.visible);
+        assert_eq!(layer.xscale, 2.0);
+    }
 }
