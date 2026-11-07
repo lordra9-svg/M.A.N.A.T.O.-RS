@@ -21,10 +21,10 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-02 | DEF character/stage | Required | Required | Partial | Bundled + stock tests |
 | F-03 | CNS states/controllers | Required | Required | Partial | Bundled roster |
 | F-04 | CMD commands | Required | Required | Partial | Bundled roster |
-| F-05 | AIR animations/Clsn | Required | Required | Partial | Bundled roster |
+| F-05 | AIR animations/Clsn | Required | Required | Partial | AIR spec + parser tests; SubAdd/interpolation rendering pending |
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
-| F-08 | SND | Required | Required | Partial | Bundled content |
+| F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | Training Grid |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
 | F-11 | Motifs/screenpack | Required | Required | Missing | TBD |

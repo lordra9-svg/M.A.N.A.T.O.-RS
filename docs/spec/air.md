@@ -1,6 +1,6 @@
 # AIR animation specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/anim.go`), public M.U.G.E.N AIR documentation, and observed
 content. Not a copy of any implementation.
 

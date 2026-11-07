@@ -79,9 +79,9 @@ The limitation is recorded explicitly rather than hidden.
 | Subsystem | Current provenance | Action |
 | --- | --- | --- |
 | `manato-core` | Original Rust math, input, RNG, hashing | Keep; add provenance note |
-| `manato-formats` text/DEF/CNS/CMD/AIR | Partly informed by `mugen-reimpl` | Rewrite/validate from Ikemen-GO docs + oracle |
+| `manato-formats` text/DEF/CNS/CMD/AIR | AIR rewritten from `docs/spec/air.md`; other parsers pending | Rewrite/validate from Ikemen-GO docs + oracle |
 | `manato-formats` SFF v1/v2 | Rewritten from `docs/spec/sff.md` | Oracle verification pending |
-| `manato-formats` SND/stage | Partly informed by `mugen-reimpl` | Rewrite/validate from spec |
+| `manato-formats` SND/stage | SND rewritten from `docs/spec/snd.md`; stage pending | Rewrite/validate from spec |
 | `manato-sim` state machine/triggers | Partly informed by `mugen-reimpl` | Rewrite from frozen spec |
 | `manato-sim` collision/HitDef | Partly informed by `mugen-reimpl` | Rewrite from frozen spec |
 | `manato-sim` projectiles | Implemented from MIT reference notes | Keep after spec review |

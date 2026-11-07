@@ -77,17 +77,40 @@ impl Painter {
         flip_v: bool,
         color: [f32; 4],
     ) {
+        self.quad_rotated(tex, blend, dest, uv, flip_h, flip_v, color, 0.0);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn quad_rotated(
+        &mut self,
+        tex: TexRef,
+        blend: Blend,
+        dest: [f32; 4],
+        uv: [f32; 4],
+        flip_h: bool,
+        flip_v: bool,
+        color: [f32; 4],
+        angle_degrees: f32,
+    ) {
         let [x0, y0, x1, y1] = dest;
         let [u0, v0, u1, v1] = uv;
         let (u0, u1) = if flip_h { (u1, u0) } else { (u0, u1) };
         let (v0, v1) = if flip_v { (v1, v0) } else { (v0, v1) };
+        let (sin, cos) = angle_degrees.to_radians().sin_cos();
+        let cx = (x0 + x1) * 0.5;
+        let cy = (y0 + y1) * 0.5;
+        let rotate = |x: f32, y: f32| {
+            let dx = x - cx;
+            let dy = y - cy;
+            [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos]
+        };
         let corners = [
-            ([x0, y0], [u0, v0]),
-            ([x1, y0], [u1, v0]),
-            ([x1, y1], [u1, v1]),
-            ([x0, y0], [u0, v0]),
-            ([x1, y1], [u1, v1]),
-            ([x0, y1], [u0, v1]),
+            (rotate(x0, y0), [u0, v0]),
+            (rotate(x1, y0), [u1, v0]),
+            (rotate(x1, y1), [u1, v1]),
+            (rotate(x0, y0), [u0, v0]),
+            (rotate(x1, y1), [u1, v1]),
+            (rotate(x0, y1), [u0, v1]),
         ];
         self.range(tex, blend);
         for (pos, uv) in corners {

@@ -20,6 +20,9 @@ struct Pose {
     flip_h: bool,
     flip_v: bool,
     blend: Blend,
+    scale: Vec2,
+    alpha: f32,
+    angle: f32,
 }
 
 impl Pose {
@@ -29,6 +32,9 @@ impl Pose {
             flip_h: frame.flip_h,
             flip_v: frame.flip_v,
             blend: blend_of(frame.blend),
+            scale: frame.scale,
+            alpha: frame.alpha(),
+            angle: frame.angle,
         }
     }
 }
@@ -37,7 +43,7 @@ fn blend_of(blend: BlendMode) -> Blend {
     match blend {
         BlendMode::Normal => Blend::Normal,
         BlendMode::Add => Blend::Add,
-        BlendMode::Sub => Blend::Sub,
+        BlendMode::Sub | BlendMode::SubAdd => Blend::Sub,
     }
 }
 
@@ -124,6 +130,9 @@ fn draw_bg_layer(
                 flip_h: false,
                 flip_v: false,
                 blend: blend_of(layer.trans),
+                scale: Vec2::new(1.0, 1.0),
+                alpha: 1.0,
+                angle: 0.0,
             },
             None,
         )
@@ -134,8 +143,18 @@ fn draw_bg_layer(
 
     let blend = blend_of(layer.trans);
     let (w, h) = (sprite.width as f32, sprite.height as f32);
-    let base_left = base.x + pose.offset.x - sprite.axis_x as f32;
-    let base_top = base.y + pose.offset.y - sprite.axis_y as f32;
+    let base_left = base.x
+        + if pose.flip_h {
+            pose.offset.x - (sprite.width as f32 - sprite.axis_x as f32)
+        } else {
+            pose.offset.x - sprite.axis_x as f32
+        };
+    let base_top = base.y
+        + if pose.flip_v {
+            pose.offset.y - (sprite.height as f32 - sprite.axis_y as f32)
+        } else {
+            pose.offset.y - sprite.axis_y as f32
+        };
     let step_x = w + layer.tile_spacing.0 as f32;
     let step_y = h + layer.tile_spacing.1 as f32;
     if step_x <= 0.0 || step_y <= 0.0 {
@@ -166,9 +185,10 @@ fn draw_bg_layer(
                 pose.flip_h,
                 pose.flip_v,
                 blend,
-                [1.0, 1.0, 1.0, 1.0],
-                1.0,
-                1.0,
+                [1.0, 1.0, 1.0, pose.alpha],
+                pose.scale.x,
+                pose.scale.y,
+                pose.angle,
             );
         }
     }
@@ -198,11 +218,12 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             sim.screen_pos(projectile.pos),
             pose.offset,
             projectile.facing,
-            Vec2::new(1.0, 1.0),
+            pose.scale,
             pose.flip_h,
             pose.flip_v,
             pose.blend,
-            [1.0, 1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0, pose.alpha],
+            pose.angle,
         );
     }
 }
@@ -247,25 +268,37 @@ fn draw_sprite(
     flip_v: bool,
     blend: Blend,
     color: [f32; 4],
+    angle: f32,
 ) {
     let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
         return;
     };
     let w = sprite.width as f32 * scale.x;
     let h = sprite.height as f32 * scale.y;
-    let left = offset.x * scale.x - sprite.axis_x as f32 * scale.x;
-    let top = offset.y * scale.y - sprite.axis_y as f32 * scale.y;
-    let flipped = (facing < 0) ^ flip_h;
-    let x0 = if flipped {
-        anchor.x - left - w
+    let axis_x = sprite.axis_x as f32 * scale.x;
+    let axis_y = sprite.axis_y as f32 * scale.y;
+    let offset_x = offset.x * scale.x;
+    let offset_y = offset.y * scale.y;
+    // AIR H/V flags mirror around the sprite axis and already negate the
+    // stored offset. Facing mirrors the whole character around the anchor.
+    let local_left = if flip_h {
+        offset_x - (w - axis_x)
     } else {
-        anchor.x + left
+        offset_x - axis_x
     };
-    let y0 = if flip_v {
-        anchor.y - top - h
+    let local_top = if flip_v {
+        offset_y - (h - axis_y)
     } else {
-        anchor.y + top
+        offset_y - axis_y
     };
+    let facing_flip = facing < 0;
+    let x0 = if facing_flip {
+        anchor.x - local_left - w
+    } else {
+        anchor.x + local_left
+    };
+    let y0 = anchor.y + local_top;
+    let flipped = facing_flip ^ flip_h;
     draw_atlas_quad(
         painter,
         atlas_sprite.page,
@@ -275,6 +308,7 @@ fn draw_sprite(
         flip_v,
         blend,
         color,
+        angle,
     );
 }
 
@@ -291,6 +325,7 @@ fn draw_sprite_at(
     color: [f32; 4],
     scale_x: f32,
     scale_y: f32,
+    angle: f32,
 ) {
     let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
         return;
@@ -306,6 +341,7 @@ fn draw_sprite_at(
         flip_v,
         blend,
         color,
+        angle,
     );
 }
 
@@ -318,8 +354,18 @@ fn draw_atlas_quad(
     flip_v: bool,
     blend: Blend,
     color: [f32; 4],
+    angle: f32,
 ) {
-    painter.quad(TexRef::Atlas(page), blend, dest, uv, flip_h, flip_v, color);
+    painter.quad_rotated(
+        TexRef::Atlas(page),
+        blend,
+        dest,
+        uv,
+        flip_h,
+        flip_v,
+        color,
+        angle,
+    );
 }
 
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
@@ -337,11 +383,12 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     let mut anchor = sim.screen_pos(fighter.pos);
     anchor.x += character.constants.get_or("draw.offset.x", 0.0);
     anchor.y += character.constants.get_or("draw.offset.y", 0.0);
-    let scale = Vec2::new(
+    let base_scale = Vec2::new(
         character.constants.get_or("size.xscale", 1.0),
         character.constants.get_or("size.yscale", 1.0),
     );
     let pose = Pose::from_frame(frame);
+    let scale = Vec2::new(base_scale.x * pose.scale.x, base_scale.y * pose.scale.y);
     draw_sprite(
         painter,
         atlas,
@@ -354,7 +401,8 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         pose.flip_h,
         pose.flip_v,
         pose.blend,
-        [1.0, 1.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0, pose.alpha],
+        pose.angle,
     );
 }
 
@@ -404,6 +452,7 @@ fn draw_effect(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effec
         EffectBlend::Add => Blend::Add,
         EffectBlend::Sub => Blend::Sub,
     };
+    let pose = Pose::from_frame(frame);
     draw_sprite(
         painter,
         atlas,
@@ -412,11 +461,12 @@ fn draw_effect(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effec
         anchor,
         Vec2::new(frame.offset.x, frame.offset.y),
         effect.facing,
-        Vec2::new(effect.scale.x, effect.scale.y),
+        Vec2::new(effect.scale.x * pose.scale.x, effect.scale.y * pose.scale.y),
         frame.flip_h ^ effect.flip_h,
         frame.flip_v ^ effect.flip_v,
         blend,
-        [1.0, 1.0, 1.0, effect.alpha.clamp(0.0, 1.0)],
+        [1.0, 1.0, 1.0, (effect.alpha * pose.alpha).clamp(0.0, 1.0)],
+        pose.angle,
     );
 }
 

@@ -1,6 +1,6 @@
 # SND sound bank specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/sound.go`), public M.U.G.E.N format documentation, and observed
 content. Not a copy of any implementation.
 
