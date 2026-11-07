@@ -22,6 +22,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 png = "0.17"
 hound = "3.5"
 cpal = "0.15"
+symphonia = { version = "0.5", features = ["mp3", "ogg", "vorbis", "wav"] }
 ggrs = "0.13"
 wgpu = "25"
 winit = "0.30"

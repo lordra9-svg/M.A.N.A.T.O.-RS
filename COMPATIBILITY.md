@@ -25,7 +25,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
-| F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl/reflection added; BGM/mask pending |
+| F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl/reflection/BGM/window scissor added; sprite mask pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
 | F-11 | Motifs/screenpack | Required | Required | Missing | TBD |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
@@ -120,7 +120,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | A-01 | SND playback | Required | Required | Partial | Audio smoke |
 | A-02 | Character/effect sounds | Required | Required | Verified | Roster |
-| A-03 | BGM/music | Required | Required | Missing | TBD |
+| A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer; oracle pending |
 | A-04 | Pan/volume/channels | Required | Required | Partial | Mixer tests |
 | A-05 | Pause/loop/modify sound | Required | Ikemen | Missing | TBD |
 

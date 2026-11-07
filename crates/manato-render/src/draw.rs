@@ -33,6 +33,8 @@ pub struct DrawRange {
     pub count: u32,
     pub tex: TexRef,
     pub blend: Blend,
+    /// Optional scissor rectangle in game pixels: x, y, width, height.
+    pub scissor: Option<[u32; 4]>,
 }
 
 /// Accumulates quads and the state changes needed to draw them.
@@ -40,18 +42,25 @@ pub struct DrawRange {
 pub struct Painter {
     pub vertices: Vec<Vertex>,
     pub ranges: Vec<DrawRange>,
+    scissor: Option<[u32; 4]>,
 }
 
 impl Painter {
     pub fn clear(&mut self) {
         self.vertices.clear();
         self.ranges.clear();
+        self.scissor = None;
+    }
+
+    pub fn set_scissor(&mut self, scissor: Option<[u32; 4]>) {
+        self.scissor = scissor;
     }
 
     fn range(&mut self, tex: TexRef, blend: Blend) {
         if let Some(last) = self.ranges.last_mut() {
             if last.tex == tex
                 && last.blend == blend
+                && last.scissor == self.scissor
                 && last.start + last.count == self.vertices.len() as u32
             {
                 last.count += 6;
@@ -63,6 +72,7 @@ impl Painter {
             count: 6,
             tex,
             blend,
+            scissor: self.scissor,
         });
     }
 

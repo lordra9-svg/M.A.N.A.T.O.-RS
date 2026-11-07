@@ -57,7 +57,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         .filter(|(_, layer)| layer.layer_no < 0)
     {
         if let Some(state) = sim.stage_layers.get(index) {
+            painter.set_scissor(layer_scissor(layer));
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+            painter.set_scissor(None);
         }
     }
     for (index, layer) in stage
@@ -66,7 +68,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         .filter(|(_, layer)| layer.layer_no == 0)
     {
         if let Some(state) = sim.stage_layers.get(index) {
+            painter.set_scissor(layer_scissor(layer));
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+            painter.set_scissor(None);
         }
     }
 
@@ -94,7 +98,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         .filter(|(_, layer)| layer.layer_no > 0)
     {
         if let Some(state) = sim.stage_layers.get(index) {
+            painter.set_scissor(layer_scissor(layer));
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+            painter.set_scissor(None);
         }
     }
 
@@ -121,6 +127,19 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     }
 
     draw_hud(painter, deps.font, sim);
+}
+
+fn layer_scissor(layer: &manato_formats::stage::BgLayer) -> Option<[u32; 4]> {
+    let [x1, y1, x2, y2] = layer.window;
+    if x2 <= x1 || y2 <= y1 {
+        return None;
+    }
+    Some([
+        x1.max(0.0) as u32,
+        y1.max(0.0) as u32,
+        (x2 - x1).max(0.0) as u32,
+        (y2 - y1).max(0.0) as u32,
+    ])
 }
 
 fn draw_bg_layer(

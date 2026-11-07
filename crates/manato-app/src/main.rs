@@ -329,6 +329,22 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         audio.backend_name(),
         audio.sample_rate()
     );
+    if let Some(path) = &sim.assets.stage.music.path {
+        match manato_audio::Music::load(
+            path,
+            sim.assets.stage.music.loop_start,
+            sim.assets.stage.music.loop_end,
+        ) {
+            Ok(music) => {
+                let volume = (sim.assets.stage.music.volume as f32 / 100.0
+                    * sim.assets.stage.music.ratio.clamp(0.0, 1.0))
+                .clamp(0.0, 1.0);
+                audio.play_music(&music, volume);
+                log::info!("playing stage music {}", path.display());
+            }
+            Err(error) => log::warn!("could not load stage music {}: {error:#}", path.display()),
+        }
+    }
     let mut app = App {
         opts,
         sim,

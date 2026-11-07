@@ -10,6 +10,7 @@
 //! the same API.
 
 use std::collections::VecDeque;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use manato_formats::{Sound, SoundBank};
@@ -21,6 +22,83 @@ mod pulse;
 #[cfg(feature = "cpal-backend")]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
+/// Decoded background music.
+#[derive(Debug, Clone)]
+pub struct Music {
+    pub samples: Arc<Vec<i16>>,
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub loop_start_ms: i32,
+    pub loop_end_ms: i32,
+}
+
+impl Music {
+    pub fn load(path: &Path, loop_start_ms: i32, loop_end_ms: i32) -> anyhow::Result<Self> {
+        use std::fs::File;
+
+        use symphonia::core::audio::SampleBuffer;
+        use symphonia::core::codecs::DecoderOptions;
+        use symphonia::core::errors::Error as SymphoniaError;
+        use symphonia::core::formats::FormatOptions;
+        use symphonia::core::io::MediaSourceStream;
+        use symphonia::core::meta::MetadataOptions;
+        use symphonia::core::probe::Hint;
+        use symphonia::default::{get_codecs, get_probe};
+
+        let file = File::open(path)?;
+        let stream = MediaSourceStream::new(Box::new(file), Default::default());
+        let mut hint = Hint::new();
+        if let Some(extension) = path.extension().and_then(|value| value.to_str()) {
+            hint.with_extension(extension);
+        }
+        let probed = get_probe().format(
+            &hint,
+            stream,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )?;
+        let mut format = probed.format;
+        let track = format
+            .default_track()
+            .ok_or_else(|| anyhow::anyhow!("music file has no default track"))?;
+        let codec_params = track.codec_params.clone();
+        let mut decoder = get_codecs().make(&codec_params, &DecoderOptions::default())?;
+        let sample_rate = codec_params.sample_rate.unwrap_or(44_100);
+        let channels = codec_params
+            .channels
+            .map(|channels| channels.count())
+            .unwrap_or(2) as u16;
+        let mut samples = Vec::new();
+        loop {
+            let packet = match format.next_packet() {
+                Ok(packet) => packet,
+                Err(SymphoniaError::IoError(error))
+                    if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
+                    break;
+                }
+                Err(SymphoniaError::ResetRequired) => break,
+                Err(error) => return Err(error.into()),
+            };
+            let decoded = decoder.decode(&packet)?;
+            let spec = *decoded.spec();
+            let mut buffer = SampleBuffer::<i16>::new(decoded.capacity() as u64, spec);
+            buffer.copy_interleaved_ref(decoded);
+            samples.extend_from_slice(buffer.samples());
+        }
+        if samples.is_empty() {
+            anyhow::bail!("music file decoded to zero samples");
+        }
+        Ok(Self {
+            samples: Arc::new(samples),
+            sample_rate,
+            channels,
+            loop_start_ms,
+            loop_end_ms,
+        })
+    }
+}
+
 struct Voice {
     samples: Arc<Vec<i16>>,
     channels: usize,
@@ -29,6 +107,9 @@ struct Voice {
     gain_l: f32,
     gain_r: f32,
     finished: bool,
+    looping: bool,
+    loop_start: usize,
+    loop_end: usize,
 }
 
 impl Voice {
@@ -48,16 +129,51 @@ impl Voice {
             gain_l: angle.cos() * volume,
             gain_r: angle.sin() * volume,
             finished: false,
+            looping: false,
+            loop_start: 0,
+            loop_end: 0,
+        })
+    }
+
+    fn new_music(music: &Music, output_rate: u32, volume: f32) -> Option<Self> {
+        if music.samples.is_empty() || music.sample_rate == 0 || music.channels == 0 {
+            return None;
+        }
+        let frames = music.samples.len() / music.channels as usize;
+        let loop_start = ((music.loop_start_ms.max(0) as u64 * music.sample_rate as u64) / 1000)
+            .min(frames.saturating_sub(1) as u64) as usize;
+        let loop_end = if music.loop_end_ms > 0 {
+            ((music.loop_end_ms as u64 * music.sample_rate as u64) / 1000).min(frames as u64)
+                as usize
+        } else {
+            frames
+        };
+        Some(Self {
+            samples: music.samples.clone(),
+            channels: music.channels as usize,
+            position: 0.0,
+            step: music.sample_rate as f64 / output_rate.max(1) as f64,
+            gain_l: volume,
+            gain_r: volume,
+            finished: false,
+            looping: true,
+            loop_start,
+            loop_end: loop_end.max(loop_start.saturating_add(1)),
         })
     }
 
     fn mix(&mut self, out: &mut [f32], out_channels: usize) {
         let frames = self.samples.len() / self.channels;
         for frame in 0..out.len() / out_channels {
-            let idx = self.position as usize;
-            if idx >= frames {
-                self.finished = true;
-                break;
+            let mut idx = self.position as usize;
+            if idx >= frames || (self.looping && idx >= self.loop_end) {
+                if self.looping && self.loop_end > self.loop_start {
+                    self.position = self.loop_start as f64;
+                    idx = self.loop_start;
+                } else {
+                    self.finished = true;
+                    break;
+                }
             }
             let (l, r) = if self.channels >= 2 {
                 (
@@ -83,6 +199,7 @@ impl Voice {
 pub(crate) struct Mixer {
     pending: VecDeque<Voice>,
     active: Vec<Voice>,
+    music: Option<Voice>,
     output_channels: usize,
     volume: f32,
 }
@@ -95,6 +212,12 @@ impl Mixer {
         self.active.extend(self.pending.drain(..));
         for voice in &mut self.active {
             voice.mix(out, self.output_channels);
+        }
+        if let Some(music) = self.music.as_mut() {
+            music.mix(out, self.output_channels);
+            if music.finished {
+                self.music = None;
+            }
         }
         self.active.retain(|v| !v.finished);
         let volume = self.volume;
@@ -123,6 +246,7 @@ fn new_mixer(channels: usize) -> Arc<Mutex<Mixer>> {
     Arc::new(Mutex::new(Mixer {
         pending: VecDeque::new(),
         active: Vec::new(),
+        music: None,
         output_channels: channels,
         volume: 1.0,
     }))
@@ -245,6 +369,21 @@ impl AudioEngine {
         })
     }
 
+    pub fn play_music(&self, music: &Music, volume: f32) {
+        let Some(voice) = Voice::new_music(music, self.rate, volume.clamp(0.0, 1.0)) else {
+            return;
+        };
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer.music = Some(voice);
+        }
+    }
+
+    pub fn stop_music(&self) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer.music = None;
+        }
+    }
+
     pub fn set_volume(&self, volume: f32) {
         if let Ok(mut mixer) = self.mixer.lock() {
             mixer.volume = volume.clamp(0.0, 1.0);
@@ -332,6 +471,7 @@ mod tests {
         let mut mixer = Mixer {
             pending: VecDeque::new(),
             active: Vec::new(),
+            music: None,
             output_channels: 2,
             volume: 1.0,
         };
@@ -346,10 +486,27 @@ mod tests {
     }
 
     #[test]
+    fn music_loops() {
+        let music = Music {
+            samples: Arc::new(vec![1_000, 2_000, 3_000, 4_000]),
+            sample_rate: 48_000,
+            channels: 1,
+            loop_start_ms: 0,
+            loop_end_ms: 0,
+        };
+        let mut voice = Voice::new_music(&music, 48_000, 1.0).unwrap();
+        let mut out = vec![0.0f32; 16];
+        voice.mix(&mut out, 2);
+        assert!(out.iter().any(|sample| sample.abs() > 0.0));
+        assert!(!voice.finished);
+    }
+
+    #[test]
     fn pans_left_and_right() {
         let mut left = Mixer {
             pending: VecDeque::new(),
             active: vec![Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 0.0, -1.0).unwrap()],
+            music: None,
             output_channels: 2,
             volume: 1.0,
         };
@@ -361,6 +518,7 @@ mod tests {
         let mut right = Mixer {
             pending: VecDeque::new(),
             active: vec![Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 0.0, 1.0).unwrap()],
+            music: None,
             output_channels: 2,
             volume: 1.0,
         };

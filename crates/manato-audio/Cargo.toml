@@ -19,6 +19,7 @@ cpal-backend = ["dep:cpal"]
 manato-formats = { path = "../manato-formats" }
 manato-sim = { path = "../manato-sim" }
 cpal = { workspace = true, optional = true }
+symphonia.workspace = true
 anyhow.workspace = true
 log.workspace = true
 

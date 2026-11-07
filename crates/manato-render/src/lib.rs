@@ -425,6 +425,15 @@ impl Renderer {
                     TexRef::Solid => &self.solid,
                     TexRef::Shadow => &self.shadow,
                 };
+                if let Some([x, y, w, h]) = range.scissor {
+                    let x = x.min(GAME_WIDTH.saturating_sub(1));
+                    let y = y.min(GAME_HEIGHT.saturating_sub(1));
+                    let w = w.min(GAME_WIDTH.saturating_sub(x)).max(1);
+                    let h = h.min(GAME_HEIGHT.saturating_sub(y)).max(1);
+                    pass.set_scissor_rect(x, y, w, h);
+                } else {
+                    pass.set_scissor_rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                }
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, bind_group, &[]);
                 pass.draw(range.start..range.start + range.count, 0..1);
