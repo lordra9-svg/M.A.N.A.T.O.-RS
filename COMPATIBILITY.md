@@ -25,7 +25,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
-| F-09 | Stage DEF/BG layers | Required | Required | Partial | Stage spec + layers/motion; BGCtrl/reflection pending |
+| F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl/reflection added; BGM/mask pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
 | F-11 | Motifs/screenpack | Required | Required | Missing | TBD |
 | F-12 | Storyboards | Required | Required | Missing | TBD |

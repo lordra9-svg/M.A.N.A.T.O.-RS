@@ -315,6 +315,35 @@ impl Default for EnvShake {
 }
 
 #[derive(Debug, Clone)]
+pub struct StageLayerState {
+    pub offset: Vec2,
+    pub velocity: Vec2,
+    pub sin_x: [f32; 3],
+    pub sin_y: [f32; 3],
+    pub cos_x: [f32; 3],
+    pub cos_y: [f32; 3],
+    pub action: Option<i32>,
+    pub visible: bool,
+    pub enabled: bool,
+}
+
+impl StageLayerState {
+    fn from_layer(layer: &manato_formats::stage::BgLayer) -> Self {
+        Self {
+            offset: Vec2::ZERO,
+            velocity: layer.velocity,
+            sin_x: layer.sin_x,
+            sin_y: layer.sin_y,
+            cos_x: layer.cos_x,
+            cos_y: layer.cos_y,
+            action: layer.action,
+            visible: layer.visible,
+            enabled: layer.enabled,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SimState {
     pub assets: Arc<Assets>,
     pub fighters: Vec<Fighter>,
@@ -327,6 +356,7 @@ pub struct SimState {
     pub bg_time: f32,
     pub env_shake: EnvShake,
     pub env_color: Option<EnvColor>,
+    pub stage_layers: Vec<StageLayerState>,
     pub options: MatchOptions,
     pub rng: Rng,
     pub super_pause: i32,
@@ -365,6 +395,12 @@ impl SimState {
                 if facing == 0 { 1 } else { facing },
             ));
         }
+        let stage_layers = assets
+            .stage
+            .layers
+            .iter()
+            .map(StageLayerState::from_layer)
+            .collect();
         let mut state = Self {
             assets,
             fighters,
@@ -381,6 +417,7 @@ impl SimState {
             bg_time: 0.0,
             env_shake: EnvShake::default(),
             env_color: None,
+            stage_layers,
             options,
             rng: Rng::new(0x4D41_4E41_544F_5253),
             super_pause: 0,
@@ -500,6 +537,24 @@ impl SimState {
         self.update_camera();
         self.update_effects();
         self.bg_time += 1.0;
+        self.update_stage_layers();
+    }
+
+    fn update_stage_layers(&mut self) {
+        let stage = &self.assets.stage;
+        let bg_time = self.bg_time as i32;
+        let round_no = self.round.number;
+        let round_state = self.round.roundstate_code();
+        for (index, state) in self.stage_layers.iter_mut().enumerate() {
+            state.offset.x += state.velocity.x;
+            state.offset.y += state.velocity.y;
+            for ctrl in stage.bg_ctrls.iter().filter(|ctrl| ctrl.layer == index) {
+                if !stage_controller_met(bg_time, round_no, round_state, state, &ctrl.controller) {
+                    continue;
+                }
+                apply_stage_controller(state, &ctrl.controller);
+            }
+        }
     }
 
     fn update_fighter(&mut self, who: usize) {
@@ -1011,6 +1066,16 @@ impl SimState {
         self.camera.y = self.assets.stage.camera.start.y;
         self.env_shake = EnvShake::default();
         self.env_color = None;
+        if self.assets.stage.reset_bg {
+            self.bg_time = 0.0;
+            self.stage_layers = self
+                .assets
+                .stage
+                .layers
+                .iter()
+                .map(StageLayerState::from_layer)
+                .collect();
+        }
     }
 
     fn update_camera(&mut self) {
@@ -1123,6 +1188,14 @@ impl SimState {
             h.write_f32(e.pos.x);
             h.write_f32(e.pos.y);
             h.write_i32(e.time);
+        }
+        for layer in &self.stage_layers {
+            h.write_f32(layer.offset.x);
+            h.write_f32(layer.offset.y);
+            h.write_f32(layer.velocity.x);
+            h.write_f32(layer.velocity.y);
+            h.write_bool(layer.visible);
+            h.write_bool(layer.enabled);
         }
         if let Some(color) = self.env_color {
             h.write_f32(color.color[0]);
@@ -1238,6 +1311,173 @@ impl SimState {
     }
 }
 
+fn stage_controller_met(
+    bg_time: i32,
+    round_no: u32,
+    round_state: i32,
+    layer: &StageLayerState,
+    control: &manato_formats::Controller,
+) -> bool {
+    let (all, groups) = control.trigger_groups();
+    if !all
+        .iter()
+        .all(|trigger| stage_trigger_met(bg_time, round_no, round_state, layer, trigger))
+    {
+        return false;
+    }
+    if groups.is_empty() {
+        return true;
+    }
+    groups.iter().any(|(_, triggers)| {
+        triggers
+            .iter()
+            .all(|trigger| stage_trigger_met(bg_time, round_no, round_state, layer, trigger))
+    })
+}
+
+fn stage_trigger_met(
+    bg_time: i32,
+    round_no: u32,
+    round_state: i32,
+    layer: &StageLayerState,
+    text: &str,
+) -> bool {
+    let text = text.trim().to_ascii_lowercase();
+    if text == "1" {
+        return true;
+    }
+    let value = |name: &str| -> Option<i32> {
+        match name {
+            "time" => Some(bg_time),
+            "anim" => Some(layer.action.unwrap_or(-1)),
+            "roundno" => Some(round_no as i32),
+            "roundstate" => Some(round_state),
+            _ => None,
+        }
+    };
+    if let Some((left, rest)) = text.split_once('%') {
+        if let Some((modulus, expected)) = rest.split_once('=') {
+            let Some(lhs) = value(left.trim()) else {
+                return false;
+            };
+            let Ok(modulus) = modulus.trim().parse::<i32>() else {
+                return false;
+            };
+            let Ok(expected) = expected.trim().parse::<i32>() else {
+                return false;
+            };
+            return modulus != 0 && lhs % modulus == expected;
+        }
+    }
+    for op in ["!=", "<=", ">=", "=", "<", ">"] {
+        if let Some((left, right)) = text.split_once(op) {
+            let Some(lhs) = value(left.trim()) else {
+                return false;
+            };
+            let Ok(rhs) = right.trim().parse::<i32>() else {
+                return false;
+            };
+            return match op {
+                "=" => lhs == rhs,
+                "!=" => lhs != rhs,
+                "<" => lhs < rhs,
+                "<=" => lhs <= rhs,
+                ">" => lhs > rhs,
+                ">=" => lhs >= rhs,
+                _ => false,
+            };
+        }
+    }
+    false
+}
+
+fn stage_num(control: &manato_formats::Controller, key: &str) -> Option<f32> {
+    control.get(key).and_then(|value| value.trim().parse().ok())
+}
+
+fn stage_triple(control: &manato_formats::Controller, key: &str) -> Option<[f32; 3]> {
+    let value = control.get(key)?;
+    let mut parts = value.split(',');
+    Some([
+        parts.next()?.trim().parse().ok()?,
+        parts.next()?.trim().parse().ok()?,
+        parts.next()?.trim().parse().ok()?,
+    ])
+}
+
+fn apply_stage_controller(layer: &mut StageLayerState, control: &manato_formats::Controller) {
+    match control.kind.as_str() {
+        "anim" => {
+            if let Some(value) = control.get_i32("value") {
+                layer.action = Some(value);
+            }
+        }
+        "visible" => {
+            if let Some(value) = control.get_i32("value") {
+                layer.visible = value != 0;
+            }
+        }
+        "enable" => {
+            if let Some(value) = control.get_i32("value") {
+                layer.enabled = value != 0;
+            }
+        }
+        "posset" => {
+            if let Some(x) = stage_num(control, "x") {
+                layer.offset.x = x;
+            }
+            if let Some(y) = stage_num(control, "y") {
+                layer.offset.y = y;
+            }
+        }
+        "posadd" => {
+            if let Some(x) = stage_num(control, "x") {
+                layer.offset.x += x;
+            }
+            if let Some(y) = stage_num(control, "y") {
+                layer.offset.y += y;
+            }
+        }
+        "velset" => {
+            if let Some(x) = stage_num(control, "x") {
+                layer.velocity.x = x;
+            }
+            if let Some(y) = stage_num(control, "y") {
+                layer.velocity.y = y;
+            }
+        }
+        "veladd" => {
+            if let Some(x) = stage_num(control, "x") {
+                layer.velocity.x += x;
+            }
+            if let Some(y) = stage_num(control, "y") {
+                layer.velocity.y += y;
+            }
+        }
+        "sinx" => {
+            if let Some(value) = stage_triple(control, "value") {
+                layer.sin_x = value;
+            }
+        }
+        "siny" => {
+            if let Some(value) = stage_triple(control, "value") {
+                layer.sin_y = value;
+            }
+        }
+        "cosx" => {
+            if let Some(value) = stage_triple(control, "value") {
+                layer.cos_x = value;
+            }
+        }
+        "cosy" => {
+            if let Some(value) = stage_triple(control, "value") {
+                layer.cos_y = value;
+            }
+        }
+        _ => {}
+    }
+}
+
 fn update_exec_counter(
     sim: &mut SimState,
     who: usize,
@@ -1295,3 +1535,68 @@ pub fn run_frames(
 
 /// Unused import guard for `GAME_HEIGHT` in no_std-ish builds.
 const _: f32 = GAME_HEIGHT;
+
+#[cfg(test)]
+mod stage_tests {
+    use super::*;
+    use manato_formats::Controller;
+
+    fn layer() -> StageLayerState {
+        StageLayerState {
+            offset: Vec2::ZERO,
+            velocity: Vec2::ZERO,
+            sin_x: [0.0; 3],
+            sin_y: [0.0; 3],
+            cos_x: [0.0; 3],
+            cos_y: [0.0; 3],
+            action: None,
+            visible: true,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn stage_time_triggers() {
+        let layer = layer();
+        assert!(stage_trigger_met(10, 1, 2, &layer, "time = 10"));
+        assert!(stage_trigger_met(10, 1, 2, &layer, "time >= 5"));
+        assert!(stage_trigger_met(10, 1, 2, &layer, "time % 5 = 0"));
+        assert!(!stage_trigger_met(10, 1, 2, &layer, "time < 5"));
+        assert!(stage_trigger_met(10, 1, 2, &layer, "1"));
+    }
+
+    #[test]
+    fn stage_controllers_mutate_layer() {
+        let mut layer = layer();
+        let velset = Controller {
+            kind: "velset".into(),
+            params: vec![
+                ("type".into(), "VelSet".into()),
+                ("x".into(), "2".into()),
+                ("y".into(), "-1".into()),
+            ],
+            line: 0,
+        };
+        apply_stage_controller(&mut layer, &velset);
+        assert_eq!(layer.velocity, Vec2::new(2.0, -1.0));
+
+        let anim = Controller {
+            kind: "anim".into(),
+            params: vec![("type".into(), "Anim".into()), ("value".into(), "3".into())],
+            line: 0,
+        };
+        apply_stage_controller(&mut layer, &anim);
+        assert_eq!(layer.action, Some(3));
+
+        let visible = Controller {
+            kind: "visible".into(),
+            params: vec![
+                ("type".into(), "Visible".into()),
+                ("value".into(), "0".into()),
+            ],
+            line: 0,
+        };
+        apply_stage_controller(&mut layer, &visible);
+        assert!(!layer.visible);
+    }
+}

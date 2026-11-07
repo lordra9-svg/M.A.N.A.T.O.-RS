@@ -51,13 +51,26 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     painter.clear();
     let stage = &sim.assets.stage;
 
-    for layer in stage.render_layers().filter(|l| l.layer_no < 0) {
-        draw_bg_layer(painter, deps.atlas, sim, stage, layer);
+    for (index, layer) in stage
+        .render_layers()
+        .enumerate()
+        .filter(|(_, layer)| layer.layer_no < 0)
+    {
+        if let Some(state) = sim.stage_layers.get(index) {
+            draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+        }
     }
-    for layer in stage.render_layers().filter(|l| l.layer_no == 0) {
-        draw_bg_layer(painter, deps.atlas, sim, stage, layer);
+    for (index, layer) in stage
+        .render_layers()
+        .enumerate()
+        .filter(|(_, layer)| layer.layer_no == 0)
+    {
+        if let Some(state) = sim.stage_layers.get(index) {
+            draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+        }
     }
 
+    draw_reflections(painter, deps.atlas, sim);
     draw_shadows(painter, sim);
 
     // Effects that are explicitly behind characters.
@@ -75,8 +88,14 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
 
     draw_projectiles(painter, deps.atlas, sim);
 
-    for layer in stage.render_layers().filter(|l| l.layer_no > 0) {
-        draw_bg_layer(painter, deps.atlas, sim, stage, layer);
+    for (index, layer) in stage
+        .render_layers()
+        .enumerate()
+        .filter(|(_, layer)| layer.layer_no > 0)
+    {
+        if let Some(state) = sim.stage_layers.get(index) {
+            draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+        }
     }
 
     let mut front: Vec<&Effect> = sim.effects.iter().filter(|e| !e.behind).collect();
@@ -110,8 +129,9 @@ fn draw_bg_layer(
     sim: &SimState,
     stage: &Stage,
     layer: &manato_formats::stage::BgLayer,
+    state: &manato_sim::StageLayerState,
 ) {
-    if !layer.visible || !layer.enabled {
+    if !state.visible || !state.enabled {
         return;
     }
     let camera = &sim.camera;
@@ -131,15 +151,16 @@ fn draw_bg_layer(
         }
     };
     let motion = Vec2::new(
-        layer.velocity.x * time + sin_offset(layer.sin_x) + cos_offset(layer.cos_x),
-        layer.velocity.y * time + sin_offset(layer.sin_y) + cos_offset(layer.cos_y),
+        state.offset.x + sin_offset(state.sin_x) + cos_offset(state.cos_x),
+        state.offset.y + sin_offset(state.sin_y) + cos_offset(state.cos_y),
     );
     let base = Vec2::new(
         layer.start.x - camera.x * layer.delta.x + camera.shake.x + motion.x,
         layer.start.y - camera.y * layer.delta.y + camera.shake.y + motion.y,
     );
 
-    let (sprite, pose, anim) = if let Some(action) = layer.action {
+    let action = state.action.or(layer.action);
+    let (sprite, pose, anim) = if let Some(action) = action {
         if let Some(anim) = stage.animations.get(&action) {
             let frame_idx = anim
                 .frame_at(sim.bg_time as i32)
@@ -266,6 +287,57 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             pose.flip_v,
             pose.blend,
             [1.0, 1.0, 1.0, pose.alpha],
+            pose.angle,
+        );
+    }
+}
+
+fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
+    let reflection = &sim.assets.stage.reflection;
+    if reflection.intensity <= 0 {
+        return;
+    }
+    let alpha = (reflection.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.45;
+    for fighter in sim
+        .fighters
+        .iter()
+        .filter(|fighter| fighter.owner.is_none())
+    {
+        if !fighter.active {
+            continue;
+        }
+        let character = &sim.assets.characters[fighter.char_id];
+        let Some(frame) = fighter.current_frame(character) else {
+            continue;
+        };
+        let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+            continue;
+        };
+        let pose = Pose::from_frame(frame);
+        let mut anchor = sim.screen_pos(fighter.pos);
+        anchor.y = sim.ground_screen_y() * 2.0 - anchor.y;
+        let base_scale = Vec2::new(
+            character.constants.get_or("size.xscale", 1.0),
+            character.constants.get_or("size.yscale", 1.0),
+        );
+        draw_sprite(
+            painter,
+            atlas,
+            bank::CHARACTER_BASE + fighter.char_id as u8,
+            sprite,
+            anchor,
+            pose.offset,
+            fighter.facing,
+            Vec2::new(base_scale.x * pose.scale.x, base_scale.y * pose.scale.y),
+            pose.flip_h,
+            !pose.flip_v,
+            pose.blend,
+            [
+                reflection.color[0] as f32 / 255.0,
+                reflection.color[1] as f32 / 255.0,
+                reflection.color[2] as f32 / 255.0,
+                alpha,
+            ],
             pose.angle,
         );
     }
