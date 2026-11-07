@@ -20,6 +20,19 @@ pub fn resolve(sim: &mut SimState) {
         if sim.fighters[attacker].hit.hit_targets.contains(&defender) {
             continue;
         }
+        if let Some(reversal) = sim.fighters[defender].reversal.clone() {
+            if sim.fighters[defender].reversal_time > 0
+                && attr_matches_attr(&reversal.attr, &hitdef.attr)
+            {
+                let origin = sim.fighters[defender].pos;
+                let facing = sim.fighters[defender].facing;
+                apply_hit_at(
+                    sim, defender, attacker, &reversal, false, origin, facing, true,
+                );
+                sim.fighters[attacker].hit.hit_targets.push(defender);
+                continue;
+            }
+        }
         if sim.fighters[defender].hit.not_hit_by.is_some()
             && blocks_by_filter(sim, defender, &hitdef)
         {
@@ -136,6 +149,13 @@ fn blocks_by_filter(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
     }
     let state = hitdef.attr.state_types.chars().next().unwrap_or('S');
     attr.contains(state) || attr.contains('*')
+}
+
+fn attr_matches_attr(candidate: &HitAttr, incoming: &HitAttr) -> bool {
+    let incoming_state = incoming.state_types.chars().next().unwrap_or('S');
+    let incoming_class = incoming.class.chars().next().unwrap_or('N');
+    (candidate.state_types.contains(incoming_state) || candidate.state_types.contains('*'))
+        && (candidate.class.contains(incoming_class) || candidate.class.contains('*'))
 }
 
 fn attr_matches(override_attr: &str, hit_attr: &HitAttr) -> bool {

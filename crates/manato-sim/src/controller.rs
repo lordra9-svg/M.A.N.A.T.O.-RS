@@ -89,7 +89,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "playsnd" => play_snd(sim, who, control),
         "stopsnd" => {}
         "hitdef" => hit_def(sim, who, control),
-        "reversaldef" => {}
+        "reversaldef" => reversal_def(sim, who, control),
         "hitvelset" => hit_vel_set(sim, who, control),
         "hitfallset" => hit_fall_set(sim, who, control),
         "hitfallvel" => hit_fall_vel(sim, who, control),
@@ -161,7 +161,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             }
         }
         "palfx" => pal_fx(sim, who, control),
-        "remappal" | "trans" | "forcefeedback" => {}
+        "trans" => trans(sim, who, control),
+        "remappal" | "forcefeedback" => {}
         "projectile" => projectile(sim, who, control, assets),
         "playerpush" => {
             let value = int_param(sim, who, control, "value").unwrap_or(1) != 0;
@@ -347,6 +348,25 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(v) = param(control, "physics").and_then(Physics::parse) {
         sim.fighters[who].physics = v;
     }
+}
+
+fn reversal_def(sim: &mut SimState, who: usize, control: &Controller) {
+    let hitdef = HitDef::from_controller(control, sim.hit_activation);
+    let time = int_param(sim, who, control, "time").unwrap_or(1).max(1);
+    sim.fighters[who].reversal = Some(hitdef);
+    sim.fighters[who].reversal_time = time;
+}
+
+fn trans(sim: &mut SimState, who: usize, control: &Controller) {
+    let kind = str_param(control, "trans")
+        .unwrap_or("default")
+        .to_ascii_lowercase();
+    let alpha = int_param(sim, who, control, "alpha");
+    sim.fighters[who].trans_alpha = match (kind.as_str(), alpha) {
+        ("default", _) => 1.0,
+        (_, Some(alpha)) => (alpha as f32 / 255.0).clamp(0.0, 1.0),
+        _ => 1.0,
+    };
 }
 
 fn after_image(sim: &mut SimState, who: usize, control: &Controller) {

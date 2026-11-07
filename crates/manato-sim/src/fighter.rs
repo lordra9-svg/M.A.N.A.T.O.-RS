@@ -201,6 +201,9 @@ pub struct Fighter {
     pub pal_mul: [f32; 3],
     pub pal_alpha: f32,
     pub pal_time: i32,
+    pub trans_alpha: f32,
+    pub reversal: Option<HitDef>,
+    pub reversal_time: i32,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
 
@@ -276,6 +279,9 @@ impl Fighter {
             pal_mul: [1.0, 1.0, 1.0],
             pal_alpha: 1.0,
             pal_time: 0,
+            trans_alpha: 1.0,
+            reversal: None,
+            reversal_time: 0,
             target: None,
             pal_remap: None,
             state_changed: false,
@@ -331,6 +337,9 @@ impl Fighter {
         self.gravity = None;
         self.draw_offset = Vec2::ZERO;
         self.hit_override = None;
+        self.trans_alpha = 1.0;
+        self.reversal = None;
+        self.reversal_time = 0;
         self.hit.hit_targets.clear();
         self.width_override = None;
 

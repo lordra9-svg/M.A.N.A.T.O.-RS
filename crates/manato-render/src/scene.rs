@@ -447,7 +447,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         (fighter.pal_mul[0] + fighter.pal_add[0]).clamp(0.0, 1.0),
         (fighter.pal_mul[1] + fighter.pal_add[1]).clamp(0.0, 1.0),
         (fighter.pal_mul[2] + fighter.pal_add[2]).clamp(0.0, 1.0),
-        (pose.alpha * fighter.pal_alpha).clamp(0.0, 1.0),
+        (pose.alpha * fighter.pal_alpha * fighter.trans_alpha).clamp(0.0, 1.0),
     ];
     draw_sprite(
         painter,

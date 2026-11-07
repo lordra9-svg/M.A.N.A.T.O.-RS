@@ -362,6 +362,42 @@ fn afterimage_and_palfx_execute() {
 }
 
 #[test]
+fn reversal_and_trans_execute() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let reversal = manato_formats::Controller {
+        kind: "reversaldef".into(),
+        params: vec![
+            ("type".into(), "ReversalDef".into()),
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("time".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reversal, &assets);
+    assert!(sim.fighters[0].reversal.is_some());
+    assert_eq!(sim.fighters[0].reversal_time, 5);
+
+    let trans = manato_formats::Controller {
+        kind: "trans".into(),
+        params: vec![
+            ("type".into(), "Trans".into()),
+            ("trans".into(), "add".into()),
+            ("alpha".into(), "128".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &trans, &assets);
+    assert!((sim.fighters[0].trans_alpha - 128.0 / 255.0).abs() < 0.001);
+}
+
+#[test]
 fn intro_locks_control() {
     let Some(mut sim) = load(
         "mugen-1.1b1/chars/kfm/kfm.def",

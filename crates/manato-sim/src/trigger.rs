@@ -339,6 +339,70 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 })
                 .count() as i32,
         ),
+        "hitvel" => {
+            let axis = axis_arg(sim, who, args);
+            let hit = &sim.fighters[who].hit.vars;
+            if axis.starts_with('x') {
+                Value::Float(hit.x_vel)
+            } else {
+                Value::Float(hit.y_vel)
+            }
+        }
+        "hitbyattr" => {
+            let wanted = args
+                .first()
+                .map(|arg| eval(sim, who, arg).as_str().to_ascii_uppercase())
+                .unwrap_or_default();
+            let blocked = sim.fighters[who]
+                .hit
+                .not_hit_by
+                .as_ref()
+                .map(|(attr, _)| {
+                    attr.to_ascii_uppercase().contains(&wanted)
+                        || wanted
+                            .chars()
+                            .any(|ch| attr.to_ascii_uppercase().contains(ch))
+                })
+                .unwrap_or(false);
+            Value::Bool(blocked)
+        }
+        "hitdefattr" => {
+            let wanted = args
+                .first()
+                .map(|arg| eval(sim, who, arg).as_str().to_ascii_uppercase())
+                .unwrap_or_default();
+            let matched = sim.fighters[who]
+                .hitdef
+                .as_ref()
+                .map(|hitdef| {
+                    let state = hitdef.attr.state_types.to_ascii_uppercase();
+                    let class = hitdef.attr.class.to_ascii_uppercase();
+                    wanted
+                        .chars()
+                        .filter(|ch| ch.is_ascii_alphabetic())
+                        .all(|ch| state.contains(ch) || class.contains(ch))
+                })
+                .unwrap_or(false);
+            Value::Bool(matched)
+        }
+        "const240p" | "const480p" | "const720p" => {
+            let key = args
+                .first()
+                .map(|arg| match arg {
+                    Expr::Ident(name) => name.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default();
+            let scale = if lower == "const240p" {
+                1.0
+            } else if lower == "const480p" {
+                2.0
+            } else {
+                3.0
+            };
+            Value::Float(sim.character(who).constants.get(&key).unwrap_or(0.0) * scale)
+        }
+        "p3name" | "p4name" => Value::Str(String::new()),
         "numproj" => Value::Int(
             sim.projectiles
                 .iter()
@@ -467,6 +531,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "author"
             | "backedgebodydist"
             | "backedgedist"
+            | "camerapos"
             | "camerazoom"
             | "drawgame"
             | "gameheight"
@@ -480,6 +545,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "name"
             | "p1name"
             | "p2name"
+            | "p3name"
+            | "p4name"
             | "palno"
             | "parentdist"
             | "parentexist"
@@ -499,7 +566,9 @@ fn is_trigger_name(name: &str) -> bool {
             | "frontedgedist"
             | "hitcount"
             | "hitdefattr"
+            | "hitbyattr"
             | "hitfall"
+            | "hitvel"
             | "hitover"
             | "hitshakeover"
             | "inguarddist"
@@ -635,6 +704,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "parentexist" => Value::Int(0),
         "rootdist" | "parentdist" => Value::Float(0.0),
         "camerazoom" => Value::Float(1.0),
+        "camerapos" => Value::Float(sim.camera.x),
+        "hitvel" => Value::Float(f.hit.vars.x_vel),
+        "p3name" | "p4name" => Value::Str(String::new()),
         "name" => Value::Str(sim.character(who).display_name().to_string()),
         "p1name" => Value::Str(sim.character(0).display_name().to_string()),
         "p2name" => Value::Str(sim.character(1).display_name().to_string()),

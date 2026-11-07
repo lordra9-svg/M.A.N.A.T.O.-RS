@@ -477,6 +477,12 @@ impl SimState {
                     }
                 }
             }
+            if fighter.reversal_time > 0 {
+                fighter.reversal_time -= 1;
+                if fighter.reversal_time <= 0 {
+                    fighter.reversal = None;
+                }
+            }
             // AssertSpecial is a per-tick assertion; states must re-assert it.
             fighter.assert_flags = 0;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
@@ -1114,6 +1120,9 @@ impl SimState {
                 h.write_i32(override_.state);
                 h.write_i32(override_.time);
             }
+            h.write_bool(f.reversal.is_some());
+            h.write_i32(f.reversal_time);
+            h.write_f32(f.trans_alpha);
             h.write_bool(f.after_image.is_some());
             if let Some(after) = &f.after_image {
                 h.write_i32(after.time);
