@@ -195,6 +195,51 @@ fn kfm_vs_nival_ai_deals_damage_and_lands() {
 }
 
 #[test]
+fn bundled_projectile_hits() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let mut spawned = false;
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+        spawned |= !sim.projectiles.is_empty();
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            break;
+        }
+    }
+    assert!(spawned, "state 1000 did not spawn a projectile");
+    assert!(
+        sim.fighters[1].life < sim.fighters[1].life_max,
+        "projectile did not hit the opponent"
+    );
+}
+
+#[test]
+fn projectile_state_is_rollback_deterministic() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let mut a = sim.clone();
+    let mut b = sim.clone();
+    for _ in 0..80 {
+        a.tick([PlayerInput::default(); 2]);
+        b.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(a.checksum(), b.checksum());
+    assert!(a.projectiles.len() <= 1);
+}
+
+#[test]
 fn intro_locks_control() {
     let Some(mut sim) = load(
         "mugen-1.1b1/chars/kfm/kfm.def",

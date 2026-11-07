@@ -12,7 +12,7 @@ The current milestone is a playable vertical slice:
 - The bundled **Training Stage**
 - Stock M.U.G.E.N characters can still be loaded by pointing `--root` at a
   stock installation
-- Life/power/timer HUD, rounds, KO flow, hit/guard sparks, sound events, CPU opponent
+- Life/power/timer HUD, rounds, KO flow, hit/guard sparks, projectiles, sound events, CPU opponent
 - Deterministic simulation verified through GGRS rollback (`--synctest`)
 
 All bundled content — the three characters, their common state file, the

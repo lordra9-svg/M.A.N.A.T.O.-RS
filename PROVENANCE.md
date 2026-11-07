@@ -8,7 +8,7 @@ binaries, or game assets.
 
 ## Reference used
 
-M.U.G.E.N itself is closed source. This project used three sources of
+M.U.G.E.N itself is closed source. This project used four sources of
 behavioral knowledge:
 
 1. **Public format documentation and community knowledge** for file layouts,
@@ -21,6 +21,10 @@ behavioral knowledge:
    air-state landing rules). No C code was copied or transliterated into Rust;
    the Rust modules were written against the observed behavior and validated by
    running the same content.
+4. **Ikemen-GO** (https://github.com/ikemen-engine/Ikemen-GO, MIT licensed) as a
+   second compatibility reference, especially for `Projectile`/`HitDef`
+   semantics, guard behavior, and M.U.G.E.N 1.1 compatibility. Its source is Go,
+   not C; no Ikemen-GO code was copied or transliterated into Rust.
 
 Important provenance detail: the `mugen-reimpl` README states that its
 architecture was **derived from REA/Ghidra analysis of M.U.G.E.N 1.1b1, 1.0,
@@ -29,8 +33,8 @@ and WinMUGEN Plus binaries**. The reference tree also contains no
 
 This project did not run Ghidra or REA, and did not decompile or disassemble any
 M.U.G.E.N executable. However, because the same contributors read the
-reverse-engineered C reference and wrote the Rust code, **this is not a strict
-clean-room implementation**. It should be described as an independent,
+reverse-engineered C reference, read the MIT-licensed Ikemen-GO reference, and
+wrote the Rust code, **this is not a strict clean-room implementation**. It should be described as an independent,
 behavior-compatible reimplementation with a documented reference.
 
 ## Provenance of specific decisions

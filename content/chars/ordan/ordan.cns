@@ -848,6 +848,7 @@ guardflag = MA
 pausetime = 5,5
 attr = S, SP
 
+persistent = 0
 [State 1000, End]
 type=ChangeState
 trigger1 = AnimTime = 0

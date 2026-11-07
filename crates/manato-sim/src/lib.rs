@@ -11,6 +11,7 @@ pub mod controller;
 pub mod expr;
 pub mod fighter;
 pub mod hitdef;
+pub mod projectile;
 pub mod trigger;
 
 use std::path::{Path, PathBuf};
@@ -315,6 +316,7 @@ pub struct SimState {
     pub round: RoundState,
     pub camera: CameraState,
     pub effects: Vec<Effect>,
+    pub projectiles: Vec<crate::projectile::Projectile>,
     pub sounds: Vec<SoundEvent>,
     pub bg_time: f32,
     pub env_shake: EnvShake,
@@ -367,6 +369,7 @@ impl SimState {
                 shake: Vec2::ZERO,
             },
             effects: Vec::new(),
+            projectiles: Vec::new(),
             sounds: Vec::new(),
             bg_time: 0.0,
             env_shake: EnvShake::default(),
@@ -433,6 +436,11 @@ impl SimState {
 
         collision::resolve(self);
         self.separate_pushboxes();
+        for projectile in &mut self.projectiles {
+            projectile.advance();
+        }
+        collision::resolve_projectiles(self);
+        self.projectiles.retain(|p| !p.is_expired());
         self.update_round();
         self.update_camera();
         self.update_effects();
@@ -854,6 +862,7 @@ impl SimState {
         self.round.winner = None;
         self.round.display = format!("Round {}", self.round.number);
         self.effects.clear();
+        self.projectiles.clear();
         self.camera.x = self.assets.stage.camera.start.x;
         self.camera.y = self.assets.stage.camera.start.y;
         self.env_shake = EnvShake::default();
@@ -961,6 +970,22 @@ impl SimState {
             h.write_f32(e.pos.x);
             h.write_f32(e.pos.y);
             h.write_i32(e.time);
+        }
+        for p in &self.projectiles {
+            h.write_i32(p.owner as i32);
+            h.write_i32(p.id);
+            h.write_i32(p.anim);
+            h.write_f32(p.pos.x);
+            h.write_f32(p.pos.y);
+            h.write_f32(p.vel.x);
+            h.write_f32(p.vel.y);
+            h.write_f32(p.accel.x);
+            h.write_f32(p.accel.y);
+            h.write_i32(p.facing);
+            h.write_i32(p.time);
+            h.write_i32(p.remove_time);
+            h.write_i32(p.hits);
+            h.write_i32(p.hitdef.damage);
         }
         for f in &self.fighters {
             h.write_f32(f.pos.x);

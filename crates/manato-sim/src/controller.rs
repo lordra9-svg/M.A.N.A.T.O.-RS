@@ -107,7 +107,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "targetvelset" | "targetveladd" => {}
         "afterimage" | "afterimagetime" => {}
         "palfx" | "remappal" | "trans" | "forcefeedback" => {}
-        "projectile" => {}
+        "projectile" => projectile(sim, who, control, assets),
         "bindtoroot" | "bindtotarget" | "bindtoparent" => {}
         "playerpush" => {}
         _ => {
@@ -284,6 +284,62 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(v) = param(control, "physics").and_then(Physics::parse) {
         sim.fighters[who].physics = v;
+    }
+}
+
+fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
+    let char = char_of(assets, sim, who);
+    let anim = int_param(sim, who, control, "projanim").unwrap_or(0);
+    if anim <= 0 || char.animation(anim).is_none() {
+        log::warn!("projectile uses missing animation {anim}");
+        return;
+    }
+    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let (vx, vy) = control.get_pair("velocity").unwrap_or((0.0, 0.0));
+    let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
+    let facing = sim.fighters[who].facing;
+    let mut hitdef = HitDef::from_controller(control, sim.hit_activation);
+    // Projectile sparks sit at the impact point, not at a body offset.
+    hitdef.sparkxy = Vec2::ZERO;
+    let remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
+    let hits = int_param(sim, who, control, "hits").unwrap_or(1).max(1);
+    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    let pos = Vec2::new(
+        sim.fighters[who].pos.x + px * facing as f32,
+        sim.fighters[who].pos.y + py,
+    );
+    sim.projectiles.push(crate::projectile::Projectile {
+        owner: who,
+        id,
+        anim,
+        pos,
+        vel: Vec2::new(vx * facing as f32, vy),
+        accel: Vec2::new(ax * facing as f32, ay),
+        facing,
+        time: 0,
+        remove_time,
+        hits,
+        hitdef,
+    });
+    if let Some(raw) = control.get("projsnd") {
+        let mut parts = raw.split(',');
+        let group = parts
+            .next()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(-1);
+        let index = parts
+            .next()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(0);
+        if group >= 0 {
+            sim.sounds.push(SoundEvent {
+                source: SoundSource::Character(who),
+                group,
+                index,
+                volume: 0.0,
+                pan: 0.0,
+            });
+        }
     }
 }
 

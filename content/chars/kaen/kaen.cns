@@ -849,6 +849,7 @@ pausetime = 4,4
 sparkno = 2
 attr = S, SP
 
+persistent = 0
 [State 1000, End]
 type=ChangeState
 trigger1 = AnimTime = 0
@@ -967,6 +968,7 @@ pausetime = 4,4
 attr = S, HA
 pos = 0,-40
 
+persistent = 0
 [State 3000, Blast2]
 type=Projectile
 trigger1 = AnimElem = 2
@@ -980,6 +982,7 @@ pausetime = 4,4
 attr = S, HA
 pos = 0,-58
 
+persistent = 0
 [State 3000, End]
 type=ChangeState
 trigger1 = AnimTime = 0

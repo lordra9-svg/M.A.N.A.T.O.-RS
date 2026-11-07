@@ -67,6 +67,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_fighter(painter, deps.atlas, sim, who);
     }
 
+    draw_projectiles(painter, deps.atlas, sim);
+
     for layer in stage.render_layers().filter(|l| l.layer_no > 0) {
         draw_bg_layer(painter, deps.atlas, sim, stage, layer);
     }
@@ -169,6 +171,39 @@ fn draw_bg_layer(
                 1.0,
             );
         }
+    }
+}
+
+fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
+    for projectile in &sim.projectiles {
+        let char = &sim.assets.characters[sim.fighters[projectile.owner].char_id];
+        let Some(anim) = char.animation(projectile.anim) else {
+            continue;
+        };
+        let Some((frame_idx, _)) = anim.frame_at(projectile.time) else {
+            continue;
+        };
+        let Some(frame) = anim.frames.get(frame_idx) else {
+            continue;
+        };
+        let Some(sprite) = char.sprites.get(frame.group, frame.index) else {
+            continue;
+        };
+        let pose = Pose::from_frame(frame);
+        draw_sprite(
+            painter,
+            atlas,
+            bank::CHARACTER_BASE + projectile.owner as u8,
+            sprite,
+            sim.screen_pos(projectile.pos),
+            pose.offset,
+            projectile.facing,
+            Vec2::new(1.0, 1.0),
+            pose.flip_h,
+            pose.flip_v,
+            pose.blend,
+            [1.0, 1.0, 1.0, 1.0],
+        );
     }
 }
 

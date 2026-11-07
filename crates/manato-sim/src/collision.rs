@@ -123,7 +123,24 @@ fn apply_hit(
     hitdef: &HitDef,
     guarding: bool,
 ) {
-    let attacker_facing = sim.fighters[attacker].facing;
+    let origin = sim.fighters[attacker].pos;
+    let facing = sim.fighters[attacker].facing;
+    apply_hit_at(
+        sim, attacker, defender, hitdef, guarding, origin, facing, true,
+    );
+}
+
+pub(crate) fn apply_hit_at(
+    sim: &mut SimState,
+    attacker: usize,
+    defender: usize,
+    hitdef: &HitDef,
+    guarding: bool,
+    origin: Vec2,
+    facing: i32,
+    from_fighter: bool,
+) {
+    let attacker_facing = facing;
     let defender_airborne = {
         let f = &sim.fighters[defender];
         f.state_type == StateType::Air || f.pos.y < -1.0
@@ -219,7 +236,7 @@ fn apply_hit(
         );
     }
 
-    {
+    if from_fighter {
         let f = &mut sim.fighters[attacker];
         f.attack.move_contact = true;
         f.attack.move_hit |= !guarding;
@@ -244,8 +261,8 @@ fn apply_hit(
         0
     };
     let spark_pos = Vec2::new(
-        sim.fighters[attacker].pos.x + hitdef.sparkxy.x * attacker_facing as f32,
-        sim.fighters[attacker].pos.y + hitdef.sparkxy.y,
+        origin.x + hitdef.sparkxy.x * attacker_facing as f32,
+        origin.y + hitdef.sparkxy.y,
     );
     let duration = sim
         .assets
@@ -301,4 +318,82 @@ fn apply_hit(
     }
     let _ = anim_duration;
     let _ = HitAttr::default();
+}
+
+/// Resolves projectile hits against the opponent.
+pub fn resolve_projectiles(sim: &mut SimState) {
+    let count = sim.projectiles.len();
+    for i in 0..count {
+        let (owner, anim, time, facing, pos, hits, hitdef) = {
+            let p = &sim.projectiles[i];
+            (
+                p.owner,
+                p.anim,
+                p.time,
+                p.facing,
+                p.pos,
+                p.hits,
+                p.hitdef.clone(),
+            )
+        };
+        if hits <= 0 {
+            continue;
+        }
+        let defender = 1 - owner;
+        if !sim.fighters[defender].active {
+            continue;
+        }
+        if sim.fighters[defender].hit.not_hit_by.is_some()
+            && blocks_by_filter(sim, defender, &hitdef)
+        {
+            continue;
+        }
+        if !hitflag_allows(sim, defender, &hitdef) {
+            continue;
+        }
+
+        let attack_boxes = projectile_boxes(sim, owner, anim, time, facing, pos);
+        let hurt_boxes = clsn_boxes(sim, defender, false);
+        if attack_boxes.is_empty() || hurt_boxes.is_empty() {
+            continue;
+        }
+        if !any_overlap(&attack_boxes, &hurt_boxes) {
+            continue;
+        }
+
+        let guarding = can_guard(sim, owner, defender, &hitdef);
+        apply_hit_at(sim, owner, defender, &hitdef, guarding, pos, facing, false);
+        sim.projectiles[i].hits -= 1;
+    }
+}
+
+fn projectile_boxes(
+    sim: &SimState,
+    owner: usize,
+    anim_no: i32,
+    time: i32,
+    facing: i32,
+    pos: Vec2,
+) -> Vec<Rect> {
+    let char = &sim.assets.characters[sim.fighters[owner].char_id];
+    let Some(anim) = char.animation(anim_no) else {
+        return Vec::new();
+    };
+    let Some((frame_idx, _)) = anim.frame_at(time) else {
+        return Vec::new();
+    };
+    let Some(frame) = anim.frames.get(frame_idx) else {
+        return Vec::new();
+    };
+    frame
+        .clsn1
+        .iter()
+        .map(|b| {
+            let mut r = b.rect();
+            if facing < 0 {
+                r = r.mirror_x();
+            }
+            r.translate(pos.x.round() as i32, pos.y.round() as i32)
+        })
+        .collect()
 }

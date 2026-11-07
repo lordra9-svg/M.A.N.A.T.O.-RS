@@ -177,6 +177,7 @@ impl HitDef {
                     h.damage = dmg as i32;
                     h.guard_damage = guard as i32;
                 }
+                "guard.damage" => h.guard_damage = parse_i32(value),
                 "animtype" => h.anim_type = AnimType::parse(value),
                 "hitflag" => h.hitflag = value.to_ascii_uppercase(),
                 "guardflag" => h.guardflag = value.to_ascii_uppercase(),
