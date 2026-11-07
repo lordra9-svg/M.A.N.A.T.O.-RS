@@ -41,8 +41,11 @@ legally separated clean room; that limitation is recorded in
 
 ## Provenance of specific decisions
 
-- **SFF v1** uses embedded PCX images with inline palettes. The PCX RLE stream is
-  decompressed into `bytes_per_line * height` and then tightened to `width`.
+- **SFF v1/v2** was rewritten from `docs/spec/sff.md`, derived from Ikemen-GO
+  (MIT), public format documentation, and content behavior. The old
+  reference-influenced parser is gone. SFF v1 uses embedded PCX images with
+  inline palettes; the PCX RLE stream is decompressed into
+  `bytes_per_line * height` and then tightened to `width`.
 - **SFF v2** indexed sprites (RLE8, RLE5, LZ5) and PNG sprites begin with a
   four-byte little-endian uncompressed-size field. PNG8 sprites are indexed
   images whose own `PLTE` may be a dummy; the real colors come from the SFF

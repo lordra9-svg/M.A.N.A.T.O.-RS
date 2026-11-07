@@ -1,7 +1,16 @@
+//! SFF v1 and v2 sprite decoding.
+//!
+//! This implementation follows `docs/spec/sff.md`, which is derived from the
+//! MIT-licensed Ikemen-GO source and public M.U.G.E.N format documentation.
+
 use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{bail, Context};
+
+const MAX_DIMENSION: u32 = 8192;
+const MAX_SPRITES: usize = 65_535;
+const MAX_PALETTES: usize = 4096;
 
 /// Decoded sprite with straight RGBA8 pixels.
 #[derive(Debug, Clone)]
@@ -25,6 +34,18 @@ impl Sprite {
             axis_x: 0,
             axis_y: 0,
             rgba: Vec::new(),
+        }
+    }
+
+    fn blank(group: i32, index: i32, width: u32, height: u32, axis_x: i32, axis_y: i32) -> Self {
+        Self {
+            group,
+            index,
+            width,
+            height,
+            axis_x,
+            axis_y,
+            rgba: vec![0; (width * height * 4) as usize],
         }
     }
 }
@@ -53,7 +74,7 @@ impl SffFile {
     }
 
     pub fn from_bytes(data: &[u8]) -> anyhow::Result<Self> {
-        if data.len() < 512 {
+        if data.len() < 16 {
             bail!("sprite file is too small");
         }
         if &data[..12] != b"ElecbyteSpr\0" {
@@ -66,13 +87,11 @@ impl SffFile {
             by_key: HashMap::new(),
         };
         match version {
-            1 => out.load_v1(data)?,
-            2 => out.load_v2(data)?,
+            1 => out.parse_v1(data)?,
+            2 => out.parse_v2(data)?,
             other => bail!("unsupported SFF version {other}"),
         }
-        for (i, sprite) in out.sprites.iter().enumerate() {
-            out.by_key.entry((sprite.group, sprite.index)).or_insert(i);
-        }
+        out.rebuild_keys();
         Ok(out)
     }
 
@@ -81,89 +100,67 @@ impl SffFile {
         self.by_key.keys().copied().collect()
     }
 
-    fn load_v1(&mut self, data: &[u8]) -> anyhow::Result<()> {
-        if data.len() < 512 {
+    fn rebuild_keys(&mut self) {
+        self.by_key.clear();
+        for (i, sprite) in self.sprites.iter().enumerate() {
+            self.by_key.entry((sprite.group, sprite.index)).or_insert(i);
+        }
+    }
+
+    fn parse_v1(&mut self, data: &[u8]) -> anyhow::Result<()> {
+        if data.len() < 32 {
             bail!("SFF v1 header truncated");
         }
-        let count = read_u32(data, 20) as usize;
-        let mut offset = read_u32(data, 24) as usize;
-        let subheader = read_u32(data, 28).max(32) as usize;
+        let count = u32_at(data, 20) as usize;
+        let mut offset = u32_at(data, 24) as usize;
+        let subheader = (u32_at(data, 28) as usize).max(32);
         let mut previous_palette: Option<Vec<[u8; 4]>> = None;
 
-        for _ in 0..count.min(65_535) {
-            if offset + 32 > data.len() {
+        for _ in 0..count.min(MAX_SPRITES) {
+            let Some(header) = slice(data, offset, 32) else {
                 break;
-            }
-            let h = &data[offset..offset + 32];
-            let next = read_u32(h, 0) as usize;
-            let data_len = read_u32(h, 4) as usize;
-            let axis_x = read_u16(h, 8) as i16 as i32;
-            let axis_y = read_u16(h, 10) as i16 as i32;
-            let group = read_u16(h, 12) as i32;
-            let index = read_u16(h, 14) as i32;
-            let link = read_u16(h, 16) as usize;
-            let same_palette = h[18] != 0;
+            };
+            let next = u32_at(header, 0) as usize;
+            let data_len = u32_at(header, 4) as usize;
+            let axis_x = i16_at(header, 8) as i32;
+            let axis_y = i16_at(header, 10) as i32;
+            let group = u16_at(header, 12) as i32;
+            let index = u16_at(header, 14) as i32;
+            let link = u16_at(header, 16) as usize;
+            let same_palette = header[18] != 0;
 
-            let data_start = offset + subheader;
-            if data_start > data.len() {
+            let data_start = offset.saturating_add(subheader);
+            if data_start >= data.len() {
                 break;
             }
             let mut data_end = data_start.saturating_add(data_len).min(data.len());
             if next > data_start && next <= data.len() {
                 data_end = next;
             }
-            let pixels = &data[data_start..data_end];
+            let payload = &data[data_start..data_end];
 
-            if data_len == 0 || pixels.is_empty() {
-                if link < self.sprites.len() {
-                    let mut sprite = self.sprites[link].clone();
-                    sprite.group = group;
-                    sprite.index = index;
-                    sprite.axis_x = axis_x;
-                    sprite.axis_y = axis_y;
-                    self.sprites.push(sprite);
-                } else {
-                    self.sprites.push(Sprite {
-                        group,
-                        index,
-                        width: 0,
-                        height: 0,
-                        axis_x,
-                        axis_y,
-                        rgba: Vec::new(),
-                    });
-                }
+            if data_len == 0 || payload.is_empty() {
+                self.push_link(group, index, axis_x, axis_y, link);
             } else {
-                let decoded = decode_pcx(pixels);
-                match decoded {
-                    Some((w, hgt, rgba, palette)) => {
-                        if !same_palette {
-                            if let Some(p) = palette {
-                                previous_palette = Some(p);
-                            }
+                match decode_pcx(payload, same_palette.then_some(previous_palette.as_deref())) {
+                    Ok((width, height, rgba, palette)) => {
+                        if let Some(palette) = palette {
+                            previous_palette = Some(palette);
                         }
-                        let _ = &previous_palette;
                         self.sprites.push(Sprite {
                             group,
                             index,
-                            width: w,
-                            height: hgt,
+                            width,
+                            height,
                             axis_x,
                             axis_y,
                             rgba,
                         });
                     }
-                    None => {
-                        log::warn!("SFF v1: could not decode PCX for {group},{index}");
-                        self.sprites.push(Sprite {
-                            group,
-                            index,
-                            width: 0,
-                            height: 0,
-                            axis_x,
-                            axis_y,
-                            rgba: Vec::new(),
-                        });
+                    Err(error) => {
+                        log::warn!("SFF v1: cannot decode {group},{index}: {error}");
+                        self.sprites
+                            .push(Sprite::blank(group, index, 0, 0, axis_x, axis_y));
                     }
                 }
             }
@@ -176,132 +173,82 @@ impl SffFile {
         Ok(())
     }
 
-    fn load_v2(&mut self, data: &[u8]) -> anyhow::Result<()> {
-        if data.len() < 68 {
+    fn parse_v2(&mut self, data: &[u8]) -> anyhow::Result<()> {
+        if data.len() < 64 {
             bail!("SFF v2 header truncated");
         }
-        let sprite_ofs = read_u32(data, 36) as usize;
-        let sprite_count = read_u32(data, 40) as usize;
-        let palette_ofs = read_u32(data, 44) as usize;
-        let palette_count = read_u32(data, 48) as usize;
-        let ldata_ofs = read_u32(data, 52) as usize;
-        let tdata_ofs = read_u32(data, 60) as usize;
+        let sprite_offset = u32_at(data, 36) as usize;
+        let sprite_count = u32_at(data, 40) as usize;
+        let palette_offset = u32_at(data, 44) as usize;
+        let palette_count = u32_at(data, 48) as usize;
+        let ldata_offset = u32_at(data, 52) as usize;
+        let tdata_offset = u32_at(data, 60) as usize;
         let minor2 = data[13];
 
-        let mut palettes: Vec<Option<Vec<[u8; 4]>>> = vec![None; palette_count.min(4096)];
-        for i in 0..palettes.len() {
-            let off = palette_ofs + i * 16;
-            if off + 16 > data.len() {
+        let mut palettes =
+            parse_v2_palettes(data, palette_offset, palette_count, ldata_offset, minor2);
+
+        for i in 0..sprite_count.min(MAX_SPRITES) {
+            let Some(node) = slice(data, sprite_offset + i * 28, 28) else {
                 break;
-            }
-            let n = &data[off..off + 16];
-            let _group = read_u16(n, 0);
-            let _index = read_u16(n, 2);
-            let colors = read_u16(n, 4) as usize;
-            let link = read_u16(n, 6) as usize;
-            let data_ofs = read_u32(n, 8) as usize;
-            let data_len = read_u32(n, 12) as usize;
+            };
+            let group = u16_at(node, 0) as i32;
+            let index = u16_at(node, 2) as i32;
+            let width = u16_at(node, 4) as u32;
+            let height = u16_at(node, 6) as u32;
+            let axis_x = i16_at(node, 8) as i32;
+            let axis_y = i16_at(node, 10) as i32;
+            let link = u16_at(node, 12) as usize;
+            let format = node[14];
+            let depth = node[15];
+            let data_offset = u32_at(node, 16) as usize;
+            let data_len = u32_at(node, 20) as usize;
+            let palette_header = u16_at(node, 24) as usize;
+            let flags = u16_at(node, 26);
 
             if data_len == 0 {
-                if link < palettes.len() {
-                    palettes[i] = palettes[link].clone();
-                }
+                self.push_link(group, index, axis_x, axis_y, link);
                 continue;
             }
-            let abs = ldata_ofs.saturating_add(data_ofs);
-            if abs + data_len.min(colors * 4) > data.len() || colors == 0 {
-                continue;
-            }
-            let count = colors.min(256).min(data_len / 4);
-            let mut colors_out = Vec::with_capacity(count);
-            for c in 0..count {
-                let p = &data[abs + c * 4..abs + c * 4 + 4];
-                // SFF v2 palette entries are stored BGRA.
-                let mut a = p[3];
-                if minor2 == 0 {
-                    a = if c == 0 { 0 } else { 255 };
-                }
-                colors_out.push([p[2], p[1], p[0], a]);
-            }
-            palettes[i] = Some(colors_out);
-        }
-
-        for i in 0..sprite_count.min(65_535) {
-            let off = sprite_ofs + i * 28;
-            if off + 28 > data.len() {
-                break;
-            }
-            let n = &data[off..off + 28];
-            let group = read_u16(n, 0) as i32;
-            let index = read_u16(n, 2) as i32;
-            let w = read_u16(n, 4) as u32;
-            let hgt = read_u16(n, 6) as u32;
-            let axis_x = read_u16(n, 8) as i16 as i32;
-            let axis_y = read_u16(n, 10) as i16 as i32;
-            let link = read_u16(n, 12) as usize;
-            let format = n[14];
-            let depth = n[15];
-            let data_ofs = read_u32(n, 16) as usize;
-            let data_len = read_u32(n, 20) as usize;
-            let palette_header = read_u16(n, 24) as usize;
-            let flags = read_u16(n, 26);
-
-            if data_len == 0 {
-                if link < self.sprites.len() {
-                    let mut sprite = self.sprites[link].clone();
-                    sprite.group = group;
-                    sprite.index = index;
-                    sprite.axis_x = axis_x;
-                    sprite.axis_y = axis_y;
-                    self.sprites.push(sprite);
-                } else {
-                    self.sprites.push(Sprite {
-                        group,
-                        index,
-                        width: w,
-                        height: hgt,
-                        axis_x,
-                        axis_y,
-                        rgba: Vec::new(),
-                    });
-                }
+            if width == 0 || height == 0 || width > MAX_DIMENSION || height > MAX_DIMENSION {
+                self.sprites.push(Sprite::empty(group, index));
                 continue;
             }
 
-            let base = if flags & 1 != 0 { tdata_ofs } else { ldata_ofs };
-            let abs = base.saturating_add(data_ofs);
-            if abs + data_len > data.len() {
-                log::warn!("SFF v2: sprite {group},{index} data out of bounds");
+            let base = if flags & 1 != 0 {
+                tdata_offset
+            } else {
+                ldata_offset
+            };
+            let Some(payload) = slice(data, base.saturating_add(data_offset), data_len) else {
+                log::warn!("SFF v2: sprite data out of bounds for {group},{index}");
+                self.sprites
+                    .push(Sprite::blank(group, index, width, height, axis_x, axis_y));
                 continue;
-            }
-            let raw = &data[abs..abs + data_len];
+            };
             let palette = palettes
                 .get(palette_header)
                 .and_then(|p| p.as_deref())
                 .unwrap_or(&[]);
 
             let rgba = match format {
-                0 => decode_raw(raw, w, hgt, depth, palette),
-                2 => decode_indexed(raw.get(4..).unwrap_or(raw), w, hgt, palette, Codec::Rle8),
-                3 => decode_indexed(raw.get(4..).unwrap_or(raw), w, hgt, palette, Codec::Rle5),
-                4 => decode_indexed(raw.get(4..).unwrap_or(raw), w, hgt, palette, Codec::Lz5),
-                10..=12 => {
-                    // SFF v2 PNG sprites are prefixed with a four-byte
-                    // uncompressed-size field.
-                    let png = raw.get(4..).unwrap_or(raw);
-                    match decode_png(png, w, hgt, palette) {
-                        Ok(rgba) => rgba,
-                        Err(e) => {
-                            log::warn!("SFF v2: PNG decode failed for {group},{index}: {e}");
-                            (w, hgt, vec![0; (w * hgt * 4) as usize])
-                        }
+                0 => decode_raw(payload, width, height, depth, palette),
+                2 => decode_indexed(payload, width, height, palette, Codec::Rle8),
+                3 => decode_indexed(payload, width, height, palette, Codec::Rle5),
+                4 => decode_indexed(payload, width, height, palette, Codec::Lz5),
+                10..=12 => match decode_png(payload.get(4..).unwrap_or(&[]), palette) {
+                    Ok((w, h, pixels)) => (w, h, pixels),
+                    Err(error) => {
+                        log::warn!("SFF v2: PNG decode failed for {group},{index}: {error}");
+                        (width, height, vec![0; (width * height * 4) as usize])
                     }
-                }
+                },
                 other => {
                     log::warn!("SFF v2: unsupported pixel format {other} for {group},{index}");
-                    (w, hgt, vec![0; (w * hgt * 4) as usize])
+                    (width, height, vec![0; (width * height * 4) as usize])
                 }
             };
+
             self.sprites.push(Sprite {
                 group,
                 index,
@@ -312,98 +259,66 @@ impl SffFile {
                 rgba: rgba.2,
             });
         }
+
+        // Palettes are parsed once; drop the temporary ownership.
+        palettes.clear();
         Ok(())
     }
-}
 
-/// Decodes an SFF v2 PNG sprite.
-///
-/// PNG8 sprites in SFF files are indexed images whose own `PLTE` chunk is often
-/// a dummy black palette; the real colours live in the SFF palette node. We
-/// therefore read the raw indices and map them through `palette` when present.
-fn decode_png(
-    raw: &[u8],
-    _w: u32,
-    _h: u32,
-    palette: &[[u8; 4]],
-) -> anyhow::Result<(u32, u32, Vec<u8>)> {
-    use std::io::Cursor;
-
-    let decoder = png::Decoder::new(Cursor::new(raw));
-    let mut reader = decoder.read_info()?;
-    let mut buf = vec![0u8; reader.output_buffer_size()];
-    let info = reader.next_frame(&mut buf)?;
-    let data = &buf[..info.buffer_size()];
-    let width = info.width;
-    let height = info.height;
-
-    let mut out = vec![0u8; (width * height * 4) as usize];
-    match info.color_type {
-        png::ColorType::Indexed => {
-            if info.bit_depth != png::BitDepth::Eight {
-                anyhow::bail!("unsupported indexed PNG bit depth {:?}", info.bit_depth);
-            }
-            for i in 0..(width * height) as usize {
-                let idx = data.get(i).copied().unwrap_or(0) as usize;
-                let color = palette.get(idx).copied().unwrap_or([0, 0, 0, 0]);
-                out[i * 4..i * 4 + 4].copy_from_slice(&color);
-            }
-        }
-        png::ColorType::Rgba => out.copy_from_slice(data),
-        png::ColorType::Rgb => {
-            for (i, px) in data.chunks_exact(3).enumerate() {
-                out[i * 4..i * 4 + 3].copy_from_slice(px);
-                out[i * 4 + 3] = 255;
-            }
-        }
-        png::ColorType::Grayscale => {
-            for (i, v) in data.iter().enumerate() {
-                out[i * 4] = *v;
-                out[i * 4 + 1] = *v;
-                out[i * 4 + 2] = *v;
-                out[i * 4 + 3] = 255;
-            }
-        }
-        png::ColorType::GrayscaleAlpha => {
-            for (i, px) in data.chunks_exact(2).enumerate() {
-                out[i * 4] = px[0];
-                out[i * 4 + 1] = px[0];
-                out[i * 4 + 2] = px[0];
-                out[i * 4 + 3] = px[1];
-            }
+    fn push_link(&mut self, group: i32, index: i32, axis_x: i32, axis_y: i32, link: usize) {
+        if let Some(source) = self.sprites.get(link).cloned() {
+            self.sprites.push(Sprite {
+                group,
+                index,
+                axis_x,
+                axis_y,
+                ..source
+            });
+        } else {
+            self.sprites.push(Sprite::empty(group, index));
         }
     }
-    Ok((width, height, out))
 }
 
-fn decode_raw(raw: &[u8], w: u32, h: u32, depth: u8, palette: &[[u8; 4]]) -> (u32, u32, Vec<u8>) {
-    let count = (w * h) as usize;
-    let mut out = vec![0u8; count * 4];
-    match depth {
-        8 => {
-            for i in 0..count {
-                let idx = raw.get(i).copied().unwrap_or(0) as usize;
-                let c = palette.get(idx).copied().unwrap_or([0, 0, 0, 0]);
-                out[i * 4..i * 4 + 4].copy_from_slice(&c);
+fn parse_v2_palettes(
+    data: &[u8],
+    palette_offset: usize,
+    palette_count: usize,
+    ldata_offset: usize,
+    minor2: u8,
+) -> Vec<Option<Vec<[u8; 4]>>> {
+    let mut palettes: Vec<Option<Vec<[u8; 4]>>> = vec![None; palette_count.min(MAX_PALETTES)];
+    for i in 0..palettes.len() {
+        let Some(node) = slice(data, palette_offset + i * 16, 16) else {
+            break;
+        };
+        let colors = u16_at(node, 4) as usize;
+        let link = u16_at(node, 6) as usize;
+        let data_offset = u32_at(node, 8) as usize;
+        let data_len = u32_at(node, 12) as usize;
+
+        if data_len == 0 {
+            if let Some(Some(source)) = palettes.get(link).cloned() {
+                palettes[i] = Some(source);
             }
+            continue;
         }
-        24 | 32 => {
-            let step = if depth == 32 { 4 } else { 3 };
-            for i in 0..count {
-                let p = i * step;
-                if p + step > raw.len() {
-                    break;
-                }
-                // SFF stores these as BGR(A).
-                out[i * 4] = raw[p + 2];
-                out[i * 4 + 1] = raw[p + 1];
-                out[i * 4 + 2] = raw[p];
-                out[i * 4 + 3] = if depth == 32 { raw[p + 3] } else { 255 };
+        let Some(raw) = slice(data, ldata_offset.saturating_add(data_offset), data_len) else {
+            continue;
+        };
+        let count = colors.min(256).min(raw.len() / 4);
+        let mut palette = Vec::with_capacity(count);
+        for c in 0..count {
+            let p = &raw[c * 4..c * 4 + 4];
+            let mut alpha = p[3];
+            if minor2 == 0 {
+                alpha = if c == 0 { 0 } else { 255 };
             }
+            palette.push([p[2], p[1], p[0], alpha]);
         }
-        _ => {}
+        palettes[i] = Some(palette);
     }
-    (w, h, out)
+    palettes
 }
 
 enum Codec {
@@ -414,253 +329,104 @@ enum Codec {
 
 fn decode_indexed(
     raw: &[u8],
-    w: u32,
-    h: u32,
+    width: u32,
+    height: u32,
     palette: &[[u8; 4]],
     codec: Codec,
 ) -> (u32, u32, Vec<u8>) {
-    let count = (w * h) as usize;
+    let count = (width * height) as usize;
     let mut indices = vec![0u8; count];
+    if raw.len() < 4 {
+        return (width, height, vec![0; count * 4]);
+    }
+    let stream = &raw[4..];
     let ok = match codec {
-        Codec::Rle8 => rle8_decode(raw, &mut indices),
-        Codec::Rle5 => rle5_decode(raw, &mut indices),
-        Codec::Lz5 => lz5_decode(raw, &mut indices),
+        Codec::Rle8 => rle8_decode(stream, &mut indices),
+        Codec::Rle5 => rle5_decode(stream, &mut indices),
+        Codec::Lz5 => lz5_decode(stream, &mut indices),
     };
     if !ok {
         log::warn!("SFF v2: indexed decode stopped early");
     }
-    let mut out = vec![0u8; count * 4];
-    for i in 0..count {
-        let c = palette
-            .get(indices[i] as usize)
-            .copied()
-            .unwrap_or([0, 0, 0, 0]);
-        out[i * 4..i * 4 + 4].copy_from_slice(&c);
+    let mut rgba = vec![0u8; count * 4];
+    for (i, &index) in indices.iter().enumerate() {
+        let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
+        rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
     }
-    (w, h, out)
+    (width, height, rgba)
 }
 
-pub fn rle8_decode(src: &[u8], dst: &mut [u8]) -> bool {
-    let mut i = 0;
-    let mut j = 0;
-    while j < dst.len() {
-        if i >= src.len() {
-            return false;
-        }
-        let mut byte = src[i];
-        i += 1;
-        let mut run = 1;
-        if byte & 0xC0 == 0x40 {
-            run = (byte & 0x3F) as usize;
-            if i >= src.len() {
-                return false;
-            }
-            byte = src[i];
-            i += 1;
-        }
-        for _ in 0..run {
-            if j < dst.len() {
-                dst[j] = byte;
-                j += 1;
+fn decode_raw(
+    raw: &[u8],
+    width: u32,
+    height: u32,
+    depth: u8,
+    palette: &[[u8; 4]],
+) -> (u32, u32, Vec<u8>) {
+    let count = (width * height) as usize;
+    let mut rgba = vec![0u8; count * 4];
+    match depth {
+        8 => {
+            for i in 0..count {
+                let index = raw.get(i).copied().unwrap_or(0) as usize;
+                let color = palette.get(index).copied().unwrap_or([0, 0, 0, 0]);
+                rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
             }
         }
-    }
-    true
-}
-
-pub fn rle5_decode(src: &[u8], dst: &mut [u8]) -> bool {
-    if src.is_empty() {
-        return false;
-    }
-    let mut i = 0;
-    let mut j = 0;
-    while j < dst.len() {
-        if i >= src.len() {
-            return false;
-        }
-        let mut run = src[i] as i32;
-        i += 1;
-
-        if i >= src.len() {
-            return false;
-        }
-        let mut extra = (src[i] & 0x7F) as i32;
-        let mut value = 0u8;
-        if src[i] & 0x80 != 0 {
-            if i + 1 >= src.len() {
-                return false;
-            }
-            value = src[i + 1];
-            i += 1;
-        }
-        i += 1;
-
-        loop {
-            if j < dst.len() {
-                dst[j] = value;
-                j += 1;
-            }
-            run -= 1;
-            if run < 0 {
-                extra -= 1;
-                if extra < 0 {
+        24 | 32 => {
+            let step = if depth == 32 { 4 } else { 3 };
+            for i in 0..count {
+                let at = i * step;
+                if at + step > raw.len() {
                     break;
                 }
-                if i >= src.len() {
-                    return false;
-                }
-                value = src[i] & 0x1F;
-                run = (src[i] >> 5) as i32;
-                i += 1;
+                rgba[i * 4] = raw[at + 2];
+                rgba[i * 4 + 1] = raw[at + 1];
+                rgba[i * 4 + 2] = raw[at];
+                rgba[i * 4 + 3] = if depth == 32 { raw[at + 3] } else { 255 };
             }
         }
+        _ => {}
     }
-    true
+    (width, height, rgba)
 }
 
-pub fn lz5_decode(src: &[u8], dst: &mut [u8]) -> bool {
-    if src.is_empty() {
-        return false;
-    }
-    let mut i = 1;
-    let mut j = 0;
-    let mut run: i32;
-    let mut control = src[0];
-    let mut control_shift = 0u32;
-    let mut ref_bits = 0u32;
-    let mut ref_shift = 0u32;
-
-    while j < dst.len() {
-        if i >= src.len() {
-            return false;
-        }
-        let mut data = src[i] as i32;
-        i += 1;
-
-        if control & (1u8 << control_shift) != 0 {
-            if data & 0x3F == 0 {
-                if i >= src.len() {
-                    return false;
-                }
-                data = ((data << 2) | src[i] as i32) + 1;
-                i += 1;
-                if i >= src.len() {
-                    return false;
-                }
-                run = src[i] as i32 + 2;
-                i += 1;
-            } else {
-                ref_bits |= ((data & 0xC0) as u32) >> ref_shift;
-                ref_shift += 2;
-                run = data & 0x3F;
-                if ref_shift < 8 {
-                    if i >= src.len() {
-                        return false;
-                    }
-                    data = src[i] as i32 + 1;
-                    i += 1;
-                } else {
-                    data = ref_bits as i32 + 1;
-                    ref_bits = 0;
-                    ref_shift = 0;
-                }
-            }
-
-            loop {
-                if data <= 0 || data as usize > j {
-                    return false;
-                }
-                if j < dst.len() {
-                    dst[j] = dst[j - data as usize];
-                }
-                j += 1;
-                run -= 1;
-                if run < 0 {
-                    break;
-                }
-            }
-        } else {
-            if data & 0xE0 == 0 {
-                if i >= src.len() {
-                    return false;
-                }
-                run = src[i] as i32 + 8;
-                i += 1;
-            } else {
-                run = data >> 5;
-                data &= 0x1F;
-            }
-            while run > 0 && j < dst.len() {
-                dst[j] = data as u8;
-                j += 1;
-                run -= 1;
-            }
-        }
-
-        control_shift += 1;
-        if control_shift >= 8 {
-            if i >= src.len() {
-                break;
-            }
-            control = src[i];
-            i += 1;
-            control_shift = 0;
-        }
-    }
-    j == dst.len()
-}
-
-/// Decodes an 8-bit PCX image embedded in an SFF v1 subfile.
-fn decode_pcx(data: &[u8]) -> Option<(u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>)> {
+fn decode_pcx(
+    data: &[u8],
+    reuse_palette: Option<Option<&[[u8; 4]]>>,
+) -> anyhow::Result<(u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>)> {
     if data.len() < 128 || data[0] != 0x0A {
-        return None;
+        bail!("invalid PCX header");
     }
-    let encoding = data[2];
-    let bpp = data[3];
-    if encoding != 1 || bpp != 8 {
-        return None;
+    if data[2] != 1 || data[3] != 8 || data[65] != 1 {
+        bail!("unsupported PCX encoding");
     }
-    let xmin = read_u16(data, 4) as i32;
-    let ymin = read_u16(data, 6) as i32;
-    let xmax = read_u16(data, 8) as i32;
-    let ymax = read_u16(data, 10) as i32;
-    let width = (xmax - xmin + 1).max(0) as usize;
-    let height = (ymax - ymin + 1).max(0) as usize;
-    if width == 0 || height == 0 || width > 8192 || height > 8192 {
-        return None;
+    let x_min = u16_at(data, 4) as i32;
+    let y_min = u16_at(data, 6) as i32;
+    let x_max = u16_at(data, 8) as i32;
+    let y_max = u16_at(data, 10) as i32;
+    let width = x_max - x_min + 1;
+    let height = y_max - y_min + 1;
+    if width <= 0 || height <= 0 || width > MAX_DIMENSION as i32 || height > MAX_DIMENSION as i32 {
+        bail!("invalid PCX dimensions");
     }
-    let planes = data[65].max(1) as usize;
-    let bytes_per_line = read_u16(data, 66).max(1) as usize;
-    if planes != 1 {
-        return None;
-    }
+    let bytes_per_line = (u16_at(data, 66) as usize).max(width as usize);
 
-    let mut palette = None;
-    if data.len() >= 769 && data[data.len() - 769] == 0x0C {
-        let p = &data[data.len() - 768..];
-        let mut colors = Vec::with_capacity(256);
-        for i in 0..256 {
-            colors.push([p[i * 3], p[i * 3 + 1], p[i * 3 + 2], 255]);
-        }
-        colors[0][3] = 0;
-        palette = Some(colors);
-    }
-
-    let mut indices = vec![0u8; width * height];
+    let mut indices = vec![0u8; (width * height) as usize];
     let mut pos = 128usize;
-    for y in 0..height {
+    for y in 0..height as usize {
         let mut row = vec![0u8; bytes_per_line];
-        let mut x = 0;
+        let mut x = 0usize;
         while x < bytes_per_line {
             if pos >= data.len() {
-                return None;
+                bail!("truncated PCX RLE stream");
             }
             let byte = data[pos];
             pos += 1;
             if byte & 0xC0 == 0xC0 {
                 let run = (byte & 0x3F) as usize;
                 if pos >= data.len() {
-                    return None;
+                    bail!("truncated PCX run");
                 }
                 let value = data[pos];
                 pos += 1;
@@ -675,36 +441,288 @@ fn decode_pcx(data: &[u8]) -> Option<(u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>)> 
                 x += 1;
             }
         }
-        let n = width.min(bytes_per_line);
-        indices[y * width..y * width + n].copy_from_slice(&row[..n]);
+        let copy = width.min(bytes_per_line as i32) as usize;
+        indices[y * width as usize..y * width as usize + copy].copy_from_slice(&row[..copy]);
     }
 
-    let pal = palette.clone().unwrap_or_else(default_palette);
-    let mut rgba = vec![0u8; width * height * 4];
-    for i in 0..width * height {
-        let c = pal
-            .get(indices[i] as usize)
-            .copied()
-            .unwrap_or([0, 0, 0, 0]);
-        rgba[i * 4..i * 4 + 4].copy_from_slice(&c);
+    let palette = if let Some(Some(existing)) = reuse_palette {
+        Some(existing.to_vec())
+    } else {
+        extract_pcx_palette(data)
+    };
+    let palette = palette.unwrap_or_else(default_palette);
+    let mut rgba = vec![0u8; (width * height * 4) as usize];
+    for (i, &index) in indices.iter().enumerate() {
+        let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
+        rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
     }
-    Some((width as u32, height as u32, rgba, palette))
+    Ok((width as u32, height as u32, rgba, Some(palette)))
+}
+
+fn extract_pcx_palette(data: &[u8]) -> Option<Vec<[u8; 4]>> {
+    if data.len() < 769 {
+        return None;
+    }
+    let start = data.len() - 769;
+    let marker = (128..=start).rev().find(|&i| data[i] == 0x0C)?;
+    let rgb = &data[marker + 1..];
+    if rgb.len() < 768 {
+        return None;
+    }
+    let mut palette = Vec::with_capacity(256);
+    for i in 0..256 {
+        let at = i * 3;
+        palette.push([
+            rgb[at],
+            rgb[at + 1],
+            rgb[at + 2],
+            if i == 0 { 0 } else { 255 },
+        ]);
+    }
+    Some(palette)
 }
 
 fn default_palette() -> Vec<[u8; 4]> {
     (0..256)
         .map(|i| {
-            let v = i as u8;
-            [v, v, v, if i == 0 { 0 } else { 255 }]
+            let value = i as u8;
+            [value, value, value, if i == 0 { 0 } else { 255 }]
         })
         .collect()
 }
 
-fn read_u16(data: &[u8], at: usize) -> u16 {
+fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<(u32, u32, Vec<u8>)> {
+    use std::io::Cursor;
+
+    let decoder = png::Decoder::new(Cursor::new(raw));
+    let mut reader = decoder.read_info()?;
+    let mut buffer = vec![0u8; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buffer)?;
+    let data = &buffer[..info.buffer_size()];
+    let width = info.width;
+    let height = info.height;
+    let mut rgba = vec![0u8; (width * height * 4) as usize];
+
+    match info.color_type {
+        png::ColorType::Indexed => {
+            if info.bit_depth != png::BitDepth::Eight {
+                bail!("unsupported indexed PNG depth {:?}", info.bit_depth);
+            }
+            for i in 0..(width * height) as usize {
+                let index = data.get(i).copied().unwrap_or(0) as usize;
+                let color = palette.get(index).copied().unwrap_or([0, 0, 0, 0]);
+                rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
+            }
+        }
+        png::ColorType::Rgba => rgba.copy_from_slice(data),
+        png::ColorType::Rgb => {
+            for (i, pixel) in data.chunks_exact(3).enumerate() {
+                rgba[i * 4..i * 4 + 3].copy_from_slice(pixel);
+                rgba[i * 4 + 3] = 255;
+            }
+        }
+        png::ColorType::Grayscale => {
+            for (i, value) in data.iter().enumerate() {
+                rgba[i * 4] = *value;
+                rgba[i * 4 + 1] = *value;
+                rgba[i * 4 + 2] = *value;
+                rgba[i * 4 + 3] = 255;
+            }
+        }
+        png::ColorType::GrayscaleAlpha => {
+            for (i, pixel) in data.chunks_exact(2).enumerate() {
+                rgba[i * 4] = pixel[0];
+                rgba[i * 4 + 1] = pixel[0];
+                rgba[i * 4 + 2] = pixel[0];
+                rgba[i * 4 + 3] = pixel[1];
+            }
+        }
+    }
+    Ok((width, height, rgba))
+}
+
+pub fn rle8_decode(src: &[u8], dst: &mut [u8]) -> bool {
+    let mut source = 0usize;
+    let mut target = 0usize;
+    while target < dst.len() {
+        if source >= src.len() {
+            return false;
+        }
+        let control = src[source];
+        source += 1;
+        let (value, run) = if control & 0xC0 == 0x40 {
+            if source >= src.len() {
+                return false;
+            }
+            let value = src[source];
+            source += 1;
+            (value, (control & 0x3F) as usize)
+        } else {
+            (control, 1)
+        };
+        for _ in 0..run {
+            if target >= dst.len() {
+                break;
+            }
+            dst[target] = value;
+            target += 1;
+        }
+    }
+    true
+}
+
+pub fn rle5_decode(src: &[u8], dst: &mut [u8]) -> bool {
+    let mut source = 0usize;
+    let mut target = 0usize;
+    while target < dst.len() {
+        if source >= src.len() {
+            return false;
+        }
+        let mut run = src[source] as i32;
+        source += 1;
+        if source >= src.len() {
+            return false;
+        }
+        let mut extra = (src[source] & 0x7F) as i32;
+        let mut value = 0u8;
+        if src[source] & 0x80 != 0 {
+            if source + 1 >= src.len() {
+                return false;
+            }
+            value = src[source + 1];
+            source += 1;
+        }
+        source += 1;
+
+        loop {
+            if target < dst.len() {
+                dst[target] = value;
+                target += 1;
+            }
+            run -= 1;
+            if run >= 0 {
+                continue;
+            }
+            extra -= 1;
+            if extra < 0 {
+                break;
+            }
+            if source >= src.len() {
+                return false;
+            }
+            value = src[source] & 0x1F;
+            run = (src[source] >> 5) as i32;
+            source += 1;
+        }
+    }
+    true
+}
+
+pub fn lz5_decode(src: &[u8], dst: &mut [u8]) -> bool {
+    if src.is_empty() {
+        return false;
+    }
+    let mut source = 1usize;
+    let mut target = 0usize;
+    let mut control = src[0];
+    let mut control_bit = 0u32;
+    let mut reference = 0u32;
+    let mut reference_bits = 0u32;
+
+    while target < dst.len() {
+        if source >= src.len() {
+            return false;
+        }
+        let data = src[source] as i32;
+        source += 1;
+
+        if control & (1u8 << control_bit) != 0 {
+            let (offset, run) = if data & 0x3F == 0 {
+                if source + 1 >= src.len() {
+                    return false;
+                }
+                let offset = ((data << 2) | src[source] as i32) + 1;
+                source += 1;
+                let run = src[source] as i32 + 2;
+                source += 1;
+                (offset, run)
+            } else {
+                reference |= ((data & 0xC0) as u32) >> reference_bits;
+                reference_bits += 2;
+                let run = data & 0x3F;
+                let offset = if reference_bits < 8 {
+                    if source >= src.len() {
+                        return false;
+                    }
+                    let offset = src[source] as i32 + 1;
+                    source += 1;
+                    offset
+                } else {
+                    let offset = reference as i32 + 1;
+                    reference = 0;
+                    reference_bits = 0;
+                    offset
+                };
+                (offset, run)
+            };
+
+            if offset <= 0 || offset as usize > target {
+                return false;
+            }
+            for _ in 0..=run {
+                if target >= dst.len() {
+                    break;
+                }
+                dst[target] = dst[target - offset as usize];
+                target += 1;
+            }
+        } else {
+            let (value, run) = if data & 0xE0 == 0 {
+                if source >= src.len() {
+                    return false;
+                }
+                let run = src[source] as i32 + 8;
+                source += 1;
+                (data & 0x1F, run)
+            } else {
+                (data & 0x1F, data >> 5)
+            };
+            for _ in 0..run {
+                if target >= dst.len() {
+                    break;
+                }
+                dst[target] = value as u8;
+                target += 1;
+            }
+        }
+
+        control_bit += 1;
+        if control_bit >= 8 {
+            if source >= src.len() {
+                break;
+            }
+            control = src[source];
+            source += 1;
+            control_bit = 0;
+        }
+    }
+    target == dst.len()
+}
+
+fn slice(data: &[u8], offset: usize, length: usize) -> Option<&[u8]> {
+    let end = offset.checked_add(length)?;
+    data.get(offset..end)
+}
+
+fn u16_at(data: &[u8], at: usize) -> u16 {
     u16::from_le_bytes([data[at], data[at + 1]])
 }
 
-fn read_u32(data: &[u8], at: usize) -> u32 {
+fn i16_at(data: &[u8], at: usize) -> i16 {
+    u16_at(data, at) as i16
+}
+
+fn u32_at(data: &[u8], at: usize) -> u32 {
     u32::from_le_bytes([data[at], data[at + 1], data[at + 2], data[at + 3]])
 }
 
@@ -720,29 +738,36 @@ mod tests {
     }
 
     #[test]
+    fn rle8_rejects_truncation() {
+        let mut out = [0u8; 6];
+        assert!(!rle8_decode(&[0x40 | 6], &mut out));
+    }
+
+    #[test]
     fn lz5_literal_run() {
-        // Control byte 0: literal. data=0x20 => run=1, value=0.
         let mut out = [9u8; 1];
         assert!(lz5_decode(&[0, 0x20], &mut out));
         assert_eq!(out, [0]);
     }
 
     #[test]
+    fn lz5_rejects_bad_reference() {
+        let mut out = [0u8; 4];
+        assert!(!lz5_decode(&[0x01, 0x02, 0x01], &mut out));
+    }
+
+    #[test]
     fn v2_indexed_sprites_skip_the_size_prefix() {
-        // Minimal SFF v2 with one 2x2 LZ5 sprite. The compressed payload is
-        // preceded by a little-endian uncompressed size, and the palette is
-        // stored BGRA in the linked-data block.
         let mut data = vec![0u8; 512];
         data[..12].copy_from_slice(b"ElecbyteSpr\0");
-        data[13] = 1; // minor2: keep palette alpha
+        data[13] = 1;
         data[15] = 2;
 
-        let palette_ofs = 68usize;
-        let palette_count = 1u32;
-        let ldata_ofs = palette_ofs + 16;
+        let palette_offset = 68usize;
+        let ldata_offset = palette_offset + 16;
         let palette_len = 32 * 4;
-        let sprite_ofs = ldata_ofs + palette_len;
-        let sprite_data_ofs = sprite_ofs + 28;
+        let sprite_offset = ldata_offset + palette_len;
+        let sprite_data_offset = sprite_offset + 28;
 
         let put_u16 = |data: &mut [u8], at: usize, v: u16| {
             data[at..at + 2].copy_from_slice(&v.to_le_bytes());
@@ -752,44 +777,136 @@ mod tests {
         };
 
         let total = data.len() as u32;
-        put_u32(&mut data, 36, sprite_ofs as u32);
+        put_u32(&mut data, 36, sprite_offset as u32);
         put_u32(&mut data, 40, 1);
-        put_u32(&mut data, 44, palette_ofs as u32);
-        put_u32(&mut data, 48, palette_count);
-        put_u32(&mut data, 52, ldata_ofs as u32);
+        put_u32(&mut data, 44, palette_offset as u32);
+        put_u32(&mut data, 48, 1);
+        put_u32(&mut data, 52, ldata_offset as u32);
         put_u32(&mut data, 60, total);
 
-        // Palette node: group 1, index 1, 32 colours, data at ldata + 0.
-        put_u16(&mut data, palette_ofs, 1);
-        put_u16(&mut data, palette_ofs + 2, 1);
-        put_u16(&mut data, palette_ofs + 4, 32);
-        put_u32(&mut data, palette_ofs + 8, 0);
-        put_u32(&mut data, palette_ofs + 12, palette_len as u32);
+        put_u16(&mut data, palette_offset, 1);
+        put_u16(&mut data, palette_offset + 2, 1);
+        put_u16(&mut data, palette_offset + 4, 32);
+        put_u32(&mut data, palette_offset + 8, 0);
+        put_u32(&mut data, palette_offset + 12, palette_len as u32);
         for c in 0..32 {
-            let at = ldata_ofs + c * 4;
+            let at = ldata_offset + c * 4;
             data[at..at + 4].copy_from_slice(&[30, 20, 10, 255]);
         }
 
-        // Sprite node: 2x2, format 4 (LZ5), depth 5, palette node 0.
-        put_u16(&mut data, sprite_ofs, 0);
-        put_u16(&mut data, sprite_ofs + 2, 0);
-        put_u16(&mut data, sprite_ofs + 4, 2);
-        put_u16(&mut data, sprite_ofs + 6, 2);
-        data[sprite_ofs + 14] = 4;
-        data[sprite_ofs + 15] = 5;
+        put_u16(&mut data, sprite_offset, 0);
+        put_u16(&mut data, sprite_offset + 2, 0);
+        put_u16(&mut data, sprite_offset + 4, 2);
+        put_u16(&mut data, sprite_offset + 6, 2);
+        data[sprite_offset + 14] = 4;
+        data[sprite_offset + 15] = 5;
         put_u32(
             &mut data,
-            sprite_ofs + 16,
-            (sprite_data_ofs - ldata_ofs) as u32,
+            sprite_offset + 16,
+            (sprite_data_offset - ldata_offset) as u32,
         );
-        put_u32(&mut data, sprite_ofs + 20, 6);
-
-        // Size prefix (4 pixels) then control 0 + 0x80 => run of 4, value 0.
-        data[sprite_data_ofs..sprite_data_ofs + 6].copy_from_slice(&[4, 0, 0, 0, 0x00, 0x80]);
+        put_u32(&mut data, sprite_offset + 20, 6);
+        data[sprite_data_offset..sprite_data_offset + 6].copy_from_slice(&[4, 0, 0, 0, 0x00, 0x80]);
 
         let sff = SffFile::from_bytes(&data).expect("parse sff");
         let sprite = sff.get(0, 0).expect("sprite");
         assert_eq!((sprite.width, sprite.height), (2, 2));
         assert_eq!(sprite.rgba, [10, 20, 30, 255].repeat(4));
+    }
+
+    #[test]
+    fn v2_png32_sprite() {
+        let mut data = vec![0u8; 512];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 2;
+
+        let sprite_offset = 512usize;
+        let ldata_offset = sprite_offset + 28;
+        let png = {
+            let mut raw = vec![0u8; 2 * 2 * 4];
+            for (i, pixel) in raw.chunks_exact_mut(4).enumerate() {
+                pixel.copy_from_slice(&[(i * 40) as u8, 20, 30, 255]);
+            }
+            let mut encoded = Vec::new();
+            {
+                let mut encoder = png::Encoder::new(&mut encoded, 2, 2);
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+                let mut writer = encoder.write_header().unwrap();
+                writer.write_image_data(&raw).unwrap();
+            }
+            encoded
+        };
+        let payload = [&(2u32 * 2 * 4).to_le_bytes()[..], &png].concat();
+        let total = ldata_offset + payload.len();
+        data.resize(total, 0);
+        data[36..40].copy_from_slice(&(sprite_offset as u32).to_le_bytes());
+        data[40..44].copy_from_slice(&1u32.to_le_bytes());
+        data[44..48].copy_from_slice(&0u32.to_le_bytes());
+        data[48..52].copy_from_slice(&0u32.to_le_bytes());
+        data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
+        data[60..64].copy_from_slice(&(total as u32).to_le_bytes());
+        data[sprite_offset..sprite_offset + 2].copy_from_slice(&0u16.to_le_bytes());
+        data[sprite_offset + 2..sprite_offset + 4].copy_from_slice(&0u16.to_le_bytes());
+        data[sprite_offset + 4..sprite_offset + 6].copy_from_slice(&2u16.to_le_bytes());
+        data[sprite_offset + 6..sprite_offset + 8].copy_from_slice(&2u16.to_le_bytes());
+        data[sprite_offset + 14] = 12;
+        data[sprite_offset + 15] = 32;
+        data[sprite_offset + 16..sprite_offset + 20].copy_from_slice(&0u32.to_le_bytes());
+        data[sprite_offset + 20..sprite_offset + 24]
+            .copy_from_slice(&(payload.len() as u32).to_le_bytes());
+        data[ldata_offset..ldata_offset + payload.len()].copy_from_slice(&payload);
+
+        let sff = SffFile::from_bytes(&data).expect("parse sff");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!((sprite.width, sprite.height), (2, 2));
+        assert_eq!(sprite.rgba.len(), 16);
+        assert_eq!(&sprite.rgba[4..8], &[40, 20, 30, 255]);
+    }
+
+    #[test]
+    fn v2_linked_sprite_overrides_axis() {
+        let mut data = vec![0u8; 512];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 2;
+
+        let sprite_offset = 512usize;
+        let ldata_offset = sprite_offset + 2 * 28;
+        let payload = [&(1u32).to_le_bytes()[..], &[1u8]].concat();
+        let total = ldata_offset + payload.len();
+        data.resize(total, 0);
+        data[36..40].copy_from_slice(&(sprite_offset as u32).to_le_bytes());
+        data[40..44].copy_from_slice(&2u32.to_le_bytes());
+        data[44..48].copy_from_slice(&0u32.to_le_bytes());
+        data[48..52].copy_from_slice(&0u32.to_le_bytes());
+        data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
+        data[60..64].copy_from_slice(&(total as u32).to_le_bytes());
+
+        let node = sprite_offset;
+        data[node..node + 2].copy_from_slice(&0u16.to_le_bytes());
+        data[node + 2..node + 4].copy_from_slice(&0u16.to_le_bytes());
+        data[node + 4..node + 6].copy_from_slice(&1u16.to_le_bytes());
+        data[node + 6..node + 8].copy_from_slice(&1u16.to_le_bytes());
+        data[node + 8..node + 10].copy_from_slice(&3i16.to_le_bytes());
+        data[node + 10..node + 12].copy_from_slice(&4i16.to_le_bytes());
+        data[node + 14] = 0;
+        data[node + 15] = 8;
+        data[node + 16..node + 20].copy_from_slice(&0u32.to_le_bytes());
+        data[node + 20..node + 24].copy_from_slice(&(payload.len() as u32).to_le_bytes());
+
+        let linked = sprite_offset + 28;
+        data[linked..linked + 2].copy_from_slice(&1u16.to_le_bytes());
+        data[linked + 2..linked + 4].copy_from_slice(&2u16.to_le_bytes());
+        data[linked + 4..linked + 6].copy_from_slice(&1u16.to_le_bytes());
+        data[linked + 6..linked + 8].copy_from_slice(&1u16.to_le_bytes());
+        data[linked + 8..linked + 10].copy_from_slice(&9i16.to_le_bytes());
+        data[linked + 10..linked + 12].copy_from_slice(&10i16.to_le_bytes());
+        data[linked + 12..linked + 14].copy_from_slice(&0u16.to_le_bytes());
+        data[ldata_offset..ldata_offset + payload.len()].copy_from_slice(&payload);
+
+        let sff = SffFile::from_bytes(&data).expect("parse sff");
+        let sprite = sff.get(1, 2).expect("linked sprite");
+        assert_eq!((sprite.width, sprite.height), (1, 1));
+        assert_eq!((sprite.axis_x, sprite.axis_y), (9, 10));
     }
 }

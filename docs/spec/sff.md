@@ -1,6 +1,6 @@
 # SFF sprite format specification
 
-**Status: DRAFT — awaiting approval.** This spec is the implementation source
+**Status: APPROVED / FROZEN.** This spec is the implementation source
 for `manato-formats::sff`. It is derived from the MIT-licensed Ikemen-GO source
 (`src/image.go`), public M.U.G.E.N format documentation, and observed content.
 It is not a copy of any implementation.

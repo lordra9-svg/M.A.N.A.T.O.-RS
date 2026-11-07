@@ -22,8 +22,8 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-03 | CNS states/controllers | Required | Required | Partial | Bundled roster |
 | F-04 | CMD commands | Required | Required | Partial | Bundled roster |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | Bundled roster |
-| F-06 | SFF v1 | Required | Required | Partial | KFM/Ryu loads |
-| F-07 | SFF v2 | Required | Required | Partial | Bundled content |
+| F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
+| F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-08 | SND | Required | Required | Partial | Bundled content |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | Training Grid |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |

@@ -80,7 +80,7 @@ The limitation is recorded explicitly rather than hidden.
 | --- | --- | --- |
 | `manato-core` | Original Rust math, input, RNG, hashing | Keep; add provenance note |
 | `manato-formats` text/DEF/CNS/CMD/AIR | Partly informed by `mugen-reimpl` | Rewrite/validate from Ikemen-GO docs + oracle |
-| `manato-formats` SFF v1/v2 | Partly informed by `mugen-reimpl` | Rewrite decoder from spec; validate against content |
+| `manato-formats` SFF v1/v2 | Rewritten from `docs/spec/sff.md` | Oracle verification pending |
 | `manato-formats` SND/stage | Partly informed by `mugen-reimpl` | Rewrite/validate from spec |
 | `manato-sim` state machine/triggers | Partly informed by `mugen-reimpl` | Rewrite from frozen spec |
 | `manato-sim` collision/HitDef | Partly informed by `mugen-reimpl` | Rewrite from frozen spec |
