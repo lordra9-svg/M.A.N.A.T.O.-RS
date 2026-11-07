@@ -45,6 +45,7 @@ pub struct Renderer {
 
     sprite_bgl: wgpu::BindGroupLayout,
     pipelines: [wgpu::RenderPipeline; 3],
+    pipelines_mask: [wgpu::RenderPipeline; 3],
 
     atlas: SpriteAtlas,
     font: FontAtlas,
@@ -122,24 +123,25 @@ impl Renderer {
             ],
         });
 
-        let sprite_shader = create_sprite_shader(&device);
+        let sprite_shader = create_sprite_shader(&device, false);
+        let mask_shader = create_sprite_shader(&device, true);
         let sprite_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("manato sprite pipeline layout"),
             bind_group_layouts: &[&sprite_bgl],
             push_constant_ranges: &[],
         });
-        let make_pipeline = |blend: Blend| {
+        let make_pipeline = |blend: Blend, shader: &wgpu::ShaderModule| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("manato sprite pipeline"),
                 layout: Some(&sprite_layout),
                 vertex: wgpu::VertexState {
-                    module: &sprite_shader,
+                    module: shader,
                     entry_point: Some("vs_main"),
                     buffers: &[vertex_layout()],
                     compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
-                    module: &sprite_shader,
+                    module: shader,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: GAME_FORMAT,
@@ -156,9 +158,14 @@ impl Renderer {
             })
         };
         let pipelines = [
-            make_pipeline(Blend::Normal),
-            make_pipeline(Blend::Add),
-            make_pipeline(Blend::Sub),
+            make_pipeline(Blend::Normal, &sprite_shader),
+            make_pipeline(Blend::Add, &sprite_shader),
+            make_pipeline(Blend::Sub, &sprite_shader),
+        ];
+        let pipelines_mask = [
+            make_pipeline(Blend::Normal, &mask_shader),
+            make_pipeline(Blend::Add, &mask_shader),
+            make_pipeline(Blend::Sub, &mask_shader),
         ];
 
         let atlas = SpriteAtlas::build(&device, &queue, &sprite_bgl, &[]);
@@ -330,6 +337,7 @@ impl Renderer {
             game_view,
             sprite_bgl,
             pipelines,
+            pipelines_mask,
             atlas,
             font,
             solid,
@@ -414,10 +422,15 @@ impl Renderer {
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             }
             for range in &ranges {
+                let pipelines = if range.mask {
+                    &self.pipelines_mask
+                } else {
+                    &self.pipelines
+                };
                 let pipeline = match range.blend {
-                    Blend::Normal => &self.pipelines[0],
-                    Blend::Add => &self.pipelines[1],
-                    Blend::Sub => &self.pipelines[2],
+                    Blend::Normal => &pipelines[0],
+                    Blend::Add => &pipelines[1],
+                    Blend::Sub => &pipelines[2],
                 };
                 let bind_group = match range.tex {
                     TexRef::Atlas(page) => self.atlas.page_bind_group(page),

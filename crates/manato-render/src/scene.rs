@@ -58,7 +58,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
+            painter.set_mask(layer.mask);
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+            painter.set_mask(false);
             painter.set_scissor(None);
         }
     }
@@ -69,7 +71,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
+            painter.set_mask(layer.mask);
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+            painter.set_mask(false);
             painter.set_scissor(None);
         }
     }
@@ -99,7 +103,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
+            painter.set_mask(layer.mask);
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
+            painter.set_mask(false);
             painter.set_scissor(None);
         }
     }

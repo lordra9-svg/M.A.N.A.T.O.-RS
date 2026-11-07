@@ -33,6 +33,8 @@ pub struct DrawRange {
     pub count: u32,
     pub tex: TexRef,
     pub blend: Blend,
+    /// Force alpha to 1 for stage mask layers.
+    pub mask: bool,
     /// Optional scissor rectangle in game pixels: x, y, width, height.
     pub scissor: Option<[u32; 4]>,
 }
@@ -43,6 +45,7 @@ pub struct Painter {
     pub vertices: Vec<Vertex>,
     pub ranges: Vec<DrawRange>,
     scissor: Option<[u32; 4]>,
+    mask: bool,
 }
 
 impl Painter {
@@ -50,16 +53,22 @@ impl Painter {
         self.vertices.clear();
         self.ranges.clear();
         self.scissor = None;
+        self.mask = false;
     }
 
     pub fn set_scissor(&mut self, scissor: Option<[u32; 4]>) {
         self.scissor = scissor;
     }
 
+    pub fn set_mask(&mut self, mask: bool) {
+        self.mask = mask;
+    }
+
     fn range(&mut self, tex: TexRef, blend: Blend) {
         if let Some(last) = self.ranges.last_mut() {
             if last.tex == tex
                 && last.blend == blend
+                && last.mask == self.mask
                 && last.scissor == self.scissor
                 && last.start + last.count == self.vertices.len() as u32
             {
@@ -72,6 +81,7 @@ impl Painter {
             count: 6,
             tex,
             blend,
+            mask: self.mask,
             scissor: self.scissor,
         });
     }
@@ -195,11 +205,13 @@ impl Painter {
     }
 }
 
-pub fn create_sprite_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
-    device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("manato sprite shader"),
-        source: wgpu::ShaderSource::Wgsl(
-            r#"
+pub fn create_sprite_shader(device: &wgpu::Device, mask: bool) -> wgpu::ShaderModule {
+    let fragment = if mask {
+        "let c = textureSample(tex, samp, in.uv) * in.color;\n    return vec4<f32>(c.rgb, 1.0);"
+    } else {
+        "return textureSample(tex, samp, in.uv) * in.color;"
+    };
+    let source = r#"
 struct VsIn {
     @location(0) pos: vec2<f32>,
     @location(1) uv: vec2<f32>,
@@ -232,11 +244,13 @@ fn vs_main(in: VsIn) -> VsOut {
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv) * in.color;
+    __FRAGMENT__
 }
 "#
-            .into(),
-        ),
+    .replace("__FRAGMENT__", fragment);
+    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("manato sprite shader"),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
     })
 }
 

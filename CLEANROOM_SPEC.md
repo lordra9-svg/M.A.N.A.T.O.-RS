@@ -81,7 +81,7 @@ The limitation is recorded explicitly rather than hidden.
 | `manato-core` | Original Rust math, input, RNG, hashing | Keep; add provenance note |
 | `manato-formats` text/DEF/CNS/CMD/AIR | AIR, CNS, and CMD rewritten from approved specs; text/DEF pending | Rewrite/validate from Ikemen-GO docs + oracle |
 | `manato-formats` SFF v1/v2 | Rewritten from `docs/spec/sff.md` | Oracle verification pending |
-| `manato-formats` SND/stage | SND and stage rewritten; BGCtrl/reflection/BGM added | Sprite mask pending |
+| `manato-formats` SND/stage | SND and stage rewritten; BGCtrl/reflection/BGM/mask added | Oracle verification pending |
 | `manato-sim` state machine/triggers | CNS/CMD parser rewritten; helpers/binds/redirects added | RemapPal and oracle verification pending |
 | `manato-sim` collision/HitDef | Partly informed by `mugen-reimpl` | Rewrite from frozen spec |
 | `manato-sim` projectiles | Implemented from MIT reference notes | Keep after spec review |
