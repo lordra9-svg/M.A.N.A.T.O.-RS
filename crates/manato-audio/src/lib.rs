@@ -486,6 +486,35 @@ mod tests {
     }
 
     #[test]
+    fn loads_wav_music() {
+        let samples: [i16; 8] = [0, 1000, -1000, 2000, -2000, 3000, -3000, 0];
+        let data_len = (samples.len() * 2) as u32;
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&8_000u32.to_le_bytes());
+        wav.extend_from_slice(&16_000u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_len.to_le_bytes());
+        for sample in samples {
+            wav.extend_from_slice(&sample.to_le_bytes());
+        }
+        let path = std::env::temp_dir().join("manato-music-test.wav");
+        std::fs::write(&path, wav).unwrap();
+        let music = Music::load(&path, 0, 0).unwrap();
+        assert_eq!(music.sample_rate, 8_000);
+        assert_eq!(music.channels, 1);
+        assert_eq!(music.samples.len(), samples.len());
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn music_loops() {
         let music = Music {
             samples: Arc::new(vec![1_000, 2_000, 3_000, 4_000]),
