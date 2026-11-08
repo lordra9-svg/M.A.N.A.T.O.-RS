@@ -59,10 +59,15 @@ SDL_VIDEODRIVER=offscreen LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH" \
 
 ## Current coverage
 
-Round-end classification only (`docs/oracle/assertions.md`, O-01..O-05):
-timer rate, KO vs time-over, perfect, and clutch. Other subsystems still rely
-on the provisional assertions in the frozen specs and should be added here as
-the harness grows.
+Round-end classification only (`docs/oracle/assertions.md`, O-01..O-08):
+timer rate, KO vs time-over, perfect, clutch, and time-over draws. Other
+subsystems still rely on the provisional assertions in the frozen specs and
+should be added here as the harness grows.
+
+Note: Ikemen's `-rounds` command-line flag means "total rounds to play", not
+"rounds needed to win". Use `-rounds 1` and inspect the per-round `Rounds`
+table. A drawn round makes the oracle continue with another round even when
+`-rounds 1` was requested.
 
 ## Clean-room rules
 

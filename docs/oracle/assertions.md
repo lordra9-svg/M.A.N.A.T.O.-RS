@@ -13,6 +13,7 @@ Scenarios (`tools/oracle/run_round_oracle.py`):
 | `ko_clutch_10` | 100 | 0 | 5 s | 1 |
 | `ko_clutch_over` | 101 | 0 | 5 s | 1 |
 | `time_over_full` | 1000 | 500 | 1 s | 1 |
+| `time_over_draw` | 500 | 500 | 1 s | 1 |
 
 All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 -nojoy`, and the pinned runtime in the README.
@@ -26,6 +27,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-05 | Perfect and clutch wins are mutually exclusive. | Every scenario with `WinPerfect = true` reports `WinClutch = false`. |
 | O-06 | `WinSide` is a zero-based team index, while the `Wins` table is one-based. | Every scenario reports `WinSide = 0` and `Wins[1] = 1` for a P1 win. |
 | O-07 | The round `Timer` in the match dump is elapsed ticks at round end, not remaining ticks. | `ko_full` ends after one tick and reports `Timer = 1`; `time_over_full` runs the full 60-tick round and reports `Timer = 60`. |
+| O-08 | Equal life at time over is a draw: no fighter has `Win = true`, `WinSide = -1`, and `Draws = 1`. | `time_over_draw` (500/500, 1 s). The oracle then replays another round because the first was a draw; both rounds report no winner. |
 
 ## Mapping to M.A.N.A.T.O.-RS
 
@@ -35,6 +37,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-02..O-05 | `SimState::record_win` and `WinRecord`; covered by `oracle_round_win_classification`. |
 | O-06 | Presentation only; the engine stores wins per side and does not use `WinSide`. |
 | O-07 | Not represented; the engine tracks remaining time and does not expose elapsed round ticks. |
+| O-08 | `RoundState::winner = None`, `time_over = true`, and no `WinRecord`; covered by `oracle_round_win_classification`. |
 
 These assertions remain subject to revision if a later oracle run contradicts
 them. The tests that encode them live in `crates/manato-sim/tests/smoke.rs`.

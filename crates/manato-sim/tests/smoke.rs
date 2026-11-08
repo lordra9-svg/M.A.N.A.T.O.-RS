@@ -1169,6 +1169,20 @@ fn oracle_round_win_classification() {
     assert!(record.time_over);
     assert!(record.perfect);
     assert!(!record.clutch);
+
+    // O-08: equal life at time over is a draw, with no win recorded.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = 500;
+    sim.fighters[1].life = 500;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.winner, None);
+    assert!(sim.round.time_over);
+    assert_eq!(sim.round.wins, [0, 0]);
+    assert!(sim.win_history[0].is_empty());
+    assert!(sim.win_history[1].is_empty());
 }
 
 /// O-01: the oracle round timer is `seconds * 60` ticks.

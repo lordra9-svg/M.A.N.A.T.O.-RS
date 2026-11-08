@@ -39,6 +39,7 @@ SCENARIOS = {
     "ko_clutch_10": (100, 0, 5, 1),
     "ko_clutch_over": (101, 0, 5, 1),
     "time_over_full": (1000, 500, 1, 1),
+    "time_over_draw": (500, 500, 1, 1),
 }
 
 

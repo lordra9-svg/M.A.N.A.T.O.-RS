@@ -84,19 +84,16 @@ def parse(text: str):
     return parse_table()
 
 
-def summarize(stats: dict) -> dict:
-    """Reduces the verbose dump to the fields the assertions rely on."""
-    rounds = stats.get("Rounds", {})
-    first = rounds.get(1, {}) if isinstance(rounds, dict) else {}
-    fighters = first.get("Fighters", {})
-    out_fighters = {}
+def summarize_round(round_data: dict) -> dict:
+    fighters = round_data.get("Fighters", {})
+    out = {}
     for side, entries in fighters.items():
         if not isinstance(entries, dict):
             continue
         first_entry = entries.get(1)
         if not isinstance(first_entry, dict):
             continue
-        out_fighters[str(side)] = {
+        out[str(side)] = {
             "name": first_entry.get("Name"),
             "life": first_entry.get("Life"),
             "life_max": first_entry.get("LifeMax"),
@@ -107,12 +104,29 @@ def summarize(stats: dict) -> dict:
             "win_clutch": first_entry.get("WinClutch"),
         }
     return {
+        "index": round_data.get("Index"),
+        "timer": round_data.get("Timer"),
+        "draw": bool(out) and not any(fighter.get("win") for fighter in out.values()),
+        "fighters": out,
+    }
+
+
+def summarize(stats: dict) -> dict:
+    """Reduces the verbose dump to the fields the assertions rely on."""
+    rounds = stats.get("Rounds", {})
+    parsed = []
+    if isinstance(rounds, dict):
+        for index in sorted(rounds, key=lambda value: int(value)):
+            parsed.append(summarize_round(rounds[index]))
+    first = parsed[0] if parsed else {"fighters": {}, "timer": 0}
+    return {
         "win_side": stats.get("WinSide"),
         "wins": stats.get("Wins"),
         "draws": stats.get("Draws"),
-        "match_time": first.get("Timer") or stats.get("MatchTime"),
-        "round_time": first.get("Timer") or stats.get("RoundTime"),
-        "fighters": out_fighters,
+        "match_time": first["timer"] or stats.get("MatchTime"),
+        "round_time": first["timer"] or stats.get("RoundTime"),
+        "fighters": first["fighters"],
+        "rounds": parsed,
     }
 
 
