@@ -37,6 +37,9 @@ pub struct MatchConfig {
     pub p1: PathBuf,
     pub p2: PathBuf,
     pub stage: PathBuf,
+    /// Optional screenpack `system.def`. When absent, the engine falls back to
+    /// the built-in HUD (`docs/spec/render.md` §13).
+    pub screenpack: Option<PathBuf>,
     pub rounds_to_win: u32,
     pub round_time: i32,
 }
@@ -51,6 +54,7 @@ impl MatchConfig {
             p2: PathBuf::from("content/chars/nival/nival.def"),
             stage: PathBuf::from("content/stages/training/stage1.def"),
             mugen_root: root,
+            screenpack: None,
             rounds_to_win: DEFAULT_ROUNDS_TO_WIN,
             round_time: DEFAULT_ROUND_TIME,
         }
@@ -96,6 +100,8 @@ pub struct Assets {
     pub effects: EffectsBank,
     pub fight_sounds: SoundBank,
     pub data_dirs: Vec<PathBuf>,
+    /// Parsed screenpack, when one is configured.
+    pub screenpack: Option<manato_formats::Screenpack>,
 }
 
 impl Assets {
@@ -130,12 +136,30 @@ impl Assets {
             }
         }
 
+        let screenpack = match &config.screenpack {
+            Some(path) => {
+                let resolved = config.resolve(path);
+                match manato_formats::Screenpack::load(&resolved) {
+                    Ok(screenpack) => Some(screenpack),
+                    Err(error) => {
+                        log::warn!(
+                            "failed to load screenpack {}: {error:#}",
+                            resolved.display()
+                        );
+                        None
+                    }
+                }
+            }
+            None => None,
+        };
+
         Ok(Self {
             characters,
             stage,
             effects,
             fight_sounds,
             data_dirs,
+            screenpack,
         })
     }
 
@@ -528,6 +552,27 @@ pub struct WinRecord {
 /// Fraction of max life at or below which a win counts as a clutch win.
 pub const CLUTCH_THRESHOLD: f32 = 0.10;
 
+/// Delayed ("mid") bar fill state (`docs/spec/render.md` §6.1–§6.3).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BarFill {
+    /// Delayed life ratio in `0..=1`.
+    pub mid_life: f32,
+    /// Delayed power ratio in `0..=1`.
+    pub mid_power: f32,
+    /// Remaining delay ticks before the mid fill starts draining.
+    pub delay: i32,
+}
+
+impl Default for BarFill {
+    fn default() -> Self {
+        Self {
+            mid_life: 1.0,
+            mid_power: 0.0,
+            delay: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SimState {
     pub assets: Arc<Assets>,
@@ -553,6 +598,8 @@ pub struct SimState {
     pub combo: [ComboState; 2],
     /// Wins recorded this match, in order, per side (`§6.7`).
     pub win_history: [Vec<WinRecord>; 2],
+    /// Delayed life/power bar fill per side (`§6.1`, `§6.2`).
+    pub bars: [BarFill; 2],
 }
 
 impl SimState {
@@ -620,6 +667,7 @@ impl SimState {
             finished: false,
             combo: [ComboState::default(); 2],
             win_history: [Vec::new(), Vec::new()],
+            bars: [BarFill::default(); 2],
         };
         state.start_round();
         state
@@ -1216,8 +1264,11 @@ impl SimState {
     }
 
     /// Updates presentation state that lives in the simulation: combo
-    /// counters (`docs/spec/render.md` §6.8).
+    /// counters (`docs/spec/render.md` §6.8`) and delayed bar fills
+    /// (`§6.1`, `§6.2`).
     fn update_fight_screen(&mut self) {
+        self.update_bars();
+
         for side in 0..2 {
             let defender = 1 - side;
             let (hits, damage) = self
@@ -1237,6 +1288,56 @@ impl SimState {
                 if state.timer == 0 {
                     state.shown_hits = 0;
                 }
+            }
+        }
+    }
+
+    /// Drains the delayed bar fills after their configured delay.
+    fn update_bars(&mut self) {
+        let fight = self
+            .assets
+            .screenpack
+            .as_ref()
+            .map(|screenpack| &screenpack.fight);
+        for side in 0..2 {
+            let life_max = self.fighters[side].life_max.max(1);
+            let life_ratio = (self.fighters[side].life as f32 / life_max as f32).clamp(0.0, 1.0);
+            let power_ratio = (self.fighters[side].power / MAX_POWER).clamp(0.0, 1.0);
+            let life_def = fight.map(|fight| &fight.life[side]);
+            let power_def = fight.map(|fight| &fight.power[side]);
+            let life_delay = life_def.map(|bar| bar.mid_delay).unwrap_or(0);
+            let life_range = life_def.map(|bar| bar.range.x).unwrap_or(0.0);
+            let power_range = power_def.map(|bar| bar.range.x).unwrap_or(0.0);
+            let life_drain = life_def
+                .map(|bar| {
+                    let span = if life_range > 0.0 { life_range } else { 100.0 };
+                    (bar.mid_steps.max(0.0) * bar.mid_mult.max(0.0) / span).max(0.0)
+                })
+                .unwrap_or(0.0);
+            let power_drain = power_def
+                .map(|bar| {
+                    let span = if power_range > 0.0 { power_range } else { 100.0 };
+                    (bar.mid_steps.max(0.0) * bar.mid_mult.max(0.0) / span).max(0.0)
+                })
+                .unwrap_or(0.0);
+
+            let bar = &mut self.bars[side];
+            // Healing snaps immediately; damage waits for the delay.
+            if life_ratio >= bar.mid_life {
+                bar.mid_life = life_ratio;
+                bar.delay = life_delay.max(bar.delay);
+            } else if bar.delay > 0 {
+                bar.delay -= 1;
+            } else {
+                bar.mid_life = (bar.mid_life - life_drain).max(life_ratio);
+            }
+            if power_ratio >= bar.mid_power {
+                bar.mid_power = power_ratio;
+            } else if bar.delay > 0 {
+                // Power shares the life delay window, matching the bar draw
+                // order; it drains only after the same pause.
+            } else {
+                bar.mid_power = (bar.mid_power - power_drain).max(power_ratio);
             }
         }
     }
@@ -1333,6 +1434,18 @@ impl SimState {
         self.effects.clear();
         self.projectiles.clear();
         self.combo = [ComboState::default(); 2];
+        self.bars = [
+            BarFill {
+                mid_life: 1.0,
+                mid_power: (self.fighters[0].power / MAX_POWER).clamp(0.0, 1.0),
+                delay: 0,
+            },
+            BarFill {
+                mid_life: 1.0,
+                mid_power: (self.fighters[1].power / MAX_POWER).clamp(0.0, 1.0),
+                delay: 0,
+            },
+        ];
         self.camera.x = self.assets.stage.camera.start.x;
         self.camera.y = self.assets.stage.camera.start.y;
         self.camera.scale = self.assets.stage.camera.start_zoom;
@@ -1644,6 +1757,11 @@ impl SimState {
                 h.write_bool(win.perfect);
                 h.write_bool(win.clutch);
             }
+        }
+        for bar in &self.bars {
+            h.write_f32(bar.mid_life);
+            h.write_f32(bar.mid_power);
+            h.write_i32(bar.delay);
         }
         h.write_u32(self.effects.len() as u32);
         for e in &self.effects {

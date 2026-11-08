@@ -23,6 +23,8 @@ pub enum Blend {
 pub enum TexRef {
     Atlas(u32),
     Font,
+    /// Screenpack font bank: `(font index, atlas page)`.
+    ScreenFont(u32, u32),
     Solid,
     Shadow,
 }

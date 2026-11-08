@@ -24,6 +24,7 @@ struct Options {
     p1: String,
     p2: String,
     stage: String,
+    screenpack: Option<String>,
     ai_level: i32,
     rounds: u32,
     round_time: i32,
@@ -42,6 +43,7 @@ impl Default for Options {
             p1: "content/chars/kaen/kaen.def".into(),
             p2: "content/chars/nival/nival.def".into(),
             stage: "content/stages/training/stage1.def".into(),
+            screenpack: None,
             ai_level: 6,
             rounds: 2,
             round_time: 99,
@@ -60,6 +62,7 @@ struct FileConfig {
     p1: Option<String>,
     p2: Option<String>,
     stage: Option<String>,
+    screenpack: Option<String>,
     ai: Option<i32>,
     rounds: Option<u32>,
     round_time: Option<i32>,
@@ -102,6 +105,10 @@ impl Options {
                 }
                 "--stage" => {
                     opts.stage = value(i)?.to_owned();
+                    i += 2;
+                }
+                "--screenpack" => {
+                    opts.screenpack = Some(value(i)?.to_owned());
                     i += 2;
                 }
                 "--ai" => {
@@ -163,6 +170,9 @@ impl Options {
         if let Some(stage) = file.stage {
             self.stage = stage;
         }
+        if let Some(screenpack) = file.screenpack {
+            self.screenpack = Some(screenpack);
+        }
         if let Some(ai) = file.ai {
             self.ai_level = ai;
         }
@@ -186,6 +196,7 @@ impl Options {
             p1: PathBuf::from(&self.p1),
             p2: PathBuf::from(&self.p2),
             stage: PathBuf::from(&self.stage),
+            screenpack: self.screenpack.as_ref().map(PathBuf::from),
             rounds_to_win: self.rounds,
             round_time: self.round_time,
         }
@@ -204,6 +215,7 @@ Content:
   --p1 <def>          Player 1 character definition
   --p2 <def>          Player 2 character definition
   --stage <def>       Stage definition
+  --screenpack <def>  Screenpack system.def (default: built-in HUD)
   --ai <level>        CPU level for slot 2, 0 = human (default 6)
   --rounds <n>        Rounds needed to win (default 2)
   --round-time <s>    Round timer in seconds (default 99)

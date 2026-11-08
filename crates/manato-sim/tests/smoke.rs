@@ -17,6 +17,7 @@ fn load(p1: &str, p2: &str) -> Option<SimState> {
         p1: PathBuf::from(p1),
         p2: PathBuf::from(p2),
         stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
         rounds_to_win: 2,
         round_time: 99,
     };
@@ -916,6 +917,7 @@ fn zoom_controller_and_triggers_round_trip() {
         p1: PathBuf::from("content/chars/kaen/kaen.def"),
         p2: PathBuf::from("content/chars/nival/nival.def"),
         stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
         rounds_to_win: 2,
         round_time: 99,
     };
@@ -1056,4 +1058,49 @@ fn win_history_records_perfect_and_time_over() {
     sim.tick([PlayerInput::default(); 2]);
     let record = *sim.win_history[0].last().expect("clutch recorded");
     assert!(record.clutch);
+}
+
+#[test]
+fn mid_fill_drains_after_delay() {
+    let root = mugen_root();
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: Some(PathBuf::from(
+            "content/screenpacks/manato-grid/system.def",
+        )),
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    if !root.join("content/screenpacks/manato-grid/system.def").exists() {
+        eprintln!("skipping: bundled screenpack not present");
+        return;
+    }
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+
+    sim.fighters[1].life = 500;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.bars[1].mid_life > 0.9,
+        "mid fill holds while the configured delay runs"
+    );
+    for _ in 0..80 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.bars[1].mid_life - 0.5).abs() < 0.02,
+        "mid fill drains to the current life ratio, got {}",
+        sim.bars[1].mid_life
+    );
+    assert!(sim.bars[1].mid_life >= 0.5 - f32::EPSILON);
 }

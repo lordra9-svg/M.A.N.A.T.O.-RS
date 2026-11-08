@@ -16,6 +16,9 @@ p2 = "content/chars/nival/nival.def"
 # Stage definition file.
 stage = "content/stages/training/stage1.def"
 
+# Optional screenpack system.def. Leave unset for the built-in HUD.
+screenpack = "content/screenpacks/manato-grid/system.def"
+
 # CPU level for slot 2. Set to 0 for local two-player.
 ai = 6
 

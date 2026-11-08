@@ -1,0 +1,9 @@
+; Manato Grid roster - MIT License
+
+[Characters]
+content/chars/kaen/kaen.def
+content/chars/nival/nival.def
+content/chars/ordan/ordan.def
+
+[ExtraStages]
+content/stages/training/stage1.def

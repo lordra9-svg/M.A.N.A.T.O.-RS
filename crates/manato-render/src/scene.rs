@@ -12,6 +12,7 @@ use crate::text::{fit_chars, FontAtlas, GLYPH_H};
 pub struct SceneDeps<'a> {
     pub atlas: &'a SpriteAtlas,
     pub font: &'a FontAtlas,
+    pub screen_fonts: &'a std::collections::BTreeMap<u32, crate::screenfont::ScreenFont>,
 }
 
 #[derive(Clone, Copy)]
@@ -116,6 +117,16 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_effect(painter, deps.atlas, sim, effect);
     }
 
+    if let Some(screenpack) = &sim.assets.screenpack {
+        let fight_deps = crate::fightscreen::FightDeps {
+            atlas: deps.atlas,
+            font: deps.font,
+            screen_fonts: deps.screen_fonts,
+            screenpack,
+        };
+        crate::fightscreen::draw_background(painter, sim, &fight_deps);
+    }
+
     if let Some(env_color) = sim.env_color {
         painter.rect(
             Blend::Normal,
@@ -132,7 +143,17 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         );
     }
 
-    draw_hud(painter, deps.font, sim);
+    if let Some(screenpack) = &sim.assets.screenpack {
+        let fight_deps = crate::fightscreen::FightDeps {
+            atlas: deps.atlas,
+            font: deps.font,
+            screen_fonts: deps.screen_fonts,
+            screenpack,
+        };
+        crate::fightscreen::draw_foreground(painter, sim, &fight_deps);
+    } else {
+        draw_hud(painter, deps.font, sim);
+    }
 }
 
 fn layer_scissor(layer: &manato_formats::stage::BgLayer) -> Option<[u32; 4]> {

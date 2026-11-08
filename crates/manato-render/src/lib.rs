@@ -6,7 +6,9 @@
 
 pub mod atlas;
 pub mod draw;
+pub mod fightscreen;
 pub mod scene;
+pub mod screenfont;
 pub mod text;
 
 pub use wgpu;
@@ -23,6 +25,7 @@ use draw::{
     blend_state, create_blit_shader, create_sprite_shader, vertex_layout, Blend, Painter, TexRef,
 };
 use scene::SceneDeps;
+use screenfont::ScreenFont;
 use text::FontAtlas;
 
 pub const GAME_WIDTH: u32 = 320;
@@ -49,6 +52,7 @@ pub struct Renderer {
 
     atlas: SpriteAtlas,
     font: FontAtlas,
+    screen_fonts: std::collections::BTreeMap<u32, ScreenFont>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -340,6 +344,7 @@ impl Renderer {
             pipelines_mask,
             atlas,
             font,
+            screen_fonts: std::collections::BTreeMap::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -361,7 +366,32 @@ impl Renderer {
             banks.push((bank::CHARACTER_BASE + i as u8, &character.sprites));
         }
         banks.push((bank::EFFECTS, &assets.effects.sprites));
+        if let Some(screenpack) = &assets.screenpack {
+            banks.push((bank::SCREENPACK, &screenpack.sprites));
+        }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
+
+        self.screen_fonts.clear();
+        if let Some(screenpack) = &assets.screenpack {
+            for (index, font) in &screenpack.loaded_fonts {
+                let tint = screenpack
+                    .fonts
+                    .get(index)
+                    .map(|decl| decl.tint)
+                    .unwrap_or([255, 255, 255]);
+                self.screen_fonts.insert(
+                    *index,
+                    ScreenFont::build(
+                        &self.device,
+                        &self.queue,
+                        &self.sprite_bgl,
+                        *index,
+                        font,
+                        tint,
+                    ),
+                );
+            }
+        }
         log::info!(
             "sprite atlas: {} pages of {}px",
             self.atlas.pages.len(),
@@ -379,6 +409,7 @@ impl Renderer {
         let deps = SceneDeps {
             atlas: &self.atlas,
             font: &self.font,
+            screen_fonts: &self.screen_fonts,
         };
         scene::build(&mut self.painter, sim, &deps);
 
@@ -435,6 +466,11 @@ impl Renderer {
                 let bind_group = match range.tex {
                     TexRef::Atlas(page) => self.atlas.page_bind_group(page),
                     TexRef::Font => &self.font.bind_group,
+                    TexRef::ScreenFont(font, page) => self
+                        .screen_fonts
+                        .get(&font)
+                        .map(|font| font.page_bind_group(page))
+                        .unwrap_or(&self.font.bind_group),
                     TexRef::Solid => &self.solid,
                     TexRef::Shadow => &self.shadow,
                 };

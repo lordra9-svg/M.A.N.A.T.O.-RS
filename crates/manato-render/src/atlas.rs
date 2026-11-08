@@ -14,6 +14,8 @@ pub mod bank {
     pub const STAGE: u8 = 2;
     /// Fight effects (`fightfx.sff`).
     pub const EFFECTS: u8 = 3;
+    /// Screenpack sprites (`system.def` `[Files] spr`).
+    pub const SCREENPACK: u8 = 4;
     /// Character sprites are stored at `CHARACTER_BASE + char_id`.
     pub const CHARACTER_BASE: u8 = 16;
 }

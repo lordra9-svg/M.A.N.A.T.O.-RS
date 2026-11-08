@@ -1,0 +1,12 @@
+; Manato Grid bitmap font - MIT License
+
+[FNT v2]
+version = 2, 1
+
+[Def]
+file = manato.sff
+bank = 1
+size = 0, 8
+spacing = 1, 0
+offset = 0, 0
+type = 0

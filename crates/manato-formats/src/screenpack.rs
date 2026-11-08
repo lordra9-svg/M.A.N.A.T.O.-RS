@@ -221,6 +221,10 @@ pub struct FightDef {
     pub win_icon: [WinIconDef; 2],
     pub combo: [ComboDef; 2],
     pub round: RoundDef,
+    /// Animations from `[Files] air`, used by `anim` layers.
+    pub animations: HashMap<i32, crate::air::Animation>,
+    /// `[Files] snd`, if declared.
+    pub sound_path: Option<PathBuf>,
     pub path: PathBuf,
 }
 
@@ -311,6 +315,8 @@ pub struct Screenpack {
     pub author: String,
     pub localcoord: (f32, f32),
     pub fonts: BTreeMap<u32, FontDecl>,
+    /// Fonts that loaded successfully, keyed by `[Files] fontN` index.
+    pub loaded_fonts: BTreeMap<u32, crate::font::BitmapFont>,
     pub sprites: SffFile,
     pub title: TitleDef,
     pub title_bg: Option<ScreenBg>,
@@ -367,6 +373,26 @@ impl Screenpack {
             .map(|value| resolve_asset(&dir, value))
             .flatten();
 
+        // Load every declared font once; failures fall back to the built-in
+        // engine font at draw time (`docs/spec/render.md` §3.3).
+        let mut loaded_fonts = BTreeMap::new();
+        for (index, decl) in &fonts {
+            let Some(path) = &decl.path else {
+                continue;
+            };
+            match crate::font::BitmapFont::load(path) {
+                Ok(font) => {
+                    loaded_fonts.insert(*index, font);
+                }
+                Err(error) => {
+                    log_warn(&format!(
+                        "failed to load font {index} from {}: {error:#}",
+                        path.display()
+                    ));
+                }
+            }
+        }
+
         Ok(Self {
             dir: dir.clone(),
             system_def: system_def.to_path_buf(),
@@ -377,6 +403,7 @@ impl Screenpack {
             author: info.get("author").cloned().unwrap_or_default(),
             localcoord,
             fonts,
+            loaded_fonts,
             sprites,
             title: TitleDef::from_text(&text),
             title_bg: ScreenBg::from_text(&text, &dir, "titlebgdef"),
@@ -434,13 +461,29 @@ impl FightDef {
             combo[side] = parse_combo(&overlay(&base_combo, prefix));
         }
 
-        // Section variants such as [LifeBarP1].
-        if let Some(section) = text.find_header("lifebarp1") {
-            life[0] = parse_bar(&section_map(section), true);
-        }
-        if let Some(section) = text.find_header("lifebarp2") {
-            life[1] = parse_bar(&section_map(section), true);
-        }
+        // Section variants such as [LifeBarP1] overlay the shared base, so a
+        // variant only has to restate what differs (`pos`, for example).
+        let variant = |name: &str, base: &HashMap<String, String>, prefix: &str| {
+            let mut map = overlay(base, prefix);
+            if let Some(section) = text.find_header(name) {
+                map.extend(section_map(section));
+            }
+            map
+        };
+        life[0] = parse_bar(&variant("lifebarp1", &base_life, "p1."), true);
+        life[1] = parse_bar(&variant("lifebarp2", &base_life, "p2."), true);
+        power[0] = parse_bar(&variant("powerbarp1", &base_power, "p1."), false);
+        power[1] = parse_bar(&variant("powerbarp2", &base_power, "p2."), false);
+        guard[0] = parse_bar(&variant("guardbarp1", &base_guard, "p1."), false);
+        guard[1] = parse_bar(&variant("guardbarp2", &base_guard, "p2."), false);
+        face[0] = parse_face(&variant("facep1", &base_face, "p1."));
+        face[1] = parse_face(&variant("facep2", &base_face, "p2."));
+        name_def[0] = parse_name(&variant("namep1", &base_name, "p1."));
+        name_def[1] = parse_name(&variant("namep2", &base_name, "p2."));
+        win_icon[0] = parse_win_icon(&variant("winiconp1", &base_win, "p1."));
+        win_icon[1] = parse_win_icon(&variant("winiconp2", &base_win, "p2."));
+        combo[0] = parse_combo(&variant("combop1", &base_combo, "p1."));
+        combo[1] = parse_combo(&variant("combop2", &base_combo, "p2."));
 
         let time = text
             .find_header("time")
@@ -452,6 +495,28 @@ impl FightDef {
             .map(section_map)
             .map(|map| parse_round(&map))
             .unwrap_or_default();
+
+        let dir = path.parent().unwrap_or(Path::new("."));
+        let files = text.find("files").map(section_map).unwrap_or_default();
+        let animations = files
+            .get("air")
+            .and_then(|value| resolve_asset(dir, value))
+            .and_then(|air| match crate::air::parse_air(&air) {
+                Ok(animations) => Some(
+                    animations
+                        .into_iter()
+                        .map(|animation| (animation.number, animation))
+                        .collect(),
+                ),
+                Err(error) => {
+                    log_warn(&format!("failed to load {}: {error:#}", air.display()));
+                    None
+                }
+            })
+            .unwrap_or_default();
+        let sound_path = files
+            .get("snd")
+            .and_then(|value| resolve_asset(dir, value));
 
         Ok(Self {
             name: info.get("name").cloned().unwrap_or_default(),
@@ -466,6 +531,8 @@ impl FightDef {
             win_icon,
             combo,
             round,
+            animations,
+            sound_path,
             path: path.to_path_buf(),
         })
     }
