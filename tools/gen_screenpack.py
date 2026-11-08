@@ -192,10 +192,6 @@ def make_sprites() -> list[tuple[int, int, int, int, int, int, bytes]]:
     for y in range(72):
         for x in (0, 319):
             put(banner, 320, x, y, (120, 200, 255, 255))
-    for i, color in enumerate(((92, 226, 255, 255), (255, 214, 92, 255), (255, 120, 160, 255))):
-        for y in range(6 + i * 4, 8 + i * 4):
-            for x in range(8, 312):
-                put(banner, 320, x, y, color)
     sprites.append((0, 8, 320, 72, 0, 0, png_rgba(320, 72, bytes(banner))))
 
     # 0,9 cursor.
@@ -256,16 +252,20 @@ font0 = font.def
 
 [Title Info]
 title.spr = 0, 8
-title.pos = 160, 46
+title.pos = 0, 24
+title.text = "MANATO GRID"
+title.font = 0
+title.offset = 160, 30
+title.scale = 3, 3
 title.align = 1
+title.color = 180, 228, 255
 menu.pos = 160, 128
 menu.item.offset = 0, 0
-menu.item.spacing = 13, 0
+menu.item.spacing = 0, 13
 menu.item.font = 0
 menu.item.scale = 1, 1
 menu.item.active.font = 0
 menu.item.active.scale = 1.3, 1.3
-menu.item.active.spr = 0, 9
 menu.itemname.arcade = "ARCADE"
 menu.itemname.versus = "VERSUS"
 menu.itemname.training = "TRAINING"
@@ -289,14 +289,24 @@ pos = 40, 104
 cell.size = 40, 40
 cell.spacing = 8, 4
 cell.bg.spr = 0, 10
+cell.name.font = 0
+cell.name.offset = 20, 42
+cell.name.align = 1
+cell.name.scale = 1, 1
 p1.cursor.startcell = 0, 0
 p1.cursor.spr = 0, 9
-p1.cursor.offset = 0, 0
+p1.cursor.offset = 4, 4
+p1.name.font = 0
+p1.name.offset = 80, 186
+p1.name.align = 1
 p2.cursor.startcell = 3, 0
 p2.cursor.spr = 0, 9
-p2.cursor.offset = 0, 0
+p2.cursor.offset = 4, 4
+p2.name.font = 0
+p2.name.offset = 240, 186
+p2.name.align = 1
 stage.spr = 0, 6
-stage.pos = 160, 200
+stage.pos = 137, 204
 stage.align = 1
 
 [SelectBGdef]

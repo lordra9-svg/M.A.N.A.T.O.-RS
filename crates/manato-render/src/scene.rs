@@ -122,9 +122,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
             atlas: deps.atlas,
             font: deps.font,
             screen_fonts: deps.screen_fonts,
-            screenpack,
         };
-        crate::fightscreen::draw_background(painter, sim, &fight_deps);
+        crate::fightscreen::draw_background(painter, sim, &fight_deps, screenpack);
     }
 
     if let Some(env_color) = sim.env_color {
@@ -148,9 +147,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
             atlas: deps.atlas,
             font: deps.font,
             screen_fonts: deps.screen_fonts,
-            screenpack,
         };
-        crate::fightscreen::draw_foreground(painter, sim, &fight_deps);
+        crate::fightscreen::draw_foreground(painter, sim, &fight_deps, screenpack);
     } else {
         draw_hud(painter, deps.font, sim);
     }

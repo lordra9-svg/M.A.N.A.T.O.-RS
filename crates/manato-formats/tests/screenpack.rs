@@ -53,10 +53,7 @@ fn loads_bundled_roster() {
         eprintln!("skipping: bundled screenpack not present");
         return;
     };
-    let roster_path = path
-        .parent()
-        .unwrap()
-        .join("select.def");
+    let roster_path = path.parent().unwrap().join("select.def");
     let roster = Roster::load(&roster_path).expect("select.def should load");
     let defs: Vec<&str> = roster.entries.iter().map(|e| e.def.as_str()).collect();
     assert!(defs.contains(&"content/chars/kaen/kaen.def"));

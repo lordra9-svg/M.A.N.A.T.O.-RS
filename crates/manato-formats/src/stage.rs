@@ -164,8 +164,9 @@ impl BgScene {
         if !spr_name.is_empty() {
             let candidate = def.dir.join(&spr_name);
             if candidate.exists() {
-                sprites = SffFile::load(&candidate)
-                    .with_context(|| format!("failed to load background SFF {}", candidate.display()))?;
+                sprites = SffFile::load(&candidate).with_context(|| {
+                    format!("failed to load background SFF {}", candidate.display())
+                })?;
             }
         }
 
@@ -234,7 +235,6 @@ impl BgScene {
         })
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Stage {

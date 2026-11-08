@@ -8,6 +8,8 @@ use std::time::{Duration, Instant};
 use anyhow::Context as _;
 use manato_audio::AudioEngine;
 use manato_core::{Buttons, PlayerInput, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+use manato_formats::screenpack::{Roster, RosterEntry, Screenpack};
+use manato_render::frontend::{OptionsView, SelectEntry, SelectView, TitleView};
 use manato_render::{wgpu, Renderer, GAME_HEIGHT, GAME_WIDTH};
 use manato_sim::{ai, Assets, MatchConfig, MatchOptions, SimState};
 use winit::application::ApplicationHandler;
@@ -32,6 +34,8 @@ struct Options {
     synctest: Option<u32>,
     screenshot: Option<PathBuf>,
     scale: u32,
+    menu: bool,
+    menu_screen: String,
 }
 
 impl Default for Options {
@@ -51,6 +55,8 @@ impl Default for Options {
             synctest: None,
             screenshot: None,
             scale: 3,
+            menu: false,
+            menu_screen: "title".into(),
         }
     }
 }
@@ -109,6 +115,14 @@ impl Options {
                 }
                 "--screenpack" => {
                     opts.screenpack = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--menu" | "--frontend" => {
+                    opts.menu = true;
+                    i += 1;
+                }
+                "--screen" => {
+                    opts.menu_screen = value(i)?.to_ascii_lowercase();
                     i += 2;
                 }
                 "--ai" => {
@@ -221,6 +235,8 @@ Content:
   --round-time <s>    Round timer in seconds (default 99)
 
 Modes:
+  --menu              Start at the title screen (front end)
+  --screen <name>     Headless front-end screen: title, select, options
   --frames <n>        Run n ticks headless, then exit
   --synctest <n>      Run n ticks through GGRS rollback verification
   --screenshot <png>  Save the final frame (headless)
@@ -273,6 +289,9 @@ fn headless_inputs(sim: &SimState, ai_level: i32) -> [PlayerInput; 2] {
 }
 
 fn run_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
+    if opts.menu {
+        return run_frontend_headless(opts, frames);
+    }
     let mut sim = load_match(opts)?;
     let mut renderer = Renderer::new_offscreen()?;
     renderer.load_assets(&sim);
@@ -296,6 +315,40 @@ fn run_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn run_frontend_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
+    let mut frontend = Frontend::load(opts)?;
+    frontend.frame = frames;
+    match opts.menu_screen.as_str() {
+        "select" => {
+            frontend.screen = FrontendScreen::Select;
+            frontend.p1 = 0;
+            frontend.p2 = 1.min(frontend.roster.len().saturating_sub(1));
+        }
+        "options" => frontend.screen = FrontendScreen::Options,
+        _ => frontend.screen = FrontendScreen::Title,
+    }
+    let mut renderer = Renderer::new_offscreen()?;
+    renderer.load_frontend(Some(&frontend.screenpack));
+    match frontend.screen {
+        FrontendScreen::Select => {
+            renderer.render_select(&frontend.screenpack, &frontend.select_view());
+        }
+        FrontendScreen::Options => {
+            renderer.render_options(&frontend.screenpack, &frontend.options_view());
+        }
+        _ => renderer.render_title(&frontend.screenpack, &frontend.title_view()),
+    }
+    if let Some(path) = &opts.screenshot {
+        renderer.screenshot(path)?;
+        println!("screenshot written to {}", path.display());
+    }
+    println!(
+        "frontend screen={:?} frame={}",
+        frontend.screen, frontend.frame
+    );
+    Ok(())
+}
+
 fn run_synctest(opts: &Options, frames: u32) -> anyhow::Result<()> {
     let sim = load_match(opts)?;
     let mut session = manato_net::SyncTest::new(sim, opts.ai_level.max(6), 2)?;
@@ -313,9 +366,285 @@ fn run_synctest(opts: &Options, frames: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Arcade,
+    Versus,
+    Training,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FrontendScreen {
+    Title,
+    Select,
+    Options,
+    Fight,
+}
+
+struct Frontend {
+    screen: FrontendScreen,
+    screenpack: Screenpack,
+    roster: Vec<RosterEntry>,
+    names: Vec<SelectEntry>,
+    menu: Vec<(String, String)>,
+    menu_index: usize,
+    mode: Mode,
+    p1: usize,
+    p2: usize,
+    p1_done: bool,
+    p2_done: bool,
+    page: i32,
+    frame: u32,
+    options_index: usize,
+    options_rounds: u32,
+    options_round_time: i32,
+    options_ai: i32,
+    options_sound: u32,
+    options_music: u32,
+    options_fullscreen: bool,
+    result_timer: i32,
+}
+
+const MENU_ORDER: [&str; 5] = ["arcade", "versus", "training", "options", "quit"];
+
+fn fallback_screenpack() -> Screenpack {
+    use manato_core::Vec2;
+    use manato_formats::screenpack::{MenuItemDef, TextDef, TitleDef};
+
+    let mut pack = Screenpack::default();
+    pack.name = "Built-in".into();
+    pack.localcoord = (320.0, 240.0);
+    let labels = [
+        ("arcade", "ARCADE"),
+        ("versus", "VERSUS"),
+        ("training", "TRAINING"),
+        ("options", "OPTIONS"),
+        ("quit", "QUIT"),
+    ];
+    let mut title = TitleDef::default();
+    title.menu_pos = Vec2::new(160.0, 108.0);
+    title.item_spacing = Vec2::new(0.0, 14.0);
+    title.item_scale = Vec2::new(1.0, 1.0);
+    title.active_scale = Vec2::new(1.0, 1.0);
+    title.item_color = [220, 224, 236, 255];
+    title.active_color = [255, 214, 92, 255];
+    title.items = labels
+        .iter()
+        .map(|(key, label)| MenuItemDef {
+            key: (*key).into(),
+            label: (*label).into(),
+        })
+        .collect();
+    pack.title = title;
+    pack.select.rows = 2;
+    pack.select.columns = 3;
+    pack.select.pos = Vec2::new(24.0, 84.0);
+    pack.select.cell_size = Vec2::new(80.0, 24.0);
+    pack.select.cell_spacing = Vec2::new(8.0, 10.0);
+    let mut name = TextDef::default();
+    name.align = 1;
+    name.offset = Vec2::new(40.0, 8.0);
+    pack.select.cell_name = name;
+    pack
+}
+
+impl Frontend {
+    fn load(opts: &Options) -> anyhow::Result<Self> {
+        let screenpack = match &opts.screenpack {
+            Some(path) => {
+                let path = if Path::new(path).is_absolute() {
+                    PathBuf::from(path)
+                } else {
+                    opts.root.join(path)
+                };
+                Screenpack::load(&path)
+                    .with_context(|| format!("failed to load screenpack {}", path.display()))?
+            }
+            None => fallback_screenpack(),
+        };
+        let roster = match &screenpack.select_def_path {
+            Some(path) => Roster::load(path).unwrap_or_else(|error| {
+                log::warn!("could not load {}: {error:#}", path.display());
+                Roster::default()
+            }),
+            None => Roster {
+                entries: [opts.p1.clone(), opts.p2.clone()]
+                    .into_iter()
+                    .map(|def| RosterEntry {
+                        def,
+                        stage: None,
+                        random: false,
+                    })
+                    .collect(),
+            },
+        };
+        let names = roster
+            .entries
+            .iter()
+            .map(|entry| {
+                if entry.random {
+                    SelectEntry {
+                        name: "RANDOM".into(),
+                        display_name: "RANDOM SELECT".into(),
+                        random: true,
+                    }
+                } else {
+                    let def = if Path::new(&entry.def).is_absolute() {
+                        PathBuf::from(&entry.def)
+                    } else {
+                        opts.root.join(&entry.def)
+                    };
+                    let stem = def
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "UNKNOWN".into());
+                    let display_name = manato_formats::CharacterDef::load(&def)
+                        .map(|def| def.display_name)
+                        .unwrap_or_else(|_| stem.clone());
+                    let name = stem;
+                    SelectEntry {
+                        name: name.to_uppercase(),
+                        display_name: display_name.to_uppercase(),
+                        random: false,
+                    }
+                }
+            })
+            .collect();
+        let menu = MENU_ORDER
+            .iter()
+            .filter_map(|key| {
+                screenpack
+                    .title
+                    .items
+                    .iter()
+                    .find(|item| item.key == *key)
+                    .map(|item| (item.key.clone(), item.label.clone()))
+            })
+            .collect();
+        let p2_start = if roster.entries.len() > 1 { 1 } else { 0 };
+        Ok(Self {
+            screen: FrontendScreen::Title,
+            screenpack,
+            roster: roster.entries,
+            names,
+            menu,
+            menu_index: 0,
+            mode: Mode::Arcade,
+            p1: 0,
+            p2: p2_start,
+            p1_done: false,
+            p2_done: false,
+            page: 0,
+            frame: 0,
+            options_index: 0,
+            options_rounds: opts.rounds,
+            options_round_time: opts.round_time,
+            options_ai: opts.ai_level,
+            options_sound: 100,
+            options_music: 100,
+            options_fullscreen: false,
+            result_timer: 0,
+        })
+    }
+
+    fn title_view(&self) -> TitleView {
+        TitleView {
+            selected: self.menu_index,
+            frame: self.frame,
+        }
+    }
+
+    fn select_view(&self) -> SelectView {
+        SelectView {
+            p1: self.p1,
+            p2: self.p2,
+            page: self.page,
+            p1_done: self.p1_done,
+            p2_done: self.p2_done,
+            frame: self.frame,
+            names: self.names.clone(),
+        }
+    }
+
+    fn options_view(&self) -> OptionsView {
+        let yes_no = |value: bool| if value { "YES" } else { "NO" }.to_string();
+        OptionsView {
+            selected: self.options_index,
+            frame: self.frame,
+            items: vec![
+                ("ROUNDS".into(), self.options_rounds.to_string()),
+                ("ROUND TIME".into(), self.options_round_time.to_string()),
+                ("CPU LEVEL".into(), self.options_ai.to_string()),
+                ("SOUND VOLUME".into(), self.options_sound.to_string()),
+                ("MUSIC VOLUME".into(), self.options_music.to_string()),
+                ("FULLSCREEN".into(), yes_no(self.options_fullscreen)),
+                ("BACK".into(), String::new()),
+            ],
+        }
+    }
+
+    fn per_page(&self) -> usize {
+        (self.screenpack.select.rows.max(1) * self.screenpack.select.columns.max(1)) as usize
+    }
+
+    fn move_cursor(&mut self, side: usize, dx: i32, dy: i32) {
+        let columns = self.screenpack.select.columns.max(1);
+        let count = self.names.len().max(1) as i32;
+        let mut cell = if side == 0 { self.p1 } else { self.p2 } as i32;
+        let mut column = cell % columns;
+        let mut row = cell / columns;
+        if self.screenpack.select.wrapping {
+            column = (column + dx).rem_euclid(columns);
+            row += dy;
+        } else {
+            let next = column + dx;
+            if (0..columns).contains(&next) {
+                column = next;
+            }
+            row = (row + dy).max(0);
+        }
+        cell = (row * columns + column).clamp(0, count - 1);
+        if side == 0 {
+            self.p1 = cell as usize;
+        } else {
+            self.p2 = cell as usize;
+        }
+        let page_size = self.per_page() as i32;
+        self.page = cell / page_size;
+    }
+}
+
+fn chosen_entry(frontend: &Frontend, cell: usize) -> Option<RosterEntry> {
+    let entry = frontend.roster.get(cell).cloned()?;
+    if !entry.random {
+        return Some(entry);
+    }
+    let choices: Vec<&RosterEntry> = frontend.roster.iter().filter(|e| !e.random).collect();
+    if choices.is_empty() {
+        return Some(entry);
+    }
+    let pick = (frontend.frame as usize) % choices.len();
+    Some(choices[pick].clone())
+}
+
+fn next_entry(frontend: &Frontend, cell: usize) -> Option<RosterEntry> {
+    let len = frontend.roster.len();
+    if len == 0 {
+        return None;
+    }
+    for offset in 1..=len {
+        let index = (cell + offset) % len;
+        if !frontend.roster[index].random {
+            return Some(frontend.roster[index].clone());
+        }
+    }
+    None
+}
+
 struct App {
     opts: Options,
-    sim: SimState,
+    sim: Option<SimState>,
+    frontend: Option<Frontend>,
     renderer: Option<Renderer>,
     audio: AudioEngine,
     instance: wgpu::Instance,
@@ -328,7 +657,16 @@ struct App {
 }
 
 fn run_window(opts: Options) -> anyhow::Result<()> {
-    let sim = load_match(&opts)?;
+    let sim = if opts.menu {
+        None
+    } else {
+        Some(load_match(&opts)?)
+    };
+    let frontend = if opts.menu {
+        Some(Frontend::load(&opts)?)
+    } else {
+        None
+    };
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::PRIMARY,
         ..Default::default()
@@ -341,25 +679,10 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         audio.backend_name(),
         audio.sample_rate()
     );
-    if let Some(path) = &sim.assets.stage.music.path {
-        match manato_audio::Music::load(
-            path,
-            sim.assets.stage.music.loop_start,
-            sim.assets.stage.music.loop_end,
-        ) {
-            Ok(music) => {
-                let volume = (sim.assets.stage.music.volume as f32 / 100.0
-                    * sim.assets.stage.music.ratio.clamp(0.0, 1.0))
-                .clamp(0.0, 1.0);
-                audio.play_music(&music, volume);
-                log::info!("playing stage music {}", path.display());
-            }
-            Err(error) => log::warn!("could not load stage music {}: {error:#}", path.display()),
-        }
-    }
     let mut app = App {
         opts,
         sim,
+        frontend,
         renderer: None,
         audio,
         instance,
@@ -370,11 +693,294 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         last_tick: Instant::now(),
         accumulator: Duration::ZERO,
     };
+    if let Some(sim) = app.sim.as_ref() {
+        app.play_stage_music(sim);
+    }
     event_loop.run_app(&mut app)?;
     Ok(())
 }
 
 impl App {
+    fn play_stage_music(&self, sim: &SimState) {
+        let stage = &sim.assets.stage;
+        let Some(path) = &stage.music.path else {
+            return;
+        };
+        match manato_audio::Music::load(path, stage.music.loop_start, stage.music.loop_end) {
+            Ok(music) => {
+                let volume = (stage.music.volume as f32 / 100.0
+                    * stage.music.ratio.clamp(0.0, 1.0))
+                .clamp(0.0, 1.0);
+                self.audio.play_music(&music, volume);
+                log::info!("playing stage music {}", path.display());
+            }
+            Err(error) => log::warn!("could not load stage music {}: {error:#}", path.display()),
+        }
+    }
+
+    fn start_match(&mut self) {
+        let Some(frontend) = self.frontend.as_ref() else {
+            return;
+        };
+        let Some(p1) = chosen_entry(frontend, frontend.p1) else {
+            log::error!("roster is empty");
+            return;
+        };
+        let p2 = if frontend.mode == Mode::Versus {
+            chosen_entry(frontend, frontend.p2).unwrap_or_else(|| p1.clone())
+        } else {
+            next_entry(frontend, frontend.p1).unwrap_or_else(|| p1.clone())
+        };
+        let stage = p1
+            .stage
+            .clone()
+            .or_else(|| p2.stage.clone())
+            .unwrap_or_else(|| self.opts.stage.clone());
+        let mode = frontend.mode;
+        let rounds = frontend.options_rounds;
+        let round_time = frontend.options_round_time;
+        let ai = frontend.options_ai;
+        let screenpack = self.opts.screenpack.as_ref().map(PathBuf::from);
+        let config = MatchConfig {
+            mugen_root: self.opts.root.clone(),
+            p1: PathBuf::from(&p1.def),
+            p2: PathBuf::from(&p2.def),
+            stage: PathBuf::from(stage),
+            screenpack,
+            rounds_to_win: rounds,
+            round_time,
+        };
+        let assets = match Assets::load(&config) {
+            Ok(assets) => assets,
+            Err(error) => {
+                log::error!("failed to start match: {error:#}");
+                return;
+            }
+        };
+        let sim = SimState::new(
+            Arc::new(assets),
+            MatchOptions {
+                rounds_to_win: rounds,
+                round_time,
+                ai_level: if mode == Mode::Versus { 0 } else { ai.max(1) },
+            },
+        );
+        self.play_stage_music(&sim);
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.load_assets(&sim);
+        }
+        self.sim = Some(sim);
+        if let Some(frontend) = self.frontend.as_mut() {
+            frontend.screen = FrontendScreen::Fight;
+            frontend.result_timer = 0;
+        }
+    }
+
+    fn return_to_title(&mut self) {
+        self.sim = None;
+        self.audio.stop_music();
+        if let Some(frontend) = self.frontend.as_mut() {
+            frontend.screen = FrontendScreen::Title;
+            frontend.p1_done = false;
+            frontend.p2_done = false;
+            frontend.result_timer = 0;
+            frontend.frame = 0;
+        }
+        if let (Some(renderer), Some(frontend)) = (self.renderer.as_mut(), self.frontend.as_ref()) {
+            renderer.load_frontend(Some(&frontend.screenpack));
+        }
+    }
+
+    fn activate_menu(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(frontend) = self.frontend.as_ref() else {
+            return;
+        };
+        let Some((key, _)) = frontend.menu.get(frontend.menu_index).cloned() else {
+            return;
+        };
+        let first = 0;
+        let second = if frontend.roster.len() > 1 { 1 } else { 0 };
+        match key.as_str() {
+            "arcade" | "versus" | "training" => {
+                if let Some(frontend) = self.frontend.as_mut() {
+                    frontend.mode = match key.as_str() {
+                        "versus" => Mode::Versus,
+                        "training" => Mode::Training,
+                        _ => Mode::Arcade,
+                    };
+                    frontend.screen = FrontendScreen::Select;
+                    frontend.p1 = first;
+                    frontend.p2 = second;
+                    frontend.p1_done = false;
+                    frontend.p2_done = false;
+                    frontend.page = 0;
+                }
+            }
+            "options" => {
+                if let Some(frontend) = self.frontend.as_mut() {
+                    frontend.screen = FrontendScreen::Options;
+                    frontend.options_index = 0;
+                }
+            }
+            "quit" => event_loop.exit(),
+            _ => {}
+        }
+    }
+
+    fn selection_confirm(&mut self) {
+        let Some(frontend) = self.frontend.as_ref() else {
+            return;
+        };
+        if frontend.mode == Mode::Versus {
+            let mut both = frontend.p1_done && frontend.p2_done;
+            if let Some(frontend) = self.frontend.as_mut() {
+                if !frontend.p1_done {
+                    frontend.p1_done = true;
+                } else if !frontend.p2_done {
+                    frontend.p2_done = true;
+                }
+                both = frontend.p1_done && frontend.p2_done;
+            }
+            if both {
+                self.start_match();
+            }
+        } else {
+            self.start_match();
+        }
+    }
+
+    fn adjust_option(&mut self, delta: i32) {
+        let Some(frontend) = self.frontend.as_mut() else {
+            return;
+        };
+        match frontend.options_index {
+            0 => {
+                frontend.options_rounds =
+                    (frontend.options_rounds as i32 + delta).clamp(1, 5) as u32
+            }
+            1 => {
+                frontend.options_round_time =
+                    (frontend.options_round_time + delta * 10).clamp(30, 99)
+            }
+            2 => frontend.options_ai = (frontend.options_ai + delta).clamp(0, 8),
+            3 => {
+                frontend.options_sound =
+                    (frontend.options_sound as i32 + delta * 10).clamp(0, 100) as u32
+            }
+            4 => {
+                frontend.options_music =
+                    (frontend.options_music as i32 + delta * 10).clamp(0, 100) as u32
+            }
+            5 => frontend.options_fullscreen = !frontend.options_fullscreen,
+            _ => {}
+        }
+        if frontend.options_index == 3 {
+            self.audio.set_volume(frontend.options_sound as f32 / 100.0);
+        }
+    }
+
+    fn frontend_key(&mut self, code: KeyCode, event_loop: &ActiveEventLoop) {
+        let Some(screen) = self.frontend.as_ref().map(|f| f.screen) else {
+            return;
+        };
+        match screen {
+            FrontendScreen::Title => {
+                let count = self.frontend.as_ref().map(|f| f.menu.len()).unwrap_or(0);
+                match code {
+                    KeyCode::KeyW | KeyCode::ArrowUp => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.menu_index =
+                                (frontend.menu_index + count.saturating_sub(1)) % count.max(1);
+                        }
+                    }
+                    KeyCode::KeyS | KeyCode::ArrowDown => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.menu_index = (frontend.menu_index + 1) % count.max(1);
+                        }
+                    }
+                    KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => {
+                        self.activate_menu(event_loop)
+                    }
+                    KeyCode::Escape => event_loop.exit(),
+                    _ => {}
+                }
+            }
+            FrontendScreen::Select => {
+                let versus = self
+                    .frontend
+                    .as_ref()
+                    .is_some_and(|f| f.mode == Mode::Versus);
+                match code {
+                    KeyCode::Escape => {
+                        self.frontend
+                            .as_mut()
+                            .map(|f| f.screen = FrontendScreen::Title);
+                    }
+                    KeyCode::KeyW | KeyCode::ArrowUp => {
+                        self.move_cursor(if versus { 0 } else { 0 }, 0, -1)
+                    }
+                    KeyCode::KeyS | KeyCode::ArrowDown => self.move_cursor(0, 0, 1),
+                    KeyCode::KeyA | KeyCode::ArrowLeft => self.move_cursor(0, -1, 0),
+                    KeyCode::KeyD | KeyCode::ArrowRight => self.move_cursor(0, 1, 0),
+                    KeyCode::Enter | KeyCode::KeyJ => self.selection_confirm(),
+                    _ if versus => match code {
+                        KeyCode::Numpad8 => self.move_cursor(1, 0, -1),
+                        KeyCode::Numpad2 => self.move_cursor(1, 0, 1),
+                        KeyCode::Numpad4 => self.move_cursor(1, -1, 0),
+                        KeyCode::Numpad6 => self.move_cursor(1, 1, 0),
+                        KeyCode::Numpad1 => self.selection_confirm(),
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+            FrontendScreen::Options => {
+                let count = self
+                    .frontend
+                    .as_ref()
+                    .map(|f| f.options_view().items.len())
+                    .unwrap_or(0);
+                match code {
+                    KeyCode::KeyW | KeyCode::ArrowUp => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.options_index =
+                                (frontend.options_index + count.saturating_sub(1)) % count.max(1);
+                        }
+                    }
+                    KeyCode::KeyS | KeyCode::ArrowDown => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.options_index = (frontend.options_index + 1) % count.max(1);
+                        }
+                    }
+                    KeyCode::KeyA | KeyCode::ArrowLeft => self.adjust_option(-1),
+                    KeyCode::KeyD | KeyCode::ArrowRight => self.adjust_option(1),
+                    KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => {
+                        if self.frontend.as_ref().is_some_and(|f| f.options_index == 6) {
+                            if let Some(frontend) = self.frontend.as_mut() {
+                                frontend.screen = FrontendScreen::Title;
+                            }
+                        } else {
+                            self.adjust_option(1)
+                        }
+                    }
+                    KeyCode::Escape => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.screen = FrontendScreen::Title;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            FrontendScreen::Fight => {}
+        }
+    }
+
+    fn move_cursor(&mut self, side: usize, dx: i32, dy: i32) {
+        if let Some(frontend) = self.frontend.as_mut() {
+            frontend.move_cursor(side, dx, dy);
+        }
+    }
+
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
         let attrs = Window::default_attributes()
             .with_title("M.A.N.A.T.O.-RS")
@@ -415,7 +1021,11 @@ impl App {
         };
 
         let mut renderer = Renderer::new_for_surface(self.instance.clone(), &surface, format)?;
-        renderer.load_assets(&self.sim);
+        if let Some(sim) = &self.sim {
+            renderer.load_assets(sim);
+        } else if let Some(frontend) = &self.frontend {
+            renderer.load_frontend(Some(&frontend.screenpack));
+        }
         surface.configure(&renderer.device, &config);
         log::info!(
             "window ready: {}x{} {:?}, {} atlas pages",
@@ -432,14 +1042,43 @@ impl App {
     }
 
     fn step(&mut self) {
+        if let Some(frontend) = self.frontend.as_mut() {
+            if frontend.screen != FrontendScreen::Fight {
+                frontend.frame = frontend.frame.wrapping_add(1);
+                return;
+            }
+        }
+        let Some(sim) = self.sim.as_mut() else {
+            return;
+        };
+        let versus = self
+            .frontend
+            .as_ref()
+            .is_some_and(|f| f.mode == Mode::Versus);
         let p1 = p1_input(&self.keys);
-        let p2 = if self.opts.ai_level > 0 {
-            ai::input_for(&self.sim, 1, self.opts.ai_level)
+        let p2 = if self.frontend.is_some() && !versus {
+            ai::input_for(sim, 1, self.opts.ai_level.max(1))
+        } else if self.opts.ai_level > 0 && self.frontend.is_none() {
+            ai::input_for(sim, 1, self.opts.ai_level)
         } else {
             p2_input(&self.keys)
         };
-        self.sim.tick([p1, p2]);
-        self.audio.play_events(&self.sim);
+        sim.tick([p1, p2]);
+        self.audio.play_events(sim);
+        let finished = sim.finished;
+        if finished {
+            if let Some(frontend) = self.frontend.as_mut() {
+                frontend.result_timer += 1;
+            }
+        }
+        if finished
+            && self
+                .frontend
+                .as_ref()
+                .is_some_and(|f| f.mode != Mode::Training && f.result_timer >= 180)
+        {
+            self.return_to_title();
+        }
     }
 
     fn resize(&mut self, width: u32, height: u32) {
@@ -475,7 +1114,22 @@ impl App {
                 return;
             }
         };
-        renderer.render(&self.sim);
+        if let Some(sim) = &self.sim {
+            renderer.render(sim);
+        } else if let Some(frontend) = &self.frontend {
+            match frontend.screen {
+                FrontendScreen::Title => {
+                    renderer.render_title(&frontend.screenpack, &frontend.title_view());
+                }
+                FrontendScreen::Options => {
+                    renderer.render_options(&frontend.screenpack, &frontend.options_view());
+                }
+                FrontendScreen::Select => {
+                    renderer.render_select(&frontend.screenpack, &frontend.select_view());
+                }
+                FrontendScreen::Fight => {}
+            }
+        }
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -515,16 +1169,30 @@ impl ApplicationHandler for App {
                 }
                 match state {
                     ElementState::Pressed => {
+                        if self
+                            .frontend
+                            .as_ref()
+                            .is_some_and(|f| f.screen != FrontendScreen::Fight)
+                        {
+                            self.frontend_key(code, event_loop);
+                            return;
+                        }
                         if code == KeyCode::Escape {
-                            event_loop.exit();
+                            if self.frontend.is_some() {
+                                self.return_to_title();
+                            } else {
+                                event_loop.exit();
+                            }
                         } else if code == KeyCode::F12 {
-                            if let Some(renderer) = self.renderer.as_mut() {
-                                renderer.render(&self.sim);
-                                let path = format!("manato-{:06}.png", self.sim.frame);
-                                if let Err(e) = renderer.screenshot(Path::new(&path)) {
-                                    log::warn!("screenshot failed: {e:#}");
-                                } else {
-                                    log::info!("screenshot written to {path}");
+                            if let Some(sim) = self.sim.as_ref() {
+                                if let Some(renderer) = self.renderer.as_mut() {
+                                    renderer.render(sim);
+                                    let path = format!("manato-{:06}.png", sim.frame);
+                                    if let Err(e) = renderer.screenshot(Path::new(&path)) {
+                                        log::warn!("screenshot failed: {e:#}");
+                                    } else {
+                                        log::info!("screenshot written to {path}");
+                                    }
                                 }
                             }
                         }

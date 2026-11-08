@@ -1068,13 +1068,14 @@ fn mid_fill_drains_after_delay() {
         p1: PathBuf::from("content/chars/kaen/kaen.def"),
         p2: PathBuf::from("content/chars/nival/nival.def"),
         stage: PathBuf::from("content/stages/training/stage1.def"),
-        screenpack: Some(PathBuf::from(
-            "content/screenpacks/manato-grid/system.def",
-        )),
+        screenpack: Some(PathBuf::from("content/screenpacks/manato-grid/system.def")),
         rounds_to_win: 2,
         round_time: 99,
     };
-    if !root.join("content/screenpacks/manato-grid/system.def").exists() {
+    if !root
+        .join("content/screenpacks/manato-grid/system.def")
+        .exists()
+    {
         eprintln!("skipping: bundled screenpack not present");
         return;
     }

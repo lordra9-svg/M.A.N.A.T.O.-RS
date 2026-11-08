@@ -103,6 +103,14 @@ fighters while effects continue to animate.
   front.
 - The HUD uses an embedded 8x8 bitmap font and draws life, power, timer, names,
   round wins, and the round/result banner.
+- A configured screenpack replaces the HUD: `fight.def` drives life/power
+  bars, faces, names, timer, win icons, combo counters, and round
+  announcements; `system.def` drives the title and select screens, including
+  their `[TitleBGdef]`/`[SelectBGdef]` layers. Screenpack `.fnt` v1/v2 fonts
+  are uploaded as their own glyph atlases.
+- The front end (`--menu`) is app-owned: title → select → fight → result →
+  title. It never allocates a `SimState` until a match is confirmed and is
+  never part of rollback.
 
 ## Netcode (`manato-net`)
 

@@ -37,7 +37,7 @@ impl Default for FontDecl {
 }
 
 /// A single sprite or animation layer.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Layer {
     pub sprite: Option<(i32, i32)>,
     pub anim: Option<i32>,
@@ -45,6 +45,19 @@ pub struct Layer {
     pub scale: Vec2,
     pub layerno: i32,
     pub blend: BlendMode,
+}
+
+impl Default for Layer {
+    fn default() -> Self {
+        Self {
+            sprite: None,
+            anim: None,
+            offset: Vec2::ZERO,
+            scale: Vec2::new(1.0, 1.0),
+            layerno: 0,
+            blend: BlendMode::Normal,
+        }
+    }
 }
 
 impl Layer {
@@ -331,10 +344,7 @@ impl Screenpack {
     pub fn load(system_def: &Path) -> anyhow::Result<Self> {
         let text = TextFile::load(system_def)
             .with_context(|| format!("failed to read screenpack {}", system_def.display()))?;
-        let dir = system_def
-            .parent()
-            .unwrap_or(Path::new("."))
-            .to_path_buf();
+        let dir = system_def.parent().unwrap_or(Path::new(".")).to_path_buf();
         let info = text.find("info").map(section_map).unwrap_or_default();
         let files = text.find("files").map(section_map).unwrap_or_default();
         let localcoord = info
@@ -435,13 +445,34 @@ impl FightDef {
             .filter(|(w, h)| *w > 0.0 && *h > 0.0)
             .unwrap_or(DEFAULT_LOCALCOORD);
 
-        let base_life = text.find_header("lifebar").map(section_map).unwrap_or_default();
-        let base_power = text.find_header("powerbar").map(section_map).unwrap_or_default();
-        let base_guard = text.find_header("guardbar").map(section_map).unwrap_or_default();
-        let base_face = text.find_header("face").map(section_map).unwrap_or_default();
-        let base_name = text.find_header("name").map(section_map).unwrap_or_default();
-        let base_win = text.find_header("winicon").map(section_map).unwrap_or_default();
-        let base_combo = text.find_header("combo").map(section_map).unwrap_or_default();
+        let base_life = text
+            .find_header("lifebar")
+            .map(section_map)
+            .unwrap_or_default();
+        let base_power = text
+            .find_header("powerbar")
+            .map(section_map)
+            .unwrap_or_default();
+        let base_guard = text
+            .find_header("guardbar")
+            .map(section_map)
+            .unwrap_or_default();
+        let base_face = text
+            .find_header("face")
+            .map(section_map)
+            .unwrap_or_default();
+        let base_name = text
+            .find_header("name")
+            .map(section_map)
+            .unwrap_or_default();
+        let base_win = text
+            .find_header("winicon")
+            .map(section_map)
+            .unwrap_or_default();
+        let base_combo = text
+            .find_header("combo")
+            .map(section_map)
+            .unwrap_or_default();
 
         let mut life = [BarDef::default(), BarDef::default()];
         let mut power = [BarDef::default(), BarDef::default()];
@@ -514,9 +545,7 @@ impl FightDef {
                 }
             })
             .unwrap_or_default();
-        let sound_path = files
-            .get("snd")
-            .and_then(|value| resolve_asset(dir, value));
+        let sound_path = files.get("snd").and_then(|value| resolve_asset(dir, value));
 
         Ok(Self {
             name: info.get("name").cloned().unwrap_or_default(),
@@ -548,7 +577,11 @@ impl TitleDef {
         let mut items = Vec::new();
         if let Some(section) = text.find_header("title info") {
             for entry in &section.entries {
-                if let Some(key) = entry.key.trim().to_ascii_lowercase().strip_prefix("menu.itemname.")
+                if let Some(key) = entry
+                    .key
+                    .trim()
+                    .to_ascii_lowercase()
+                    .strip_prefix("menu.itemname.")
                 {
                     let label = entry.value.trim().to_string();
                     if !label.is_empty() {
@@ -676,8 +709,7 @@ impl ScreenBg {
             let lowered = section.header_lower();
             if lowered.starts_with(&prefix) {
                 let suffix = lowered[prefix.len()..].trim();
-                if suffix.is_empty() || !suffix.chars().next().is_some_and(|c| c.is_ascii_digit())
-                {
+                if suffix.is_empty() || !suffix.chars().next().is_some_and(|c| c.is_ascii_digit()) {
                     continue;
                 }
                 let mut map = section_map(section);
@@ -977,7 +1009,11 @@ fn parse_element(map: &HashMap<String, String>, prefix: &str) -> Element {
         pos: map
             .get(&format!("{prefix}pos"))
             .map(|value| vec2(value))
-            .or_else(|| map.get("pos").filter(|_| prefix.is_empty()).map(|value| vec2(value)))
+            .or_else(|| {
+                map.get("pos")
+                    .filter(|_| prefix.is_empty())
+                    .map(|value| vec2(value))
+            })
             .unwrap_or_default(),
         offset: map
             .get(&format!("{prefix}offset"))
@@ -1088,7 +1124,10 @@ fn layer_from_map(map: &HashMap<String, String>) -> BgLayer {
         action: map
             .get("actionno")
             .and_then(|value| value.trim().parse().ok()),
-        start: map.get("start").map(|value| vec2(value)).unwrap_or_default(),
+        start: map
+            .get("start")
+            .map(|value| vec2(value))
+            .unwrap_or_default(),
         delta: map
             .get("delta")
             .map(|value| vec2(value))
@@ -1117,7 +1156,10 @@ fn layer_from_map(map: &HashMap<String, String>) -> BgLayer {
         enabled: flag(map, "enabled", true),
         xscale: num(map, "xscale", 1.0),
         yscale: num(map, "yscale", 1.0),
-        window: map.get("window").map(|value| quad(value)).unwrap_or([0.0; 4]),
+        window: map
+            .get("window")
+            .map(|value| quad(value))
+            .unwrap_or([0.0; 4]),
         start_rect: map
             .get("startrect")
             .map(|value| quad(value))
@@ -1132,7 +1174,9 @@ fn layer_from_map(map: &HashMap<String, String>) -> BgLayer {
 
 /// Screen-background sections use plain keys; strip any inherited prefix.
 fn normalize_bg_keys(map: &mut HashMap<String, String>) {
-    for key in ["type", "spriteno", "actionno", "start", "delta", "trans", "tile"] {
+    for key in [
+        "type", "spriteno", "actionno", "start", "delta", "trans", "tile",
+    ] {
         if let Some(value) = map.remove(&format!("bg {key}")) {
             map.insert(key.to_string(), value);
         }
@@ -1172,7 +1216,9 @@ fn collect_fonts_for_path(fonts: &mut BTreeMap<u32, FontDecl>, path: &Path, fall
                 continue;
             };
             let dir = path.parent().unwrap_or(fallback);
-            fonts.entry(index).or_insert_with(|| font_decl(&entry.value, dir));
+            fonts
+                .entry(index)
+                .or_insert_with(|| font_decl(&entry.value, dir));
         }
     }
 }

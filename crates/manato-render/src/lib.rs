@@ -7,6 +7,7 @@
 pub mod atlas;
 pub mod draw;
 pub mod fightscreen;
+pub mod frontend;
 pub mod scene;
 pub mod screenfont;
 pub mod text;
@@ -24,6 +25,7 @@ use atlas::{bank, SpriteAtlas};
 use draw::{
     blend_state, create_blit_shader, create_sprite_shader, vertex_layout, Blend, Painter, TexRef,
 };
+use frontend::{FrontendDeps, OptionsView, SelectView, TitleView};
 use scene::SceneDeps;
 use screenfont::ScreenFont;
 use text::FontAtlas;
@@ -373,30 +375,48 @@ impl Renderer {
 
         self.screen_fonts.clear();
         if let Some(screenpack) = &assets.screenpack {
-            for (index, font) in &screenpack.loaded_fonts {
-                let tint = screenpack
-                    .fonts
-                    .get(index)
-                    .map(|decl| decl.tint)
-                    .unwrap_or([255, 255, 255]);
-                self.screen_fonts.insert(
-                    *index,
-                    ScreenFont::build(
-                        &self.device,
-                        &self.queue,
-                        &self.sprite_bgl,
-                        *index,
-                        font,
-                        tint,
-                    ),
-                );
-            }
+            self.load_screen_fonts(screenpack);
         }
         log::info!(
             "sprite atlas: {} pages of {}px",
             self.atlas.pages.len(),
             self.atlas.page_size
         );
+    }
+
+    /// Builds the front-end atlas from the screenpack alone. Used before a
+    /// match exists, when only title/select art is needed.
+    pub fn load_frontend(&mut self, screenpack: Option<&manato_formats::Screenpack>) {
+        let mut banks: Vec<(u8, &manato_formats::SffFile)> = Vec::new();
+        if let Some(screenpack) = screenpack {
+            banks.push((bank::SCREENPACK, &screenpack.sprites));
+        }
+        self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
+        self.screen_fonts.clear();
+        if let Some(screenpack) = screenpack {
+            self.load_screen_fonts(screenpack);
+        }
+    }
+
+    fn load_screen_fonts(&mut self, screenpack: &manato_formats::Screenpack) {
+        for (index, font) in &screenpack.loaded_fonts {
+            let tint = screenpack
+                .fonts
+                .get(index)
+                .map(|decl| decl.tint)
+                .unwrap_or([255, 255, 255]);
+            self.screen_fonts.insert(
+                *index,
+                ScreenFont::build(
+                    &self.device,
+                    &self.queue,
+                    &self.sprite_bgl,
+                    *index,
+                    font,
+                    tint,
+                ),
+            );
+        }
     }
 
     /// Number of atlas pages currently allocated (diagnostics).
@@ -412,7 +432,47 @@ impl Renderer {
             screen_fonts: &self.screen_fonts,
         };
         scene::build(&mut self.painter, sim, &deps);
+        self.present();
+    }
 
+    /// Draws a front-end title or select frame into the internal target.
+    pub fn render_title(&mut self, screenpack: &manato_formats::Screenpack, view: &TitleView) {
+        let deps = FrontendDeps {
+            atlas: &self.atlas,
+            font: &self.font,
+            screen_fonts: &self.screen_fonts,
+        };
+        self.painter.clear();
+        frontend::draw_title(&mut self.painter, &deps, screenpack, view);
+        self.present();
+    }
+
+    /// Draws a front-end select frame into the internal target.
+    pub fn render_select(&mut self, screenpack: &manato_formats::Screenpack, view: &SelectView) {
+        let deps = FrontendDeps {
+            atlas: &self.atlas,
+            font: &self.font,
+            screen_fonts: &self.screen_fonts,
+        };
+        self.painter.clear();
+        frontend::draw_select(&mut self.painter, &deps, screenpack, view);
+        self.present();
+    }
+
+    /// Draws the built-in options overlay on top of the title background.
+    pub fn render_options(&mut self, screenpack: &manato_formats::Screenpack, view: &OptionsView) {
+        let deps = FrontendDeps {
+            atlas: &self.atlas,
+            font: &self.font,
+            screen_fonts: &self.screen_fonts,
+        };
+        self.painter.clear();
+        frontend::draw_options(&mut self.painter, &deps, screenpack, view);
+        self.present();
+    }
+
+    /// Uploads the accumulated vertices and records the frame commands.
+    fn present(&mut self) {
         let bytes = cast_slice(&self.painter.vertices);
         if bytes.len() as u64 > self.vertex_capacity {
             let size = (bytes.len() as u64).next_power_of_two().max(4096);

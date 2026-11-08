@@ -10,8 +10,8 @@ pub mod cmd;
 pub mod cns;
 pub mod def;
 pub mod font;
-pub mod sff;
 pub mod screenpack;
+pub mod sff;
 pub mod snd;
 pub mod stage;
 pub mod text;
@@ -22,11 +22,11 @@ pub use cmd::{CmdFile, CommandDef, CommandStep};
 pub use cns::{Constants, Controller, StateDef, StateFile};
 pub use def::{CharacterDef, StageDefFile};
 pub use font::{BitmapFont, Glyph};
-pub use sff::{SffFile, Sprite};
 pub use screenpack::{
-    BarDef, ComboDef, FaceDef, FightDef, Layer, NameDef, Roster, RosterEntry, ScreenBg,
-    Screenpack, SelectDef, TextDef, TimeDef, TitleDef, WinIconDef,
+    BarDef, ComboDef, FaceDef, FightDef, Layer, NameDef, Roster, RosterEntry, ScreenBg, Screenpack,
+    SelectDef, TextDef, TimeDef, TitleDef, WinIconDef,
 };
+pub use sff::{SffFile, Sprite};
 pub use snd::{Sound, SoundBank};
 pub use stage::{BgCtrl, BgLayer, BgScene, Stage};
 pub use text::{Entry, Section, TextFile};

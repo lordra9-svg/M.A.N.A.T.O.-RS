@@ -1316,7 +1316,11 @@ impl SimState {
                 .unwrap_or(0.0);
             let power_drain = power_def
                 .map(|bar| {
-                    let span = if power_range > 0.0 { power_range } else { 100.0 };
+                    let span = if power_range > 0.0 {
+                        power_range
+                    } else {
+                        100.0
+                    };
                     (bar.mid_steps.max(0.0) * bar.mid_mult.max(0.0) / span).max(0.0)
                 })
                 .unwrap_or(0.0);
@@ -1346,8 +1350,8 @@ impl SimState {
     fn record_win(&mut self, winner: usize, time_over: bool) {
         let fighter = &self.fighters[winner];
         let perfect = fighter.life >= fighter.life_max;
-        let clutch = !perfect
-            && (fighter.life as f32) <= fighter.life_max as f32 * CLUTCH_THRESHOLD;
+        let clutch =
+            !perfect && (fighter.life as f32) <= fighter.life_max as f32 * CLUTCH_THRESHOLD;
         self.win_history[winner].push(WinRecord {
             time_over,
             perfect,

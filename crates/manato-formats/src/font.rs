@@ -92,12 +92,10 @@ impl BitmapFont {
         if pcx_offset >= data.len() {
             bail!("font PCX offset is outside the file");
         }
-        let pcx_end = pcx_offset
-            .saturating_add(pcx_length)
-            .min(data.len());
+        let pcx_end = pcx_offset.saturating_add(pcx_length).min(data.len());
         let pcx = &data[pcx_offset..pcx_end];
-        let (atlas_width, atlas_height, atlas_rgba, _) = decode_pcx(pcx, None)
-            .context("failed to decode the font atlas PCX")?;
+        let (atlas_width, atlas_height, atlas_rgba, _) =
+            decode_pcx(pcx, None).context("failed to decode the font atlas PCX")?;
 
         let text_end = text_offset.saturating_add(text_length).min(data.len());
         let text = if text_offset < text_end {
@@ -232,8 +230,13 @@ impl BitmapFont {
         };
         let atlas = resolve_font_asset(path, file)
             .with_context(|| format!("font {} references missing atlas {file}", path.display()))?;
-        let sff = SffFile::load(&atlas)
-            .with_context(|| format!("font {} failed to load atlas {}", path.display(), atlas.display()))?;
+        let sff = SffFile::load(&atlas).with_context(|| {
+            format!(
+                "font {} failed to load atlas {}",
+                path.display(),
+                atlas.display()
+            )
+        })?;
 
         let bank_type = def.get("banktype").unwrap_or("palette").trim();
         let default_bank = def
@@ -309,9 +312,7 @@ fn resolve_font_asset(font_path: &Path, file: &str) -> Option<PathBuf> {
 fn parse_map_key(key: &str) -> Option<char> {
     let key = key.trim();
     if let Some(hex) = key.strip_prefix("0x").or_else(|| key.strip_prefix("0X")) {
-        return u32::from_str_radix(hex, 16)
-            .ok()
-            .and_then(char::from_u32);
+        return u32::from_str_radix(hex, 16).ok().and_then(char::from_u32);
     }
     if let Some(dec) = key.strip_prefix('#') {
         return dec.parse::<u32>().ok().and_then(char::from_u32);

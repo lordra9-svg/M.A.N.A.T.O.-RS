@@ -19,12 +19,13 @@ use crate::draw::{Blend, Painter, TexRef};
 use crate::screenfont::ScreenFont;
 use crate::text::FontAtlas;
 
-pub struct FightDeps<'a> {
+pub struct ScreenDeps<'a> {
     pub atlas: &'a SpriteAtlas,
     pub font: &'a FontAtlas,
     pub screen_fonts: &'a BTreeMap<u32, ScreenFont>,
-    pub screenpack: &'a Screenpack,
 }
+
+pub type FightDeps<'a> = ScreenDeps<'a>;
 
 /// Maps screenpack `localcoord` to the viewport (uniform, letterboxed; §10).
 #[derive(Clone, Copy)]
@@ -120,7 +121,7 @@ fn layer_frame<'a>(
     })
 }
 
-fn draw_layer(
+pub(crate) fn draw_layer(
     painter: &mut Painter,
     deps: &FightDeps,
     layer: &Layer,
@@ -144,7 +145,12 @@ fn draw_layer(
     painter.quad(
         TexRef::Atlas(frame.sprite.page),
         frame.blend,
-        [dest_origin.x, dest_origin.y, dest_origin.x + w, dest_origin.y + h],
+        [
+            dest_origin.x,
+            dest_origin.y,
+            dest_origin.x + w,
+            dest_origin.y + h,
+        ],
         frame.sprite.uv,
         frame.flip_h,
         frame.flip_v,
@@ -214,7 +220,7 @@ fn draw_fill(
 
 /// Draws a bit of fight-screen text, falling back to the built-in font.
 #[allow(clippy::too_many_arguments)]
-fn draw_text(
+pub(crate) fn draw_text(
     painter: &mut Painter,
     deps: &FightDeps,
     def: &TextDef,
@@ -263,6 +269,7 @@ fn replace_value(text: &str, value: &str, percent: Option<i32>) -> String {
 fn life_bar(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     side: usize,
     def: &BarDef,
@@ -271,7 +278,6 @@ fn life_bar(
     mid: f32,
     value_text: String,
 ) {
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     let right = side == 1;
     let origin = def.pos;
@@ -307,10 +313,7 @@ fn life_bar(
     // Overlay and warning.
     draw_layer(painter, deps, &def.top, fight, map, origin, time, [1.0; 4]);
     let warn = def.warn_range;
-    if (warn.x > 0.0 || warn.y > 0.0)
-        && ratio <= (warn.x / 100.0)
-        && ratio >= (warn.y / 100.0)
-    {
+    if (warn.x > 0.0 || warn.y > 0.0) && ratio <= (warn.x / 100.0) && ratio >= (warn.y / 100.0) {
         draw_layer(painter, deps, &def.warn, fight, map, origin, time, [1.0; 4]);
     }
 
@@ -335,6 +338,7 @@ fn life_bar(
 fn power_bar(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     side: usize,
     def: &BarDef,
@@ -343,7 +347,6 @@ fn power_bar(
     mid: f32,
     power: f32,
 ) {
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     let right = side == 1;
     let origin = def.pos;
@@ -367,7 +370,11 @@ fn power_bar(
     }
     draw_layer(painter, deps, &def.top, fight, map, origin, time, [1.0; 4]);
     if !def.counter.text.is_empty() {
-        let text = replace_value(&def.counter.text, &(power / 1000.0).floor().to_string(), None);
+        let text = replace_value(
+            &def.counter.text,
+            &(power / 1000.0).floor().to_string(),
+            None,
+        );
         draw_text(
             painter,
             deps,
@@ -398,12 +405,12 @@ fn power_bar(
 fn face(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     side: usize,
     def: &FaceDef,
     map: &ScreenMap,
 ) {
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     draw_layer(painter, deps, &def.bg, fight, map, def.pos, time, [1.0; 4]);
     draw_layer(painter, deps, &def.bg0, fight, map, def.pos, time, [1.0; 4]);
@@ -438,12 +445,12 @@ fn face(
 fn name(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     side: usize,
     def: &NameDef,
     map: &ScreenMap,
 ) {
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     draw_layer(painter, deps, &def.bg, fight, map, def.pos, time, [1.0; 4]);
     let text = if def.name.text.is_empty() {
@@ -467,6 +474,7 @@ fn name(
 fn time(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     def: &TimeDef,
     map: &ScreenMap,
@@ -474,7 +482,6 @@ fn time(
     if sim.round.phase == RoundPhase::Over {
         return;
     }
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     draw_layer(painter, deps, &def.bg, fight, map, def.pos, time, [1.0; 4]);
     let seconds = sim.round.seconds();
@@ -499,12 +506,12 @@ fn time(
 fn win_icons(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     side: usize,
     def: &WinIconDef,
     map: &ScreenMap,
 ) {
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     let wins = &sim.win_history[side];
     let limit = if def.use_icon_upto > 0 {
@@ -513,18 +520,44 @@ fn win_icons(
         wins.len()
     };
     let step = Vec2::new(
-        if side == 1 { -def.icon_offset.x } else { def.icon_offset.x },
+        if side == 1 {
+            -def.icon_offset.x
+        } else {
+            def.icon_offset.x
+        },
         def.icon_offset.y,
     );
     for (index, record) in wins.iter().take(limit).enumerate() {
         let origin = def.pos + step * index as f32;
         draw_layer(painter, deps, &def.bg0, fight, map, origin, time, [1.0; 4]);
-        let icon = if record.time_over { &def.time } else { &def.normal };
+        let icon = if record.time_over {
+            &def.time
+        } else {
+            &def.normal
+        };
         draw_layer(painter, deps, icon, fight, map, origin, time, [1.0; 4]);
         if record.perfect {
-            draw_layer(painter, deps, &def.perfect, fight, map, origin, time, [1.0; 4]);
+            draw_layer(
+                painter,
+                deps,
+                &def.perfect,
+                fight,
+                map,
+                origin,
+                time,
+                [1.0; 4],
+            );
         } else if record.clutch {
-            draw_layer(painter, deps, &def.clutch, fight, map, origin, time, [1.0; 4]);
+            draw_layer(
+                painter,
+                deps,
+                &def.clutch,
+                fight,
+                map,
+                origin,
+                time,
+                [1.0; 4],
+            );
         }
         draw_layer(painter, deps, &def.top, fight, map, origin, time, [1.0; 4]);
     }
@@ -546,6 +579,7 @@ fn win_icons(
 fn combo(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     side: usize,
     def: &ComboDef,
@@ -555,7 +589,6 @@ fn combo(
     if state.shown_hits < 2 || state.timer <= 0 {
         return;
     }
-    let fight = &deps.screenpack.fight;
     let time = sim.frame as i32;
     // Slide in from `start.x`, easing back out as the display timer expires.
     let progress = (state.timer as f32 / manato_sim::COMBO_DISPLAY_TICKS as f32).clamp(0.0, 1.0);
@@ -596,10 +629,10 @@ fn combo(
 fn round_announcement(
     painter: &mut Painter,
     deps: &FightDeps,
+    fight: &FightDef,
     sim: &SimState,
     map: &ScreenMap,
 ) {
-    let fight = &deps.screenpack.fight;
     let round = &fight.round;
     let name = match sim.round.phase {
         RoundPhase::Intro => {
@@ -638,7 +671,7 @@ fn round_announcement(
     draw_element(painter, deps, element, fight, map, round.pos);
 }
 
-fn draw_element(
+pub(crate) fn draw_element(
     painter: &mut Painter,
     deps: &FightDeps,
     element: &Element,
@@ -646,7 +679,8 @@ fn draw_element(
     map: &ScreenMap,
     parent: Vec2,
 ) {
-    let origin = parent + element.pos + element.offset;
+    let origin = parent + element.pos;
+    let text_origin = origin + element.offset;
     if let Some((group, index)) = element.sprite {
         if let Some(sprite) = deps.atlas.get(bank::SCREENPACK, group, index) {
             let pos = map.point(origin);
@@ -664,9 +698,7 @@ fn draw_element(
         }
     } else if let Some(number) = element.anim {
         if let Some(animation) = fight.animations.get(&number) {
-            let (frame_idx, _) = animation
-                .frame_at(0)
-                .unwrap_or((0, 0));
+            let (frame_idx, _) = animation.frame_at(0).unwrap_or((0, 0));
             if let Some(frame) = animation.frames.get(frame_idx) {
                 if let Some(sprite) = deps.atlas.get(bank::SCREENPACK, frame.group, frame.index) {
                     let pos = map.point(origin + frame.offset);
@@ -700,7 +732,7 @@ fn draw_element(
             &text_def,
             &element.text,
             map,
-            origin,
+            text_origin,
             element.align,
             [1.0; 4],
         );
@@ -708,9 +740,14 @@ fn draw_element(
 }
 
 /// Paints the fight-screen background elements (spec paint order pass 10).
-pub fn draw_background(painter: &mut Painter, sim: &SimState, deps: &FightDeps) {
-    let map = ScreenMap::new(deps.screenpack);
-    let fight = &deps.screenpack.fight;
+pub fn draw_background(
+    painter: &mut Painter,
+    sim: &SimState,
+    deps: &FightDeps,
+    screenpack: &Screenpack,
+) {
+    let map = ScreenMap::new(screenpack);
+    let fight = &screenpack.fight;
     for side in 0..2 {
         let fighter = &sim.fighters[side];
         let life_ratio = (fighter.life as f32 / fighter.life_max.max(1) as f32).clamp(0.0, 1.0);
@@ -719,6 +756,7 @@ pub fn draw_background(painter: &mut Painter, sim: &SimState, deps: &FightDeps) 
         life_bar(
             painter,
             deps,
+            fight,
             sim,
             side,
             &fight.life[side],
@@ -730,6 +768,7 @@ pub fn draw_background(painter: &mut Painter, sim: &SimState, deps: &FightDeps) 
         power_bar(
             painter,
             deps,
+            fight,
             sim,
             side,
             &fight.power[side],
@@ -738,21 +777,26 @@ pub fn draw_background(painter: &mut Painter, sim: &SimState, deps: &FightDeps) 
             bar.mid_power.clamp(0.0, 1.0),
             fighter.power,
         );
-        face(painter, deps, sim, side, &fight.face[side], &map);
-        name(painter, deps, sim, side, &fight.name_def[side], &map);
+        face(painter, deps, fight, sim, side, &fight.face[side], &map);
+        name(painter, deps, fight, sim, side, &fight.name_def[side], &map);
     }
-    time(painter, deps, sim, &fight.time, &map);
+    time(painter, deps, fight, sim, &fight.time, &map);
 }
 
 /// Paints the fight-screen foreground elements (spec paint order pass 12).
-pub fn draw_foreground(painter: &mut Painter, sim: &SimState, deps: &FightDeps) {
-    let map = ScreenMap::new(deps.screenpack);
-    let fight = &deps.screenpack.fight;
+pub fn draw_foreground(
+    painter: &mut Painter,
+    sim: &SimState,
+    deps: &FightDeps,
+    screenpack: &Screenpack,
+) {
+    let map = ScreenMap::new(screenpack);
+    let fight = &screenpack.fight;
     for side in 0..2 {
-        win_icons(painter, deps, sim, side, &fight.win_icon[side], &map);
-        combo(painter, deps, sim, side, &fight.combo[side], &map);
+        win_icons(painter, deps, fight, sim, side, &fight.win_icon[side], &map);
+        combo(painter, deps, fight, sim, side, &fight.combo[side], &map);
     }
-    round_announcement(painter, deps, sim, &map);
+    round_announcement(painter, deps, fight, sim, &map);
 }
 
 #[cfg(test)]
@@ -771,7 +815,10 @@ mod tests {
         let native = map((320.0, 240.0));
         assert!((native.scale - 1.0).abs() < f32::EPSILON);
         assert_eq!(native.offset, Vec2::new(0.0, 0.0));
-        assert_eq!(native.point(Vec2::new(160.0, 120.0)), Vec2::new(160.0, 120.0));
+        assert_eq!(
+            native.point(Vec2::new(160.0, 120.0)),
+            Vec2::new(160.0, 120.0)
+        );
 
         let double = map((640.0, 480.0));
         assert!((double.scale - 0.5).abs() < f32::EPSILON);
