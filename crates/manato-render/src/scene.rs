@@ -866,6 +866,7 @@ fn project_quad(
 }
 
 fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
+    let hide_bars = sim.bars_hidden();
     let bar_w = 148.0;
     let bar_h = 10.0;
     let y = 8.0;
@@ -873,6 +874,9 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
     let p2_x = GAME_WIDTH - 6.0 - bar_w;
 
     for (who, x) in [(0usize, p1_x), (1usize, p2_x)] {
+        if hide_bars {
+            continue;
+        }
         let fighter = &sim.fighters[who];
         let ratio = (fighter.life as f32 / fighter.life_max.max(1) as f32).clamp(0.0, 1.0);
         painter.rect(
@@ -928,6 +932,9 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
     }
 
     // Timer.
+    if hide_bars {
+        return;
+    }
     let seconds = sim.round.seconds();
     painter.rect(
         Blend::Normal,

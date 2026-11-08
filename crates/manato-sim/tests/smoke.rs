@@ -1297,3 +1297,15 @@ fn projectile_timers_and_triggers() {
     sim.fighters[0].proj_guarded_time = 3;
     assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuardedTime"), 3);
 }
+
+#[test]
+fn no_bar_display_flag_hides_bars() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert!(!sim.bars_hidden());
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOBARDISPLAY;
+    assert!(sim.bars_hidden());
+    sim.fighters[0].assert_flags = 0;
+    assert!(!sim.bars_hidden());
+}

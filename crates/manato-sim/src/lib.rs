@@ -1753,6 +1753,13 @@ impl SimState {
     /// at the stage ground when `zoomanchor = 1`, and otherwise at the
     /// viewport centre. Both forms reduce to the unzoomed mapping at
     /// `scale = 1`, so enabling zoom never jumps the scene.
+    /// True when any fighter asserts `NoBarDisplay` (`docs/spec/rounds.md` §9).
+    pub fn bars_hidden(&self) -> bool {
+        self.fighters
+            .iter()
+            .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOBARDISPLAY != 0)
+    }
+
     pub fn screen_pos(&self, world: Vec2) -> Vec2 {
         let scale = self.camera.scale;
         let shake = self.camera.shake;

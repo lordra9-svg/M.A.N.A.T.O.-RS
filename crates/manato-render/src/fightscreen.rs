@@ -783,39 +783,44 @@ pub fn draw_background(
 ) {
     let map = ScreenMap::new(screenpack);
     let fight = &screenpack.fight;
+    let hide_bars = sim.bars_hidden();
     for side in 0..2 {
         let fighter = &sim.fighters[side];
-        let life_ratio = (fighter.life as f32 / fighter.life_max.max(1) as f32).clamp(0.0, 1.0);
-        let power_ratio = (fighter.power / MAX_POWER).clamp(0.0, 1.0);
-        let bar = &sim.bars[side];
-        life_bar(
-            painter,
-            deps,
-            fight,
-            sim,
-            side,
-            &fight.life[side],
-            &map,
-            life_ratio,
-            bar.mid_life.clamp(0.0, 1.0),
-            fighter.life.to_string(),
-        );
-        power_bar(
-            painter,
-            deps,
-            fight,
-            sim,
-            side,
-            &fight.power[side],
-            &map,
-            power_ratio,
-            bar.mid_power.clamp(0.0, 1.0),
-            fighter.power,
-        );
+        if !hide_bars {
+            let life_ratio = (fighter.life as f32 / fighter.life_max.max(1) as f32).clamp(0.0, 1.0);
+            let power_ratio = (fighter.power / MAX_POWER).clamp(0.0, 1.0);
+            let bar = &sim.bars[side];
+            life_bar(
+                painter,
+                deps,
+                fight,
+                sim,
+                side,
+                &fight.life[side],
+                &map,
+                life_ratio,
+                bar.mid_life.clamp(0.0, 1.0),
+                fighter.life.to_string(),
+            );
+            power_bar(
+                painter,
+                deps,
+                fight,
+                sim,
+                side,
+                &fight.power[side],
+                &map,
+                power_ratio,
+                bar.mid_power.clamp(0.0, 1.0),
+                fighter.power,
+            );
+        }
         face(painter, deps, fight, sim, side, &fight.face[side], &map);
         name(painter, deps, fight, sim, side, &fight.name_def[side], &map);
     }
-    time(painter, deps, fight, sim, &fight.time, &map);
+    if !hide_bars {
+        time(painter, deps, fight, sim, &fight.time, &map);
+    }
 }
 
 /// Paints the fight-screen foreground elements (spec paint order pass 12).
