@@ -54,8 +54,10 @@ legally separated clean room; that limitation is recorded in
   **combat/collision** (guard, hit reaction, hit-once/multi-hit, juggle,
   throws, corner push) was rewritten from `docs/spec/combat.md`; **rounds and
   game flow** (phases, timer, KO/draw, best-of-N, win poses, RoundNotOver) were
-  rewritten from `docs/spec/rounds.md`. Controller and trigger execution is
-  being extended from the same frozen specs. All three specs are derived from Ikemen-GO,
+  rewritten from `docs/spec/rounds.md`; **audio channels, sound controllers,
+  pause, and BGM controls** were implemented from `docs/spec/audio.md`.
+  Controller and trigger execution is being extended from the same frozen
+  specs. All three specs are derived from Ikemen-GO,
   public documentation, and observed content.
 - **SFF v2** indexed sprites (RLE8, RLE5, LZ5) and PNG sprites begin with a
   four-byte little-endian uncompressed-size field. PNG8 sprites are indexed

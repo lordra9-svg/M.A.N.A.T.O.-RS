@@ -1,6 +1,6 @@
 # Audio subsystem specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/sound.go`, `src/bytecode.go`), public M.U.G.E.N audio
 documentation, and observed content.
 

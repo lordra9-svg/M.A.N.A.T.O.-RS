@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use manato_formats::{Sound, SoundBank};
-use manato_sim::{SimState, SoundSource};
+use manato_sim::{SimState, SoundCommand, SoundSource};
 
 #[cfg(target_os = "linux")]
 mod pulse;
@@ -110,6 +110,10 @@ struct Voice {
     looping: bool,
     loop_start: usize,
     loop_end: usize,
+    priority: i32,
+    group: i32,
+    index: i32,
+    paused: bool,
 }
 
 impl Voice {
@@ -117,22 +121,41 @@ impl Voice {
         if sound.samples.is_empty() || sound.sample_rate == 0 || sound.channels == 0 {
             return None;
         }
-        let volume = (1.0 + volume / 100.0).clamp(0.0, 2.0);
-        let pan = pan.clamp(-1.0, 1.0);
-        // Equal-power panning keeps the perceived loudness stable.
-        let angle = (pan + 1.0) * 0.25 * std::f32::consts::PI;
-        Some(Self {
+        let mut voice = Self {
             samples: Arc::new(sound.samples.clone()),
             channels: sound.channels as usize,
             position: 0.0,
             step: sound.sample_rate as f64 / output_rate.max(1) as f64,
-            gain_l: angle.cos() * volume,
-            gain_r: angle.sin() * volume,
+            gain_l: 1.0,
+            gain_r: 1.0,
             finished: false,
             looping: false,
             loop_start: 0,
             loop_end: 0,
-        })
+            priority: 0,
+            group: sound.group,
+            index: sound.index,
+            paused: false,
+        };
+        voice.set_gains(volume, pan);
+        Some(voice)
+    }
+
+    fn set_gains(&mut self, volume: f32, pan: f32) {
+        let volume = volume.clamp(0.0, 1.0);
+        let pan = pan.clamp(-1.0, 1.0);
+        // Equal-power panning keeps the perceived loudness stable.
+        let angle = (pan + 1.0) * 0.25 * std::f32::consts::PI;
+        self.gain_l = angle.cos() * volume;
+        self.gain_r = angle.sin() * volume;
+    }
+
+    fn set_loop(&mut self, looping: bool) {
+        self.looping = looping;
+        if looping && self.loop_end == 0 {
+            self.loop_start = 0;
+            self.loop_end = self.samples.len() / self.channels.max(1);
+        }
     }
 
     fn new_music(music: &Music, output_rate: u32, volume: f32) -> Option<Self> {
@@ -159,10 +182,17 @@ impl Voice {
             looping: true,
             loop_start,
             loop_end: loop_end.max(loop_start.saturating_add(1)),
+            priority: 0,
+            group: 0,
+            index: 0,
+            paused: false,
         })
     }
 
     fn mix(&mut self, out: &mut [f32], out_channels: usize) {
+        if self.paused {
+            return;
+        }
         let frames = self.samples.len() / self.channels;
         for frame in 0..out.len() / out_channels {
             let mut idx = self.position as usize;
@@ -196,9 +226,11 @@ impl Voice {
     }
 }
 
+pub(crate) type ChannelKey = (u8, usize, i32);
+
 pub(crate) struct Mixer {
     pending: VecDeque<Voice>,
-    active: Vec<Voice>,
+    channels: std::collections::HashMap<ChannelKey, Voice>,
     music: Option<Voice>,
     output_channels: usize,
     volume: f32,
@@ -209,20 +241,85 @@ impl Mixer {
         for sample in out.iter_mut() {
             *sample = 0.0;
         }
-        self.active.extend(self.pending.drain(..));
-        for voice in &mut self.active {
+        for voice in &mut self.pending {
             voice.mix(out, self.output_channels);
         }
+        self.pending.clear();
+        for voice in self.channels.values_mut() {
+            voice.mix(out, self.output_channels);
+        }
+        self.channels.retain(|_, voice| !voice.finished);
         if let Some(music) = self.music.as_mut() {
             music.mix(out, self.output_channels);
             if music.finished {
                 self.music = None;
             }
         }
-        self.active.retain(|v| !v.finished);
         let volume = self.volume;
         for sample in out.iter_mut() {
             *sample = (*sample * volume).clamp(-1.0, 1.0);
+        }
+    }
+
+    fn play_channel(&mut self, key: ChannelKey, voice: Voice, low_priority: bool) {
+        if let Some(existing) = self.channels.get(&key) {
+            if low_priority && existing.priority > voice.priority {
+                return;
+            }
+        }
+        self.channels.insert(key, voice);
+    }
+
+    fn stop_channel(&mut self, key: ChannelKey) {
+        self.channels.remove(&key);
+    }
+
+    fn pan_channel(&mut self, key: ChannelKey, pan: Option<f32>, volume: Option<f32>) {
+        let Some(voice) = self.channels.get_mut(&key) else {
+            return;
+        };
+        let current_volume = (voice.gain_l * voice.gain_l + voice.gain_r * voice.gain_r)
+            .sqrt()
+            .clamp(0.0, 1.0);
+        let current_pan = voice.gain_r.atan2(voice.gain_l) / (0.25 * std::f32::consts::PI) - 1.0;
+        voice.set_gains(
+            volume.unwrap_or(current_volume),
+            pan.unwrap_or(current_pan.clamp(-1.0, 1.0)),
+        );
+    }
+
+    fn modify_channel(
+        &mut self,
+        key: ChannelKey,
+        sound: &Sound,
+        output_rate: u32,
+        volume: Option<f32>,
+        pan: Option<f32>,
+        loop_sound: bool,
+    ) {
+        if let Some(voice) = self.channels.get_mut(&key) {
+            if voice.group == sound.group && voice.index == sound.index {
+                let current_volume = (voice.gain_l * voice.gain_l + voice.gain_r * voice.gain_r)
+                    .sqrt()
+                    .clamp(0.0, 1.0);
+                let current_pan =
+                    voice.gain_r.atan2(voice.gain_l) / (0.25 * std::f32::consts::PI) - 1.0;
+                voice.set_gains(
+                    volume.unwrap_or(current_volume),
+                    pan.unwrap_or(current_pan.clamp(-1.0, 1.0)),
+                );
+                voice.set_loop(loop_sound);
+                return;
+            }
+        }
+        if let Some(mut voice) = Voice::new(
+            sound,
+            output_rate,
+            volume.unwrap_or(1.0),
+            pan.unwrap_or(0.0),
+        ) {
+            voice.set_loop(loop_sound);
+            self.channels.insert(key, voice);
         }
     }
 }
@@ -245,7 +342,7 @@ pub struct AudioEngine {
 fn new_mixer(channels: usize) -> Arc<Mutex<Mixer>> {
     Arc::new(Mutex::new(Mixer {
         pending: VecDeque::new(),
-        active: Vec::new(),
+        channels: std::collections::HashMap::new(),
         music: None,
         output_channels: channels,
         volume: 1.0,
@@ -405,26 +502,120 @@ impl AudioEngine {
         }
     }
 
+    fn channel_key(source: SoundSource, sim: &SimState, channel: i32) -> ChannelKey {
+        match source {
+            SoundSource::Character(i) => {
+                // Helpers share their owner's channel namespace.
+                let owner = sim
+                    .fighters
+                    .get(i)
+                    .and_then(|fighter| fighter.owner)
+                    .unwrap_or(i);
+                (0, owner, channel)
+            }
+            SoundSource::FightFx => (1, 0, channel),
+            SoundSource::Common => (2, 0, channel),
+        }
+    }
+
+    fn resolve_bank<'a>(sim: &'a SimState, source: SoundSource) -> Option<&'a SoundBank> {
+        match source {
+            SoundSource::Character(i) => sim.assets.characters.get(i).map(|c| &c.sounds),
+            SoundSource::FightFx | SoundSource::Common => Some(&sim.assets.fight_sounds),
+        }
+    }
+
     /// Resolves the sound events produced by the most recent simulation tick.
     pub fn play_events(&self, sim: &SimState) {
         for event in &sim.sounds {
-            let (bank, pan) = match event.source {
-                SoundSource::Character(i) => {
-                    let bank = sim.assets.characters.get(i).map(|c| &c.sounds);
-                    // Pan character sounds by their position on screen.
-                    let pan = sim
-                        .fighters
-                        .get(i)
-                        .map(|f| ((f.pos.x - sim.camera.x) / 160.0).clamp(-1.0, 1.0) * 0.7)
-                        .unwrap_or(event.pan);
-                    (bank, pan)
-                }
-                SoundSource::FightFx | SoundSource::Common => {
-                    (Some(&sim.assets.fight_sounds), event.pan)
-                }
+            let Some(bank) = Self::resolve_bank(sim, event.source) else {
+                continue;
             };
-            if let Some(bank) = bank {
-                self.play_bank(bank, event.group, event.index, event.volume, pan);
+            let Some(sound) = bank.get(event.group, event.index) else {
+                continue;
+            };
+            let pan = match event.source {
+                SoundSource::Character(i) if event.pan == 0.0 => sim
+                    .fighters
+                    .get(i)
+                    .map(|f| ((f.pos.x - sim.camera.x) / 160.0).clamp(-1.0, 1.0) * 0.7)
+                    .unwrap_or(0.0),
+                _ => event.pan,
+            };
+            let volume = if event.volume <= 0.0 {
+                1.0
+            } else {
+                (event.volume / 100.0).clamp(0.0, 1.0)
+            };
+            if event.channel < 0 {
+                self.play(sound, volume, pan);
+                continue;
+            }
+            let key = Self::channel_key(event.source, sim, event.channel);
+            if let Ok(mut mixer) = self.mixer.lock() {
+                if let Some(mut voice) = Voice::new(sound, self.rate, volume, pan) {
+                    voice.priority = event.priority;
+                    voice.set_loop(event.loop_sound);
+                    mixer.play_channel(key, voice, event.low_priority);
+                }
+            }
+        }
+
+        for command in &sim.sound_commands {
+            match *command {
+                SoundCommand::Stop { source, channel } => {
+                    let key = Self::channel_key(source, sim, channel);
+                    if let Ok(mut mixer) = self.mixer.lock() {
+                        mixer.stop_channel(key);
+                    }
+                }
+                SoundCommand::Pan {
+                    source,
+                    channel,
+                    pan,
+                    volume,
+                } => {
+                    let key = Self::channel_key(source, sim, channel);
+                    if let Ok(mut mixer) = self.mixer.lock() {
+                        mixer.pan_channel(key, pan, volume);
+                    }
+                }
+                SoundCommand::Modify {
+                    source,
+                    channel,
+                    group,
+                    index,
+                    volume,
+                    pan,
+                    loop_sound,
+                } => {
+                    let Some(bank) = Self::resolve_bank(sim, source) else {
+                        continue;
+                    };
+                    let Some(sound) = bank.get(group, index) else {
+                        continue;
+                    };
+                    let key = Self::channel_key(source, sim, channel);
+                    if let Ok(mut mixer) = self.mixer.lock() {
+                        mixer.modify_channel(
+                            key,
+                            sound,
+                            self.rate,
+                            volume,
+                            pan,
+                            loop_sound.unwrap_or(false),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Pauses or resumes background music without losing its position.
+    pub fn pause_music(&self, paused: bool) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            if let Some(music) = mixer.music.as_mut() {
+                music.paused = paused;
             }
         }
     }
@@ -470,14 +661,14 @@ mod tests {
     fn mixes_mono_into_stereo() {
         let mut mixer = Mixer {
             pending: VecDeque::new(),
-            active: Vec::new(),
+            channels: std::collections::HashMap::new(),
             music: None,
             output_channels: 2,
             volume: 1.0,
         };
         mixer
-            .active
-            .push(Voice::new(&mono_sound(vec![16_384; 64]), 48_000, 0.0, 0.0).unwrap());
+            .pending
+            .push_back(Voice::new(&mono_sound(vec![16_384; 64]), 48_000, 1.0, 0.0).unwrap());
         let mut out = vec![0.0f32; 128];
         mixer.fill(&mut out);
         assert!(out[0].abs() > 0.1);
@@ -534,11 +725,13 @@ mod tests {
     fn pans_left_and_right() {
         let mut left = Mixer {
             pending: VecDeque::new(),
-            active: vec![Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 0.0, -1.0).unwrap()],
+            channels: std::collections::HashMap::new(),
             music: None,
             output_channels: 2,
             volume: 1.0,
         };
+        left.pending
+            .push_back(Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 1.0, -1.0).unwrap());
         let mut out = vec![0.0f32; 64];
         left.fill(&mut out);
         assert!(out[0].abs() > 0.1);
@@ -546,14 +739,57 @@ mod tests {
 
         let mut right = Mixer {
             pending: VecDeque::new(),
-            active: vec![Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 0.0, 1.0).unwrap()],
+            channels: std::collections::HashMap::new(),
             music: None,
             output_channels: 2,
             volume: 1.0,
         };
+        right
+            .pending
+            .push_back(Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 1.0, 1.0).unwrap());
         let mut out = vec![0.0f32; 64];
         right.fill(&mut out);
         assert!(out[0].abs() < 0.01);
         assert!(out[1].abs() > 0.1);
+    }
+
+    fn test_mixer() -> Mixer {
+        Mixer {
+            pending: VecDeque::new(),
+            channels: std::collections::HashMap::new(),
+            music: None,
+            output_channels: 2,
+            volume: 1.0,
+        }
+    }
+
+    #[test]
+    fn channel_priority_and_stop() {
+        let sound = mono_sound(vec![1_000; 32]);
+        let key = (0u8, 0usize, 0i32);
+        let mut mixer = test_mixer();
+        let mut high = Voice::new(&sound, 48_000, 1.0, 0.0).unwrap();
+        high.priority = 5;
+        mixer.play_channel(key, high, false);
+        let mut low = Voice::new(&sound, 48_000, 1.0, 0.0).unwrap();
+        low.priority = 1;
+        mixer.play_channel(key, low, true);
+        assert_eq!(mixer.channels[&key].priority, 5);
+        mixer.stop_channel(key);
+        assert!(mixer.channels.is_empty());
+    }
+
+    #[test]
+    fn channel_pan_and_modify() {
+        let sound = mono_sound(vec![1_000; 32]);
+        let key = (0u8, 0usize, 0i32);
+        let mut mixer = test_mixer();
+        mixer.play_channel(key, Voice::new(&sound, 48_000, 1.0, 0.0).unwrap(), false);
+        mixer.pan_channel(key, Some(-1.0), Some(0.5));
+        let voice = &mixer.channels[&key];
+        assert!(voice.gain_l > voice.gain_r);
+        assert!(!voice.looping);
+        mixer.modify_channel(key, &sound, 48_000, None, None, true);
+        assert!(mixer.channels[&key].looping);
     }
 }

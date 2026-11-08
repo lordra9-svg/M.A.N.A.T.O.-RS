@@ -290,6 +290,35 @@ pub struct SoundEvent {
     pub index: i32,
     pub volume: f32,
     pub pan: f32,
+    /// Managed channel, or -1 for a one-shot.
+    pub channel: i32,
+    pub loop_sound: bool,
+    pub priority: i32,
+    pub low_priority: bool,
+}
+
+/// A non-playback sound operation emitted by a controller.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SoundCommand {
+    Stop {
+        source: SoundSource,
+        channel: i32,
+    },
+    Pan {
+        source: SoundSource,
+        channel: i32,
+        pan: Option<f32>,
+        volume: Option<f32>,
+    },
+    Modify {
+        source: SoundSource,
+        channel: i32,
+        group: i32,
+        index: i32,
+        volume: Option<f32>,
+        pan: Option<f32>,
+        loop_sound: Option<bool>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -356,6 +385,7 @@ pub struct SimState {
     pub effects: Vec<Effect>,
     pub projectiles: Vec<crate::projectile::Projectile>,
     pub sounds: Vec<SoundEvent>,
+    pub sound_commands: Vec<SoundCommand>,
     pub bg_time: f32,
     pub env_shake: EnvShake,
     pub env_color: Option<EnvColor>,
@@ -417,6 +447,7 @@ impl SimState {
             effects: Vec::new(),
             projectiles: Vec::new(),
             sounds: Vec::new(),
+            sound_commands: Vec::new(),
             bg_time: 0.0,
             env_shake: EnvShake::default(),
             env_color: None,
@@ -496,6 +527,7 @@ impl SimState {
             self.fighters[i].append_input(*input);
         }
         self.sounds.clear();
+        self.sound_commands.clear();
 
         if self.super_pause > 0 {
             self.super_pause -= 1;

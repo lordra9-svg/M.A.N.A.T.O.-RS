@@ -88,7 +88,7 @@ The limitation is recorded explicitly rather than hidden.
 | `manato-sim` rounds/game flow | Rewritten from `docs/spec/rounds.md` | Oracle verification pending |
 | `manato-sim` AI | Original Rust | Keep |
 | `manato-render` | Original Rust/wgpu | Keep |
-| `manato-audio` | Original Rust | Keep |
+| `manato-audio` | Original Rust; channels/priority/BGM rewritten from `docs/spec/audio.md` | Oracle verification pending |
 | `manato-net` | Original GGRS integration | Keep |
 | `manato-app` | Original Rust | Keep |
 | Bundled characters/assets | Original content, MIT | Keep |

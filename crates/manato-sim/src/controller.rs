@@ -87,7 +87,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].attack.hit_count = 0;
         }
         "playsnd" => play_snd(sim, who, control),
-        "stopsnd" => {}
+        "stopsnd" => stop_snd(sim, who, control),
+        "sndpan" => snd_pan(sim, who, control),
+        "modifysnd" => modify_snd(sim, who, control),
         "hitdef" => hit_def(sim, who, control),
         "reversaldef" => reversal_def(sim, who, control),
         "hitvelset" => hit_vel_set(sim, who, control),
@@ -686,6 +688,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
                 index,
                 volume: 0.0,
                 pan: 0.0,
+                channel: -1,
+                loop_sound: false,
+                priority: 0,
+                low_priority: false,
             });
         }
     }
@@ -705,12 +711,69 @@ fn play_snd(sim: &mut SimState, who: usize, control: &Controller) {
         .and_then(|v| trigger::int(sim, who, v).into())
         .unwrap_or(0);
     let volume = num_param(sim, who, control, "volume").unwrap_or(0.0);
+    let pan = (num_param(sim, who, control, "pan").unwrap_or(0.0) / 100.0).clamp(-1.0, 1.0);
+    let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
+    let loop_sound = int_param(sim, who, control, "loop").unwrap_or(0) != 0;
+    let priority = int_param(sim, who, control, "priority").unwrap_or(0);
+    let low_priority = int_param(sim, who, control, "lowpriority").unwrap_or(0) != 0;
     sim.sounds.push(SoundEvent {
         source: SoundSource::Character(who),
         group,
         index,
         volume,
-        pan: 0.0,
+        pan,
+        channel,
+        loop_sound,
+        priority,
+        low_priority,
+    });
+}
+
+fn stop_snd(sim: &mut SimState, who: usize, control: &Controller) {
+    let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
+    sim.sound_commands.push(crate::SoundCommand::Stop {
+        source: SoundSource::Character(who),
+        channel,
+    });
+}
+
+fn snd_pan(sim: &mut SimState, who: usize, control: &Controller) {
+    let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
+    let pan = num_param(sim, who, control, "pan").map(|value| (value / 100.0).clamp(-1.0, 1.0));
+    let volume = num_param(sim, who, control, "volume").map(|value| value.clamp(0.0, 1.0));
+    sim.sound_commands.push(crate::SoundCommand::Pan {
+        source: SoundSource::Character(who),
+        channel,
+        pan,
+        volume,
+    });
+}
+
+fn modify_snd(sim: &mut SimState, who: usize, control: &Controller) {
+    let Some(raw) = param(control, "value") else {
+        return;
+    };
+    let mut parts = raw.split(',');
+    let group = parts
+        .next()
+        .and_then(|v| trigger::int(sim, who, v).into())
+        .unwrap_or(-1);
+    let index = parts
+        .next()
+        .and_then(|v| trigger::int(sim, who, v).into())
+        .unwrap_or(0);
+    let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
+    let pan = num_param(sim, who, control, "pan").map(|value| (value / 100.0).clamp(-1.0, 1.0));
+    let volume = num_param(sim, who, control, "volume").map(|value| value.clamp(0.0, 1.0));
+    let loop_sound = int_param(sim, who, control, "loop").map(|value| value != 0);
+    sim.sound_commands.push(crate::SoundCommand::Modify {
+        source: SoundSource::Character(who),
+        channel,
+        group,
+        index,
+        volume,
+        pan,
+        loop_sound,
     });
 }
 
@@ -954,11 +1017,15 @@ fn super_pause(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             .and_then(|v| v.trim().parse().ok())
             .unwrap_or(0);
         sim.sounds.push(SoundEvent {
-            source: SoundSource::Character(sim.fighters[who].char_id),
+            source: SoundSource::Character(who),
             group,
             index,
             volume: 0.0,
             pan: 0.0,
+            channel: -1,
+            loop_sound: false,
+            priority: 0,
+            low_priority: false,
         });
     }
     let _ = assets;

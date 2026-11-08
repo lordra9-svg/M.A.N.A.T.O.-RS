@@ -473,6 +473,10 @@ pub fn apply_hit_at(
             index: sound_index,
             volume: 0.0,
             pan: 0.0,
+            channel: -1,
+            loop_sound: false,
+            priority: 0,
+            low_priority: false,
         });
     }
 

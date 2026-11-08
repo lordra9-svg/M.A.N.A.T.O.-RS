@@ -743,3 +743,96 @@ fn winner_enters_win_pose_when_present() {
         "winner should enter state 180"
     );
 }
+
+#[test]
+fn sound_controllers_emit_channel_events() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let play = manato_formats::Controller {
+        kind: "playsnd".into(),
+        params: vec![
+            ("type".into(), "PlaySnd".into()),
+            ("value".into(), "5, 1".into()),
+            ("volume".into(), "80".into()),
+            ("channel".into(), "2".into()),
+            ("pan".into(), "-50".into()),
+            ("loop".into(), "1".into()),
+            ("priority".into(), "7".into()),
+            ("lowpriority".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &play, &assets);
+    let event = sim.sounds.last().expect("sound event");
+    assert_eq!(event.group, 5);
+    assert_eq!(event.index, 1);
+    assert_eq!(event.channel, 2);
+    assert!(event.loop_sound);
+    assert_eq!(event.priority, 7);
+    assert!(event.low_priority);
+    assert!((event.pan + 0.5).abs() < 0.001);
+
+    let stop = manato_formats::Controller {
+        kind: "stopsnd".into(),
+        params: vec![
+            ("type".into(), "StopSnd".into()),
+            ("channel".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &stop, &assets);
+    assert!(matches!(
+        sim.sound_commands.last(),
+        Some(manato_sim::SoundCommand::Stop { channel: 2, .. })
+    ));
+
+    let pan = manato_formats::Controller {
+        kind: "sndpan".into(),
+        params: vec![
+            ("type".into(), "SndPan".into()),
+            ("channel".into(), "2".into()),
+            ("pan".into(), "25".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &pan, &assets);
+    match sim.sound_commands.last() {
+        Some(manato_sim::SoundCommand::Pan { channel, pan, .. }) => {
+            assert_eq!(*channel, 2);
+            assert!((pan.unwrap() - 0.25).abs() < 0.001);
+        }
+        other => panic!("unexpected command {other:?}"),
+    }
+
+    let modify = manato_formats::Controller {
+        kind: "modifysnd".into(),
+        params: vec![
+            ("type".into(), "ModifySnd".into()),
+            ("channel".into(), "2".into()),
+            ("value".into(), "6, 3".into()),
+            ("loop".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    match sim.sound_commands.last() {
+        Some(manato_sim::SoundCommand::Modify {
+            channel,
+            group,
+            index,
+            loop_sound,
+            ..
+        }) => {
+            assert_eq!(*channel, 2);
+            assert_eq!(*group, 6);
+            assert_eq!(*index, 3);
+            assert_eq!(*loop_sound, Some(true));
+        }
+        other => panic!("unexpected command {other:?}"),
+    }
+}
