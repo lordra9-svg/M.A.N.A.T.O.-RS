@@ -668,7 +668,11 @@ fn round_announcement(
     let Some(element) = round.elements.get(&name) else {
         return;
     };
-    draw_element(painter, deps, element, fight, map, round.pos);
+    let mut element = element.clone();
+    if !element.text.is_empty() {
+        element.text = element.text.replace("%d", &sim.round.number.to_string());
+    }
+    draw_element(painter, deps, &element, fight, map, round.pos);
 }
 
 pub(crate) fn draw_element(

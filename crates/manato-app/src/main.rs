@@ -827,24 +827,26 @@ impl App {
         }
     }
 
-    fn selection_confirm(&mut self) {
+    fn confirm_side(&mut self, side: usize) {
         let Some(frontend) = self.frontend.as_ref() else {
             return;
         };
-        if frontend.mode == Mode::Versus {
-            let mut both = frontend.p1_done && frontend.p2_done;
-            if let Some(frontend) = self.frontend.as_mut() {
-                if !frontend.p1_done {
-                    frontend.p1_done = true;
-                } else if !frontend.p2_done {
-                    frontend.p2_done = true;
-                }
-                both = frontend.p1_done && frontend.p2_done;
+        if frontend.mode != Mode::Versus {
+            self.start_match();
+            return;
+        }
+        if let Some(frontend) = self.frontend.as_mut() {
+            if side == 0 {
+                frontend.p1_done = true;
+            } else {
+                frontend.p2_done = true;
             }
-            if both {
-                self.start_match();
-            }
-        } else {
+        }
+        if self
+            .frontend
+            .as_ref()
+            .is_some_and(|f| f.p1_done && f.p2_done)
+        {
             self.start_match();
         }
     }
@@ -910,28 +912,35 @@ impl App {
                     .frontend
                     .as_ref()
                     .is_some_and(|f| f.mode == Mode::Versus);
-                match code {
-                    KeyCode::Escape => {
-                        self.frontend
-                            .as_mut()
-                            .map(|f| f.screen = FrontendScreen::Title);
+                if let Some(frontend) = self.frontend.as_mut() {
+                    if code == KeyCode::Escape {
+                        frontend.screen = FrontendScreen::Title;
+                        return;
                     }
-                    KeyCode::KeyW | KeyCode::ArrowUp => {
-                        self.move_cursor(if versus { 0 } else { 0 }, 0, -1)
-                    }
-                    KeyCode::KeyS | KeyCode::ArrowDown => self.move_cursor(0, 0, 1),
-                    KeyCode::KeyA | KeyCode::ArrowLeft => self.move_cursor(0, -1, 0),
-                    KeyCode::KeyD | KeyCode::ArrowRight => self.move_cursor(0, 1, 0),
-                    KeyCode::Enter | KeyCode::KeyJ => self.selection_confirm(),
-                    _ if versus => match code {
-                        KeyCode::Numpad8 => self.move_cursor(1, 0, -1),
-                        KeyCode::Numpad2 => self.move_cursor(1, 0, 1),
-                        KeyCode::Numpad4 => self.move_cursor(1, -1, 0),
-                        KeyCode::Numpad6 => self.move_cursor(1, 1, 0),
-                        KeyCode::Numpad1 => self.selection_confirm(),
+                }
+                if versus {
+                    match code {
+                        KeyCode::KeyW => self.move_cursor(0, 0, -1),
+                        KeyCode::KeyS => self.move_cursor(0, 0, 1),
+                        KeyCode::KeyA => self.move_cursor(0, -1, 0),
+                        KeyCode::KeyD => self.move_cursor(0, 1, 0),
+                        KeyCode::Enter | KeyCode::KeyJ => self.confirm_side(0),
+                        KeyCode::ArrowUp | KeyCode::Numpad8 => self.move_cursor(1, 0, -1),
+                        KeyCode::ArrowDown | KeyCode::Numpad2 => self.move_cursor(1, 0, 1),
+                        KeyCode::ArrowLeft | KeyCode::Numpad4 => self.move_cursor(1, -1, 0),
+                        KeyCode::ArrowRight | KeyCode::Numpad6 => self.move_cursor(1, 1, 0),
+                        KeyCode::Numpad1 => self.confirm_side(1),
                         _ => {}
-                    },
-                    _ => {}
+                    }
+                } else {
+                    match code {
+                        KeyCode::KeyW | KeyCode::ArrowUp => self.move_cursor(0, 0, -1),
+                        KeyCode::KeyS | KeyCode::ArrowDown => self.move_cursor(0, 0, 1),
+                        KeyCode::KeyA | KeyCode::ArrowLeft => self.move_cursor(0, -1, 0),
+                        KeyCode::KeyD | KeyCode::ArrowRight => self.move_cursor(0, 1, 0),
+                        KeyCode::Enter | KeyCode::KeyJ => self.confirm_side(0),
+                        _ => {}
+                    }
                 }
             }
             FrontendScreen::Options => {

@@ -110,7 +110,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Built-in HUD + screenpack bars/names/timer/win icons/combo; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Projectile tests |
 | V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
-| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight; round sounds and action banners pending |
+| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight; round announcement sounds emitted; action banners pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
 

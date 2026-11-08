@@ -111,7 +111,7 @@ to.time = 40
 win.time = 60
 win2.time = 60
 
-round.default.text = "ROUND"
+round.default.text = "ROUND %d"
 round.default.font = 0
 round.default.pos = 160, 96
 round.default.scale = 3, 3
