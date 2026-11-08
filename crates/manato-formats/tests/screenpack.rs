@@ -71,4 +71,8 @@ fn loads_bundled_roster() {
     assert!(defs.contains(&"content/chars/kaen/kaen.def"));
     assert!(defs.contains(&"content/chars/nival/nival.def"));
     assert!(defs.contains(&"content/chars/ordan/ordan.def"));
+    assert!(roster
+        .stages
+        .iter()
+        .any(|stage| stage == "content/stages/training/stage1.def"));
 }

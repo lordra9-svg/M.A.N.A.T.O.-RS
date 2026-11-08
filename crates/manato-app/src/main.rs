@@ -652,6 +652,8 @@ struct Frontend {
     faces: Vec<SffFile>,
     names: Vec<SelectEntry>,
     select_timer: Option<i32>,
+    stages: Vec<String>,
+    stage_index: usize,
     menu: Vec<(String, String)>,
     menu_index: usize,
     mode: Mode,
@@ -761,6 +763,7 @@ impl Frontend {
                         random: false,
                     })
                     .collect(),
+                stages: Vec::new(),
             },
         };
         let names = roster
@@ -831,6 +834,10 @@ impl Frontend {
                     .map(|item| (item.key.clone(), item.label.clone()))
             })
             .collect();
+        let mut stages = roster.stages.clone();
+        if !stages.iter().any(|stage| stage == &opts.stage) {
+            stages.push(opts.stage.clone());
+        }
         let p2_start = if roster.entries.len() > 1 { 1 } else { 0 };
         let title_layers = screen_layer_states(&screenpack.title_bg);
         let select_layers = screen_layer_states(&screenpack.select_bg);
@@ -841,6 +848,8 @@ impl Frontend {
             faces,
             names,
             select_timer,
+            stages,
+            stage_index: 0,
             menu,
             menu_index: 0,
             mode: Mode::Arcade,
@@ -911,6 +920,14 @@ impl Frontend {
         }
         let next = self.menu_index as i32 + delta;
         self.menu_index = next.rem_euclid(count as i32) as usize;
+    }
+
+    fn cycle_stage(&mut self, delta: i32) {
+        if self.stages.is_empty() {
+            return;
+        }
+        let next = self.stage_index as i32 + delta;
+        self.stage_index = next.rem_euclid(self.stages.len() as i32) as usize;
     }
 
     fn move_cursor(&mut self, side: usize, dx: i32, dy: i32) {
@@ -1087,11 +1104,16 @@ impl App {
         } else {
             next_entry(frontend, frontend.p1).unwrap_or_else(|| p1.clone())
         };
+        let chosen_stage = frontend
+            .stages
+            .get(frontend.stage_index)
+            .cloned()
+            .unwrap_or_else(|| self.opts.stage.clone());
         let stage = p1
             .stage
             .clone()
             .or_else(|| p2.stage.clone())
-            .unwrap_or_else(|| self.opts.stage.clone());
+            .unwrap_or(chosen_stage);
         let mode = frontend.mode;
         let rounds = frontend.options_rounds;
         let round_time = frontend.options_round_time;
@@ -1277,6 +1299,19 @@ impl App {
                         frontend.screen = FrontendScreen::Title;
                         return;
                     }
+                }
+                match code {
+                    KeyCode::KeyQ | KeyCode::PageUp => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.cycle_stage(-1);
+                        }
+                    }
+                    KeyCode::KeyE | KeyCode::PageDown => {
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.cycle_stage(1);
+                        }
+                    }
+                    _ => {}
                 }
                 if versus {
                     match code {
@@ -1910,6 +1945,8 @@ mod tests {
             faces: vec![],
             names: vec![],
             select_timer: Some(60),
+            stages: vec!["a.def".into(), "b.def".into()],
+            stage_index: 0,
             menu: vec![
                 ("arcade".into(), "ARCADE".into()),
                 ("versus".into(), "VERSUS".into()),
@@ -1962,6 +1999,17 @@ mod tests {
         frontend.move_cursor(0, 0, -1);
         assert_eq!(frontend.p1, 1);
         assert_eq!(frontend.page, 0);
+    }
+
+    #[test]
+    fn stage_selection_wraps() {
+        let mut frontend = test_frontend();
+        frontend.cycle_stage(1);
+        assert_eq!(frontend.stage_index, 1);
+        frontend.cycle_stage(1);
+        assert_eq!(frontend.stage_index, 0);
+        frontend.cycle_stage(-1);
+        assert_eq!(frontend.stage_index, 1);
     }
 
     #[test]

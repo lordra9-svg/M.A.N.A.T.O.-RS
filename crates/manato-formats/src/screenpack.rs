@@ -812,6 +812,8 @@ impl ScreenBg {
 #[derive(Debug, Clone, Default)]
 pub struct Roster {
     pub entries: Vec<RosterEntry>,
+    /// `[ExtraStages]` entries, in file order.
+    pub stages: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -832,7 +834,9 @@ impl Roster {
     /// they are parsed from raw lines rather than through [`TextFile`].
     pub fn parse_str(raw: &str) -> Self {
         let mut entries = Vec::new();
+        let mut stages = Vec::new();
         let mut in_characters = false;
+        let mut in_stages = false;
         for line in raw.lines() {
             let line = crate::text::strip_comment(line).trim();
             if line.is_empty() {
@@ -841,6 +845,14 @@ impl Roster {
             if line.starts_with('[') {
                 let header = line.trim_matches(|c| c == '[' || c == ']').trim();
                 in_characters = header.eq_ignore_ascii_case("characters");
+                in_stages = header.eq_ignore_ascii_case("extrastages");
+                continue;
+            }
+            if in_stages {
+                let stage = line.trim().trim_matches('"');
+                if !stage.is_empty() {
+                    stages.push(stage.to_string());
+                }
                 continue;
             }
             if !in_characters {
@@ -871,7 +883,7 @@ impl Roster {
                 random: false,
             });
         }
-        Self { entries }
+        Self { entries, stages }
     }
 
     pub fn is_empty(&self) -> bool {

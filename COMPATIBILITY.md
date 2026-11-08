@@ -29,7 +29,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
 | F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners; storyboards pending |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
-| F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview; VS animation not implemented |
+| F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation not implemented |
 
 ## 2. State machine
 

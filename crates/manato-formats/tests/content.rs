@@ -142,3 +142,35 @@ fn loads_bundled_mit_assets() {
     assert!(!stage.sprites.sprites.is_empty());
     assert_eq!(stage.name, "Training Grid");
 }
+
+#[test]
+fn loads_stock_stages() {
+    let Some(root) = mugen_root() else {
+        eprintln!("skipping: M.U.G.E.N content root not available");
+        return;
+    };
+    let stock = root.join("mugen-1.1b1");
+    if !stock.exists() {
+        eprintln!("skipping: stock M.U.G.E.N content not available");
+        return;
+    }
+    let data_dirs = vec![stock.join("data"), stock.clone()];
+    let mut loaded = 0;
+    for name in ["kfm.def", "stage0.def", "stage0-720.def", "stage1.def"] {
+        let path = stock.join("stages").join(name);
+        if !path.exists() {
+            continue;
+        }
+        let stage = Stage::load(&path, &data_dirs)
+            .unwrap_or_else(|error| panic!("{name} should load: {error:#}"));
+        assert!(!stage.layers.is_empty(), "{name} has no background layers");
+        assert!(
+            !stage.sprites.sprites.is_empty(),
+            "{name} has no decoded sprites"
+        );
+        loaded += 1;
+    }
+    if loaded == 0 {
+        eprintln!("skipping: no stock stages present");
+    }
+}
