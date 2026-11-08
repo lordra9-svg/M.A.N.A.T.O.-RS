@@ -55,6 +55,9 @@ fn loads_bundled_manato_grid() {
     assert_eq!(pack.fight.action[1].pos.x, 214.0);
     assert_eq!(pack.fight.action[1].start_x, -40.0);
     assert_eq!(pack.fight.action[0].displaytime, 90);
+    assert_eq!(pack.fight.round.slow_time, 60);
+    assert_eq!(pack.fight.round.slow_fade_time, 45);
+    assert!((pack.fight.round.slow_speed - 0.25).abs() < f32::EPSILON);
     assert!(pack.select.rows >= 1);
     assert!(pack.select.columns >= 1);
 }

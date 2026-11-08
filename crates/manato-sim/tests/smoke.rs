@@ -1315,3 +1315,96 @@ fn no_bar_display_flag_hides_bars() {
     assert!(sim.foreground_hidden());
     assert!(!sim.background_hidden());
 }
+
+fn enter_ko(mut sim: SimState) -> SimState {
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    sim
+}
+
+#[test]
+fn ko_slowdown_preserves_timing_and_input_lock() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let mut sim = enter_ko(sim);
+    assert_eq!(sim.round.slow_timer, 60);
+    assert!(!sim.round.slow_disabled);
+    assert!((sim.ko_slow_factor() - 0.25).abs() < 0.001);
+
+    let start_state = sim.fighters[0].state_time;
+    let start_phase = sim.round.phase_timer;
+    for _ in 0..8 {
+        sim.tick([PlayerInput::new(manato_core::DIR_RIGHT, manato_core::Buttons::X); 2]);
+    }
+    // Round timing is not slowed by the KO cadence.
+    assert_eq!(sim.round.phase_timer, start_phase - 8);
+    // Input is locked: the history records neutral input during KO.
+    assert_eq!(
+        sim.fighters[0].history.back().map(|frame| frame.input),
+        Some(PlayerInput::default())
+    );
+    // The gameplay cadence is reduced (8 ticks produce fewer updates).
+    let elapsed = sim.fighters[0].state_time - start_state;
+    assert!(
+        (1..8).contains(&elapsed),
+        "expected reduced cadence, got {elapsed} updates"
+    );
+    assert_eq!(sim.round.slow_timer, 60 - 8);
+}
+
+#[test]
+fn nokoslow_latches_and_restores_full_cadence() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let mut sim = enter_ko(sim);
+    let start_state = sim.fighters[0].state_time;
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOKOSLOW;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.round.slow_disabled, "NoKOSlow should latch");
+
+    // Once latched, the flag no longer needs to be reasserted.
+    for _ in 0..8 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let elapsed = sim.fighters[0].state_time - start_state;
+    assert!(
+        elapsed >= 8,
+        "NoKOSlow should run every tick, got {elapsed}"
+    );
+    assert_eq!(sim.round.phase_timer, 120 - 9);
+}
+
+#[test]
+fn ko_slowdown_is_rollback_deterministic() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let sim = enter_ko(sim);
+    let mut a = sim.clone();
+    let mut b = sim.clone();
+    for _ in 0..33 {
+        a.tick([PlayerInput::default(); 2]);
+        b.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(a.checksum(), b.checksum());
+    assert_eq!(a.round.slow_timer, b.round.slow_timer);
+}
+
+#[test]
+fn ko_slow_factor_fades_toward_full_speed() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let mut sim = enter_ko(sim);
+    let start = sim.ko_slow_factor();
+    sim.round.slow_timer = 0;
+    let end = sim.ko_slow_factor();
+    assert!((start - 0.25).abs() < 0.001);
+    assert!((end - 1.0).abs() < 0.001);
+    sim.round.slow_timer = 22;
+    let mid = sim.ko_slow_factor();
+    assert!(mid > start && mid < end, "fade should be monotonic: {mid}");
+}

@@ -211,6 +211,12 @@ pub struct RoundState {
     pub time_over: bool,
     pub display: String,
     pub rounds_to_win: u32,
+    /// Remaining KO slow-motion ticks (`slow.time`).
+    pub slow_timer: i32,
+    /// Fractional update accumulator for the reduced KO cadence.
+    pub slow_accum: f32,
+    /// Latched when `NoKOSlow` is asserted during the KO phase.
+    pub slow_disabled: bool,
 }
 
 impl RoundState {
@@ -226,6 +232,9 @@ impl RoundState {
             time_over: false,
             display: "Round 1".into(),
             rounds_to_win,
+            slow_timer: 0,
+            slow_accum: 0.0,
+            slow_disabled: false,
         }
     }
 
@@ -782,6 +791,38 @@ impl SimState {
             return;
         }
 
+        let mut run_gameplay = true;
+        if self.round.phase == RoundPhase::Ko && self.round.slow_timer > 0 {
+            if self
+                .fighters
+                .iter()
+                .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOKOSLOW != 0)
+            {
+                self.round.slow_disabled = true;
+            }
+            if !self.round.slow_disabled {
+                self.round.slow_accum += self.ko_slow_factor();
+                if self.round.slow_accum >= 1.0 {
+                    self.round.slow_accum -= 1.0;
+                } else {
+                    run_gameplay = false;
+                }
+            }
+            self.round.slow_timer -= 1;
+        }
+
+        if run_gameplay {
+            self.update_gameplay();
+        }
+        self.update_round();
+        self.update_camera();
+        self.update_effects();
+        self.update_fight_screen();
+        self.bg_time += 1.0;
+        self.update_stage_layers();
+    }
+
+    fn update_gameplay(&mut self) {
         for who in 0..self.fighters.len() {
             if self.fighters[who].hit.hit_pause > 0 {
                 self.fighters[who].hit.hit_pause -= 1;
@@ -805,12 +846,41 @@ impl SimState {
         }
         collision::resolve_projectiles(self);
         self.projectiles.retain(|p| !p.is_expired());
-        self.update_round();
-        self.update_camera();
-        self.update_effects();
-        self.update_fight_screen();
-        self.bg_time += 1.0;
-        self.update_stage_layers();
+    }
+
+    /// Initial logic-speed fraction during KO slow-motion, ramping to 1.0 as
+    /// `slow.fadetime` elapses (`docs/spec/rounds.md` §10).
+    pub fn ko_slow_factor(&self) -> f32 {
+        let default = manato_formats::screenpack::RoundDef::default();
+        let def = self
+            .assets
+            .screenpack
+            .as_ref()
+            .map(|screenpack| &screenpack.fight.round)
+            .unwrap_or(&default);
+        let fade = def.slow_fade_time.max(1);
+        let speed = def.slow_speed.clamp(0.01, 1.0);
+        if self.round.slow_timer < fade {
+            let ratio = (fade - self.round.slow_timer) as f32 / fade as f32;
+            (speed + (1.0 - speed) * ratio).clamp(0.01, 1.0)
+        } else {
+            speed
+        }
+    }
+
+    fn begin_ko_slowdown(&mut self) {
+        let default = manato_formats::screenpack::RoundDef::default();
+        let def = self
+            .assets
+            .screenpack
+            .as_ref()
+            .map(|screenpack| &screenpack.fight.round)
+            .unwrap_or(&default);
+        self.round.slow_timer = def.slow_time.max(0);
+        // Run one full KO frame first so `NoKOSlow` can be asserted by the
+        // win pose, then latch it.
+        self.round.slow_accum = 0.75;
+        self.round.slow_disabled = false;
     }
 
     fn update_stage_layers(&mut self) {
@@ -1209,6 +1279,7 @@ impl SimState {
                     self.round.time_over = false;
                     self.round.phase = RoundPhase::Ko;
                     self.round.phase_timer = 120;
+                    self.begin_ko_slowdown();
                     self.round.display = match winner {
                         Some(w) => format!("{} Wins", self.assets.characters[w].display_name()),
                         None => "Draw Game".into(),
@@ -1236,6 +1307,7 @@ impl SimState {
                     self.round.time_over = true;
                     self.round.phase = RoundPhase::Ko;
                     self.round.phase_timer = 120;
+                    self.begin_ko_slowdown();
                     self.round.display = match winner {
                         Some(w) => format!(
                             "Time Over - {} Wins",
@@ -1520,6 +1592,9 @@ impl SimState {
         self.projectiles.clear();
         self.combo = [ComboState::default(); 2];
         self.actions = [Vec::new(), Vec::new()];
+        self.round.slow_timer = 0;
+        self.round.slow_accum = 0.0;
+        self.round.slow_disabled = false;
         self.bars = [
             BarFill {
                 mid_life: 1.0,
@@ -1831,6 +1906,9 @@ impl SimState {
         h.write_u8(self.round.phase as u8);
         h.write_i32(self.round.timer);
         h.write_i32(self.round.phase_timer);
+        h.write_i32(self.round.slow_timer);
+        h.write_f32(self.round.slow_accum);
+        h.write_bool(self.round.slow_disabled);
         h.write_u32(self.round.wins[0]);
         h.write_u32(self.round.wins[1]);
         h.write_f32(self.camera.x);

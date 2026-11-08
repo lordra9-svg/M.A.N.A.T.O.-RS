@@ -212,7 +212,7 @@ pub struct ComboDef {
 }
 
 /// Round announcements and their timings.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RoundDef {
     pub pos: Vec2,
     pub start_waittime: i32,
@@ -226,6 +226,34 @@ pub struct RoundDef {
     pub win2_time: i32,
     pub dko_showdraw: bool,
     pub elements: BTreeMap<String, Element>,
+    /// Ticks of KO slow-motion (`slow.time`).
+    pub slow_time: i32,
+    /// Ticks over which the slow-motion fades back to normal (`slow.fadetime`).
+    pub slow_fade_time: i32,
+    /// Initial logic-speed fraction during KO slow-motion (`slow.speed`).
+    pub slow_speed: f32,
+}
+
+impl Default for RoundDef {
+    fn default() -> Self {
+        Self {
+            pos: Vec2::ZERO,
+            start_waittime: 90,
+            round_time: 45,
+            fight_time: 45,
+            ctrl_time: 30,
+            ko_time: 30,
+            dko_time: 30,
+            to_time: 30,
+            win_time: 45,
+            win2_time: 45,
+            dko_showdraw: false,
+            elements: BTreeMap::new(),
+            slow_time: 60,
+            slow_fade_time: 45,
+            slow_speed: 0.25,
+        }
+    }
 }
 
 impl RoundDef {
@@ -1082,6 +1110,9 @@ fn parse_round(map: &HashMap<String, String>) -> RoundDef {
         win2_time: int(map, "win2.time", 45),
         dko_showdraw: flag(map, "dko.showdraw", false),
         elements,
+        slow_time: int(map, "slow.time", 60),
+        slow_fade_time: int(map, "slow.fadetime", 45),
+        slow_speed: num(map, "slow.speed", 0.25).clamp(0.01, 1.0),
     }
 }
 

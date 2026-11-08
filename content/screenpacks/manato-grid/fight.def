@@ -125,6 +125,9 @@ dko.time = 40
 to.time = 40
 win.time = 60
 win2.time = 60
+slow.time = 60
+slow.fadetime = 45
+slow.speed = 0.25
 
 round.default.text = "ROUND %d"
 round.default.font = 0
