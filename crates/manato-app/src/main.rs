@@ -679,11 +679,8 @@ const MENU_ORDER: [&str; 5] = ["arcade", "versus", "training", "options", "quit"
 
 fn fallback_screenpack() -> Screenpack {
     use manato_core::Vec2;
-    use manato_formats::screenpack::{MenuItemDef, TextDef, TitleDef};
+    use manato_formats::screenpack::{MenuItemDef, SelectDef, TextDef, TitleDef};
 
-    let mut pack = Screenpack::default();
-    pack.name = "Built-in".into();
-    pack.localcoord = (320.0, 240.0);
     let labels = [
         ("arcade", "ARCADE"),
         ("versus", "VERSUS"),
@@ -691,31 +688,43 @@ fn fallback_screenpack() -> Screenpack {
         ("options", "OPTIONS"),
         ("quit", "QUIT"),
     ];
-    let mut title = TitleDef::default();
-    title.menu_pos = Vec2::new(160.0, 108.0);
-    title.item_spacing = Vec2::new(0.0, 14.0);
-    title.item_scale = Vec2::new(1.0, 1.0);
-    title.active_scale = Vec2::new(1.0, 1.0);
-    title.item_color = [220, 224, 236, 255];
-    title.active_color = [255, 214, 92, 255];
-    title.items = labels
-        .iter()
-        .map(|(key, label)| MenuItemDef {
-            key: (*key).into(),
-            label: (*label).into(),
-        })
-        .collect();
-    pack.title = title;
-    pack.select.rows = 2;
-    pack.select.columns = 3;
-    pack.select.pos = Vec2::new(24.0, 84.0);
-    pack.select.cell_size = Vec2::new(80.0, 24.0);
-    pack.select.cell_spacing = Vec2::new(8.0, 10.0);
-    let mut name = TextDef::default();
-    name.align = 1;
-    name.offset = Vec2::new(40.0, 8.0);
-    pack.select.cell_name = name;
-    pack
+    let title = TitleDef {
+        menu_pos: Vec2::new(160.0, 108.0),
+        item_spacing: Vec2::new(0.0, 14.0),
+        item_scale: Vec2::new(1.0, 1.0),
+        active_scale: Vec2::new(1.0, 1.0),
+        item_color: [220, 224, 236, 255],
+        active_color: [255, 214, 92, 255],
+        items: labels
+            .iter()
+            .map(|(key, label)| MenuItemDef {
+                key: (*key).into(),
+                label: (*label).into(),
+            })
+            .collect(),
+        ..TitleDef::default()
+    };
+    let name = TextDef {
+        align: 1,
+        offset: Vec2::new(40.0, 8.0),
+        ..TextDef::default()
+    };
+    let select = SelectDef {
+        rows: 2,
+        columns: 3,
+        pos: Vec2::new(24.0, 84.0),
+        cell_size: Vec2::new(80.0, 24.0),
+        cell_spacing: Vec2::new(8.0, 10.0),
+        cell_name: name,
+        ..SelectDef::default()
+    };
+    Screenpack {
+        name: "Built-in".into(),
+        localcoord: (320.0, 240.0),
+        title,
+        select,
+        ..Screenpack::default()
+    }
 }
 
 impl Frontend {
@@ -1885,6 +1894,7 @@ fn player_input(keys: &HashSet<KeyCode>, bindings: &KeyBindings) -> PlayerInput 
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::field_reassign_with_default)]
     use super::*;
 
     #[test]

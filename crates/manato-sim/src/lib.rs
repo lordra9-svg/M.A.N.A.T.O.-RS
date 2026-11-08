@@ -5,6 +5,8 @@
 //! remote input arrives late. Static content (sprites, sounds, parsed scripts)
 //! lives in [`Assets`] behind an `Arc`, so cloning a state is cheap.
 
+#![allow(clippy::too_many_arguments)]
+
 pub mod ai;
 pub mod collision;
 pub mod controller;
@@ -796,9 +798,7 @@ impl SimState {
         collision::resolve(self);
         self.separate_pushboxes();
         self.fighters.retain(|fighter| {
-            fighter.owner.is_none()
-                || (!fighter.helper_destroy
-                    && (fighter.helper_remove_time < 0 || fighter.helper_remove_time > 0))
+            fighter.owner.is_none() || (!fighter.helper_destroy && fighter.helper_remove_time != 0)
         });
         for projectile in &mut self.projectiles {
             projectile.advance();

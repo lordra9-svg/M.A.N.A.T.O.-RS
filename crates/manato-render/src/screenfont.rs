@@ -154,6 +154,6 @@ impl ScreenFont {
 
 /// Looks a font up by index, or returns `None` so callers fall back to the
 /// built-in engine font.
-pub fn font<'a>(banks: &'a BTreeMap<u32, ScreenFont>, index: u32) -> Option<&'a ScreenFont> {
+pub fn font(banks: &BTreeMap<u32, ScreenFont>, index: u32) -> Option<&ScreenFont> {
     banks.get(&index)
 }

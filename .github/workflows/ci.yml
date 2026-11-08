@@ -24,6 +24,9 @@ jobs:
       - name: Formatting
         run: cargo fmt --all -- --check
 
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
       - name: Build and test
         run: cargo test --workspace
 

@@ -375,15 +375,13 @@ impl Screenpack {
 
         let sprites = files
             .get("spr")
-            .map(|value| resolve_asset(&dir, value))
-            .flatten()
+            .and_then(|value| resolve_asset(&dir, value))
             .and_then(|path| SffFile::load(&path).ok())
             .unwrap_or_default();
 
         let fight_path = files
             .get("fight")
-            .map(|value| resolve_asset(&dir, value))
-            .flatten();
+            .and_then(|value| resolve_asset(&dir, value));
         let fight = match &fight_path {
             Some(path) => {
                 collect_fonts_for_path(&mut fonts, path, &dir);
@@ -397,8 +395,7 @@ impl Screenpack {
 
         let select_def_path = files
             .get("select")
-            .map(|value| resolve_asset(&dir, value))
-            .flatten();
+            .and_then(|value| resolve_asset(&dir, value));
 
         // Load every declared font once; failures fall back to the built-in
         // engine font at draw time (`docs/spec/render.md` §3.3).

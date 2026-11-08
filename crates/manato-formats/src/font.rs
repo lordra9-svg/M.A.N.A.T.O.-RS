@@ -105,8 +105,10 @@ impl BitmapFont {
         };
         let ini = TextFile::parse_str(&text);
 
-        let mut font = Self::default();
-        font.size = [8, 8];
+        let mut font = Self {
+            size: [8, 8],
+            ..Self::default()
+        };
         if let Some(def) = ini.find_header("def") {
             read_def(&mut font, def);
         }
@@ -208,8 +210,10 @@ impl BitmapFont {
 
     fn from_v2(data: &[u8], path: &Path) -> anyhow::Result<Self> {
         let ini = TextFile::parse_bytes(data);
-        let mut font = Self::default();
-        font.size = [8, 8];
+        let mut font = Self {
+            size: [8, 8],
+            ..Self::default()
+        };
 
         let Some(def) = ini.find_header("def") else {
             bail!("font {} has no [Def] section", path.display());

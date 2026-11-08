@@ -37,11 +37,12 @@ fn loads_stock_kfm_and_stage() {
     assert_eq!(s.rgba.len(), (s.width * s.height * 4) as usize);
     // Stock KFM's first sprite is fully opaque; transparency is per-pixel via
     // the palette index, not a global "index 0 is transparent" rule.
-    assert!(kfm
-        .sprites
-        .sprites
+    assert!(kfm.sprites.sprites.iter().any(|s| s
+        .rgba
+        .as_chunks::<4>()
+        .0
         .iter()
-        .any(|s| s.rgba.chunks_exact(4).any(|px| px[3] == 0)));
+        .any(|px| px[3] == 0)));
 
     let stage = Stage::load(&root.join("mugen-1.1b1/stages/kfm.def"), &data_dirs)
         .expect("KFM stage should load");
@@ -115,7 +116,7 @@ fn loads_bundled_mit_assets() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let content = root.join("content");
 
-    let fx = EffectsBank::load(&[content.clone()]);
+    let fx = EffectsBank::load(std::slice::from_ref(&content));
     for action in [0, 1, 2, 40] {
         assert!(
             fx.animations.contains_key(&action),
@@ -134,7 +135,7 @@ fn loads_bundled_mit_assets() {
 
     let stage = Stage::load(
         &content.join("stages/training/stage1.def"),
-        &[content.clone()],
+        std::slice::from_ref(&content),
     )
     .expect("training stage");
     assert!(stage.zoffset > 0.0);

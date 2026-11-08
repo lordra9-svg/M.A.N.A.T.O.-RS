@@ -574,6 +574,7 @@ fn projectile_boxes(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::field_reassign_with_default)]
     use super::*;
     use crate::hitdef::HitState;
 

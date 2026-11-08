@@ -352,19 +352,17 @@ pub fn draw_select(
                     painter, deps, name, &text, &map, position, name.align, [1.0; 4],
                 );
             }
-        } else if select.show_empty_boxes {
-            if select.cell_bg.sprite.is_some() {
-                draw_layer(
-                    painter,
-                    deps,
-                    &select.cell_bg,
-                    fight,
-                    &map,
-                    position,
-                    view.frame as i32,
-                    [0.5, 0.5, 0.5, 0.5],
-                );
-            }
+        } else if select.show_empty_boxes && select.cell_bg.sprite.is_some() {
+            draw_layer(
+                painter,
+                deps,
+                &select.cell_bg,
+                fight,
+                &map,
+                position,
+                view.frame as i32,
+                [0.5, 0.5, 0.5, 0.5],
+            );
         }
     }
 

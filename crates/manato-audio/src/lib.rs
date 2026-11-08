@@ -543,7 +543,7 @@ impl AudioEngine {
         }
     }
 
-    fn resolve_bank<'a>(sim: &'a SimState, source: SoundSource) -> Option<&'a SoundBank> {
+    fn resolve_bank(sim: &SimState, source: SoundSource) -> Option<&SoundBank> {
         match source {
             SoundSource::Character(i) => sim.assets.characters.get(i).map(|c| &c.sounds),
             SoundSource::FightFx | SoundSource::Common => Some(&sim.assets.fight_sounds),

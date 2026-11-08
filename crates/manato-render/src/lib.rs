@@ -4,6 +4,8 @@
 //! window with nearest-neighbour scaling, which keeps the original low
 //! resolution pixel look and makes offscreen screenshots trivial.
 
+#![allow(clippy::too_many_arguments)]
+
 pub mod atlas;
 pub mod draw;
 pub mod fightscreen;
@@ -732,7 +734,8 @@ fn create_shadow_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Te
             pixels[i + 3] = (a * 255.0) as u8;
         }
     }
-    let texture = device.create_texture_with_data(
+
+    device.create_texture_with_data(
         queue,
         &wgpu::TextureDescriptor {
             label: Some("manato shadow texture"),
@@ -750,6 +753,5 @@ fn create_shadow_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Te
         },
         wgpu::util::TextureDataOrder::LayerMajor,
         &pixels,
-    );
-    texture
+    )
 }

@@ -404,10 +404,12 @@ fn decode_raw(
     (width, height, rgba)
 }
 
+pub(crate) type DecodedPcx = (u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>);
+
 pub(crate) fn decode_pcx(
     data: &[u8],
     reuse_palette: Option<Option<&[[u8; 4]]>>,
-) -> anyhow::Result<(u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>)> {
+) -> anyhow::Result<DecodedPcx> {
     if data.len() < 128 || data[0] != 0x0A {
         bail!("invalid PCX header");
     }
@@ -529,7 +531,7 @@ fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<(u32, u32, Vec<
         }
         png::ColorType::Rgba => rgba.copy_from_slice(data),
         png::ColorType::Rgb => {
-            for (i, pixel) in data.chunks_exact(3).enumerate() {
+            for (i, pixel) in data.as_chunks::<3>().0.iter().enumerate() {
                 rgba[i * 4..i * 4 + 3].copy_from_slice(pixel);
                 rgba[i * 4 + 3] = 255;
             }
@@ -543,7 +545,7 @@ fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<(u32, u32, Vec<
             }
         }
         png::ColorType::GrayscaleAlpha => {
-            for (i, pixel) in data.chunks_exact(2).enumerate() {
+            for (i, pixel) in data.as_chunks::<2>().0.iter().enumerate() {
                 rgba[i * 4] = pixel[0];
                 rgba[i * 4 + 1] = pixel[0];
                 rgba[i * 4 + 2] = pixel[0];
@@ -837,7 +839,7 @@ mod tests {
         let ldata_offset = sprite_offset + 28;
         let png = {
             let mut raw = vec![0u8; 2 * 2 * 4];
-            for (i, pixel) in raw.chunks_exact_mut(4).enumerate() {
+            for (i, pixel) in raw.as_chunks_mut::<4>().0.iter_mut().enumerate() {
                 pixel.copy_from_slice(&[(i * 40) as u8, 20, 30, 255]);
             }
             let mut encoded = Vec::new();
