@@ -218,6 +218,14 @@ fn bundled_projectile_hits() {
         sim.fighters[1].life < sim.fighters[1].life_max,
         "projectile did not hit the opponent"
     );
+    assert!(
+        sim.fighters[0].proj_contact_time >= 0,
+        "projectile contact timer should start at the hit tick"
+    );
+    assert!(
+        sim.fighters[0].proj_hit_time >= 0 || sim.fighters[0].proj_guarded_time >= 0,
+        "projectile hit/guard timer should be set"
+    );
 }
 
 #[test]
@@ -1270,4 +1278,20 @@ fn edge_triggers_track_camera_and_facing() {
     sim.fighters[0].facing = -1;
     assert_eq!(manato_sim::trigger::num(&sim, 0, "BackEdge"), 160.0);
     assert_eq!(manato_sim::trigger::num(&sim, 0, "FrontEdge"), -160.0);
+}
+
+#[test]
+fn projectile_timers_and_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].proj_contact_time = 0;
+    sim.fighters[0].proj_hit_time = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjContactTime"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHitTime"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuardedTime"), -1);
+    assert!(manato_sim::trigger::int(&sim, 0, "ProjHit") != 0);
+    sim.fighters[0].proj_guarded_time = 3;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuardedTime"), 3);
 }

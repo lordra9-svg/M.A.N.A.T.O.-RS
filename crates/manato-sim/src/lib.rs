@@ -739,6 +739,17 @@ impl SimState {
     /// Advances the match by exactly one 60 Hz tick.
     pub fn tick(&mut self, inputs: [PlayerInput; 2]) {
         self.frame = self.frame.wrapping_add(1);
+        for fighter in &mut self.fighters {
+            for timer in [
+                &mut fighter.proj_contact_time,
+                &mut fighter.proj_hit_time,
+                &mut fighter.proj_guarded_time,
+            ] {
+                if *timer >= 0 {
+                    *timer = timer.saturating_add(1);
+                }
+            }
+        }
         // Control is locked during the round intro and KO slowdown, as in
         // M.U.G.E.N. This also keeps the CPU from attacking before "Fight!".
         let inputs = if matches!(self.round.phase, RoundPhase::Intro | RoundPhase::Ko) {
@@ -1492,6 +1503,9 @@ impl SimState {
             fighter.target = None;
             fighter.received_hits = 0;
             fighter.received_damage = 0;
+            fighter.proj_contact_time = -1;
+            fighter.proj_hit_time = -1;
+            fighter.proj_guarded_time = -1;
             fighter.state_changed = false;
             fighter.enter_state(0, char, false);
             fighter.ctrl = true;
@@ -1967,6 +1981,9 @@ impl SimState {
             h.write_bool(f.hit.guarding);
             h.write_i32(f.received_hits);
             h.write_i32(f.received_damage);
+            h.write_i32(f.proj_contact_time);
+            h.write_i32(f.proj_hit_time);
+            h.write_i32(f.proj_guarded_time);
             for &v in &f.vars {
                 h.write_i32(v);
             }

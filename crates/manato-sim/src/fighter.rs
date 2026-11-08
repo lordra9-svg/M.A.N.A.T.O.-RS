@@ -212,6 +212,12 @@ pub struct Fighter {
     pub helper_destroy: bool,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
+    /// Ticks since the last projectile contact (`-1` = never).
+    pub proj_contact_time: i32,
+    /// Ticks since the last projectile hit (`-1` = never).
+    pub proj_hit_time: i32,
+    /// Ticks since the last guarded projectile hit (`-1` = never).
+    pub proj_guarded_time: i32,
     /// Hits taken while in the current hitstun (`combo` tracking).
     pub received_hits: i32,
     /// Damage taken while in the current hitstun.
@@ -300,6 +306,9 @@ impl Fighter {
             helper_destroy: false,
             target: None,
             pal_remap: None,
+            proj_contact_time: -1,
+            proj_hit_time: -1,
+            proj_guarded_time: -1,
             received_hits: 0,
             received_damage: 0,
             state_changed: false,

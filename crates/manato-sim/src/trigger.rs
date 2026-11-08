@@ -458,8 +458,13 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 right
             })
         }
-        "projcontact" | "projhit" | "projguarded" | "projmiss" | "projcontacttime"
-        | "projhittime" | "projguardedtime" | "projmissetime" => Value::Int(0),
+        "projcontacttime" => Value::Int(sim.fighters[who].proj_contact_time),
+        "projhittime" => Value::Int(sim.fighters[who].proj_hit_time),
+        "projguardedtime" => Value::Int(sim.fighters[who].proj_guarded_time),
+        "projcontact" => Value::Bool(sim.fighters[who].proj_contact_time >= 0),
+        "projhit" => Value::Bool(sim.fighters[who].proj_hit_time >= 0),
+        "projguarded" => Value::Bool(sim.fighters[who].proj_guarded_time >= 0),
+        "projmiss" | "projmissetime" => Value::Int(0),
         "numtarget" => Value::Int(sim.fighters[who].target.is_some() as i32),
         "random" => {
             let x = sim
@@ -662,6 +667,14 @@ fn is_trigger_name(name: &str) -> bool {
             | "numpartner"
             | "numproj"
             | "numprojid"
+            | "projcontact"
+            | "projcontacttime"
+            | "projguarded"
+            | "projguardedtime"
+            | "projhit"
+            | "projhittime"
+            | "projmiss"
+            | "projmissetime"
             | "numtarget"
             | "p2anim"
             | "p2bodydist"
@@ -716,6 +729,13 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
             let right = sim.camera.x + GAME_WIDTH * 0.5;
             Value::Float(if f.facing < 0 { left } else { right })
         }
+        "projcontacttime" => Value::Int(f.proj_contact_time),
+        "projhittime" => Value::Int(f.proj_hit_time),
+        "projguardedtime" => Value::Int(f.proj_guarded_time),
+        "projcontact" => Value::Bool(f.proj_contact_time >= 0),
+        "projhit" => Value::Bool(f.proj_hit_time >= 0),
+        "projguarded" => Value::Bool(f.proj_guarded_time >= 0),
+        "projmiss" | "projmissetime" => Value::Int(0),
         "time" | "statetime" => Value::Int(f.state_time),
         "stateno" => Value::Int(f.state_no),
         "prevstateno" => Value::Int(f.prev_state_no),

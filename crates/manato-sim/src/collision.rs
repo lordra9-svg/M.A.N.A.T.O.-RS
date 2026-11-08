@@ -531,6 +531,12 @@ pub fn resolve_projectiles(sim: &mut SimState) {
 
         let guarding = can_guard(sim, owner, defender, &hitdef);
         apply_hit_at(sim, owner, defender, &hitdef, guarding, pos, facing, false);
+        sim.fighters[owner].proj_contact_time = 0;
+        if guarding {
+            sim.fighters[owner].proj_guarded_time = 0;
+        } else {
+            sim.fighters[owner].proj_hit_time = 0;
+        }
         sim.projectiles[i].hits -= 1;
     }
 }
