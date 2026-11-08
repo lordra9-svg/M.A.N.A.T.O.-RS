@@ -18,6 +18,9 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: System dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
       - name: Formatting
         run: cargo fmt --all -- --check
 

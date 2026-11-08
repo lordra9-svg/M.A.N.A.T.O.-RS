@@ -129,7 +129,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | I-01 | Keyboard input | Required | Required | Verified | Window run |
-| I-02 | Gamepad input | Required | Required | Missing | TBD |
+| I-02 | Gamepad input | Required | Required | Partial | gilrs backend, d-pad/stick/buttons mapped; hardware matrix pending |
 | I-03 | Remapping | Required | Required | Missing | TBD |
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |

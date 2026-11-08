@@ -26,6 +26,7 @@ symphonia = { version = "0.5", features = ["mp3", "ogg", "vorbis", "wav"] }
 ggrs = "0.13"
 wgpu = "25"
 winit = "0.30"
+gilrs = "0.11"
 pollster = "0.4"
 libloading = "0.8"
 bytemuck = { version = "1", features = ["derive"] }

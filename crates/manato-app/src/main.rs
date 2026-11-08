@@ -247,6 +247,7 @@ Modes:
 Controls (window mode):
   P1: WASD move, J/K/L = X/Y/Z, U/I/O = A/B/C
   P2: arrows move, numpad 1/2/3 = X/Y/Z, 4/5/6 = A/B/C
+  Pads: d-pad/left stick, South/X/Y/Z = X/Y/Z, West/A/B/C = A/B/C, Start
   F12 screenshot, Esc quit
 "#
     );
@@ -760,6 +761,7 @@ struct App {
     surface: Option<wgpu::Surface<'static>>,
     surface_config: Option<wgpu::SurfaceConfiguration>,
     keys: HashSet<KeyCode>,
+    gamepads: Option<gilrs::Gilrs>,
     last_tick: Instant,
     accumulator: Duration,
 }
@@ -787,6 +789,19 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         audio.backend_name(),
         audio.sample_rate()
     );
+    let gamepads = match gilrs::Gilrs::new() {
+        Ok(gilrs) => {
+            let count = gilrs.gamepads().count();
+            if count > 0 {
+                log::info!("gamepad support: {count} controller(s)");
+            }
+            Some(gilrs)
+        }
+        Err(error) => {
+            log::warn!("gamepad support unavailable: {error}");
+            None
+        }
+    };
     let mut app = App {
         opts,
         sim,
@@ -798,6 +813,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         surface: None,
         surface_config: None,
         keys: HashSet::new(),
+        gamepads,
         last_tick: Instant::now(),
         accumulator: Duration::ZERO,
     };
@@ -1172,6 +1188,17 @@ impl App {
         Ok(())
     }
 
+    fn gamepad_inputs(&self) -> [PlayerInput; 2] {
+        let mut pads = [PlayerInput::default(); 2];
+        let Some(gilrs) = &self.gamepads else {
+            return pads;
+        };
+        for (index, (_, pad)) in gilrs.gamepads().enumerate().take(2) {
+            pads[index] = pad_input(&pad);
+        }
+        pads
+    }
+
     fn step(&mut self) {
         if let Some(frontend) = self.frontend.as_mut() {
             if frontend.screen != FrontendScreen::Fight {
@@ -1213,20 +1240,21 @@ impl App {
                 return;
             }
         }
-        let Some(sim) = self.sim.as_mut() else {
-            return;
-        };
         let versus = self
             .frontend
             .as_ref()
             .is_some_and(|f| f.mode == Mode::Versus);
-        let p1 = p1_input(&self.keys);
+        let pads = self.gamepad_inputs();
+        let p1 = merge_input(p1_input(&self.keys), pads[0]);
+        let Some(sim) = self.sim.as_mut() else {
+            return;
+        };
         let p2 = if self.frontend.is_some() && !versus {
             ai::input_for(sim, 1, self.opts.ai_level.max(1))
         } else if self.opts.ai_level > 0 && self.frontend.is_none() {
             ai::input_for(sim, 1, self.opts.ai_level)
         } else {
-            p2_input(&self.keys)
+            merge_input(p2_input(&self.keys), pads[1])
         };
         sim.tick([p1, p2]);
         self.audio.play_events(sim);
@@ -1446,6 +1474,79 @@ fn button_bits(keys: &HashSet<KeyCode>, b: [KeyCode; 6], start: KeyCode) -> u8 {
     buttons
 }
 
+fn merge_input(a: PlayerInput, b: PlayerInput) -> PlayerInput {
+    PlayerInput::new(a.dir | b.dir, a.buttons | b.buttons)
+}
+
+/// Converts a gamepad's per-frame state into engine input.
+///
+/// Mapping: South/East/North -> X/Y/Z, West/LeftTrigger/RightTrigger -> A/B/C,
+/// Start -> START. D-pad and left stick both move, with a 0.5 dead zone.
+fn pad_input_from(dpad: [bool; 4], stick: (f32, f32), buttons: [bool; 7]) -> PlayerInput {
+    let [up, down, left, right] = dpad;
+    let (x, y) = stick;
+    let mut dir = 0;
+    if up || y > 0.5 {
+        dir |= DIR_UP;
+    }
+    if down || y < -0.5 {
+        dir |= DIR_DOWN;
+    }
+    if left || x < -0.5 {
+        dir |= DIR_LEFT;
+    }
+    if right || x > 0.5 {
+        dir |= DIR_RIGHT;
+    }
+    let [south, east, north, west, l1, r1, start] = buttons;
+    let mut bits = 0;
+    if south {
+        bits |= Buttons::X;
+    }
+    if east {
+        bits |= Buttons::Y;
+    }
+    if north {
+        bits |= Buttons::Z;
+    }
+    if west {
+        bits |= Buttons::A;
+    }
+    if l1 {
+        bits |= Buttons::B;
+    }
+    if r1 {
+        bits |= Buttons::C;
+    }
+    if start {
+        bits |= Buttons::START;
+    }
+    PlayerInput::new(dir, bits)
+}
+
+fn pad_input(pad: &gilrs::Gamepad<'_>) -> PlayerInput {
+    let dpad = [
+        pad.is_pressed(gilrs::Button::DPadUp),
+        pad.is_pressed(gilrs::Button::DPadDown),
+        pad.is_pressed(gilrs::Button::DPadLeft),
+        pad.is_pressed(gilrs::Button::DPadRight),
+    ];
+    let stick = (
+        pad.value(gilrs::Axis::LeftStickX),
+        pad.value(gilrs::Axis::LeftStickY),
+    );
+    let buttons = [
+        pad.is_pressed(gilrs::Button::South),
+        pad.is_pressed(gilrs::Button::East),
+        pad.is_pressed(gilrs::Button::North),
+        pad.is_pressed(gilrs::Button::West),
+        pad.is_pressed(gilrs::Button::LeftTrigger),
+        pad.is_pressed(gilrs::Button::RightTrigger),
+        pad.is_pressed(gilrs::Button::Start),
+    ];
+    pad_input_from(dpad, stick, buttons)
+}
+
 fn p1_input(keys: &HashSet<KeyCode>) -> PlayerInput {
     PlayerInput::new(
         dir_bits(
@@ -1492,4 +1593,44 @@ fn p2_input(keys: &HashSet<KeyCode>) -> PlayerInput {
             KeyCode::Numpad0,
         ),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gamepad_maps_buttons_and_dpad() {
+        let input = pad_input_from(
+            [true, false, false, true],
+            (0.0, 0.0),
+            [true, false, true, false, false, false, true],
+        );
+        assert_eq!(input.dir, DIR_UP | DIR_RIGHT);
+        assert_eq!(input.buttons, Buttons::X | Buttons::Z | Buttons::START);
+
+        let kicks = pad_input_from(
+            [false; 4],
+            (0.0, 0.0),
+            [false, false, false, true, true, true, false],
+        );
+        assert_eq!(kicks.buttons, Buttons::A | Buttons::B | Buttons::C);
+    }
+
+    #[test]
+    fn gamepad_stick_uses_dead_zone() {
+        let neutral = pad_input_from([false; 4], (0.4, -0.3), [false; 7]);
+        assert_eq!(neutral.dir, 0);
+        let diagonal = pad_input_from([false; 4], (0.9, -0.9), [false; 7]);
+        assert_eq!(diagonal.dir, DIR_RIGHT | DIR_DOWN);
+    }
+
+    #[test]
+    fn keyboard_and_gamepad_merge() {
+        let keyboard = PlayerInput::new(DIR_LEFT, Buttons::X);
+        let pad = PlayerInput::new(DIR_RIGHT, Buttons::Y);
+        let merged = merge_input(keyboard, pad);
+        assert_eq!(merged.dir, DIR_LEFT | DIR_RIGHT);
+        assert_eq!(merged.buttons, Buttons::X | Buttons::Y);
+    }
 }

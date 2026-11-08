@@ -29,6 +29,8 @@ Requirements:
   against)
 - PulseAudio or PipeWire's Pulse server for audio output; the engine falls back
   to silence when neither is available
+- `libudev` development headers on Linux for gamepad support
+  (`systemd-devel` on Fedora, `libudev-dev` on Debian/Ubuntu)
 - Optional: ALSA development headers only if you enable the `cpal` backend
 
 The repository bundles three original characters (Kaen, Nival, and Ordan) and
