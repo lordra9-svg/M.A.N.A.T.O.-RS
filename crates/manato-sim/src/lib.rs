@@ -181,6 +181,8 @@ pub struct RoundState {
     pub phase_timer: i32,
     pub wins: [u32; 2],
     pub winner: Option<usize>,
+    /// True when the round ended on the timer rather than a KO.
+    pub time_over: bool,
     pub display: String,
     pub rounds_to_win: u32,
 }
@@ -195,6 +197,7 @@ impl RoundState {
             phase_timer: 40,
             wins: [0, 0],
             winner: None,
+            time_over: false,
             display: "Round 1".into(),
             rounds_to_win,
         }
@@ -207,9 +210,9 @@ impl RoundState {
     pub fn roundstate_code(&self) -> i32 {
         match self.phase {
             RoundPhase::Intro => 0,
-            RoundPhase::Fight => 1,
-            RoundPhase::Ko => 2,
-            RoundPhase::Over => 3,
+            RoundPhase::Fight => 2,
+            RoundPhase::Ko => 3,
+            RoundPhase::Over => 4,
         }
     }
 }
@@ -499,6 +502,7 @@ impl SimState {
             if self.super_pause_move_time > 0 {
                 self.super_pause_move_time -= 1;
             }
+            self.update_round();
             self.update_effects();
             return;
         }
@@ -930,6 +934,7 @@ impl SimState {
                         None
                     };
                     self.round.winner = winner;
+                    self.round.time_over = false;
                     self.round.phase = RoundPhase::Ko;
                     self.round.phase_timer = 120;
                     self.round.display = match winner {
@@ -939,6 +944,7 @@ impl SimState {
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
                         self.fighters[w].power = (self.fighters[w].power + 200.0).min(MAX_POWER);
+                        self.enter_win_pose(w);
                     }
                 } else if self.round.timer <= 0 {
                     self.round.timer = 0;
@@ -952,6 +958,7 @@ impl SimState {
                         Some(1)
                     };
                     self.round.winner = winner;
+                    self.round.time_over = true;
                     self.round.phase = RoundPhase::Ko;
                     self.round.phase_timer = 120;
                     self.round.display = match winner {
@@ -967,6 +974,9 @@ impl SimState {
                 }
             }
             RoundPhase::Ko => {
+                if self.round_not_over() {
+                    return;
+                }
                 self.round.phase_timer -= 1;
                 if self.round.phase_timer <= 0 {
                     if self.round.wins[0] >= self.round.rounds_to_win
@@ -997,6 +1007,19 @@ impl SimState {
                 }
             }
             RoundPhase::Over => {}
+        }
+    }
+
+    fn round_not_over(&self) -> bool {
+        self.fighters
+            .iter()
+            .any(|fighter| fighter.assert_flags & fighter::ASSERT_ROUNDNOTOVER != 0)
+    }
+
+    fn enter_win_pose(&mut self, winner: usize) {
+        let char = &self.assets.characters[self.fighters[winner].char_id];
+        if char.state(180).is_some() {
+            self.fighters[winner].enter_state(180, char, false);
         }
     }
 
@@ -1059,6 +1082,7 @@ impl SimState {
         self.round.phase_timer = 40;
         self.round.timer = self.round.round_time * 60;
         self.round.winner = None;
+        self.round.time_over = false;
         self.round.display = format!("Round {}", self.round.number);
         self.effects.clear();
         self.projectiles.clear();

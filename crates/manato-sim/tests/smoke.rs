@@ -584,3 +584,162 @@ fn guard_damage_uses_guard_damage() {
     assert!(sim.fighters[1].hit.guarding);
     assert_eq!(sim.fighters[1].state_no, 150);
 }
+
+fn fight_phase() -> Option<SimState> {
+    let mut sim = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    )?;
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    Some(sim)
+}
+
+#[test]
+fn ko_awards_round_and_enters_ko_phase() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+    assert_eq!(sim.round.wins[0], 1);
+    assert_eq!(sim.round.roundstate_code(), 3);
+    assert!(!sim.round.time_over);
+}
+
+#[test]
+fn time_over_uses_remaining_life() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.timer = 1;
+    sim.fighters[0].life = 900;
+    sim.fighters[1].life = 700;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+    assert!(sim.round.time_over);
+}
+
+#[test]
+fn double_ko_is_a_draw() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = 0;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, None);
+    assert_eq!(sim.round.wins, [0, 0]);
+}
+
+#[test]
+fn next_round_resets_life_and_keeps_wins() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
+    assert_eq!(sim.round.wins[0], 1);
+    assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
+    assert_eq!(sim.fighters.len(), 2, "helpers must be removed");
+}
+
+#[test]
+fn match_over_after_final_round() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 1;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert!(sim.finished);
+    assert_eq!(sim.round.roundstate_code(), 4);
+    assert_eq!(sim.round.winner, Some(0));
+}
+
+#[test]
+fn round_not_over_delays_the_next_phase() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // AssertSpecial is per-tick, so install it in state 0 to re-assert.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[0].states.get_mut(&0).expect("statedef 0");
+        state.controllers.push(manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![
+                ("type".into(), "AssertSpecial".into()),
+                ("roundnotover".into(), "1".into()),
+            ],
+            line: 0,
+        });
+    }
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..200 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[0].states.get_mut(&0).expect("statedef 0");
+        state.controllers.retain(|c| c.kind != "assertspecial");
+    }
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_ne!(sim.round.phase, manato_sim::RoundPhase::Ko);
+}
+
+#[test]
+fn round_triggers_report_phase_and_time() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(sim.round.roundstate_code(), 2);
+    assert_eq!(sim.round.seconds(), 99);
+    let expr = manato_sim::expr::Expr::Ident("roundtime".into());
+    assert_eq!(
+        manato_sim::trigger::eval(&sim, 0, &expr).as_i32(),
+        99,
+        "RoundTime trigger should report remaining seconds"
+    );
+}
+
+#[test]
+fn winner_enters_win_pose_when_present() {
+    let Some(mut sim) = load(
+        "mugen-1.1b1/chars/kfm/kfm.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.winner, Some(0));
+    assert_eq!(
+        sim.fighters[0].state_no, 180,
+        "winner should enter state 180"
+    );
+}

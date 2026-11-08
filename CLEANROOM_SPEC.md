@@ -85,6 +85,7 @@ The limitation is recorded explicitly rather than hidden.
 | `manato-sim` state machine/triggers | CNS/CMD parser rewritten; helpers/binds/redirects added | RemapPal and oracle verification pending |
 | `manato-sim` collision/HitDef | Rewritten from `docs/spec/combat.md` | Oracle verification pending |
 | `manato-sim` projectiles | Implemented from MIT reference notes | Keep after spec review |
+| `manato-sim` rounds/game flow | Rewritten from `docs/spec/rounds.md` | Oracle verification pending |
 | `manato-sim` AI | Original Rust | Keep |
 | `manato-render` | Original Rust/wgpu | Keep |
 | `manato-audio` | Original Rust | Keep |

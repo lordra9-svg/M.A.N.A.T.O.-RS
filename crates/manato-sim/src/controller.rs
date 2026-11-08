@@ -792,6 +792,7 @@ fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
             "nomusic" => crate::fighter::ASSERT_NOMUSIC,
             "globalnoshadow" => crate::fighter::ASSERT_GLOBALNOSHADOW,
             "nobardisplay" => crate::fighter::ASSERT_NOBARDISPLAY,
+            "roundnotover" => crate::fighter::ASSERT_ROUNDNOTOVER,
             _ => 0,
         };
         if flag != 0 {

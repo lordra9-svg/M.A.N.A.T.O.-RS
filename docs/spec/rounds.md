@@ -1,6 +1,6 @@
 # Rounds and game-flow specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/system.go`, `src/char.go`), public M.U.G.E.N documentation, and
 observed content.
 
@@ -119,8 +119,8 @@ Round/match triggers must reflect this state:
 | `MatchOver` | Match is decided |
 | `RoundTime` | Remaining round seconds |
 | `Time` | Ticks since the current state was entered |
-| `Winner` | Winning player index or -1 |
-| `Loser` | Losing player index or -1 |
+| `Winner` | 1 if this player won the round |
+| `Loser` | 1 if this player lost the round |
 | `TeamSide` | 1 for left, 2 for right |
 | `DrawGame` | The current round is a draw |
 | `Lose` | This player lost the round |

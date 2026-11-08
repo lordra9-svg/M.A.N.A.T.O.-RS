@@ -93,12 +93,12 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Smoke tests |
-| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Smoke tests |
-| R-03 | Win poses/quotes | Required | Required | Missing | TBD |
+| R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Rounds spec + phase tests; oracle pending |
+| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | KO/time-over/draw/best-of-N tests |
+| R-03 | Win poses/quotes | Required | Required | Partial | State 180 win pose; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
 | R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |
-| R-06 | Match restart/round time controllers | Required | Ikemen | Missing | TBD |
+| R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime trigger + RoundNotOver |
 
 ## 7. Rendering
 

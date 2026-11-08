@@ -625,6 +625,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "roundno"
             | "roundsexisted"
             | "roundstate"
+            | "roundtime"
             | "screenpos"
             | "screenvel"
             | "stateno"
@@ -685,6 +686,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "roundno" => Value::Int(sim.round.number as i32),
         "roundsexisted" => Value::Int(sim.round.number.saturating_sub(1) as i32),
         "roundstate" => Value::Int(sim.round.roundstate_code()),
+        "roundtime" => Value::Int(sim.round.seconds()),
         "teamside" => Value::Int(f.side as i32 + 1),
         "playerid" => Value::Int(who as i32),
         "numenemy" => Value::Int(1),
@@ -713,11 +715,23 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "matchno" => Value::Int(1),
         "roundswon" => Value::Int(sim.round.wins[who] as i32),
         "lose" => Value::Bool(sim.round.winner == Some(other)),
-        "loseko" => {
-            Value::Bool(sim.round.winner == Some(other) && sim.round.phase == crate::RoundPhase::Ko)
-        }
-        "losetime" => Value::Bool(sim.round.timer <= 0 && sim.round.winner == Some(other)),
-        "drawgame" => Value::Bool(sim.round.winner.is_none()),
+        "loseko" => Value::Bool(
+            sim.round.winner == Some(other)
+                && sim.round.phase == crate::RoundPhase::Ko
+                && !sim.round.time_over,
+        ),
+        "losetime" => Value::Bool(
+            sim.round.winner == Some(other)
+                && sim.round.phase != crate::RoundPhase::Fight
+                && sim.round.time_over,
+        ),
+        "drawgame" => Value::Bool(
+            sim.round.winner.is_none()
+                && matches!(
+                    sim.round.phase,
+                    crate::RoundPhase::Ko | crate::RoundPhase::Over
+                ),
+        ),
         "teammode" => Value::Int(1),
         "ishometeam" => Value::Int(1),
         "parentexist" => Value::Int((sim.parent_of(who) != who) as i32),
