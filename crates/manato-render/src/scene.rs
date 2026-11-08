@@ -299,6 +299,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             continue;
         };
         let pose = Pose::from_frame(frame);
+        let zoom = sim.camera.scale;
         draw_sprite(
             painter,
             atlas,
@@ -307,7 +308,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             sim.screen_pos(projectile.pos),
             pose.offset,
             projectile.facing,
-            pose.scale,
+            Vec2::new(pose.scale.x * zoom, pose.scale.y * zoom),
             pose.flip_h,
             pose.flip_v,
             pose.blend,
@@ -353,7 +354,10 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             anchor,
             pose.offset,
             fighter.facing,
-            Vec2::new(base_scale.x * pose.scale.x, base_scale.y * pose.scale.y),
+            Vec2::new(
+                base_scale.x * pose.scale.x * sim.camera.scale,
+                base_scale.y * pose.scale.y * sim.camera.scale,
+            ),
             pose.flip_h,
             !pose.flip_v,
             pose.blend,
@@ -382,8 +386,8 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
         let shadow = &sim.assets.stage.shadow;
         let base_alpha = (shadow.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.6;
         let alpha = (base_alpha - height / 400.0).clamp(0.05, base_alpha.max(0.05));
-        let w = (fighter.width_back + fighter.width_front) * 1.35;
-        let h = 7.0;
+        let w = (fighter.width_back + fighter.width_front) * 1.35 * sim.camera.scale;
+        let h = 7.0 * sim.camera.scale;
         painter.quad(
             TexRef::Shadow,
             Blend::Normal,
@@ -424,37 +428,12 @@ fn draw_sprite(
     let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
         return;
     };
-    let w = sprite.width as f32 * scale.x;
-    let h = sprite.height as f32 * scale.y;
-    let axis_x = sprite.axis_x as f32 * scale.x;
-    let axis_y = sprite.axis_y as f32 * scale.y;
-    let offset_x = offset.x * scale.x;
-    let offset_y = offset.y * scale.y;
-    // AIR H/V flags mirror around the sprite axis and already negate the
-    // stored offset. Facing mirrors the whole character around the anchor.
-    let local_left = if flip_h {
-        offset_x - (w - axis_x)
-    } else {
-        offset_x - axis_x
-    };
-    let local_top = if flip_v {
-        offset_y - (h - axis_y)
-    } else {
-        offset_y - axis_y
-    };
-    let facing_flip = facing < 0;
-    let x0 = if facing_flip {
-        anchor.x - local_left - w
-    } else {
-        anchor.x + local_left
-    };
-    let y0 = anchor.y + local_top;
-    let flipped = facing_flip ^ flip_h;
+    let (dest, flipped) = sprite_dest(anchor, offset, sprite, facing, scale, flip_h, flip_v);
     draw_atlas_quad(
         painter,
         atlas_sprite.page,
         atlas_sprite.uv,
-        [x0, y0, x0 + w, y0 + h],
+        dest,
         flipped,
         flip_v,
         blend,
@@ -539,7 +518,11 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         character.constants.get_or("size.yscale", 1.0),
     );
     let pose = Pose::from_frame(frame);
-    let scale = Vec2::new(base_scale.x * pose.scale.x, base_scale.y * pose.scale.y);
+    let zoom = sim.camera.scale;
+    let scale = Vec2::new(
+        base_scale.x * pose.scale.x * zoom,
+        base_scale.y * pose.scale.y * zoom,
+    );
 
     for ghost in &fighter.after_images {
         let Some(anim) = character.animation(ghost.anim_no) else {
@@ -564,8 +547,8 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
             ghost_pose.offset,
             ghost.facing,
             Vec2::new(
-                base_scale.x * ghost_pose.scale.x,
-                base_scale.y * ghost_pose.scale.y,
+                base_scale.x * ghost_pose.scale.x * zoom,
+                base_scale.y * ghost_pose.scale.y * zoom,
             ),
             ghost_pose.flip_h,
             ghost_pose.flip_v,
@@ -625,7 +608,27 @@ fn effect_sprite<'a>(
     }
 }
 
+/// Returns the screen-space clip rect declared by `window`, if any.
+fn effect_scissor(effect: &Effect) -> Option<[u32; 4]> {
+    let [x1, y1, x2, y2] = effect.window?;
+    if x2 <= x1 || y2 <= y1 {
+        return None;
+    }
+    Some([
+        x1.max(0.0) as u32,
+        y1.max(0.0) as u32,
+        (x2 - x1).max(0.0) as u32,
+        (y2 - y1).max(0.0) as u32,
+    ])
+}
+
 fn draw_effect(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effect: &Effect) {
+    painter.set_scissor(effect_scissor(effect));
+    draw_effect_body(painter, atlas, sim, effect);
+    painter.set_scissor(None);
+}
+
+fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effect: &Effect) {
     let Some((anim, bank)) = effect_animation(sim, effect) else {
         return;
     };
@@ -638,28 +641,209 @@ fn draw_effect(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effec
     let Some(sprite) = effect_sprite(sim, effect, frame.group, frame.index) else {
         return;
     };
-    let anchor = sim.screen_pos(effect.pos);
+    let anchor = if effect.screen_space {
+        effect.pos
+    } else {
+        sim.screen_pos(effect.pos)
+    };
     let blend = match effect.blend {
         EffectBlend::Normal => Blend::Normal,
         EffectBlend::Add => Blend::Add,
         EffectBlend::Sub => Blend::Sub,
     };
     let pose = Pose::from_frame(frame);
-    draw_sprite(
-        painter,
-        atlas,
-        bank,
-        sprite,
-        anchor,
-        Vec2::new(frame.offset.x, frame.offset.y),
-        effect.facing,
-        Vec2::new(effect.scale.x * pose.scale.x, effect.scale.y * pose.scale.y),
-        frame.flip_h ^ effect.flip_h,
-        frame.flip_v ^ effect.flip_v,
-        blend,
-        [1.0, 1.0, 1.0, (effect.alpha * pose.alpha).clamp(0.0, 1.0)],
-        pose.angle,
+    let zoom = if effect.screen_space {
+        1.0
+    } else {
+        sim.camera.scale
+    };
+    let scale = Vec2::new(
+        effect.scale.x * pose.scale.x * zoom,
+        effect.scale.y * pose.scale.y * zoom,
     );
+    let offset = Vec2::new(frame.offset.x, frame.offset.y);
+    let flip_h = frame.flip_h ^ effect.flip_h;
+    let flip_v = frame.flip_v ^ effect.flip_v;
+    let color = [1.0, 1.0, 1.0, (effect.alpha * pose.alpha).clamp(0.0, 1.0)];
+    let angle = pose.angle + effect.angle;
+
+    if effect.shadow && !effect.screen_space {
+        draw_effect_shadow(painter, sim, effect, sprite, scale);
+    }
+
+    let rotated = effect.x_angle != 0.0 || effect.y_angle != 0.0 || effect.x_shear != 0.0;
+    if !rotated && effect.projection == manato_sim::ProjectionMode::Orthographic {
+        draw_sprite(
+            painter,
+            atlas,
+            bank,
+            sprite,
+            anchor,
+            offset,
+            effect.facing,
+            scale,
+            flip_h,
+            flip_v,
+            blend,
+            color,
+            angle,
+        );
+        return;
+    }
+
+    let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
+        return;
+    };
+    let (dest, flipped) = sprite_dest(anchor, offset, sprite, effect.facing, scale, flip_h, flip_v);
+    let localcoord_h = sim.assets.stage.localcoord.1.max(1.0);
+    let focal = effect.focal_length * (GAME_HEIGHT / localcoord_h);
+    let corners = project_quad(
+        dest,
+        angle,
+        effect.x_angle,
+        effect.y_angle,
+        effect.x_shear,
+        effect.projection,
+        focal,
+        Vec2::new(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.5),
+    );
+    painter.quad_corners(
+        TexRef::Atlas(atlas_sprite.page),
+        blend,
+        corners,
+        atlas_sprite.uv,
+        flipped,
+        flip_v,
+        color,
+    );
+}
+
+/// Ground shadow cast by an explod (`shadow = 1`). Matches the fighter shadow
+/// treatment: an ellipse at the stage floor, faded by height.
+fn draw_effect_shadow(
+    painter: &mut Painter,
+    sim: &SimState,
+    effect: &Effect,
+    sprite: &Sprite,
+    scale: Vec2,
+) {
+    let shadow = &sim.assets.stage.shadow;
+    if shadow.intensity <= 0 {
+        return;
+    }
+    let ground = sim.screen_pos(Vec2::new(effect.pos.x, 0.0));
+    let height = (-effect.pos.y).max(0.0);
+    let base_alpha = (shadow.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.5;
+    let alpha = (base_alpha - height / 400.0).clamp(0.04, base_alpha.max(0.05));
+    let w = sprite.width as f32 * scale.x.abs() * 0.8;
+    let h = 7.0 * sim.camera.scale * effect.scale.y.abs().max(0.05);
+    painter.quad(
+        TexRef::Shadow,
+        Blend::Normal,
+        [
+            ground.x - w * 0.5,
+            ground.y - h * 0.5,
+            ground.x + w * 0.5,
+            ground.y + h * 0.5,
+        ],
+        [0.0, 0.0, 1.0, 1.0],
+        false,
+        false,
+        [
+            shadow.color[0] as f32 / 255.0,
+            shadow.color[1] as f32 / 255.0,
+            shadow.color[2] as f32 / 255.0,
+            alpha,
+        ],
+    );
+}
+
+/// Computes the quad destination and horizontal-flip flag for a sprite.
+#[allow(clippy::too_many_arguments)]
+fn sprite_dest(
+    anchor: Vec2,
+    offset: Vec2,
+    sprite: &Sprite,
+    facing: i32,
+    scale: Vec2,
+    flip_h: bool,
+    flip_v: bool,
+) -> ([f32; 4], bool) {
+    let w = sprite.width as f32 * scale.x;
+    let h = sprite.height as f32 * scale.y;
+    let axis_x = sprite.axis_x as f32 * scale.x;
+    let axis_y = sprite.axis_y as f32 * scale.y;
+    let offset_x = offset.x * scale.x;
+    let offset_y = offset.y * scale.y;
+    let local_left = if flip_h {
+        offset_x - (w - axis_x)
+    } else {
+        offset_x - axis_x
+    };
+    let local_top = if flip_v {
+        offset_y - (h - axis_y)
+    } else {
+        offset_y - axis_y
+    };
+    let facing_flip = facing < 0;
+    let x0 = if facing_flip {
+        anchor.x - local_left - w
+    } else {
+        anchor.x + local_left
+    };
+    let y0 = anchor.y + local_top;
+    ([x0, y0, x0 + w, y0 + h], facing_flip ^ flip_h)
+}
+
+/// Applies shear, 3D rotation, and projection to a quad. `docs/spec/render.md`
+/// §4.1. Corners are top-left, top-right, bottom-right, bottom-left.
+#[allow(clippy::too_many_arguments)]
+fn project_quad(
+    dest: [f32; 4],
+    angle: f32,
+    x_angle: f32,
+    y_angle: f32,
+    x_shear: f32,
+    projection: manato_sim::ProjectionMode,
+    focal: f32,
+    view_center: Vec2,
+) -> [[f32; 2]; 4] {
+    use manato_sim::ProjectionMode;
+    let [x0, y0, x1, y1] = dest;
+    let cx = (x0 + x1) * 0.5;
+    let cy = (y0 + y1) * 0.5;
+    let (sz, cz) = angle.to_radians().sin_cos();
+    let (sx, cxx) = x_angle.to_radians().sin_cos();
+    let (sy, cyy) = y_angle.to_radians().sin_cos();
+    let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)];
+    let mut out = [[0.0f32; 2]; 4];
+    for (slot, (x, y)) in corners.into_iter().enumerate() {
+        // Shear around the quad centre.
+        let mut lx = x - cx - x_shear * (y - cy);
+        let mut ly = y - cy;
+        let mut lz = 0.0f32;
+        // Rz, then Rx, then Ry.
+        (lx, ly) = (lx * cz - ly * sz, lx * sz + ly * cz);
+        (ly, lz) = (ly * cxx - lz * sx, ly * sx + lz * cxx);
+        (lx, lz) = (lx * cyy + lz * sy, -lx * sy + lz * cyy);
+
+        let (px, py) = match projection {
+            ProjectionMode::Orthographic => (cx + lx, cy + ly),
+            ProjectionMode::Perspective => {
+                let k = focal / (focal - lz).max(1.0);
+                (cx + lx * k, cy + ly * k)
+            }
+            ProjectionMode::Perspective2 => {
+                let k = focal / (focal - lz).max(1.0);
+                (
+                    view_center.x + (cx + lx - view_center.x) * k,
+                    view_center.y + (cy + ly - view_center.y) * k,
+                )
+            }
+        };
+        out[slot] = [px, py];
+    }
+    out
 }
 
 fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
@@ -800,5 +984,109 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
             scale,
             [1.0, 0.92, 0.55, 1.0],
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use manato_sim::ProjectionMode;
+
+    #[test]
+    fn orthographic_zero_rotation_is_identity() {
+        let dest = [0.0, 0.0, 10.0, 10.0];
+        let corners = project_quad(
+            dest,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            ProjectionMode::Orthographic,
+            2048.0,
+            Vec2::new(160.0, 120.0),
+        );
+        assert_eq!(corners[0], [0.0, 0.0]);
+        assert_eq!(corners[1], [10.0, 0.0]);
+        assert_eq!(corners[2], [10.0, 10.0]);
+        assert_eq!(corners[3], [0.0, 10.0]);
+    }
+
+    #[test]
+    fn angle_rotates_about_quad_centre() {
+        let dest = [0.0, 0.0, 10.0, 10.0];
+        let corners = project_quad(
+            dest,
+            90.0,
+            0.0,
+            0.0,
+            0.0,
+            ProjectionMode::Orthographic,
+            2048.0,
+            Vec2::new(160.0, 120.0),
+        );
+        // Top-left rotates to the top-right position and so on.
+        assert!((corners[0][0] - 10.0).abs() < 0.001);
+        assert!((corners[0][1] - 0.0).abs() < 0.001);
+        assert!((corners[2][0] - 0.0).abs() < 0.001);
+        assert!((corners[2][1] - 10.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn x_angle_collapses_height_and_keeps_centre() {
+        let dest = [0.0, 0.0, 10.0, 10.0];
+        let corners = project_quad(
+            dest,
+            0.0,
+            90.0,
+            0.0,
+            0.0,
+            ProjectionMode::Orthographic,
+            2048.0,
+            Vec2::new(160.0, 120.0),
+        );
+        for corner in corners {
+            assert!((corner[1] - 5.0).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn perspective_scales_about_the_view_centre() {
+        let dest = [10.0, 20.0, 30.0, 40.0];
+        let view = Vec2::new(160.0, 120.0);
+        let corners = project_quad(
+            dest,
+            0.0,
+            60.0,
+            0.0,
+            0.0,
+            ProjectionMode::Perspective2,
+            2048.0,
+            view,
+        );
+        // A non-zero x angle moves corners in Z, so the projected quad is
+        // smaller than the source quad about the view centre.
+        let width = corners[1][0] - corners[0][0];
+        assert!(width < 20.0);
+        let centre_x = (corners[0][0] + corners[2][0]) * 0.5;
+        assert!((centre_x - 20.0).abs() < 2.0);
+    }
+
+    #[test]
+    fn shear_skews_without_moving_the_centre() {
+        let dest = [0.0, 0.0, 10.0, 10.0];
+        let corners = project_quad(
+            dest,
+            0.0,
+            0.0,
+            0.0,
+            0.5,
+            ProjectionMode::Orthographic,
+            2048.0,
+            Vec2::new(160.0, 120.0),
+        );
+        // Bottom corners move left, top corners move right.
+        assert!(corners[3][0] < corners[0][0]);
+        let centre_x = (corners[0][0] + corners[2][0]) * 0.5;
+        assert!((centre_x - 5.0).abs() < 0.001);
     }
 }

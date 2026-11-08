@@ -138,6 +138,37 @@ impl Painter {
         }
     }
 
+    /// Pushes a quad from four explicit corners (top-left, top-right,
+    /// bottom-right, bottom-left) with interpolated UVs. Used by the
+    /// perspective projection path.
+    #[allow(clippy::too_many_arguments)]
+    pub fn quad_corners(
+        &mut self,
+        tex: TexRef,
+        blend: Blend,
+        corners: [[f32; 2]; 4],
+        uv: [f32; 4],
+        flip_h: bool,
+        flip_v: bool,
+        color: [f32; 4],
+    ) {
+        let [u0, v0, u1, v1] = uv;
+        let (u0, u1) = if flip_h { (u1, u0) } else { (u0, u1) };
+        let (v0, v1) = if flip_v { (v1, v0) } else { (v0, v1) };
+        let [tl, tr, br, bl] = corners;
+        self.range(tex, blend);
+        for (pos, uv) in [
+            (tl, [u0, v0]),
+            (tr, [u1, v0]),
+            (br, [u1, v1]),
+            (tl, [u0, v0]),
+            (br, [u1, v1]),
+            (bl, [u0, v1]),
+        ] {
+            self.vertices.push(Vertex { pos, uv, color });
+        }
+    }
+
     pub fn rect(&mut self, blend: Blend, x: f32, y: f32, w: f32, h: f32, color: [f32; 4]) {
         self.quad(
             TexRef::Solid,

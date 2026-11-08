@@ -138,6 +138,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         }
         "fallenvshake" => env_shake(sim, who, control),
         "envshake" => env_shake(sim, who, control),
+        "zoom" => zoom(sim, who, control),
         "explod" => explod(sim, who, control, assets),
         "modifyexplod" => modify_explod(sim, who, control),
         "removeexplod" => remove_explod(sim, who, control),
@@ -599,6 +600,7 @@ fn game_make_anim(sim: &mut SimState, who: usize, control: &Controller) {
         id: int_param(sim, who, control, "id").unwrap_or(0),
         owner: who,
         behind: false,
+        ..Effect::default()
     });
 }
 
@@ -608,26 +610,114 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
     let scale = control.get_pair("scale");
     let vel = control.get_pair("vel");
     let accel = control.get_pair("accel");
-    let alpha = num_param(sim, who, control, "alpha");
-    for effect in &mut sim.effects {
-        if effect.id != id || effect.owner != who {
-            continue;
+    let trans = str_param(control, "trans").map(|value| value.to_ascii_lowercase());
+    let alpha_pair = control.get("alpha").map(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        (
+            *parts.first().unwrap_or(&256.0),
+            *parts.get(1).unwrap_or(&0.0),
+        )
+    });
+    let angle = num_param(sim, who, control, "angle");
+    let x_angle = num_param(sim, who, control, "xangle");
+    let y_angle = num_param(sim, who, control, "yangle");
+    let x_shear = num_param(sim, who, control, "xshear");
+    let projection = str_param(control, "projection").map(crate::ProjectionMode::parse);
+    let focal_length = num_param(sim, who, control, "focallength");
+    let remove_time = int_param(sim, who, control, "removetime");
+    let sprite_priority = int_param(sim, who, control, "sprpriority");
+    let ontop = int_param(sim, who, control, "ontop");
+
+    // Modify the newest matching explod, per `docs/spec/render.md` §4.
+    let Some(effect) = sim
+        .effects
+        .iter_mut()
+        .rev()
+        .find(|effect| effect.id == id && effect.owner == who)
+    else {
+        return;
+    };
+    if let Some((x, y)) = pos {
+        effect.pos = Vec2::new(x, y);
+        effect.bind_offset = Vec2::new(x, y);
+    }
+    if let Some((x, y)) = scale {
+        effect.scale = Vec2::new(x, y);
+    }
+    if let Some((x, y)) = vel {
+        effect.vel = Vec2::new(x, y);
+    }
+    if let Some((x, y)) = accel {
+        effect.accel = Vec2::new(x, y);
+    }
+    if let Some(trans) = trans {
+        match trans.as_str() {
+            "none" => {
+                effect.transparent = false;
+                effect.blend = EffectBlend::Normal;
+                effect.alpha = 1.0;
+            }
+            "add" | "add1" => {
+                effect.transparent = false;
+                effect.blend = EffectBlend::Add;
+                effect.alpha = 1.0;
+            }
+            "sub" | "sub1" => {
+                effect.transparent = false;
+                effect.blend = EffectBlend::Sub;
+                effect.alpha = 1.0;
+            }
+            "addalpha" => {
+                effect.transparent = true;
+                effect.blend = EffectBlend::Add;
+                effect.alpha = alpha_pair
+                    .map(|(_, dest)| (dest / 256.0).clamp(0.0, 1.0))
+                    .unwrap_or(0.0);
+            }
+            "alpha" => {
+                effect.transparent = true;
+                effect.blend = EffectBlend::Normal;
+                effect.alpha = alpha_pair
+                    .map(|(_, dest)| (dest / 256.0).clamp(0.0, 1.0))
+                    .unwrap_or(0.0);
+            }
+            _ => {}
         }
-        if let Some((x, y)) = pos {
-            effect.pos = Vec2::new(x, y);
+    } else if let Some((_, dest)) = alpha_pair {
+        effect.alpha = (dest / 256.0).clamp(0.0, 1.0);
+    }
+    if let Some(value) = angle {
+        effect.angle = value;
+    }
+    if let Some(value) = x_angle {
+        effect.x_angle = value;
+    }
+    if let Some(value) = y_angle {
+        effect.y_angle = value;
+    }
+    if let Some(value) = x_shear {
+        effect.x_shear = value;
+    }
+    if let Some(value) = projection {
+        effect.projection = value;
+    }
+    if let Some(value) = focal_length {
+        effect.focal_length = value.max(1.0);
+    }
+    if let Some(value) = remove_time {
+        if value > 0 {
+            effect.duration = value;
+            effect.remove_on_anim_end = false;
         }
-        if let Some((x, y)) = scale {
-            effect.scale = Vec2::new(x, y);
-        }
-        if let Some((x, y)) = vel {
-            effect.vel = Vec2::new(x, y);
-        }
-        if let Some((x, y)) = accel {
-            effect.accel = Vec2::new(x, y);
-        }
-        if let Some(alpha) = alpha {
-            effect.alpha = alpha.clamp(0.0, 1.0);
-        }
+    }
+    if let Some(value) = sprite_priority {
+        effect.sprite_priority = value;
+    }
+    if let Some(value) = ontop {
+        effect.behind = value == 0;
     }
 }
 
@@ -896,66 +986,237 @@ fn env_shake(sim: &mut SimState, who: usize, control: &Controller) {
     };
 }
 
+fn zoom(sim: &mut SimState, who: usize, control: &Controller) {
+    let (px, py) = control
+        .get_pair("pos")
+        .unwrap_or((sim.camera.x, sim.camera.y));
+    let target_scale = num_param(sim, who, control, "scale")
+        .unwrap_or(sim.camera.scale)
+        .max(0.0001);
+    let lag = int_param(sim, who, control, "lag").unwrap_or(0).max(0);
+    let end_lag = int_param(sim, who, control, "endlag").unwrap_or(0).max(0);
+    let time = int_param(sim, who, control, "time").unwrap_or(0).max(0);
+    let mut target_pos = Vec2::new(px, py);
+    if int_param(sim, who, control, "camerabound").unwrap_or(0) != 0 {
+        let cam = &sim.assets.stage.camera;
+        let half_w = manato_core::GAME_WIDTH * 0.5 / target_scale;
+        let lo = cam.bound_left + half_w;
+        let hi = cam.bound_right - half_w;
+        if lo <= hi {
+            target_pos.x = target_pos.x.clamp(lo, hi);
+        }
+        target_pos.y = target_pos.y.clamp(cam.bound_high, cam.bound_low);
+    }
+    sim.camera.zoom_override = Some(crate::ZoomOverride {
+        target_pos,
+        target_scale,
+        lag,
+        end_lag,
+        time,
+        elapsed: 0,
+        hold: 0,
+        camera_bound: int_param(sim, who, control, "camerabound").unwrap_or(0) != 0,
+        stage_bound: int_param(sim, who, control, "stagebound").unwrap_or(0) != 0,
+    });
+}
+
 fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
-    let Some(anim) = int_param(sim, who, control, "anim") else {
-        return;
+    let raw_anim = str_param(control, "anim").unwrap_or("");
+    let fight_fx = raw_anim
+        .trim_start()
+        .chars()
+        .next()
+        .map(|c| c.eq_ignore_ascii_case(&'f'))
+        .unwrap_or(false);
+    let anim_text = if fight_fx {
+        &raw_anim.trim_start()[1..]
+    } else {
+        raw_anim
+    };
+    let anim = match anim_text.trim().parse::<i32>() {
+        Ok(value) => value,
+        Err(_) => int_param(sim, who, control, "anim").unwrap_or(0),
     };
     let id = int_param(sim, who, control, "id").unwrap_or(0);
     let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
     let (vx, vy) = control.get_pair("vel").unwrap_or((0.0, 0.0));
     let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
     let (sx, sy) = control.get_pair("scale").unwrap_or((1.0, 1.0));
+
+    // `facing` accepts -1/1 or `p1`/`p2`.
+    let owner_facing = sim.fighters[who].facing;
+    let facing = match str_param(control, "facing").map(|s| s.to_ascii_lowercase()) {
+        Some(value) if value == "p1" => sim.fighters[0].facing,
+        Some(value) if value == "p2" => sim.fighters[1].facing,
+        Some(_) => int_param(sim, who, control, "facing").unwrap_or(owner_facing),
+        None => owner_facing,
+    };
+    let facing_f = facing as f32;
+
     let pos_type = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
-    let facing = sim.fighters[who].facing as f32;
-    let base = match pos_type.as_str() {
-        "p2" => sim.fighters[sim.other(who)].pos,
-        "front" => Vec2::new(
-            sim.fighters[who].pos.x + facing * 100.0,
-            sim.fighters[who].pos.y,
+    let (base, bind_target) = match pos_type.as_str() {
+        "p2" => (sim.fighters[sim.other(who)].pos, Some(sim.other(who))),
+        "front" => (
+            Vec2::new(
+                sim.fighters[who].pos.x + facing_f * 100.0,
+                sim.fighters[who].pos.y,
+            ),
+            Some(who),
         ),
-        "back" => Vec2::new(
-            sim.fighters[who].pos.x - facing * 100.0,
-            sim.fighters[who].pos.y,
+        "back" => (
+            Vec2::new(
+                sim.fighters[who].pos.x - facing_f * 100.0,
+                sim.fighters[who].pos.y,
+            ),
+            Some(who),
         ),
-        _ => sim.fighters[who].pos,
+        "left" => (
+            Vec2::new(
+                sim.camera.x - manato_core::GAME_WIDTH * 0.5,
+                sim.fighters[who].pos.y,
+            ),
+            None,
+        ),
+        "right" => (
+            Vec2::new(
+                sim.camera.x + manato_core::GAME_WIDTH * 0.5,
+                sim.fighters[who].pos.y,
+            ),
+            None,
+        ),
+        _ => (sim.fighters[who].pos, Some(who)),
     };
-    let duration = int_param(sim, who, control, "removetime").unwrap_or(-1);
-    let anim_time = assets.characters[sim.fighters[who].char_id]
-        .animation(anim)
-        .map(|a| a.total_time())
-        .unwrap_or(10);
-    let blend = match str_param(control, "trans")
-        .map(|s| s.to_ascii_lowercase())
-        .as_deref()
-    {
-        Some("add") | Some("add1") => EffectBlend::Add,
-        Some("sub") => EffectBlend::Sub,
-        _ => EffectBlend::Normal,
+
+    let source = if fight_fx {
+        EffectSource::FightFx
+    } else {
+        EffectSource::Character(sim.fighters[who].char_id)
     };
+    let anim_time = if fight_fx {
+        assets.effects.animations.get(&anim).map(|a| a.total_time())
+    } else {
+        assets.characters[sim.fighters[who].char_id]
+            .animation(anim)
+            .map(|a| a.total_time())
+    }
+    .unwrap_or(10);
+
+    let remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
+    let duration = if remove_time > 0 {
+        remove_time
+    } else {
+        anim_time
+    };
+
+    let (blend, alpha, transparent) = parse_trans(sim, who, control);
+
+    let window = control.get("window").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        let rect = [
+            *parts.first().unwrap_or(&0.0),
+            *parts.get(1).unwrap_or(&0.0),
+            *parts.get(2).unwrap_or(&0.0),
+            *parts.get(3).unwrap_or(&0.0),
+        ];
+        if rect.iter().all(|value| *value == 0.0) {
+            None
+        } else {
+            Some(rect)
+        }
+    });
+
+    let bind_time = int_param(sim, who, control, "bindtime").unwrap_or(0);
+    let bind_offset = Vec2::new(px * facing_f, py);
     sim.effects.push(Effect {
-        source: EffectSource::Character(sim.fighters[who].char_id),
+        source,
         anim,
-        pos: Vec2::new(base.x + px * facing, base.y + py),
-        vel: Vec2::new(vx * facing, vy),
-        accel: Vec2::new(ax * facing, ay),
+        pos: Vec2::new(base.x + bind_offset.x, base.y + bind_offset.y),
+        vel: Vec2::new(vx * facing_f, vy),
+        accel: Vec2::new(ax * facing_f, ay),
         scale: Vec2::new(sx, sy),
-        facing: sim.fighters[who].facing,
-        flip_h: false,
-        flip_v: false,
+        facing,
+        flip_v: int_param(sim, who, control, "vfacing").unwrap_or(1) < 0,
         blend,
-        alpha: 1.0,
+        alpha,
         sprite_priority: int_param(sim, who, control, "sprpriority").unwrap_or(0),
-        time: 0,
-        duration: if duration >= 0 { duration } else { anim_time },
-        remove_on_anim_end: duration < 0,
+        duration,
+        remove_on_anim_end: remove_time <= 0,
         id,
         owner: who,
         behind: int_param(sim, who, control, "ontop").unwrap_or(1) == 0,
+        bind_time,
+        bind_target: if bind_time != 0 { bind_target } else { None },
+        bind_offset,
+        bound: bind_time != 0 && bind_target.is_some(),
+        remove_on_get_hit: int_param(sim, who, control, "removeongethit").unwrap_or(0) != 0,
+        remove_on_change_state: int_param(sim, who, control, "removeonchangestate").unwrap_or(1)
+            != 0,
+        ignore_hit_pause: int_param(sim, who, control, "ignorehitpause").unwrap_or(1) != 0,
+        super_move_time: int_param(sim, who, control, "supermovetime")
+            .unwrap_or(0)
+            .max(0),
+        pause_move_time: int_param(sim, who, control, "pausemovetime")
+            .unwrap_or(0)
+            .max(0),
+        shadow: int_param(sim, who, control, "shadow").unwrap_or(0) != 0,
+        own_pal: int_param(sim, who, control, "ownpal").unwrap_or(0) != 0,
+        transparent,
+        angle: num_param(sim, who, control, "angle").unwrap_or(0.0),
+        x_angle: num_param(sim, who, control, "xangle").unwrap_or(0.0),
+        y_angle: num_param(sim, who, control, "yangle").unwrap_or(0.0),
+        x_shear: num_param(sim, who, control, "xshear").unwrap_or(0.0),
+        projection: str_param(control, "projection")
+            .map(crate::ProjectionMode::parse)
+            .unwrap_or(crate::ProjectionMode::Orthographic),
+        focal_length: num_param(sim, who, control, "focallength")
+            .unwrap_or(2048.0)
+            .max(1.0),
+        window,
+        screen_space: str_param(control, "space")
+            .map(|value| value.eq_ignore_ascii_case("screen"))
+            .unwrap_or(false),
+        anim_elem: int_param(sim, who, control, "animelem").unwrap_or(1),
+        anim_freeze: int_param(sim, who, control, "animfreeze").unwrap_or(0) != 0,
+        ..Effect::default()
     });
 }
 
+/// Resolves `trans` and `alpha` into a blend mode, opacity, and transparency
+/// flag. `docs/spec/render.md` §4.
+fn parse_trans(sim: &SimState, who: usize, control: &Controller) -> (EffectBlend, f32, bool) {
+    let trans = str_param(control, "trans")
+        .unwrap_or("default")
+        .to_ascii_lowercase();
+    let pair = control.get("alpha").map(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        (
+            *parts.first().unwrap_or(&256.0),
+            *parts.get(1).unwrap_or(&0.0),
+        )
+    });
+    match trans.as_str() {
+        "none" => (EffectBlend::Normal, 1.0, false),
+        "add" | "add1" => (EffectBlend::Add, 1.0, false),
+        "sub" | "sub1" => (EffectBlend::Sub, 1.0, false),
+        "addalpha" => {
+            let (_, dest) = pair.unwrap_or((256.0, 0.0));
+            (EffectBlend::Add, (dest / 256.0).clamp(0.0, 1.0), true)
+        }
+        "alpha" => {
+            let (_, dest) = pair.unwrap_or((256.0, 0.0));
+            (EffectBlend::Normal, (dest / 256.0).clamp(0.0, 1.0), true)
+        }
+        _ => (EffectBlend::Normal, 1.0, false),
+    }
+}
 fn make_dust(sim: &mut SimState, who: usize, control: &Controller) {
     let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
     let facing = sim.fighters[who].facing as f32;
@@ -974,21 +1235,12 @@ fn make_dust(sim: &mut SimState, who: usize, control: &Controller) {
         source: EffectSource::FightFx,
         anim: 120,
         pos,
-        vel: Vec2::ZERO,
-        accel: Vec2::ZERO,
-        scale: Vec2::new(1.0, 1.0),
         facing: sim.fighters[who].facing,
-        flip_h: false,
-        flip_v: false,
-        blend: EffectBlend::Normal,
-        alpha: 1.0,
         sprite_priority: -1,
-        time: 0,
         duration,
-        remove_on_anim_end: true,
-        id: 0,
         owner: who,
         behind: true,
+        ..Effect::default()
     });
 }
 

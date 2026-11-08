@@ -222,6 +222,29 @@ pub struct CameraState {
     pub x: f32,
     pub y: f32,
     pub shake: Vec2,
+    /// Current zoom scale (`camerazoom`).
+    pub scale: f32,
+    /// Scale the automatic tracker is heading toward.
+    pub target_scale: f32,
+    /// Ticks remaining before the camera may zoom back in.
+    pub zoom_delay: i32,
+    /// Active `Zoom` controller override.
+    pub zoom_override: Option<ZoomOverride>,
+}
+
+/// A `Zoom` state-controller override (`docs/spec/render.md` §11.3).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ZoomOverride {
+    pub target_pos: Vec2,
+    pub target_scale: f32,
+    pub lag: i32,
+    pub end_lag: i32,
+    pub time: i32,
+    pub elapsed: i32,
+    /// Countdown after `time` expires, from `endlag`.
+    pub hold: i32,
+    pub camera_bound: bool,
+    pub stage_bound: bool,
 }
 
 impl Default for CameraState {
@@ -230,6 +253,10 @@ impl Default for CameraState {
             x: 0.0,
             y: 0.0,
             shake: Vec2::ZERO,
+            scale: 1.0,
+            target_scale: 1.0,
+            zoom_delay: 0,
+            zoom_override: None,
         }
     }
 }
@@ -248,6 +275,23 @@ pub enum EffectBlend {
     Sub,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectionMode {
+    Orthographic,
+    Perspective,
+    Perspective2,
+}
+
+impl ProjectionMode {
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "perspective" => Self::Perspective,
+            "perspective2" => Self::Perspective2,
+            _ => Self::Orthographic,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Effect {
     pub source: EffectSource,
@@ -260,6 +304,7 @@ pub struct Effect {
     pub flip_h: bool,
     pub flip_v: bool,
     pub blend: EffectBlend,
+    /// Opacity from `trans = addalpha`/`alpha`; 1.0 = fully opaque.
     pub alpha: f32,
     pub sprite_priority: i32,
     pub time: i32,
@@ -268,11 +313,90 @@ pub struct Effect {
     pub id: i32,
     pub owner: usize,
     pub behind: bool,
+    /// Remaining bind ticks; `-1` binds forever.
+    pub bind_time: i32,
+    /// Anchor entity while bound.
+    pub bind_target: Option<usize>,
+    /// Mirrored offset from the anchor applied while bound.
+    pub bind_offset: Vec2,
+    /// Whether the position is recomputed from the anchor this tick.
+    pub bound: bool,
+    pub remove_on_get_hit: bool,
+    pub remove_on_change_state: bool,
+    pub ignore_hit_pause: bool,
+    pub super_move_time: i32,
+    pub pause_move_time: i32,
+    pub shadow: bool,
+    pub own_pal: bool,
+    pub transparent: bool,
+    pub angle: f32,
+    pub x_angle: f32,
+    pub y_angle: f32,
+    pub x_shear: f32,
+    pub projection: ProjectionMode,
+    pub focal_length: f32,
+    /// `x1, y1, x2, y2` screen-space clip rect.
+    pub window: Option<[f32; 4]>,
+    /// `space = screen` bypasses the camera.
+    pub screen_space: bool,
+    pub anim_elem: i32,
+    pub anim_freeze: bool,
 }
 
 impl Effect {
     pub fn is_expired(&self) -> bool {
         (self.remove_on_anim_end || self.duration >= 0) && self.time >= self.duration
+    }
+
+    pub fn wants_camera(&self) -> bool {
+        !self.screen_space
+    }
+}
+
+impl Default for Effect {
+    fn default() -> Self {
+        Self {
+            source: EffectSource::FightFx,
+            anim: 0,
+            pos: Vec2::ZERO,
+            vel: Vec2::ZERO,
+            accel: Vec2::ZERO,
+            scale: Vec2::new(1.0, 1.0),
+            facing: 1,
+            flip_h: false,
+            flip_v: false,
+            blend: EffectBlend::Normal,
+            alpha: 1.0,
+            sprite_priority: 0,
+            time: 0,
+            duration: 0,
+            remove_on_anim_end: true,
+            id: 0,
+            owner: 0,
+            behind: false,
+            bind_time: 0,
+            bind_target: None,
+            bind_offset: Vec2::ZERO,
+            bound: false,
+            remove_on_get_hit: false,
+            remove_on_change_state: true,
+            ignore_hit_pause: true,
+            super_move_time: 0,
+            pause_move_time: 0,
+            shadow: false,
+            own_pal: false,
+            transparent: false,
+            angle: 0.0,
+            x_angle: 0.0,
+            y_angle: 0.0,
+            x_shear: 0.0,
+            projection: ProjectionMode::Orthographic,
+            focal_length: 2048.0,
+            window: None,
+            screen_space: false,
+            anim_elem: 1,
+            anim_freeze: false,
+        }
     }
 }
 
@@ -415,6 +539,7 @@ impl SimState {
         let (start0, start1) = (assets.stage.p1_start, assets.stage.p2_start);
         let (face0, face1) = (assets.stage.p1_facing, assets.stage.p2_facing);
         let cam_start = assets.stage.camera.start;
+        let start_zoom = assets.stage.camera.start_zoom;
         let mut fighters = Vec::new();
         for slot in 0..2 {
             let start = if slot == 0 { start0 } else { start1 };
@@ -442,7 +567,9 @@ impl SimState {
             camera: CameraState {
                 x: cam_start.x,
                 y: cam_start.y,
-                shake: Vec2::ZERO,
+                scale: start_zoom,
+                target_scale: start_zoom,
+                ..CameraState::default()
             },
             effects: Vec::new(),
             projectiles: Vec::new(),
@@ -1120,6 +1247,10 @@ impl SimState {
         self.projectiles.clear();
         self.camera.x = self.assets.stage.camera.start.x;
         self.camera.y = self.assets.stage.camera.start.y;
+        self.camera.scale = self.assets.stage.camera.start_zoom;
+        self.camera.target_scale = self.assets.stage.camera.start_zoom;
+        self.camera.zoom_delay = 0;
+        self.camera.zoom_override = None;
         self.env_shake = EnvShake::default();
         self.env_color = None;
         if self.assets.stage.reset_bg {
@@ -1136,14 +1267,110 @@ impl SimState {
 
     fn update_camera(&mut self) {
         let stage = &self.assets.stage;
-        let mid_x = (self.fighters[0].pos.x + self.fighters[1].pos.x) * 0.5;
-        let highest = self.fighters[0].pos.y.min(self.fighters[1].pos.y);
         let cam = &stage.camera;
-        let target_x = clamp(mid_x, cam.bound_left, cam.bound_right);
-        let target_y = clamp(highest, cam.bound_high, cam.bound_low);
-        // Smooth follow.
-        self.camera.x += (target_x - self.camera.x) * 0.35;
-        self.camera.y += (target_y - self.camera.y) * 0.35;
+
+        if let Some(mut zoom) = self.camera.zoom_override {
+            let step = if zoom.time > 0 {
+                1.0 / zoom.time as f32
+            } else {
+                1.0
+            };
+            let smoothing = if zoom.lag > 0 {
+                (1.0 / (zoom.lag as f32 + 1.0)).max(step)
+            } else {
+                step
+            };
+            self.camera.x += (zoom.target_pos.x - self.camera.x) * smoothing;
+            self.camera.y += (zoom.target_pos.y - self.camera.y) * smoothing;
+            self.camera.scale += (zoom.target_scale - self.camera.scale) * smoothing;
+            self.camera.scale = clamp(self.camera.scale, cam.zoom_out, cam.zoom_in);
+
+            if zoom.hold > 0 {
+                zoom.hold -= 1;
+                if zoom.hold == 0 {
+                    self.camera.zoom_override = None;
+                } else {
+                    self.camera.zoom_override = Some(zoom);
+                }
+            } else if zoom.time > 0 {
+                zoom.elapsed += 1;
+                if zoom.elapsed >= zoom.time {
+                    zoom.hold = zoom.end_lag;
+                    if zoom.hold == 0 {
+                        self.camera.zoom_override = None;
+                    } else {
+                        self.camera.zoom_override = Some(zoom);
+                    }
+                } else {
+                    self.camera.zoom_override = Some(zoom);
+                }
+            } else {
+                // Instant override: applied once above.
+                if zoom.end_lag > 0 {
+                    zoom.hold = zoom.end_lag;
+                    self.camera.zoom_override = Some(zoom);
+                } else {
+                    self.camera.zoom_override = None;
+                }
+            }
+        } else {
+            let mid_x = (self.fighters[0].pos.x + self.fighters[1].pos.x) * 0.5;
+            let highest = self.fighters[0].pos.y.min(self.fighters[1].pos.y);
+
+            // Visible extents of the non-helper fighters, including their body
+            // boxes. Helpers never drive the camera.
+            let mut left = f32::INFINITY;
+            let mut right = f32::NEG_INFINITY;
+            let mut top = f32::INFINITY;
+            let mut bottom = f32::NEG_INFINITY;
+            for fighter in &self.fighters {
+                if fighter.owner.is_some() {
+                    continue;
+                }
+                left = left.min(fighter.pos.x - fighter.width_back);
+                right = right.max(fighter.pos.x + fighter.width_front);
+                top = top.min(fighter.pos.y - fighter.height);
+                bottom = bottom.max(fighter.pos.y);
+            }
+            if !left.is_finite() {
+                left = mid_x;
+                right = mid_x;
+                top = highest;
+                bottom = highest;
+            }
+            let extent_w = (right - left + cam.tension).max(1.0);
+            let extent_h = (bottom - top + cam.tension * 0.5).max(1.0);
+            let target = (manato_core::GAME_WIDTH / extent_w)
+                .min(manato_core::GAME_HEIGHT / extent_h)
+                .clamp(cam.zoom_out, cam.zoom_in);
+            self.camera.target_scale = target;
+
+            if target < self.camera.scale {
+                self.camera.scale += (target - self.camera.scale) * cam.zoom_out_speed;
+                self.camera.zoom_delay = cam.zoom_in_delay;
+            } else if target > self.camera.scale {
+                if self.camera.zoom_delay > 0 {
+                    self.camera.zoom_delay -= 1;
+                } else {
+                    self.camera.scale += (target - self.camera.scale) * cam.zoom_in_speed;
+                }
+            }
+            self.camera.scale = clamp(self.camera.scale, cam.zoom_out, cam.zoom_in);
+
+            // Keep the visible rect inside the camera bounds.
+            let half_w = manato_core::GAME_WIDTH * 0.5 / self.camera.scale.max(0.0001);
+            let lo = cam.bound_left + half_w;
+            let hi = cam.bound_right - half_w;
+            let target_x = if lo <= hi {
+                clamp(mid_x, lo, hi)
+            } else {
+                mid_x
+            };
+            let target_y = clamp(highest, cam.bound_high, cam.bound_low);
+            // Smooth follow.
+            self.camera.x += (target_x - self.camera.x) * 0.35;
+            self.camera.y += (target_y - self.camera.y) * 0.35;
+        }
 
         if self.env_shake.time > 0 {
             self.env_shake.time -= 1;
@@ -1167,12 +1394,65 @@ impl SimState {
                 }
             }
         }
-        for effect in &mut self.effects {
-            effect.time += 1;
-            effect.pos += effect.vel;
-            effect.vel += effect.accel;
-        }
-        self.effects.retain(|e| !e.is_expired());
+
+        let super_paused = self.super_pause > 0;
+        let Self {
+            fighters, effects, ..
+        } = self;
+        effects.retain_mut(|effect| {
+            let owner = fighters.get(effect.owner);
+            let owner_hit_pause = owner.map(|f| f.hit.hit_pause > 0).unwrap_or(false);
+            let owner_hit = owner
+                .map(|f| f.move_type == crate::fighter::MoveType::Hit)
+                .unwrap_or(false);
+            let state_changed = owner.map(|f| f.state_changed).unwrap_or(false);
+
+            if effect.remove_on_get_hit && owner_hit {
+                return false;
+            }
+            if effect.remove_on_change_state && state_changed {
+                return false;
+            }
+
+            let mut advance = true;
+            if super_paused && !effect.ignore_hit_pause {
+                if effect.super_move_time > 0 {
+                    effect.super_move_time -= 1;
+                } else {
+                    advance = false;
+                }
+            }
+            if owner_hit_pause && !effect.ignore_hit_pause {
+                if effect.pause_move_time > 0 {
+                    effect.pause_move_time -= 1;
+                } else {
+                    advance = false;
+                }
+            }
+
+            if advance {
+                effect.time += 1;
+                if effect.bound {
+                    if let Some(target) = effect.bind_target.and_then(|i| fighters.get(i)) {
+                        effect.pos = Vec2::new(
+                            target.pos.x + effect.bind_offset.x,
+                            target.pos.y + effect.bind_offset.y,
+                        );
+                    }
+                    if effect.bind_time > 0 {
+                        effect.bind_time -= 1;
+                        if effect.bind_time == 0 {
+                            effect.bound = false;
+                        }
+                    }
+                } else {
+                    effect.pos += effect.vel;
+                    effect.vel += effect.accel;
+                }
+            }
+
+            !effect.is_expired()
+        });
     }
 
     /// Absolute ground position used by rendering: the stage's ground line.
@@ -1180,10 +1460,31 @@ impl SimState {
         self.assets.stage.zoffset
     }
 
+    /// Maps a world position to screen space (`docs/spec/render.md` §11.5).
+    ///
+    /// The X axis always anchors at the viewport centre. The Y axis anchors
+    /// at the stage ground when `zoomanchor = 1`, and otherwise at the
+    /// viewport centre. Both forms reduce to the unzoomed mapping at
+    /// `scale = 1`, so enabling zoom never jumps the scene.
     pub fn screen_pos(&self, world: Vec2) -> Vec2 {
+        let scale = self.camera.scale;
+        let shake = self.camera.shake;
+        let ground = self.ground_screen_y();
+        let center_y = manato_core::GAME_HEIGHT * 0.5;
+        let anchor_y = if self.assets.stage.camera.zoom_anchor {
+            ground
+        } else {
+            center_y
+        };
+        // Distance from the zoom anchor to the ground line at scale 1.
+        let anchor_offset = if self.assets.stage.camera.zoom_anchor {
+            0.0
+        } else {
+            ground - center_y
+        };
         Vec2::new(
-            manato_core::GAME_WIDTH * 0.5 + world.x - self.camera.x + self.camera.shake.x,
-            self.ground_screen_y() + world.y - self.camera.y + self.camera.shake.y,
+            manato_core::GAME_WIDTH * 0.5 + (world.x - self.camera.x) * scale + shake.x,
+            anchor_y + (world.y - self.camera.y + anchor_offset) * scale + shake.y,
         )
     }
 
@@ -1206,21 +1507,12 @@ impl SimState {
             source: EffectSource::FightFx,
             anim,
             pos,
-            vel: Vec2::ZERO,
-            accel: Vec2::ZERO,
             scale: Vec2::new(1.0, 1.0),
-            facing: 1,
-            flip_h: false,
-            flip_v: false,
             blend: EffectBlend::Add,
-            alpha: 1.0,
             sprite_priority: 5,
-            time: 0,
             duration,
-            remove_on_anim_end: true,
-            id: 0,
             owner: who,
-            behind: false,
+            ..Effect::default()
         });
     }
 
@@ -1235,15 +1527,41 @@ impl SimState {
         h.write_u32(self.round.wins[1]);
         h.write_f32(self.camera.x);
         h.write_f32(self.camera.y);
+        h.write_f32(self.camera.scale);
+        h.write_f32(self.camera.target_scale);
+        h.write_i32(self.camera.zoom_delay);
+        if let Some(zoom) = self.camera.zoom_override {
+            h.write_bool(true);
+            h.write_f32(zoom.target_pos.x);
+            h.write_f32(zoom.target_pos.y);
+            h.write_f32(zoom.target_scale);
+            h.write_i32(zoom.elapsed);
+            h.write_i32(zoom.hold);
+        } else {
+            h.write_bool(false);
+        }
         h.write_u64(self.rng.state());
         h.write_i32(self.super_pause);
         h.write_u32(self.hit_activation);
         h.write_u32(self.effects.len() as u32);
         for e in &self.effects {
             h.write_i32(e.anim);
+            h.write_i32(e.id);
             h.write_f32(e.pos.x);
             h.write_f32(e.pos.y);
+            h.write_f32(e.vel.x);
+            h.write_f32(e.vel.y);
+            h.write_f32(e.scale.x);
+            h.write_f32(e.scale.y);
             h.write_i32(e.time);
+            h.write_i32(e.duration);
+            h.write_i32(e.bind_time);
+            h.write_bool(e.bound);
+            h.write_f32(e.alpha);
+            h.write_f32(e.angle);
+            h.write_f32(e.x_angle);
+            h.write_f32(e.y_angle);
+            h.write_f32(e.x_shear);
         }
         for layer in &self.stage_layers {
             h.write_f32(layer.offset.x);

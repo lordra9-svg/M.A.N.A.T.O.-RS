@@ -28,6 +28,14 @@ pub struct CameraDef {
     pub overdraw_low: f32,
     pub cut_high: f32,
     pub cut_low: f32,
+    /// Ikemen-GO zoom keys (`docs/spec/render.md` §11.1).
+    pub start_zoom: f32,
+    pub zoom_out: f32,
+    pub zoom_in: f32,
+    pub zoom_in_delay: i32,
+    pub zoom_in_speed: f32,
+    pub zoom_out_speed: f32,
+    pub zoom_anchor: bool,
 }
 
 impl Default for CameraDef {
@@ -45,6 +53,13 @@ impl Default for CameraDef {
             overdraw_low: 0.0,
             cut_high: 0.0,
             cut_low: 0.0,
+            start_zoom: 1.0,
+            zoom_out: 1.0,
+            zoom_in: 1.0,
+            zoom_in_delay: 0,
+            zoom_in_speed: 1.0,
+            zoom_out_speed: 1.0,
+            zoom_anchor: false,
         }
     }
 }
@@ -343,6 +358,9 @@ impl Stage {
         }
 
         let camera_map = &def.camera;
+        let zoom_out = num(camera_map, "zoomout", 1.0).max(0.0001);
+        let zoom_in = num(camera_map, "zoomin", 1.0).max(zoom_out);
+        let start_zoom = num(camera_map, "startzoom", 1.0).clamp(zoom_out, zoom_in);
         let camera = CameraDef {
             start: Vec2::new(
                 num(camera_map, "startx", 0.0),
@@ -359,6 +377,13 @@ impl Stage {
             overdraw_low: num(camera_map, "overdrawlow", 0.0),
             cut_high: num(camera_map, "cuthigh", 0.0),
             cut_low: num(camera_map, "cutlow", 0.0),
+            start_zoom,
+            zoom_out,
+            zoom_in,
+            zoom_in_delay: num(camera_map, "zoomindelay", 0.0).max(0.0) as i32,
+            zoom_in_speed: num(camera_map, "zoominspeed", 1.0).clamp(0.0, 1.0),
+            zoom_out_speed: num(camera_map, "zoomoutspeed", 1.0).clamp(0.0, 1.0),
+            zoom_anchor: num(camera_map, "zoomanchor", 0.0) != 0.0,
         };
 
         let stage_info = def

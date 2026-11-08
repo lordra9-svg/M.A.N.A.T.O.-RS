@@ -444,21 +444,12 @@ pub fn apply_hit_at(
         source: crate::EffectSource::FightFx,
         anim: spark_anim,
         pos: spark_pos,
-        vel: Vec2::ZERO,
-        accel: Vec2::ZERO,
-        scale: Vec2::new(1.0, 1.0),
         facing: attacker_facing,
-        flip_h: false,
-        flip_v: false,
         blend: crate::EffectBlend::Add,
-        alpha: 1.0,
         sprite_priority: 5,
-        time: 0,
         duration,
-        remove_on_anim_end: true,
-        id: 0,
         owner: attacker,
-        behind: false,
+        ..crate::Effect::default()
     });
 
     let (sound_group, sound_index) = if guarding {

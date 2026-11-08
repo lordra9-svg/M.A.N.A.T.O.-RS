@@ -836,3 +836,153 @@ fn sound_controllers_emit_channel_events() {
         other => panic!("unexpected command {other:?}"),
     }
 }
+
+#[test]
+fn explod_parses_transparency_binding_and_projection() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let explod = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("type".into(), "Explod".into()),
+            ("anim".into(), "10".into()),
+            ("id".into(), "3".into()),
+            ("pos".into(), "10, 20".into()),
+            ("bindtime".into(), "2".into()),
+            ("removeongethit".into(), "1".into()),
+            ("trans".into(), "addalpha".into()),
+            ("alpha".into(), "256, 128".into()),
+            ("angle".into(), "30".into()),
+            ("xangle".into(), "15".into()),
+            ("yangle".into(), "10".into()),
+            ("xshear".into(), "0.25".into()),
+            ("projection".into(), "perspective".into()),
+            ("focallength".into(), "1024".into()),
+            ("space".into(), "screen".into()),
+            ("window".into(), "1, 2, 300, 200".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &explod, &assets);
+    let effect = sim.effects.last().expect("explod created");
+    assert_eq!(effect.id, 3);
+    assert_eq!(effect.blend, manato_sim::EffectBlend::Add);
+    assert!(effect.transparent);
+    assert!((effect.alpha - 0.5).abs() < 0.001);
+    assert!((effect.angle - 30.0).abs() < 0.001);
+    assert!((effect.x_angle - 15.0).abs() < 0.001);
+    assert!((effect.y_angle - 10.0).abs() < 0.001);
+    assert!((effect.x_shear - 0.25).abs() < 0.001);
+    assert_eq!(effect.projection, manato_sim::ProjectionMode::Perspective);
+    assert!((effect.focal_length - 1024.0).abs() < 0.001);
+    assert!(effect.screen_space);
+    assert_eq!(effect.window, Some([1.0, 2.0, 300.0, 200.0]));
+    assert!(effect.bound);
+    assert!(effect.remove_on_get_hit);
+    assert_eq!(effect.bind_time, 2);
+
+    // Binding follows the anchor until `bindtime` expires.
+    let facing = sim.fighters[0].facing as f32;
+    let offset_x = 10.0 * facing;
+    let offset_y = 20.0;
+    let start = sim.fighters[0].pos;
+    sim.tick([PlayerInput::default(); 2]);
+    let bound = sim.effects.last().expect("explod still alive");
+    assert!(bound.bound);
+    assert!((bound.pos.x - (sim.fighters[0].pos.x + offset_x)).abs() < 0.001);
+    assert!((bound.pos.y - (sim.fighters[0].pos.y + offset_y)).abs() < 0.001);
+    assert!((sim.fighters[0].pos.x - start.x).abs() < 100.0);
+
+    // Release after the remaining bind tick; the effect then moves itself.
+    sim.effects.last_mut().unwrap().remove_on_change_state = false;
+    sim.tick([PlayerInput::default(); 2]);
+    let released = sim.effects.last().expect("explod still alive");
+    assert!(!released.bound || released.bind_time == 0);
+}
+
+#[test]
+fn zoom_controller_and_triggers_round_trip() {
+    // The bundled stage declares no zoom range (`[Camera]` defaults to 1.0,
+    // matching Ikemen-GO). Patch in an explicit range so the controller is
+    // observable, then verify the override drives `camerazoom`.
+    let root = mugen_root();
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    if !root.join(&config.stage).exists() {
+        eprintln!("skipping: content not present at {}", root.display());
+        return;
+    }
+    let mut loaded = manato_sim::Assets::load(&config).expect("assets load");
+    loaded.stage.camera.zoom_out = 0.5;
+    loaded.stage.camera.zoom_in = 2.0;
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(std::sync::Arc::new(loaded), options);
+    let assets = sim.assets.clone();
+    let zoom = manato_formats::Controller {
+        kind: "zoom".into(),
+        params: vec![
+            ("type".into(), "Zoom".into()),
+            ("pos".into(), "40, -10".into()),
+            ("scale".into(), "0.5".into()),
+            ("time".into(), "4".into()),
+            ("endlag".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &zoom, &assets);
+    assert!(sim.camera.zoom_override.is_some());
+    assert!(
+        (manato_sim::trigger::num(&sim, 0, "ZoomVar(scale)") - 0.5).abs() < 0.001,
+        "ZoomVar(scale) should read the override target"
+    );
+
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert!(sim.camera.scale < 0.95, "zoom should steer toward 0.5");
+    }
+    assert!(
+        (manato_sim::trigger::num(&sim, 0, "camerazoom") - sim.camera.scale).abs() < 0.001,
+        "camerazoom should read the live scale"
+    );
+
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        sim.camera.zoom_override.is_none(),
+        "override should release after time + endlag"
+    );
+
+    // Screen mapping (§11.5): the floor is exact at scale 1, and with the
+    // default centre anchor the anchor world point stays at the view centre
+    // for any scale (no jump when zoom engages).
+    sim.camera.scale = 1.0;
+    let floor = sim.screen_pos(manato_core::Vec2::new(0.0, 0.0));
+    let legacy = sim.ground_screen_y() - sim.camera.y + sim.camera.shake.y;
+    assert!((floor.y - legacy).abs() < 0.001);
+    let center_world = manato_core::Vec2::new(
+        0.0,
+        sim.camera.y + manato_core::GAME_HEIGHT * 0.5 - sim.ground_screen_y(),
+    );
+    for scale in [0.5, 1.0, 1.7] {
+        sim.camera.scale = scale;
+        let mapped = sim.screen_pos(center_world);
+        let expected = manato_core::GAME_HEIGHT * 0.5 + sim.camera.shake.y;
+        assert!(
+            (mapped.y - expected).abs() < 0.001,
+            "centre anchor must be scale independent (scale {scale})"
+        );
+    }
+}

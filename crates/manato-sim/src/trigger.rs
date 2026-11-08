@@ -516,6 +516,34 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
         "helperindex" => Value::Int(who.saturating_sub(2) as i32),
         "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause),
+        "camerazoom" => Value::Float(sim.camera.scale),
+        "camerapos" => {
+            if axis_arg(sim, who, args).starts_with('y') {
+                Value::Float(sim.camera.y)
+            } else {
+                Value::Float(sim.camera.x)
+            }
+        }
+        "zoomvar" => {
+            let key = axis_arg(sim, who, args);
+            match sim.camera.zoom_override {
+                Some(zoom) => match key.as_str() {
+                    "scale" => Value::Float(zoom.target_scale),
+                    "pos.x" | "x" => Value::Float(zoom.target_pos.x),
+                    "pos.y" | "y" => Value::Float(zoom.target_pos.y),
+                    "lag" => Value::Int(zoom.lag),
+                    "endlag" => Value::Int(zoom.end_lag),
+                    "time" => Value::Int(zoom.time),
+                    _ => Value::Float(zoom.target_scale),
+                },
+                None => match key.as_str() {
+                    "pos.x" | "x" => Value::Float(sim.camera.x),
+                    "pos.y" | "y" => Value::Float(sim.camera.y),
+                    "lag" | "endlag" | "time" => Value::Int(0),
+                    _ => Value::Float(sim.camera.scale),
+                },
+            }
+        }
         _ => Value::Int(0),
     }
 }
@@ -551,6 +579,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "backedgedist"
             | "camerapos"
             | "camerazoom"
+            | "zoomvar"
             | "drawgame"
             | "gameheight"
             | "gametime"
@@ -755,8 +784,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
                 Value::Float(((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt())
             }
         }
-        "camerazoom" => Value::Float(1.0),
+        "camerazoom" => Value::Float(sim.camera.scale),
         "camerapos" => Value::Float(sim.camera.x),
+        "zoomvar" => Value::Float(sim.camera.scale),
         "hitvel" => Value::Float(f.hit.vars.x_vel),
         "p3name" | "p4name" => Value::Str(String::new()),
         "name" => Value::Str(sim.character(who).display_name().to_string()),
