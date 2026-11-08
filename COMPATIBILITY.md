@@ -148,7 +148,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | X-06 | Ikemen-GO test content | N/A | Required | Missing | TBD |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | Missing | TBD |
-| X-08 | Ikemen-GO oracle assertions | N/A | Required | Missing | TBD |
+| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification oracle in `docs/oracle/`; other subsystems pending |
 
 ## 11. Proposed rewrite order
 

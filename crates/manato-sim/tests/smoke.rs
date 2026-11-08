@@ -1127,3 +1127,73 @@ fn bg_controllers_update_screen_backgrounds() {
     manato_sim::update_bg_states(&controls, &mut states, 0, 1, 0);
     assert!(!states[0].visible, "BGCtrl should hide the layer");
 }
+
+/// Win classification derived from the Ikemen-GO black-box oracle
+/// (`docs/oracle/assertions.md`, O-02..O-05). Each scenario mirrors an
+/// oracle run with the same starting life values.
+#[test]
+fn oracle_round_win_classification() {
+    // O-02: full-life KO => KO win, perfect, not time over.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    let record = *sim.win_history[0].last().expect("KO win");
+    assert!(!record.time_over);
+    assert!(record.perfect);
+    assert!(!record.clutch);
+
+    // O-04: exactly 10% life is a clutch win; 10.1% is not.
+    for (life, clutch) in [(100, true), (101, false)] {
+        let Some(mut sim) = fight_phase() else {
+            return;
+        };
+        sim.fighters[0].life = life;
+        sim.fighters[1].life = 0;
+        sim.tick([PlayerInput::default(); 2]);
+        let record = *sim.win_history[0].last().expect("KO win");
+        assert!(!record.perfect, "life {life} is not perfect");
+        assert_eq!(record.clutch, clutch, "life {life} clutch classification");
+    }
+
+    // O-03: a time-over win with full life is both time over and perfect.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = sim.fighters[0].life_max;
+    sim.fighters[1].life = 500;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    let record = *sim.win_history[0].last().expect("time-over win");
+    assert!(record.time_over);
+    assert!(record.perfect);
+    assert!(!record.clutch);
+}
+
+/// O-01: the oracle round timer is `seconds * 60` ticks.
+#[test]
+fn oracle_round_timer_is_sixty_ticks_per_second() {
+    let root = mugen_root();
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 1,
+        round_time: 5,
+    };
+    if !root.join(&config.stage).exists() {
+        return;
+    }
+    let sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        MatchOptions {
+            rounds_to_win: 1,
+            round_time: 5,
+            ai_level: 0,
+        },
+    );
+    assert_eq!(sim.round.timer, 5 * 60);
+}

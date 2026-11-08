@@ -1,0 +1,72 @@
+# Ikemen-GO oracle harness
+
+M.A.N.A.T.O.-RS uses Ikemen-GO as its only engine oracle. This directory holds
+the **derivation** side of that process: scripts that run Ikemen-GO
+black-box and turn its output into committed assertions. Raw logs, traces, and
+screenshots are never committed.
+
+## Pinned oracle
+
+| Item | Value |
+| --- | --- |
+| Engine source | `ikemen-engine/Ikemen-GO` at commit `955a2f2` |
+| Runtime data | official `v1.0.0` Linux release (`data/`, `chars/`, `font/`, `external/`) |
+| Observed on | 2026-11-08, Linux x86_64 |
+| Renderer | OpenGL 4.6 via Mesa, SDL video driver `offscreen` |
+
+The official release binary links a bundled SDL2 without the `offscreen` video
+driver, so the harness runs a locally built binary against the release runtime
+data. Build it from the pinned source:
+
+```sh
+# Go 1.27+ and libxmp headers are required (brew install go libxmp).
+cd /path/to/ikemen-go
+CGO_ENABLED=1 \
+CGO_CFLAGS="-I/home/linuxbrew/.linuxbrew/include" \
+CGO_LDFLAGS="-L/home/linuxbrew/.linuxbrew/lib" \
+go build -trimpath -o /path/to/ikemen-release/ikemen-local ./src
+```
+
+## Running
+
+```sh
+export IKEMEN_DIR=/path/to/ikemen-release
+python3 tools/oracle/run_round_oracle.py            # all scenarios
+python3 tools/oracle/run_round_oracle.py --json     # machine-readable
+```
+
+`run_round_oracle.py` starts one headless match per scenario, reads Ikemen's
+`-log` table dump from a temporary directory, prints a compact summary, and
+deletes the raw log. Useful environment:
+
+- `IKEMEN_BIN` overrides the binary path.
+- `--keep` keeps raw logs in a temp directory for debugging.
+- `--from-logs DIR` parses pre-captured `<scenario>.log` files without running
+  the engine (used when no offscreen GL session is available).
+
+If execution is unavailable, run the game manually from a desktop session:
+
+```sh
+cd "$IKEMEN_DIR"
+SDL_VIDEODRIVER=offscreen LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH" \
+  ./ikemen-local -windowed -nosound -nomusic -nojoy \
+  -p1 kfm -p2 kfm -p1.ai 0 -p2.ai 0 \
+  -p1.life 100 -p2.life 0 -rounds 1 -time 5 -log ko_clutch_10.log
+```
+
+`parse_match_log.py MATCH.log --json` converts one dump into JSON.
+`run_round_oracle.py --from-logs .` reads a directory of such dumps.
+
+## Current coverage
+
+Round-end classification only (`docs/oracle/assertions.md`, O-01..O-05):
+timer rate, KO vs time-over, perfect, and clutch. Other subsystems still rely
+on the provisional assertions in the frozen specs and should be added here as
+the harness grows.
+
+## Clean-room rules
+
+- Observe the engine as a running program; do not read M.U.G.E.N binaries or
+  disassemble anything.
+- Commit only derived assertions and the scripts that produce them.
+- Never commit raw Ikemen logs, screenshots, replays, or extracted content.

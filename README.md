@@ -149,6 +149,11 @@ cargo test --workspace
 Unit tests always run. The bundled character tests use `content/`; stock
 M.U.G.E.N tests skip unless `MUGEN_ROOT` points at a stock installation.
 
+The Ikemen-GO oracle harness lives in [`tools/oracle/`](tools/oracle/) and its
+derived assertions in [`docs/oracle/`](docs/oracle/). It is opt-in: it needs a
+separate Ikemen-GO runtime and is not part of `cargo test`. Raw oracle logs and
+screenshots are never committed.
+
 ## License
 
 MIT for the original code and tools. See [`LICENSE`](LICENSE) and

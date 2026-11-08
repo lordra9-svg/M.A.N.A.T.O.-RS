@@ -22,6 +22,11 @@ M.U.G.E.N itself is closed source. The current strict-clean-room policy allows:
 No M.U.G.E.N binaries are used as an oracle. No decompilation or disassembly is
 performed.
 
+The Ikemen-GO oracle harness (`tools/oracle/`) runs Ikemen-GO black-box in a
+headless SDL/OpenGL session, parses its `-log` match dumps, and records only
+derived assertions in `docs/oracle/assertions.md`. Raw logs, screenshots,
+replays, and extracted runtime data stay outside the repository.
+
 ## Historical note
 
 An early prototype consulted `mugen-reimpl`, a C reference whose README states
