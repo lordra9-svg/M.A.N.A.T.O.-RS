@@ -983,6 +983,7 @@ struct App {
     surface_config: Option<wgpu::SurfaceConfiguration>,
     keys: HashSet<KeyCode>,
     gamepads: Option<gilrs::Gilrs>,
+    pad_nav: [bool; 6],
     last_tick: Instant,
     accumulator: Duration,
 }
@@ -1035,6 +1036,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         surface_config: None,
         keys: HashSet::new(),
         gamepads,
+        pad_nav: [false; 6],
         last_tick: Instant::now(),
         accumulator: Duration::ZERO,
     };
@@ -1136,7 +1138,7 @@ impl App {
         }
     }
 
-    fn activate_menu(&mut self, event_loop: &ActiveEventLoop) {
+    fn activate_menu(&mut self, event_loop: Option<&ActiveEventLoop>) {
         let Some(frontend) = self.frontend.as_ref() else {
             return;
         };
@@ -1169,7 +1171,11 @@ impl App {
                     frontend.options_index = 0;
                 }
             }
-            "quit" => event_loop.exit(),
+            "quit" => {
+                if let Some(event_loop) = event_loop {
+                    event_loop.exit();
+                }
+            }
             _ => {}
         }
     }
@@ -1228,7 +1234,7 @@ impl App {
         }
     }
 
-    fn frontend_key(&mut self, code: KeyCode, event_loop: &ActiveEventLoop) {
+    fn frontend_key(&mut self, code: KeyCode, event_loop: Option<&ActiveEventLoop>) {
         let Some(screen) = self.frontend.as_ref().map(|f| f.screen) else {
             return;
         };
@@ -1250,7 +1256,11 @@ impl App {
                     KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => {
                         self.activate_menu(event_loop)
                     }
-                    KeyCode::Escape => event_loop.exit(),
+                    KeyCode::Escape => {
+                        if let Some(event_loop) = event_loop {
+                            event_loop.exit();
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -1409,6 +1419,28 @@ impl App {
         Ok(())
     }
 
+    fn poll_pad_menu(&mut self) {
+        if self
+            .frontend
+            .as_ref()
+            .is_some_and(|frontend| frontend.screen == FrontendScreen::Fight)
+        {
+            return;
+        }
+        let Some(gilrs) = &self.gamepads else {
+            return;
+        };
+        let Some((_, pad)) = gilrs.gamepads().next() else {
+            return;
+        };
+        let current = pad_nav(pad_input(&pad));
+        let previous = self.pad_nav;
+        self.pad_nav = current;
+        for key in nav_edges(previous, current) {
+            self.frontend_key(key, None);
+        }
+    }
+
     fn gamepad_inputs(&self) -> [PlayerInput; 2] {
         let mut pads = [PlayerInput::default(); 2];
         let Some(gilrs) = &self.gamepads else {
@@ -1421,6 +1453,7 @@ impl App {
     }
 
     fn step(&mut self) {
+        self.poll_pad_menu();
         if let Some(frontend) = self.frontend.as_mut() {
             if frontend.screen != FrontendScreen::Fight {
                 frontend.frame = frontend.frame.wrapping_add(1);
@@ -1600,7 +1633,7 @@ impl ApplicationHandler for App {
                             .as_ref()
                             .is_some_and(|f| f.screen != FrontendScreen::Fight)
                         {
-                            self.frontend_key(code, event_loop);
+                            self.frontend_key(code, Some(event_loop));
                             return;
                         }
                         if code == KeyCode::Escape {
@@ -1768,6 +1801,37 @@ fn pad_input(pad: &gilrs::Gamepad<'_>) -> PlayerInput {
     pad_input_from(dpad, stick, buttons)
 }
 
+/// Menu navigation bits derived from a pad frame.
+fn pad_nav(input: PlayerInput) -> [bool; 6] {
+    [
+        input.dir & DIR_UP != 0,
+        input.dir & DIR_DOWN != 0,
+        input.dir & DIR_LEFT != 0,
+        input.dir & DIR_RIGHT != 0,
+        input.buttons & (Buttons::START | Buttons::X) != 0,
+        input.buttons & (Buttons::A | Buttons::Y) != 0,
+    ]
+}
+
+/// Rising edges only, so held directions move the cursor once.
+fn nav_edges(previous: [bool; 6], current: [bool; 6]) -> Vec<KeyCode> {
+    let keys = [
+        KeyCode::KeyW,
+        KeyCode::KeyS,
+        KeyCode::KeyA,
+        KeyCode::KeyD,
+        KeyCode::Enter,
+        KeyCode::Escape,
+    ];
+    current
+        .iter()
+        .zip(previous.iter())
+        .zip(keys.iter())
+        .filter(|((now, before), _)| **now && !**before)
+        .map(|(_, key)| *key)
+        .collect()
+}
+
 fn player_input(keys: &HashSet<KeyCode>, bindings: &KeyBindings) -> PlayerInput {
     PlayerInput::new(
         dir_bits(
@@ -1809,6 +1873,16 @@ mod tests {
         assert_eq!(neutral.dir, 0);
         let diagonal = pad_input_from([false; 4], (0.9, -0.9), [false; 7]);
         assert_eq!(diagonal.dir, DIR_RIGHT | DIR_DOWN);
+    }
+
+    #[test]
+    fn pad_menu_edges_fire_once() {
+        let current = [true, false, false, false, true, false];
+        let keys = nav_edges([false; 6], current);
+        assert_eq!(keys, vec![KeyCode::KeyW, KeyCode::Enter]);
+        assert!(nav_edges(current, current).is_empty());
+        let released = nav_edges(current, [false; 6]);
+        assert!(released.is_empty());
     }
 
     #[test]
