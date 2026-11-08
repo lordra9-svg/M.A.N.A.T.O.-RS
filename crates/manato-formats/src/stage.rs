@@ -112,6 +112,115 @@ pub struct BgCtrl {
     pub controller: Controller,
 }
 
+/// A standalone background scene used by screenpack motifs (title, select).
+///
+/// It shares the stage BG format but has no camera or player data.
+#[derive(Debug, Clone, Default)]
+pub struct BgScene {
+    pub sprites: SffFile,
+    pub animations: HashMap<i32, Animation>,
+    pub layers: Vec<BgLayer>,
+    pub bg_ctrls: Vec<BgCtrl>,
+    pub clear_color: [u8; 3],
+    pub clear_alpha: u8,
+    pub clear_layerno: i32,
+    pub path: PathBuf,
+}
+
+impl BgScene {
+    pub fn load(path: &Path) -> anyhow::Result<Self> {
+        let def = StageDefFile::load(path)
+            .with_context(|| format!("failed to load background def {}", path.display()))?;
+        let raw = std::fs::read(path)
+            .map(|bytes| decode_text(&bytes))
+            .unwrap_or_default();
+        let animations: HashMap<i32, Animation> = parse_air_str(&raw)
+            .into_iter()
+            .map(|animation| (animation.number, animation))
+            .collect();
+
+        let spr_name = def
+            .bgdef
+            .get("spr")
+            .or_else(|| def.info.get("spr"))
+            .cloned()
+            .unwrap_or_default();
+        let mut sprites = SffFile::default();
+        if !spr_name.is_empty() {
+            let candidate = def.dir.join(&spr_name);
+            if candidate.exists() {
+                sprites = SffFile::load(&candidate)
+                    .with_context(|| format!("failed to load background SFF {}", candidate.display()))?;
+            }
+        }
+
+        let mut layers = Vec::new();
+        let mut bg_ctrls = Vec::new();
+        for section in &def.text.sections {
+            match section.kind().as_str() {
+                "bg" => layers.push(parse_layer(section_map(section))),
+                "bgctrl" => {
+                    let layer = section
+                        .header_lower()
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    let params: Vec<(String, String)> = section
+                        .entries
+                        .iter()
+                        .map(|entry| {
+                            (
+                                entry.key.trim().to_ascii_lowercase(),
+                                entry.value.trim().to_string(),
+                            )
+                        })
+                        .collect();
+                    let kind = params
+                        .iter()
+                        .find(|(key, _)| key == "type")
+                        .map(|(_, value)| value.to_ascii_lowercase())
+                        .unwrap_or_else(|| "null".into());
+                    bg_ctrls.push(BgCtrl {
+                        layer,
+                        controller: Controller {
+                            kind,
+                            params,
+                            line: section.line,
+                        },
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        let alpha = def
+            .bgdef
+            .get("bgclearalpha")
+            .and_then(|value| value.split(',').next())
+            .and_then(|value| value.trim().parse::<i32>().ok())
+            .unwrap_or(255)
+            .clamp(0, 255) as u8;
+        let layerno = def
+            .bgdef
+            .get("bgclearlayerno")
+            .and_then(|value| value.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+
+        Ok(Self {
+            sprites,
+            animations,
+            layers,
+            bg_ctrls,
+            clear_color: parse_color(def.bgdef.get("bgclearcolor")),
+            clear_alpha: alpha,
+            clear_layerno: layerno,
+            path: path.to_path_buf(),
+        })
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct Stage {
     pub name: String,
