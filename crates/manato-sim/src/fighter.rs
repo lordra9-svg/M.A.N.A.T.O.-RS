@@ -212,6 +212,10 @@ pub struct Fighter {
     pub helper_destroy: bool,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
+    /// Hits taken while in the current hitstun (`combo` tracking).
+    pub received_hits: i32,
+    /// Damage taken while in the current hitstun.
+    pub received_damage: i32,
 
     /// Set when the fighter changed state this tick (skip duplicate updates).
     pub state_changed: bool,
@@ -296,6 +300,8 @@ impl Fighter {
             helper_destroy: false,
             target: None,
             pal_remap: None,
+            received_hits: 0,
+            received_damage: 0,
             state_changed: false,
         };
         f.enter_state(0, char, false);

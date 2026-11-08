@@ -986,3 +986,74 @@ fn zoom_controller_and_triggers_round_trip() {
         );
     }
 }
+
+#[test]
+fn combo_counter_tracks_hits_and_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let origin = sim.fighters[0].pos;
+    let hit = hitdef();
+    for _ in 0..3 {
+        manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.combo[0].hits, 3);
+    assert_eq!(sim.combo[0].shown_hits, 3);
+    assert!(sim.combo[0].timer > 0, "combo keeps a display timer");
+    assert_eq!(sim.combo[0].damage, 60);
+    assert_eq!(sim.combo[1].shown_hits, 0);
+
+    // The counter survives recovery, then hides once the timer expires.
+    for _ in 0..180 {
+        if sim.fighters[1].received_hits == 0 {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].received_hits, 0);
+    assert_eq!(sim.combo[0].shown_hits, 3);
+    for _ in 0..manato_sim::COMBO_DISPLAY_TICKS + 1 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.combo[0].shown_hits, 0);
+    assert_eq!(sim.combo[0].timer, 0);
+}
+
+#[test]
+fn win_history_records_perfect_and_time_over() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.winner, Some(0));
+    let record = *sim.win_history[0].last().expect("KO win recorded");
+    assert!(!record.time_over);
+    assert!(record.perfect);
+    assert!(!record.clutch);
+
+    // A damaged winner is neither perfect nor clutch.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = sim.fighters[0].life_max / 2;
+    sim.fighters[1].life = sim.fighters[1].life_max / 2 - 100;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.winner, Some(0));
+    let record = *sim.win_history[0].last().expect("time over recorded");
+    assert!(record.time_over);
+    assert!(!record.perfect);
+    assert!(!record.clutch);
+
+    // A win at or below the clutch threshold is flagged.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = (sim.fighters[0].life_max as f32 * manato_sim::CLUTCH_THRESHOLD) as i32;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    let record = *sim.win_history[0].last().expect("clutch recorded");
+    assert!(record.clutch);
+}

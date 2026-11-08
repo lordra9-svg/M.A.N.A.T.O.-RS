@@ -373,6 +373,10 @@ pub fn apply_hit_at(
         f.hit.guarding = guarding;
         f.hit.hit_pause = hitdef.pausetime.0.max(0);
         f.life = (f.life - damage).max(0);
+        if !guarding {
+            f.received_hits = f.received_hits.saturating_add(hitdef.numhits.max(1));
+            f.received_damage = f.received_damage.saturating_add(damage);
+        }
         f.ctrl = false;
         f.attack = Default::default();
         f.hitdef = None;

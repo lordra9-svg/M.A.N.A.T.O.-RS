@@ -499,6 +499,35 @@ impl StageLayerState {
     }
 }
 
+/// Ticks a combo counter stays visible after the last hit.
+pub const COMBO_DISPLAY_TICKS: i32 = 60;
+
+/// Per-side combo counter state (`docs/spec/render.md` §6.8).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ComboState {
+    /// Current consecutive hits taken by the opposing side.
+    pub hits: i32,
+    /// Hit count last shown by the combo counter; survives the combo ending
+    /// until `timer` expires.
+    pub shown_hits: i32,
+    /// Damage dealt by the current combo.
+    pub damage: i32,
+    /// Remaining display ticks; visible while this is positive.
+    pub timer: i32,
+}
+
+/// One recorded round win, rendered by the fight screen (`§6.7`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WinRecord {
+    /// Win on time rather than by KO.
+    pub time_over: bool,
+    pub perfect: bool,
+    pub clutch: bool,
+}
+
+/// Fraction of max life at or below which a win counts as a clutch win.
+pub const CLUTCH_THRESHOLD: f32 = 0.10;
+
 #[derive(Debug, Clone)]
 pub struct SimState {
     pub assets: Arc<Assets>,
@@ -520,6 +549,10 @@ pub struct SimState {
     pub super_pause_move_time: i32,
     pub hit_activation: u32,
     pub finished: bool,
+    /// Per-side combo counters (`§6.8`).
+    pub combo: [ComboState; 2],
+    /// Wins recorded this match, in order, per side (`§6.7`).
+    pub win_history: [Vec<WinRecord>; 2],
 }
 
 impl SimState {
@@ -585,6 +618,8 @@ impl SimState {
             super_pause_move_time: 0,
             hit_activation: 1,
             finished: false,
+            combo: [ComboState::default(); 2],
+            win_history: [Vec::new(), Vec::new()],
         };
         state.start_round();
         state
@@ -663,11 +698,13 @@ impl SimState {
             }
             self.update_round();
             self.update_effects();
+            self.update_fight_screen();
             return;
         }
 
         if self.round.phase == RoundPhase::Over {
             self.update_effects();
+            self.update_fight_screen();
             return;
         }
 
@@ -699,6 +736,7 @@ impl SimState {
         self.update_round();
         self.update_camera();
         self.update_effects();
+        self.update_fight_screen();
         self.bg_time += 1.0;
         self.update_stage_layers();
     }
@@ -732,6 +770,12 @@ impl SimState {
             }
             fighter.hit.hit_shake_timer = (fighter.hit.hit_shake_timer - 1).max(0);
             fighter.hit.hit_over_timer = (fighter.hit.hit_over_timer - 1).max(0);
+            // Leaving hitstun ends the combo the attacker was building
+            // (`docs/spec/render.md` §6.8).
+            if fighter.move_type != fighter::MoveType::Hit {
+                fighter.received_hits = 0;
+                fighter.received_damage = 0;
+            }
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.hit.invuln_timer = (fighter.hit.invuln_timer - 1).max(0);
             if let Some(override_) = fighter.hit_override.as_mut() {
@@ -1102,6 +1146,7 @@ impl SimState {
                     };
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
+                        self.record_win(w, false);
                         self.fighters[w].power = (self.fighters[w].power + 200.0).min(MAX_POWER);
                         self.enter_win_pose(w);
                     }
@@ -1129,6 +1174,7 @@ impl SimState {
                     };
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
+                        self.record_win(w, true);
                     }
                 }
             }
@@ -1167,6 +1213,45 @@ impl SimState {
             }
             RoundPhase::Over => {}
         }
+    }
+
+    /// Updates presentation state that lives in the simulation: combo
+    /// counters (`docs/spec/render.md` §6.8).
+    fn update_fight_screen(&mut self) {
+        for side in 0..2 {
+            let defender = 1 - side;
+            let (hits, damage) = self
+                .fighters
+                .get(defender)
+                .map(|fighter| (fighter.received_hits, fighter.received_damage))
+                .unwrap_or((0, 0));
+            let state = &mut self.combo[side];
+            if hits > state.hits {
+                state.shown_hits = hits;
+                state.timer = COMBO_DISPLAY_TICKS;
+            }
+            state.hits = hits;
+            state.damage = damage;
+            if state.timer > 0 {
+                state.timer -= 1;
+                if state.timer == 0 {
+                    state.shown_hits = 0;
+                }
+            }
+        }
+    }
+
+    /// Records a round win and its perfect/clutch classification (`§6.7`).
+    fn record_win(&mut self, winner: usize, time_over: bool) {
+        let fighter = &self.fighters[winner];
+        let perfect = fighter.life >= fighter.life_max;
+        let clutch = !perfect
+            && (fighter.life as f32) <= fighter.life_max as f32 * CLUTCH_THRESHOLD;
+        self.win_history[winner].push(WinRecord {
+            time_over,
+            perfect,
+            clutch,
+        });
     }
 
     fn round_not_over(&self) -> bool {
@@ -1233,6 +1318,8 @@ impl SimState {
             fighter.pal_alpha = 1.0;
             fighter.pal_time = 0;
             fighter.target = None;
+            fighter.received_hits = 0;
+            fighter.received_damage = 0;
             fighter.state_changed = false;
             fighter.enter_state(0, char, false);
             fighter.ctrl = true;
@@ -1245,6 +1332,7 @@ impl SimState {
         self.round.display = format!("Round {}", self.round.number);
         self.effects.clear();
         self.projectiles.clear();
+        self.combo = [ComboState::default(); 2];
         self.camera.x = self.assets.stage.camera.start.x;
         self.camera.y = self.assets.stage.camera.start.y;
         self.camera.scale = self.assets.stage.camera.start_zoom;
@@ -1543,6 +1631,20 @@ impl SimState {
         h.write_u64(self.rng.state());
         h.write_i32(self.super_pause);
         h.write_u32(self.hit_activation);
+        for combo in &self.combo {
+            h.write_i32(combo.hits);
+            h.write_i32(combo.shown_hits);
+            h.write_i32(combo.damage);
+            h.write_i32(combo.timer);
+        }
+        for side in &self.win_history {
+            h.write_u32(side.len() as u32);
+            for win in side {
+                h.write_bool(win.time_over);
+                h.write_bool(win.perfect);
+                h.write_bool(win.clutch);
+            }
+        }
         h.write_u32(self.effects.len() as u32);
         for e in &self.effects {
             h.write_i32(e.anim);
@@ -1664,6 +1766,8 @@ impl SimState {
             h.write_i32(f.hit.hit_pause);
             h.write_i32(f.hit.vars.hittime);
             h.write_bool(f.hit.guarding);
+            h.write_i32(f.received_hits);
+            h.write_i32(f.received_damage);
             for &v in &f.vars {
                 h.write_i32(v);
             }
