@@ -4,7 +4,7 @@
 //! (`p2, life`, `enemy, stateno`, ...) switch the target fighter for the inner
 //! expression.
 
-use manato_core::{Dir8, Vec2, GAME_WIDTH};
+use manato_core::{Dir8, Vec2, GAME_HEIGHT, GAME_WIDTH};
 use manato_formats::{CommandDef, Controller};
 
 use crate::expr::{BinOp, Expr, UnOp, Value};
@@ -436,6 +436,28 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 .filter(|fighter| fighter.owner == Some(sim.root_of(who)))
                 .count() as i32,
         ),
+        "leftedge" => Value::Float(sim.camera.x - GAME_WIDTH * 0.5),
+        "rightedge" => Value::Float(sim.camera.x + GAME_WIDTH * 0.5),
+        "topedge" => Value::Float(sim.camera.y - sim.ground_screen_y()),
+        "bottomedge" => Value::Float(sim.camera.y - sim.ground_screen_y() + GAME_HEIGHT),
+        "backedge" => {
+            let left = sim.camera.x - GAME_WIDTH * 0.5;
+            let right = sim.camera.x + GAME_WIDTH * 0.5;
+            Value::Float(if sim.fighters[who].facing < 0 {
+                right
+            } else {
+                left
+            })
+        }
+        "frontedge" => {
+            let left = sim.camera.x - GAME_WIDTH * 0.5;
+            let right = sim.camera.x + GAME_WIDTH * 0.5;
+            Value::Float(if sim.fighters[who].facing < 0 {
+                left
+            } else {
+                right
+            })
+        }
         "projcontact" | "projhit" | "projguarded" | "projmiss" | "projcontacttime"
         | "projhittime" | "projguardedtime" | "projmissetime" => Value::Int(0),
         "numtarget" => Value::Int(sim.fighters[who].target.is_some() as i32),
@@ -575,8 +597,14 @@ fn is_trigger_name(name: &str) -> bool {
             | "animelem"
             | "animtime"
             | "author"
+            | "backedge"
             | "backedgebodydist"
             | "backedgedist"
+            | "bottomedge"
+            | "frontedge"
+            | "leftedge"
+            | "rightedge"
+            | "topedge"
             | "camerapos"
             | "camerazoom"
             | "zoomvar"
@@ -674,6 +702,20 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
     let other = sim.other(who);
     let o = &sim.fighters[other];
     match name {
+        "leftedge" => Value::Float(sim.camera.x - GAME_WIDTH * 0.5),
+        "rightedge" => Value::Float(sim.camera.x + GAME_WIDTH * 0.5),
+        "topedge" => Value::Float(sim.camera.y - sim.ground_screen_y()),
+        "bottomedge" => Value::Float(sim.camera.y - sim.ground_screen_y() + GAME_HEIGHT),
+        "backedge" => {
+            let left = sim.camera.x - GAME_WIDTH * 0.5;
+            let right = sim.camera.x + GAME_WIDTH * 0.5;
+            Value::Float(if f.facing < 0 { right } else { left })
+        }
+        "frontedge" => {
+            let left = sim.camera.x - GAME_WIDTH * 0.5;
+            let right = sim.camera.x + GAME_WIDTH * 0.5;
+            Value::Float(if f.facing < 0 { left } else { right })
+        }
         "time" | "statetime" => Value::Int(f.state_time),
         "stateno" => Value::Int(f.state_no),
         "prevstateno" => Value::Int(f.prev_state_no),

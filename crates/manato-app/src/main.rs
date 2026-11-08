@@ -904,9 +904,18 @@ impl Frontend {
         (self.screenpack.select.rows.max(1) * self.screenpack.select.columns.max(1)) as usize
     }
 
+    fn move_menu(&mut self, delta: i32) {
+        let count = self.menu.len();
+        if count == 0 {
+            return;
+        }
+        let next = self.menu_index as i32 + delta;
+        self.menu_index = next.rem_euclid(count as i32) as usize;
+    }
+
     fn move_cursor(&mut self, side: usize, dx: i32, dy: i32) {
         let columns = self.screenpack.select.columns.max(1);
-        let count = self.names.len().max(1) as i32;
+        let count = self.roster.len().max(1) as i32;
         let mut cell = if side == 0 { self.p1 } else { self.p2 } as i32;
         let mut column = cell % columns;
         let mut row = cell / columns;
@@ -1239,31 +1248,25 @@ impl App {
             return;
         };
         match screen {
-            FrontendScreen::Title => {
-                let count = self.frontend.as_ref().map(|f| f.menu.len()).unwrap_or(0);
-                match code {
-                    KeyCode::KeyW | KeyCode::ArrowUp => {
-                        if let Some(frontend) = self.frontend.as_mut() {
-                            frontend.menu_index =
-                                (frontend.menu_index + count.saturating_sub(1)) % count.max(1);
-                        }
+            FrontendScreen::Title => match code {
+                KeyCode::KeyW | KeyCode::ArrowUp => {
+                    if let Some(frontend) = self.frontend.as_mut() {
+                        frontend.move_menu(-1);
                     }
-                    KeyCode::KeyS | KeyCode::ArrowDown => {
-                        if let Some(frontend) = self.frontend.as_mut() {
-                            frontend.menu_index = (frontend.menu_index + 1) % count.max(1);
-                        }
-                    }
-                    KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => {
-                        self.activate_menu(event_loop)
-                    }
-                    KeyCode::Escape => {
-                        if let Some(event_loop) = event_loop {
-                            event_loop.exit();
-                        }
-                    }
-                    _ => {}
                 }
-            }
+                KeyCode::KeyS | KeyCode::ArrowDown => {
+                    if let Some(frontend) = self.frontend.as_mut() {
+                        frontend.move_menu(1);
+                    }
+                }
+                KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => self.activate_menu(event_loop),
+                KeyCode::Escape => {
+                    if let Some(event_loop) = event_loop {
+                        event_loop.exit();
+                    }
+                }
+                _ => {}
+            },
             FrontendScreen::Select => {
                 let versus = self
                     .frontend
@@ -1873,6 +1876,103 @@ mod tests {
         assert_eq!(neutral.dir, 0);
         let diagonal = pad_input_from([false; 4], (0.9, -0.9), [false; 7]);
         assert_eq!(diagonal.dir, DIR_RIGHT | DIR_DOWN);
+    }
+
+    fn test_frontend() -> Frontend {
+        let mut screenpack = Screenpack::default();
+        screenpack.title.items = vec![
+            manato_formats::screenpack::MenuItemDef {
+                key: "arcade".into(),
+                label: "ARCADE".into(),
+            },
+            manato_formats::screenpack::MenuItemDef {
+                key: "versus".into(),
+                label: "VERSUS".into(),
+            },
+        ];
+        screenpack.select.rows = 1;
+        screenpack.select.columns = 3;
+        let entry = RosterEntry {
+            def: "kaen.def".into(),
+            stage: None,
+            random: false,
+        };
+        Frontend {
+            screen: FrontendScreen::Title,
+            screenpack,
+            roster: vec![
+                entry.clone(),
+                entry.clone(),
+                entry.clone(),
+                entry.clone(),
+                entry,
+            ],
+            faces: vec![],
+            names: vec![],
+            select_timer: Some(60),
+            menu: vec![
+                ("arcade".into(), "ARCADE".into()),
+                ("versus".into(), "VERSUS".into()),
+            ],
+            menu_index: 0,
+            mode: Mode::Arcade,
+            p1: 0,
+            p2: 1,
+            p1_done: false,
+            p2_done: false,
+            page: 0,
+            frame: 0,
+            options_index: 0,
+            options_rounds: 2,
+            options_round_time: 99,
+            options_ai: 6,
+            options_sound: 100,
+            options_music: 100,
+            options_fullscreen: false,
+            result_timer: 0,
+            title_layers: vec![],
+            select_layers: vec![],
+        }
+    }
+
+    #[test]
+    fn title_menu_wraps() {
+        let mut frontend = test_frontend();
+        frontend.move_menu(1);
+        assert_eq!(frontend.menu_index, 1);
+        frontend.move_menu(1);
+        assert_eq!(frontend.menu_index, 0);
+        frontend.move_menu(-1);
+        assert_eq!(frontend.menu_index, 1);
+    }
+
+    #[test]
+    fn select_cursor_moves_and_pages() {
+        let mut frontend = test_frontend();
+        frontend.move_cursor(0, 1, 0);
+        assert_eq!(frontend.p1, 1);
+        frontend.move_cursor(0, 1, 0);
+        assert_eq!(frontend.p1, 2);
+        // A one-row grid does not wrap horizontally.
+        frontend.move_cursor(0, 1, 0);
+        assert_eq!(frontend.p1, 2);
+        frontend.move_cursor(0, 0, 1);
+        assert_eq!(frontend.p1, 4);
+        assert_eq!(frontend.page, 1);
+        frontend.move_cursor(0, 0, -1);
+        assert_eq!(frontend.p1, 1);
+        assert_eq!(frontend.page, 0);
+    }
+
+    #[test]
+    fn random_roster_slots_resolve_deterministically() {
+        let mut frontend = test_frontend();
+        frontend.roster[0].random = true;
+        frontend.frame = 7;
+        let first = chosen_entry(&frontend, 0).expect("entry");
+        let second = chosen_entry(&frontend, 0).expect("entry");
+        assert_eq!(first.def, second.def);
+        assert!(!first.random);
     }
 
     #[test]

@@ -1250,3 +1250,24 @@ fn action_banners_queue_drop_and_expire() {
     }
     assert_eq!(sim.checksum(), clone.checksum());
 }
+
+#[test]
+fn edge_triggers_track_camera_and_facing() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 0.0;
+    sim.camera.y = 0.0;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "LeftEdge"), -160.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "RightEdge"), 160.0);
+    let top = manato_sim::trigger::num(&sim, 0, "TopEdge");
+    let bottom = manato_sim::trigger::num(&sim, 0, "BottomEdge");
+    assert!((bottom - top - 240.0).abs() < f32::EPSILON);
+
+    sim.fighters[0].facing = 1;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "BackEdge"), -160.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "FrontEdge"), 160.0);
+    sim.fighters[0].facing = -1;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "BackEdge"), 160.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "FrontEdge"), -160.0);
+}
