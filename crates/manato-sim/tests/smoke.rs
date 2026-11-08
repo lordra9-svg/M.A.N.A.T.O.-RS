@@ -1105,3 +1105,25 @@ fn mid_fill_drains_after_delay() {
     );
     assert!(sim.bars[1].mid_life >= 0.5 - f32::EPSILON);
 }
+
+#[test]
+fn bg_controllers_update_screen_backgrounds() {
+    use manato_formats::{BgCtrl, Controller};
+
+    let layer = manato_formats::stage::BgLayer {
+        visible: true,
+        enabled: true,
+        ..Default::default()
+    };
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let controls = [BgCtrl {
+        layer: 0,
+        controller: Controller {
+            kind: "visible".into(),
+            params: vec![("value".into(), "0".into())],
+            line: 0,
+        },
+    }];
+    manato_sim::update_bg_states(&controls, &mut states, 0, 1, 0);
+    assert!(!states[0].visible, "BGCtrl should hide the layer");
+}

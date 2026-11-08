@@ -41,9 +41,10 @@ cargo run -q -p manato-app -- --frames 600 --screenshot out.png
 # Windowed play: Kaen vs Nival.
 cargo run -q -p manato-app
 
-# Windowed play through the title/select front end and bundled screenpack.
-cargo run -q -p manato-app -- --menu \
-  --screenpack content/screenpacks/manato-grid/system.def
+# Windowed play through the title/select front end. `--menu` loads the
+# bundled Manato Grid screenpack by default; add `--screenpack none` for the
+# built-in text screens.
+cargo run -q -p manato-app -- --menu
 
 # Rollback determinism check.
 cargo run -q -p manato-app -- --synctest 600
@@ -60,8 +61,10 @@ cargo run -q -p manato-app --   --p1 mugen-1.1b1/chars/kfm/kfm.def   --p2 conten
 The window opens at `320x240 * scale` (default scale 3). `F12` saves a
 screenshot. Without `--menu`, `Esc` quits. With `--menu`, `Esc` returns to the
 title screen from a match and cancels select/title navigation. The bundled
-`Manato Grid` screenpack provides the title, select, and fight screens; without
-one the engine uses its built-in text/HUD fallback.
+`Manato Grid` screenpack provides the title, select, and fight screens,
+including screenpack fonts, background BGCtrls, select portraits, and an
+optional select countdown. Without one (`--screenpack none`) the engine uses
+its built-in text/HUD fallback.
 
 ### Controls
 

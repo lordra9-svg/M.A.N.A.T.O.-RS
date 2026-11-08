@@ -46,6 +46,10 @@ spriteno = 0, 12
 start = 0, 0
 delta = 0, 0
 
+[TitleBGdef BGCtrl 0]
+type = SinX
+value = 3, 180, 0
+
 [Select Info]
 rows = 1
 columns = 4
@@ -57,21 +61,33 @@ cell.name.font = 0
 cell.name.offset = 20, 42
 cell.name.align = 1
 cell.name.scale = 1, 1
+cell.face.spr = 9000, 0
+cell.face.offset = 4, 4
 p1.cursor.startcell = 0, 0
 p1.cursor.spr = 0, 9
 p1.cursor.offset = 4, 4
 p1.name.font = 0
-p1.name.offset = 80, 186
+p1.name.offset = 80, 200
 p1.name.align = 1
+p1.face.spr = 9000, 1
+p1.face.offset = 4, 146
 p2.cursor.startcell = 3, 0
 p2.cursor.spr = 0, 9
 p2.cursor.offset = 4, 4
 p2.name.font = 0
-p2.name.offset = 240, 186
+p2.name.offset = 240, 200
 p2.name.align = 1
+p2.face.spr = 9000, 1
+p2.face.offset = 268, 146
 stage.spr = 0, 6
-stage.pos = 137, 204
+stage.pos = 137, 214
 stage.align = 1
+timer.count = 15
+timer.pos = 286, 36
+timer.counter.font = 0
+timer.counter.text = "%d"
+timer.counter.align = 1
+timer.counter.scale = 1, 1
 
 [SelectBGdef]
 spr = manato.sff

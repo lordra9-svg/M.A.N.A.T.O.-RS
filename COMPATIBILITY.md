@@ -27,9 +27,9 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl/reflection/BGM/window/mask added; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
-| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering; storyboards and screenpack sounds pending |
+| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl; storyboards and `[Action]` banners pending |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
-| F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, names, stage preview; VS animation not implemented |
+| F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview; VS animation not implemented |
 
 ## 2. State machine
 
@@ -110,7 +110,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Built-in HUD + screenpack bars/names/timer/win icons/combo; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Projectile tests |
 | V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
-| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight; round announcement sounds emitted; action banners pending |
+| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round announcement sounds; action banners pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
 

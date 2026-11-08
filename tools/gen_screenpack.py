@@ -224,6 +224,23 @@ def make_sprites() -> list[tuple[int, int, int, int, int, int, bytes]]:
                 put(bg, 320, x, y, (30, 44, 70, 255))
         sprites.append((0, group_index, 320, 240, 0, 0, png_rgba(320, 240, bytes(bg))))
 
+    # 9000,0 cell portrait / 9000,1 large portrait (generic silhouette used
+    # when the character SFF has no portrait sprite).
+    for index, size in ((0, 32), (1, 48)):
+        portrait = fill(size, size, TRANSPARENT)
+        cx, cy = size / 2.0, size * 0.42
+        for y in range(size):
+            for x in range(size):
+                dx = (x - cx) / (size * 0.28)
+                dy = (y - cy) / (size * 0.24)
+                if dx * dx + dy * dy <= 1.0:
+                    shade = 120 + int(80 * (1.0 - y / size))
+                    put(portrait, size, x, y, (shade, shade + 30, shade + 60, 255))
+                if y > size * 0.72 and abs(x - cx) < size * 0.34:
+                    shade = 90 + int(50 * (1.0 - (y - size * 0.72) / (size * 0.28)))
+                    put(portrait, size, x, y, (shade, shade + 24, shade + 48, 255))
+        sprites.append((9000, index, size, size, size // 2, size // 2, png_rgba(size, size, bytes(portrait))))
+
     # 0,17 combo background.
     combo = fill(86, 18, (10, 14, 24, 190))
     border(combo, 86, 18, (120, 200, 255, 180))
@@ -282,6 +299,10 @@ spriteno = 0, 12
 start = 0, 0
 delta = 0, 0
 
+[TitleBGdef BGCtrl 0]
+type = SinX
+value = 3, 180, 0
+
 [Select Info]
 rows = 1
 columns = 4
@@ -293,21 +314,33 @@ cell.name.font = 0
 cell.name.offset = 20, 42
 cell.name.align = 1
 cell.name.scale = 1, 1
+cell.face.spr = 9000, 0
+cell.face.offset = 4, 4
 p1.cursor.startcell = 0, 0
 p1.cursor.spr = 0, 9
 p1.cursor.offset = 4, 4
 p1.name.font = 0
-p1.name.offset = 80, 186
+p1.name.offset = 80, 200
 p1.name.align = 1
+p1.face.spr = 9000, 1
+p1.face.offset = 4, 146
 p2.cursor.startcell = 3, 0
 p2.cursor.spr = 0, 9
 p2.cursor.offset = 4, 4
 p2.name.font = 0
-p2.name.offset = 240, 186
+p2.name.offset = 240, 200
 p2.name.align = 1
+p2.face.spr = 9000, 1
+p2.face.offset = 268, 146
 stage.spr = 0, 6
-stage.pos = 137, 204
+stage.pos = 137, 214
 stage.align = 1
+timer.count = 15
+timer.pos = 286, 36
+timer.counter.font = 0
+timer.counter.text = "%d"
+timer.counter.align = 1
+timer.counter.scale = 1, 1
 
 [SelectBGdef]
 spr = manato.sff

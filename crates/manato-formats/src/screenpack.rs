@@ -314,6 +314,7 @@ pub struct SelectDef {
 pub struct ScreenBg {
     pub sprites: SffFile,
     pub layers: Vec<BgLayer>,
+    pub animations: HashMap<i32, crate::air::Animation>,
     pub bg_ctrls: Vec<BgCtrl>,
     pub clear_color: [u8; 3],
     pub clear_alpha: u8,
@@ -519,7 +520,7 @@ impl FightDef {
         let time = text
             .find_header("time")
             .map(section_map)
-            .map(|map| parse_time(&map))
+            .map(|map| parse_time(&map, ""))
             .unwrap_or_default();
         let round = text
             .find_header("round")
@@ -687,7 +688,7 @@ impl SelectDef {
             stage: parse_element(&map, "stage."),
             done_keys,
             cancel_keys,
-            timer: parse_time(&map),
+            timer: parse_time(&map, "timer."),
             timer_count: int(&map, "timer.count", 0),
         }
     }
@@ -707,18 +708,7 @@ impl ScreenBg {
         let ctrl_prefix = format!("{header} bgctrl");
         for section in &text.sections {
             let lowered = section.header_lower();
-            if lowered.starts_with(&prefix) {
-                let suffix = lowered[prefix.len()..].trim();
-                if suffix.is_empty() || !suffix.chars().next().is_some_and(|c| c.is_ascii_digit()) {
-                    continue;
-                }
-                let mut map = section_map(section);
-                if map.is_empty() {
-                    continue;
-                }
-                normalize_bg_keys(&mut map);
-                layers.push(layer_from_map(&map));
-            } else if lowered.starts_with(&ctrl_prefix) {
+            if lowered.starts_with(&ctrl_prefix) {
                 let layer = section
                     .header_lower()
                     .split_whitespace()
@@ -739,6 +729,17 @@ impl ScreenBg {
                         line: section.line,
                     },
                 });
+            } else if lowered.starts_with(&prefix) {
+                let suffix = lowered[prefix.len()..].trim();
+                if suffix.is_empty() || !suffix.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+                    continue;
+                }
+                let mut map = section_map(section);
+                if map.is_empty() {
+                    continue;
+                }
+                normalize_bg_keys(&mut map);
+                layers.push(layer_from_map(&map));
             }
         }
         let alpha = head
@@ -747,9 +748,28 @@ impl ScreenBg {
             .and_then(|value| value.trim().parse::<i32>().ok())
             .unwrap_or(255)
             .clamp(0, 255) as u8;
+        let animations = text
+            .find("files")
+            .map(section_map)
+            .and_then(|files| files.get("air").cloned())
+            .and_then(|air| resolve_asset(dir, &air))
+            .and_then(|air| match crate::air::parse_air(&air) {
+                Ok(animations) => Some(
+                    animations
+                        .into_iter()
+                        .map(|animation| (animation.number, animation))
+                        .collect(),
+                ),
+                Err(error) => {
+                    log_warn(&format!("failed to load {}: {error:#}", air.display()));
+                    None
+                }
+            })
+            .unwrap_or_default();
         Some(Self {
             sprites,
             layers,
+            animations,
             bg_ctrls,
             clear_color: head
                 .get("bgclearcolor")
@@ -915,13 +935,21 @@ fn parse_name(map: &HashMap<String, String>) -> NameDef {
     }
 }
 
-fn parse_time(map: &HashMap<String, String>) -> TimeDef {
+fn parse_time(map: &HashMap<String, String>, prefix: &str) -> TimeDef {
+    let pos_key = format!("{prefix}pos");
     TimeDef {
-        pos: map.get("pos").map(|value| vec2(value)).unwrap_or_default(),
-        bg: parse_layer(map, "bg."),
-        top: parse_layer(map, "top."),
-        counter: parse_text(map, "counter."),
-        displaytime: int(map, "counter.displaytime", int(map, "displaytime", 0)),
+        pos: map
+            .get(&pos_key)
+            .map(|value| vec2(value))
+            .unwrap_or_default(),
+        bg: parse_layer(map, &format!("{prefix}bg.")),
+        top: parse_layer(map, &format!("{prefix}top.")),
+        counter: parse_text(map, &format!("{prefix}counter.")),
+        displaytime: int(
+            map,
+            &format!("{prefix}counter.displaytime"),
+            int(map, &format!("{prefix}displaytime"), 0),
+        ),
     }
 }
 

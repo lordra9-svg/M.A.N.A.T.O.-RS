@@ -43,6 +43,14 @@ fn loads_bundled_manato_grid() {
 
     assert!(pack.title_bg.is_some(), "title background missing");
     assert!(pack.select_bg.is_some(), "select background missing");
+    assert!(
+        pack.title_bg
+            .as_ref()
+            .is_some_and(|bg| !bg.bg_ctrls.is_empty()),
+        "title BG controllers should parse"
+    );
+    assert_eq!(pack.select.timer_count, 15);
+    assert_eq!(pack.select.timer.pos.x, 286.0);
     assert!(pack.select.rows >= 1);
     assert!(pack.select.columns >= 1);
 }

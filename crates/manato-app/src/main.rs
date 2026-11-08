@@ -9,6 +9,7 @@ use anyhow::Context as _;
 use manato_audio::AudioEngine;
 use manato_core::{Buttons, PlayerInput, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
 use manato_formats::screenpack::{Roster, RosterEntry, Screenpack};
+use manato_formats::SffFile;
 use manato_render::frontend::{OptionsView, SelectEntry, SelectView, TitleView};
 use manato_render::{wgpu, Renderer, GAME_HEIGHT, GAME_WIDTH};
 use manato_sim::{ai, Assets, MatchConfig, MatchOptions, SimState};
@@ -229,7 +230,8 @@ Content:
   --p1 <def>          Player 1 character definition
   --p2 <def>          Player 2 character definition
   --stage <def>       Stage definition
-  --screenpack <def>  Screenpack system.def (default: built-in HUD)
+  --screenpack <def>  Screenpack system.def; with --menu defaults to the
+                      bundled Manato Grid (use "none" for built-in text/HUD)
   --ai <level>        CPU level for slot 2, 0 = human (default 6)
   --rounds <n>        Rounds needed to win (default 2)
   --round-time <s>    Round timer in seconds (default 99)
@@ -327,16 +329,55 @@ fn run_frontend_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
         "options" => frontend.screen = FrontendScreen::Options,
         _ => frontend.screen = FrontendScreen::Title,
     }
+    for time in 0..frames as i32 {
+        match frontend.screen {
+            FrontendScreen::Select => {
+                if let Some(bg) = &frontend.screenpack.select_bg {
+                    manato_sim::update_bg_states(
+                        &bg.bg_ctrls,
+                        &mut frontend.select_layers,
+                        time,
+                        1,
+                        0,
+                    );
+                }
+            }
+            FrontendScreen::Title | FrontendScreen::Options => {
+                if let Some(bg) = &frontend.screenpack.title_bg {
+                    manato_sim::update_bg_states(
+                        &bg.bg_ctrls,
+                        &mut frontend.title_layers,
+                        time,
+                        1,
+                        0,
+                    );
+                }
+            }
+            FrontendScreen::Fight => {}
+        }
+    }
     let mut renderer = Renderer::new_offscreen()?;
-    renderer.load_frontend(Some(&frontend.screenpack));
+    renderer.load_frontend(Some(&frontend.screenpack), &frontend.faces);
     match frontend.screen {
         FrontendScreen::Select => {
-            renderer.render_select(&frontend.screenpack, &frontend.select_view());
+            renderer.render_select(
+                &frontend.screenpack,
+                &frontend.select_layers,
+                &frontend.select_view(),
+            );
         }
         FrontendScreen::Options => {
-            renderer.render_options(&frontend.screenpack, &frontend.options_view());
+            renderer.render_options(
+                &frontend.screenpack,
+                &frontend.title_layers,
+                &frontend.options_view(),
+            );
         }
-        _ => renderer.render_title(&frontend.screenpack, &frontend.title_view()),
+        _ => renderer.render_title(
+            &frontend.screenpack,
+            &frontend.title_layers,
+            &frontend.title_view(),
+        ),
     }
     if let Some(path) = &opts.screenshot {
         renderer.screenshot(path)?;
@@ -385,7 +426,10 @@ struct Frontend {
     screen: FrontendScreen,
     screenpack: Screenpack,
     roster: Vec<RosterEntry>,
+    /// Character sprite files aligned with `roster`, used for select portraits.
+    faces: Vec<SffFile>,
     names: Vec<SelectEntry>,
+    select_timer: Option<i32>,
     menu: Vec<(String, String)>,
     menu_index: usize,
     mode: Mode,
@@ -403,6 +447,8 @@ struct Frontend {
     options_music: u32,
     options_fullscreen: bool,
     result_timer: i32,
+    title_layers: Vec<manato_sim::StageLayerState>,
+    select_layers: Vec<manato_sim::StageLayerState>,
 }
 
 const MENU_ORDER: [&str; 5] = ["arcade", "versus", "training", "options", "quit"];
@@ -450,8 +496,13 @@ fn fallback_screenpack() -> Screenpack {
 
 impl Frontend {
     fn load(opts: &Options) -> anyhow::Result<Self> {
-        let screenpack = match &opts.screenpack {
-            Some(path) => {
+        let explicit = match opts.screenpack.as_deref() {
+            Some(value) if value.eq_ignore_ascii_case("none") => Some(None),
+            Some(value) => Some(Some(value)),
+            None => None,
+        };
+        let screenpack = match explicit {
+            Some(Some(path)) => {
                 let path = if Path::new(path).is_absolute() {
                     PathBuf::from(path)
                 } else {
@@ -460,7 +511,19 @@ impl Frontend {
                 Screenpack::load(&path)
                     .with_context(|| format!("failed to load screenpack {}", path.display()))?
             }
-            None => fallback_screenpack(),
+            Some(None) => fallback_screenpack(),
+            None => {
+                // `--menu` uses the bundled screenpack by default; other
+                // content roots fall back to the built-in text screens.
+                let bundled = opts.root.join("content/screenpacks/manato-grid/system.def");
+                if bundled.exists() {
+                    Screenpack::load(&bundled).with_context(|| {
+                        format!("failed to load screenpack {}", bundled.display())
+                    })?
+                } else {
+                    fallback_screenpack()
+                }
+            }
         };
         let roster = match &screenpack.select_def_path {
             Some(path) => Roster::load(path).unwrap_or_else(|error| {
@@ -510,6 +573,31 @@ impl Frontend {
                 }
             })
             .collect();
+        let faces = roster
+            .entries
+            .iter()
+            .map(|entry| {
+                if entry.random {
+                    return SffFile::default();
+                }
+                let def = if Path::new(&entry.def).is_absolute() {
+                    PathBuf::from(&entry.def)
+                } else {
+                    opts.root.join(&entry.def)
+                };
+                let Ok(character) = manato_formats::CharacterDef::load(&def) else {
+                    return SffFile::default();
+                };
+                character
+                    .files
+                    .sprite
+                    .as_ref()
+                    .and_then(|sprite| SffFile::load(sprite).ok())
+                    .unwrap_or_default()
+            })
+            .collect();
+        let select_timer =
+            (screenpack.select.timer_count > 0).then(|| screenpack.select.timer_count.max(1) * 60);
         let menu = MENU_ORDER
             .iter()
             .filter_map(|key| {
@@ -522,11 +610,15 @@ impl Frontend {
             })
             .collect();
         let p2_start = if roster.entries.len() > 1 { 1 } else { 0 };
+        let title_layers = screen_layer_states(&screenpack.title_bg);
+        let select_layers = screen_layer_states(&screenpack.select_bg);
         Ok(Self {
             screen: FrontendScreen::Title,
             screenpack,
             roster: roster.entries,
+            faces,
             names,
+            select_timer,
             menu,
             menu_index: 0,
             mode: Mode::Arcade,
@@ -544,6 +636,8 @@ impl Frontend {
             options_music: 100,
             options_fullscreen: false,
             result_timer: 0,
+            title_layers,
+            select_layers,
         })
     }
 
@@ -562,6 +656,7 @@ impl Frontend {
             p1_done: self.p1_done,
             p2_done: self.p2_done,
             frame: self.frame,
+            timer: self.select_timer,
             names: self.names.clone(),
         }
     }
@@ -612,6 +707,19 @@ impl Frontend {
         let page_size = self.per_page() as i32;
         self.page = cell / page_size;
     }
+}
+
+fn screen_layer_states(
+    bg: &Option<manato_formats::screenpack::ScreenBg>,
+) -> Vec<manato_sim::StageLayerState> {
+    bg.as_ref()
+        .map(|bg| {
+            bg.layers
+                .iter()
+                .map(manato_sim::StageLayerState::from_layer)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn chosen_entry(frontend: &Frontend, cell: usize) -> Option<RosterEntry> {
@@ -787,7 +895,7 @@ impl App {
             frontend.frame = 0;
         }
         if let (Some(renderer), Some(frontend)) = (self.renderer.as_mut(), self.frontend.as_ref()) {
-            renderer.load_frontend(Some(&frontend.screenpack));
+            renderer.load_frontend(Some(&frontend.screenpack), &frontend.faces);
         }
     }
 
@@ -814,6 +922,8 @@ impl App {
                     frontend.p1_done = false;
                     frontend.p2_done = false;
                     frontend.page = 0;
+                    frontend.select_timer = (frontend.screenpack.select.timer_count > 0)
+                        .then(|| frontend.screenpack.select.timer_count.max(1) * 60);
                 }
             }
             "options" => {
@@ -1033,7 +1143,7 @@ impl App {
         if let Some(sim) = &self.sim {
             renderer.load_assets(sim);
         } else if let Some(frontend) = &self.frontend {
-            renderer.load_frontend(Some(&frontend.screenpack));
+            renderer.load_frontend(Some(&frontend.screenpack), &frontend.faces);
         }
         surface.configure(&renderer.device, &config);
         log::info!(
@@ -1054,6 +1164,40 @@ impl App {
         if let Some(frontend) = self.frontend.as_mut() {
             if frontend.screen != FrontendScreen::Fight {
                 frontend.frame = frontend.frame.wrapping_add(1);
+                let time = frontend.frame as i32;
+                match frontend.screen {
+                    FrontendScreen::Title | FrontendScreen::Options => {
+                        if let Some(bg) = &frontend.screenpack.title_bg {
+                            manato_sim::update_bg_states(
+                                &bg.bg_ctrls,
+                                &mut frontend.title_layers,
+                                time,
+                                1,
+                                0,
+                            );
+                        }
+                    }
+                    FrontendScreen::Select => {
+                        if let Some(bg) = &frontend.screenpack.select_bg {
+                            manato_sim::update_bg_states(
+                                &bg.bg_ctrls,
+                                &mut frontend.select_layers,
+                                time,
+                                1,
+                                0,
+                            );
+                        }
+                    }
+                    FrontendScreen::Fight => {}
+                }
+                if frontend.screen == FrontendScreen::Select {
+                    if let Some(timer) = frontend.select_timer.as_mut() {
+                        *timer = (*timer - 1).max(0);
+                    }
+                    if frontend.select_timer == Some(0) {
+                        self.start_match();
+                    }
+                }
                 return;
             }
         }
@@ -1128,13 +1272,25 @@ impl App {
         } else if let Some(frontend) = &self.frontend {
             match frontend.screen {
                 FrontendScreen::Title => {
-                    renderer.render_title(&frontend.screenpack, &frontend.title_view());
+                    renderer.render_title(
+                        &frontend.screenpack,
+                        &frontend.title_layers,
+                        &frontend.title_view(),
+                    );
                 }
                 FrontendScreen::Options => {
-                    renderer.render_options(&frontend.screenpack, &frontend.options_view());
+                    renderer.render_options(
+                        &frontend.screenpack,
+                        &frontend.title_layers,
+                        &frontend.options_view(),
+                    );
                 }
                 FrontendScreen::Select => {
-                    renderer.render_select(&frontend.screenpack, &frontend.select_view());
+                    renderer.render_select(
+                        &frontend.screenpack,
+                        &frontend.select_layers,
+                        &frontend.select_view(),
+                    );
                 }
                 FrontendScreen::Fight => {}
             }

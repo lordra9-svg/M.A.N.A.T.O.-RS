@@ -386,10 +386,19 @@ impl Renderer {
 
     /// Builds the front-end atlas from the screenpack alone. Used before a
     /// match exists, when only title/select art is needed.
-    pub fn load_frontend(&mut self, screenpack: Option<&manato_formats::Screenpack>) {
+    pub fn load_frontend(
+        &mut self,
+        screenpack: Option<&manato_formats::Screenpack>,
+        faces: &[manato_formats::SffFile],
+    ) {
         let mut banks: Vec<(u8, &manato_formats::SffFile)> = Vec::new();
         if let Some(screenpack) = screenpack {
             banks.push((bank::SCREENPACK, &screenpack.sprites));
+        }
+        for (index, sff) in faces.iter().enumerate() {
+            if index < 32 {
+                banks.push((bank::CHARACTER_BASE + index as u8, sff));
+            }
         }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.screen_fonts.clear();
@@ -436,38 +445,53 @@ impl Renderer {
     }
 
     /// Draws a front-end title or select frame into the internal target.
-    pub fn render_title(&mut self, screenpack: &manato_formats::Screenpack, view: &TitleView) {
+    pub fn render_title(
+        &mut self,
+        screenpack: &manato_formats::Screenpack,
+        states: &[manato_sim::StageLayerState],
+        view: &TitleView,
+    ) {
         let deps = FrontendDeps {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
         };
         self.painter.clear();
-        frontend::draw_title(&mut self.painter, &deps, screenpack, view);
+        frontend::draw_title(&mut self.painter, &deps, screenpack, states, view);
         self.present();
     }
 
     /// Draws a front-end select frame into the internal target.
-    pub fn render_select(&mut self, screenpack: &manato_formats::Screenpack, view: &SelectView) {
+    pub fn render_select(
+        &mut self,
+        screenpack: &manato_formats::Screenpack,
+        states: &[manato_sim::StageLayerState],
+        view: &SelectView,
+    ) {
         let deps = FrontendDeps {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
         };
         self.painter.clear();
-        frontend::draw_select(&mut self.painter, &deps, screenpack, view);
+        frontend::draw_select(&mut self.painter, &deps, screenpack, states, view);
         self.present();
     }
 
     /// Draws the built-in options overlay on top of the title background.
-    pub fn render_options(&mut self, screenpack: &manato_formats::Screenpack, view: &OptionsView) {
+    pub fn render_options(
+        &mut self,
+        screenpack: &manato_formats::Screenpack,
+        states: &[manato_sim::StageLayerState],
+        view: &OptionsView,
+    ) {
         let deps = FrontendDeps {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
         };
         self.painter.clear();
-        frontend::draw_options(&mut self.painter, &deps, screenpack, view);
+        frontend::draw_options(&mut self.painter, &deps, screenpack, states, view);
         self.present();
     }
 

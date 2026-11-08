@@ -508,7 +508,7 @@ pub struct StageLayerState {
 }
 
 impl StageLayerState {
-    fn from_layer(layer: &manato_formats::stage::BgLayer) -> Self {
+    pub fn from_layer(layer: &manato_formats::stage::BgLayer) -> Self {
         Self {
             offset: Vec2::ZERO,
             velocity: layer.velocity,
@@ -790,20 +790,16 @@ impl SimState {
     }
 
     fn update_stage_layers(&mut self) {
-        let stage = &self.assets.stage;
         let bg_time = self.bg_time as i32;
         let round_no = self.round.number;
         let round_state = self.round.roundstate_code();
-        for (index, state) in self.stage_layers.iter_mut().enumerate() {
-            state.offset.x += state.velocity.x;
-            state.offset.y += state.velocity.y;
-            for ctrl in stage.bg_ctrls.iter().filter(|ctrl| ctrl.layer == index) {
-                if !stage_controller_met(bg_time, round_no, round_state, state, &ctrl.controller) {
-                    continue;
-                }
-                apply_stage_controller(state, &ctrl.controller);
-            }
-        }
+        update_bg_states(
+            &self.assets.stage.bg_ctrls,
+            &mut self.stage_layers,
+            bg_time,
+            round_no,
+            round_state,
+        );
     }
 
     fn update_fighter(&mut self, who: usize) {
@@ -1941,6 +1937,29 @@ impl SimState {
             }
         }
         h.finish()
+    }
+}
+
+/// Advances screen-background layers and applies their controllers.
+///
+/// Shared by the stage and by front-end `[TitleBGdef]`/`[SelectBGdef]`
+/// backgrounds (`docs/spec/render.md` §5.1).
+pub fn update_bg_states(
+    controls: &[manato_formats::BgCtrl],
+    states: &mut [StageLayerState],
+    bg_time: i32,
+    round_no: u32,
+    round_state: i32,
+) {
+    for (index, state) in states.iter_mut().enumerate() {
+        state.offset.x += state.velocity.x;
+        state.offset.y += state.velocity.y;
+        for control in controls.iter().filter(|control| control.layer == index) {
+            if !stage_controller_met(bg_time, round_no, round_state, state, &control.controller) {
+                continue;
+            }
+            apply_stage_controller(state, &control.controller);
+        }
     }
 }
 

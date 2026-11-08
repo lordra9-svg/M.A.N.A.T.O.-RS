@@ -38,41 +38,112 @@ pub struct SelectView {
     pub p1_done: bool,
     pub p2_done: bool,
     pub frame: u32,
+    /// Remaining select timer ticks; `None` hides the counter.
+    pub timer: Option<i32>,
     pub names: Vec<SelectEntry>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_background(
     painter: &mut Painter,
     deps: &FrontendDeps,
     bg: &ScreenBg,
-    screenpack: &Screenpack,
     map: &ScreenMap,
+    states: &[manato_sim::StageLayerState],
     time: i32,
 ) {
-    let mut order: Vec<&manato_formats::stage::BgLayer> = bg
+    let mut order: Vec<(usize, &manato_formats::stage::BgLayer)> = bg
         .layers
         .iter()
-        .filter(|layer| layer.visible && layer.enabled)
+        .enumerate()
+        .filter(|(index, layer)| {
+            states
+                .get(*index)
+                .map(|state| state.visible && state.enabled)
+                .unwrap_or(layer.visible && layer.enabled)
+        })
         .collect();
-    order.sort_by_key(|layer| layer.layer_no);
-    for layer in order {
-        let Some((group, index)) = layer.sprite else {
-            continue;
+    order.sort_by_key(|(_, layer)| layer.layer_no);
+    for (index, layer) in order {
+        let state = states.get(index);
+        let motion = |values: [f32; 3], cos: bool| {
+            if values[1].abs() <= f32::EPSILON {
+                return 0.0;
+            }
+            let angle = std::f32::consts::TAU * time as f32 / values[1] + values[2].to_radians();
+            if cos {
+                values[0] * angle.cos()
+            } else {
+                values[0] * angle.sin()
+            }
         };
+        let (sin_x, sin_y, cos_x, cos_y) = match state {
+            Some(state) => (state.sin_x, state.sin_y, state.cos_x, state.cos_y),
+            None => (layer.sin_x, layer.sin_y, layer.cos_x, layer.cos_y),
+        };
+        let offset = state.map(|state| state.offset).unwrap_or(Vec2::ZERO);
+        let start = map.point(
+            layer.start
+                + offset
+                + Vec2::new(
+                    motion(sin_x, false) + motion(cos_x, true),
+                    motion(sin_y, false) + motion(cos_y, true),
+                ),
+        );
+
+        let action = state.and_then(|state| state.action).or(layer.action);
+        let (group, index, frame_offset, frame_scale, flip_h, flip_v, alpha, blend) =
+            if let Some(action) = action {
+                let Some(animation) = bg.animations.get(&action) else {
+                    continue;
+                };
+                let Some((frame_idx, _)) = animation.frame_at(time) else {
+                    continue;
+                };
+                let Some(frame) = animation.frames.get(frame_idx) else {
+                    continue;
+                };
+                (
+                    frame.group,
+                    frame.index,
+                    frame.offset,
+                    Vec2::new(frame.scale.x.abs(), frame.scale.y.abs()),
+                    frame.flip_h,
+                    frame.flip_v,
+                    frame.alpha(),
+                    match frame.blend {
+                        manato_formats::air::BlendMode::Normal => Blend::Normal,
+                        manato_formats::air::BlendMode::Add => Blend::Add,
+                        _ => Blend::Sub,
+                    },
+                )
+            } else {
+                let Some((group, index)) = layer.sprite else {
+                    continue;
+                };
+                (
+                    group,
+                    index,
+                    Vec2::ZERO,
+                    Vec2::new(1.0, 1.0),
+                    false,
+                    false,
+                    1.0,
+                    Blend::Normal,
+                )
+            };
         let Some(sprite) = bg.sprites.get(group, index) else {
             continue;
         };
         let Some(atlas_sprite) = deps.atlas.get(bank::SCREENPACK, group, index) else {
             continue;
         };
-        let start = map.point(layer.start);
-        let w = sprite.width as f32 * layer.xscale * map.scale;
-        let h = sprite.height as f32 * layer.yscale * map.scale;
+        let origin = start + frame_offset;
+        let w = sprite.width as f32 * layer.xscale * frame_scale.x * map.scale;
+        let h = sprite.height as f32 * layer.yscale * frame_scale.y * map.scale;
         if w <= 0.0 || h <= 0.0 {
             continue;
         }
-        let _ = screenpack;
-        let _ = time;
         let step_x = if layer.tile.0 != 0 {
             (w + layer.tile_spacing.0 as f32 * map.scale).max(1.0)
         } else {
@@ -83,18 +154,18 @@ fn draw_background(
         } else {
             h + 1.0
         };
-        let mut y = start.y;
+        let mut y = origin.y;
         while y < GAME_HEIGHT {
-            let mut x = start.x;
+            let mut x = origin.x;
             while x < GAME_WIDTH {
                 painter.quad(
                     TexRef::Atlas(atlas_sprite.page),
-                    Blend::Normal,
+                    blend,
                     [x, y, x + w, y + h],
                     atlas_sprite.uv,
-                    false,
-                    false,
-                    [1.0; 4],
+                    flip_h,
+                    flip_v,
+                    [1.0, 1.0, 1.0, alpha],
                 );
                 if layer.tile.0 == 0 {
                     break;
@@ -131,11 +202,12 @@ pub fn draw_title(
     painter: &mut Painter,
     deps: &FrontendDeps,
     screenpack: &Screenpack,
+    states: &[manato_sim::StageLayerState],
     view: &TitleView,
 ) {
     let map = ScreenMap::new(screenpack);
     if let Some(bg) = &screenpack.title_bg {
-        draw_background(painter, deps, bg, screenpack, &map, view.frame as i32);
+        draw_background(painter, deps, bg, &map, states, view.frame as i32);
     }
     let title = &screenpack.title;
     let fight = &screenpack.fight;
@@ -218,11 +290,12 @@ pub fn draw_select(
     painter: &mut Painter,
     deps: &FrontendDeps,
     screenpack: &Screenpack,
+    states: &[manato_sim::StageLayerState],
     view: &SelectView,
 ) {
     let map = ScreenMap::new(screenpack);
     if let Some(bg) = &screenpack.select_bg {
-        draw_background(painter, deps, bg, screenpack, &map, view.frame as i32);
+        draw_background(painter, deps, bg, &map, states, view.frame as i32);
     }
     let select = &screenpack.select;
     let fight = &screenpack.fight;
@@ -258,6 +331,16 @@ pub fn draw_select(
                     [1.0; 4],
                 );
             }
+            draw_select_face(
+                painter,
+                deps,
+                screenpack,
+                map,
+                index,
+                &select.cell_face,
+                position,
+                view.frame as i32,
+            );
             let name = &select.cell_name;
             if !name.text.is_empty() || !entry.name.is_empty() {
                 let text = if name.text.is_empty() {
@@ -317,6 +400,23 @@ pub fn draw_select(
         }
     }
 
+    // Large portraits for both players.
+    for (side, cell) in [(0usize, view.p1), (1usize, view.p2)] {
+        let player = &select.players[side];
+        let mut layer = player.face.clone();
+        layer.sprite = layer.sprite.or(player.face_spr);
+        draw_select_face(
+            painter,
+            deps,
+            screenpack,
+            map,
+            cell,
+            &layer,
+            Vec2::ZERO,
+            view.frame as i32,
+        );
+    }
+
     // Large names for both players.
     for (side, cell) in [(0usize, view.p1), (1usize, view.p2)] {
         if let Some(entry) = view.names.get(cell) {
@@ -345,6 +445,70 @@ pub fn draw_select(
     if !select.stage.is_empty() {
         draw_element(painter, deps, &select.stage, fight, &map, Vec2::ZERO);
     }
+
+    // Select countdown, when enabled.
+    if let Some(ticks) = view.timer {
+        if select.timer_count > 0 {
+            let seconds = (ticks + 59) / 60;
+            let text = if select.timer.counter.text.is_empty() {
+                format!("{seconds:02}")
+            } else {
+                select
+                    .timer
+                    .counter
+                    .text
+                    .replace("%d", &seconds.to_string())
+            };
+            draw_text(
+                painter,
+                deps,
+                &select.timer.counter,
+                &text,
+                &map,
+                select.timer.pos,
+                select.timer.counter.align,
+                [1.0; 4],
+            );
+        }
+    }
+}
+
+fn draw_select_face(
+    painter: &mut Painter,
+    deps: &FrontendDeps,
+    screenpack: &Screenpack,
+    map: ScreenMap,
+    roster_index: usize,
+    layer: &Layer,
+    position: Vec2,
+    time: i32,
+) {
+    let Some((group, index)) = layer.sprite else {
+        return;
+    };
+    let Some(sprite) = deps
+        .atlas
+        .get(bank::CHARACTER_BASE + roster_index as u8, group, index)
+        .or_else(|| deps.atlas.get(bank::SCREENPACK, group, index))
+    else {
+        return;
+    };
+    let origin = map.point(position + layer.offset);
+    let w = sprite.width * layer.scale.x * map.scale;
+    let h = sprite.height * layer.scale.y * map.scale;
+    if w <= 0.0 || h <= 0.0 {
+        return;
+    }
+    painter.quad(
+        TexRef::Atlas(sprite.page),
+        Blend::Normal,
+        [origin.x, origin.y, origin.x + w, origin.y + h],
+        sprite.uv,
+        false,
+        false,
+        [1.0; 4],
+    );
+    let _ = (screenpack, time);
 }
 
 /// App-owned options overlay state (`docs/spec/render.md` §9.2).
@@ -360,11 +524,12 @@ pub fn draw_options(
     painter: &mut Painter,
     deps: &FrontendDeps,
     screenpack: &Screenpack,
+    states: &[manato_sim::StageLayerState],
     view: &OptionsView,
 ) {
     let map = ScreenMap::new(screenpack);
     if let Some(bg) = &screenpack.title_bg {
-        draw_background(painter, deps, bg, screenpack, &map, view.frame as i32);
+        draw_background(painter, deps, bg, &map, states, view.frame as i32);
     }
     painter.rect(
         Blend::Normal,
