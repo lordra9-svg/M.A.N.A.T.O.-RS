@@ -510,3 +510,77 @@ fn intro_locks_control() {
     assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
     assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
 }
+
+fn hitdef() -> manato_sim::hitdef::HitDef {
+    let mut hitdef = manato_sim::hitdef::HitDef::default();
+    hitdef.damage = 20;
+    hitdef.guard_damage = 5;
+    hitdef.ground_velocity = manato_core::Vec2::new(4.0, 0.0);
+    hitdef.air_velocity = manato_core::Vec2::new(4.0, -6.0);
+    hitdef.ground_hittime = 8;
+    hitdef.air_hittime = 8;
+    hitdef.attr.state_types = "S".into();
+    hitdef
+}
+
+#[test]
+fn throw_hitdef_enters_throw_states_and_binds() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 820;
+    throw.p1facing = 1;
+    throw.p2facing = -1;
+    let origin = sim.fighters[0].pos;
+    let facing = sim.fighters[0].facing;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, facing, true);
+    assert_eq!(sim.fighters[0].state_no, 800);
+    assert_eq!(sim.fighters[1].state_no, 820);
+    assert_eq!(sim.fighters[0].target, Some(1));
+    assert_eq!(sim.fighters[1].facing, -1);
+}
+
+#[test]
+fn corner_push_adds_velocity_near_the_stage_edge() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let right = sim.assets.stage.right_bound;
+    sim.fighters[1].pos.x = right;
+    let mut push = hitdef();
+    push.ground_cornerpush = -8.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &push, false, origin, 1, true);
+    // Base velocity 4 plus the -8 corner push.
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -4.0);
+
+    // Away from the corner the push does not apply.
+    sim.fighters[1].pos.x = 0.0;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &push, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0);
+}
+
+#[test]
+fn guard_damage_uses_guard_damage() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let start = sim.fighters[1].life;
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, start - 5);
+    assert!(sim.fighters[1].hit.guarding);
+    assert_eq!(sim.fighters[1].state_no, 150);
+}

@@ -122,6 +122,15 @@ pub struct HitDef {
     pub fall_yvel: f32,
     pub air_juggle: i32,
     pub priority: i32,
+    pub numhits: i32,
+    pub p1stateno: i32,
+    pub p2stateno: i32,
+    pub p1facing: i32,
+    pub p2facing: i32,
+    pub p1sprpriority: i32,
+    pub p2sprpriority: i32,
+    pub ground_cornerpush: f32,
+    pub air_cornerpush: f32,
     pub activation: u32,
 }
 
@@ -158,6 +167,15 @@ impl Default for HitDef {
             fall_yvel: 0.0,
             air_juggle: 0,
             priority: 4,
+            numhits: 1,
+            p1stateno: -1,
+            p2stateno: -1,
+            p1facing: 0,
+            p2facing: 0,
+            p1sprpriority: 0,
+            p2sprpriority: 0,
+            ground_cornerpush: 0.0,
+            air_cornerpush: 0.0,
             activation: 0,
         }
     }
@@ -209,6 +227,15 @@ impl HitDef {
                 "air.juggle" => h.air_juggle = parse_i32(value),
                 "juggle" => h.air_juggle = h.air_juggle.max(parse_i32(value)),
                 "priority" => h.priority = parse_i32(value),
+                "numhits" | "hits" => h.numhits = parse_i32(value).max(1),
+                "p1stateno" => h.p1stateno = parse_i32(value),
+                "p2stateno" => h.p2stateno = parse_i32(value),
+                "p1facing" => h.p1facing = parse_i32(value),
+                "p2facing" => h.p2facing = parse_i32(value),
+                "p1sprpriority" => h.p1sprpriority = parse_i32(value),
+                "p2sprpriority" => h.p2sprpriority = parse_i32(value),
+                "ground.cornerpush.veloff" => h.ground_cornerpush = parse_f32(value),
+                "air.cornerpush.veloff" => h.air_cornerpush = parse_f32(value),
                 _ => {}
             }
         }
@@ -299,6 +326,7 @@ pub struct HitState {
     pub hit_override: Option<(String, i32)>,
     /// Attackers already struck by the current HitDef activation.
     pub hit_targets: Vec<usize>,
+    pub hit_counts: Vec<(usize, i32)>,
     pub last_activation: u32,
     /// Simulation frame on which this fighter last ran a `HitDef`.
     pub last_activation_frame: i64,
@@ -348,7 +376,7 @@ fn parse_vec(s: &str) -> Vec2 {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_sound_pair;
+    use super::{parse_sound_pair, HitDef};
 
     #[test]
     fn parses_character_sound_prefix() {
@@ -356,5 +384,27 @@ mod tests {
         assert_eq!(parse_sound_pair("s3,2"), (3, 2));
         assert_eq!(parse_sound_pair("5, 1"), (5, 1));
         assert_eq!(parse_sound_pair("bad"), (-1, 0));
+    }
+
+    #[test]
+    fn parses_extended_hitdef_fields() {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params: vec![
+                ("type".into(), "HitDef".into()),
+                ("numhits".into(), "3".into()),
+                ("p1stateno".into(), "810".into()),
+                ("p2stateno".into(), "820".into()),
+                ("p1facing".into(), "1".into()),
+                ("ground.cornerpush.veloff".into(), "-8".into()),
+            ],
+            line: 0,
+        };
+        let hitdef = HitDef::from_controller(&control, 1);
+        assert_eq!(hitdef.numhits, 3);
+        assert_eq!(hitdef.p1stateno, 810);
+        assert_eq!(hitdef.p2stateno, 820);
+        assert_eq!(hitdef.p1facing, 1);
+        assert_eq!(hitdef.ground_cornerpush, -8.0);
     }
 }

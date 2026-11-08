@@ -79,14 +79,14 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Roster |
-| K-02 | Hit/guard flags and priorities | Required | Required | Partial | Roster |
-| K-03 | Hit pause/super pause | Required | Required | Partial | Roster |
-| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Roster |
-| K-05 | Throws/target bind | Required | Required | Partial | Target bind code; throw test TBD |
+| K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Box transforms + combat tests; oracle pending |
+| K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flags + guard damage tests |
+| K-03 | Hit pause/super pause | Required | Required | Partial | Hit pause applied; oracle pending |
+| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + fall states |
+| K-05 | Throws/target bind | Required | Required | Partial | Throw states/target bind test |
 | K-06 | Projectile collision | Required | Required | Partial | Projectile tests |
-| K-07 | Helper collision | Required | Required | Missing | TBD |
-| K-08 | Corner push/pushboxes | Required | Required | Partial | Roster |
+| K-07 | Helper collision | Required | Required | Partial | Helper HitDef test; oracle pending |
+| K-08 | Corner push/pushboxes | Required | Required | Partial | Corner-push + PlayerPush tests |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
 
 ## 6. Rounds and game flow

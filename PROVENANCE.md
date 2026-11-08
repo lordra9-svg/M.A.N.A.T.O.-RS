@@ -50,8 +50,10 @@ legally separated clean room; that limitation is recorded in
   `docs/spec/air.md`; **CNS/CMD** parsing and command matching were rewritten
   from `docs/spec/cns-cmd.md`; **helpers** were implemented from
   `docs/spec/helpers.md`; **stage DEF/BG** parsing, layer motion, BGCtrl,
-  reflection, and BGM playback were rewritten from `docs/spec/stage.md`.
-  Controller/trigger execution is being extended from the same frozen specs. All three specs are derived from Ikemen-GO,
+  reflection, and BGM playback were rewritten from `docs/spec/stage.md`;
+  **combat/collision** (guard, hit reaction, hit-once/multi-hit, juggle,
+  throws, corner push) was rewritten from `docs/spec/combat.md`. Controller and
+  trigger execution is being extended from the same frozen specs. All three specs are derived from Ikemen-GO,
   public documentation, and observed content.
 - **SFF v2** indexed sprites (RLE8, RLE5, LZ5) and PNG sprites begin with a
   four-byte little-endian uncompressed-size field. PNG8 sprites are indexed

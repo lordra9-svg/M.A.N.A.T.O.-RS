@@ -259,7 +259,7 @@ impl Fighter {
             fvars: [0.0; 40],
             sysvars: [0; 5],
             sysfvars: [0.0; 5],
-            juggle_points: 0,
+            juggle_points: char.constants.get_or("data.airjuggle", 15.0) as i32,
             sprite_priority: 0,
             width_back: char.constants.get_or("size.ground.back", 15.0),
             width_front: char.constants.get_or("size.ground.front", 16.0),
@@ -353,9 +353,13 @@ impl Fighter {
         self.reversal = None;
         self.reversal_time = 0;
         self.hit.hit_targets.clear();
+        self.hit.hit_counts.clear();
         self.width_override = None;
 
         let _ = face_p2;
+        if number == 0 || number == 52 {
+            self.juggle_points = char.constants.get_or("data.airjuggle", 15.0) as i32;
+        }
         if let Some(state) = char.state(number) {
             self.apply_state_def(state, char);
         } else if number >= 0 {
@@ -415,9 +419,6 @@ impl Fighter {
         }
         if let Some(p) = state.get_f32("poweradd") {
             self.power = (self.power + p).min(3000.0);
-        }
-        if let Some(j) = state.get_i32("juggle") {
-            self.juggle_points = j;
         }
         if let Some(p) = state.get_i32("sprpriority") {
             self.sprite_priority = p;

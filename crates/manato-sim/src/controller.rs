@@ -723,6 +723,7 @@ fn hit_def(sim: &mut SimState, who: usize, control: &Controller) {
     if !same_activation {
         sim.hit_activation = sim.hit_activation.wrapping_add(1);
         sim.fighters[who].hit.hit_targets.clear();
+        sim.fighters[who].hit.hit_counts.clear();
     }
     sim.fighters[who].hit.last_activation_frame = sim.frame as i64;
     let hitdef = HitDef::from_controller(control, sim.hit_activation);

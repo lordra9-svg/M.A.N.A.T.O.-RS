@@ -20,7 +20,7 @@ pub fn resolve(sim: &mut SimState) {
         let Some(hitdef) = sim.fighters[attacker].hitdef.clone() else {
             continue;
         };
-        if sim.fighters[attacker].hit.hit_targets.contains(&defender) {
+        if !hit_allowed(&sim.fighters[attacker].hit, defender, &hitdef) {
             continue;
         }
         if let Some(reversal) = sim.fighters[defender].reversal.clone() {
@@ -32,7 +32,7 @@ pub fn resolve(sim: &mut SimState) {
                 apply_hit_at(
                     sim, defender, attacker, &reversal, false, origin, facing, true,
                 );
-                sim.fighters[attacker].hit.hit_targets.push(defender);
+                record_hit(sim, defender, attacker);
                 continue;
             }
         }
@@ -63,14 +63,49 @@ pub fn resolve(sim: &mut SimState) {
                     &assets.characters[char_id],
                     false,
                 );
-                sim.fighters[attacker].hit.hit_targets.push(defender);
+                record_hit(sim, attacker, defender);
                 continue;
             }
         }
 
         let guarding = can_guard(sim, attacker, defender, &hitdef);
+        let defender_airborne = {
+            let f = &sim.fighters[defender];
+            f.state_type == StateType::Air || f.pos.y < -1.0
+        };
+        if !juggle_allows(
+            sim.fighters[defender].juggle_points,
+            sim.fighters[defender].assert_flags,
+            guarding,
+            defender_airborne,
+            &hitdef,
+        ) {
+            continue;
+        }
         apply_hit(sim, attacker, defender, &hitdef, guarding);
+        record_hit(sim, attacker, defender);
+        if !guarding && defender_airborne && hitdef.air_juggle > 0 {
+            sim.fighters[defender].juggle_points =
+                (sim.fighters[defender].juggle_points - hitdef.air_juggle).max(0);
+        }
     }
+}
+
+/// Whether juggle points allow an airborne hit.
+fn juggle_allows(
+    juggle_points: i32,
+    assert_flags: u32,
+    guarding: bool,
+    airborne: bool,
+    hitdef: &HitDef,
+) -> bool {
+    if guarding || !airborne || hitdef.air_juggle <= 0 {
+        return true;
+    }
+    if assert_flags & crate::fighter::ASSERT_NOJUGGLECHECK != 0 {
+        return true;
+    }
+    juggle_points >= hitdef.air_juggle
 }
 
 fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
@@ -85,6 +120,37 @@ fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
 
 fn any_overlap(a: &[Rect], b: &[Rect]) -> bool {
     a.iter().any(|x| b.iter().any(|y| x.intersects(*y)))
+}
+
+/// Records a hit against `defender` for the attacker's current activation.
+fn record_hit(sim: &mut SimState, attacker: usize, defender: usize) {
+    let hit = &mut sim.fighters[attacker].hit;
+    if let Some((_, count)) = hit
+        .hit_counts
+        .iter_mut()
+        .find(|(target, _)| *target == defender)
+    {
+        *count += 1;
+    } else {
+        hit.hit_counts.push((defender, 1));
+    }
+    if !hit.hit_targets.contains(&defender) {
+        hit.hit_targets.push(defender);
+    }
+}
+
+/// Whether the current attack activation may still hit `defender`.
+fn hit_allowed(hit: &crate::hitdef::HitState, defender: usize, hitdef: &HitDef) -> bool {
+    if hitdef.hitonce && !hit.hit_targets.is_empty() {
+        return false;
+    }
+    let previous_hits = hit
+        .hit_counts
+        .iter()
+        .find(|(target, _)| *target == defender)
+        .map(|(_, count)| *count)
+        .unwrap_or(0);
+    previous_hits < hitdef.numhits.max(1)
 }
 
 fn hitflag_allows(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
@@ -189,7 +255,8 @@ fn apply_hit(
     );
 }
 
-pub(crate) fn apply_hit_at(
+/// Applies a resolved hit from `attacker` to `defender`.
+pub fn apply_hit_at(
     sim: &mut SimState,
     attacker: usize,
     defender: usize,
@@ -199,6 +266,33 @@ pub(crate) fn apply_hit_at(
     facing: i32,
     from_fighter: bool,
 ) {
+    if from_fighter && !guarding && hitdef.p1stateno >= 0 {
+        let assets = sim.assets.clone();
+        let attacker_char = sim.fighters[attacker].char_id;
+        let defender_char = sim.fighters[defender].char_id;
+        if let Some(state) = hitdef.p1stateno.into() {
+            sim.fighters[attacker].enter_state(state, &assets.characters[attacker_char], false);
+        }
+        if hitdef.p2stateno >= 0 {
+            sim.fighters[defender].enter_state(
+                hitdef.p2stateno,
+                &assets.characters[defender_char],
+                false,
+            );
+        }
+        if hitdef.p1facing != 0 {
+            sim.fighters[attacker].facing = hitdef.p1facing;
+        }
+        if hitdef.p2facing != 0 {
+            sim.fighters[defender].facing = hitdef.p2facing;
+        }
+        sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
+        sim.fighters[defender].sprite_priority = hitdef.p2sprpriority;
+        sim.fighters[attacker].target = Some(defender);
+        sim.fighters[attacker].hit.hit_targets.push(defender);
+        return;
+    }
+
     let attacker_facing = facing;
     let defender_airborne = {
         let f = &sim.fighters[defender];
@@ -219,7 +313,7 @@ pub(crate) fn apply_hit_at(
         * sim.fighters[attacker].attack_mul
         * sim.fighters[defender].defence_mul) as i32;
 
-    let (velocity, hittime, slidetime) = if guarding {
+    let mut velocity_tuple = if guarding {
         let mut v = if defender_airborne {
             hitdef.airguard_velocity
         } else {
@@ -240,6 +334,22 @@ pub(crate) fn apply_hit_at(
             hitdef.ground_slidetime,
         )
     };
+    {
+        let stage = &sim.assets.stage;
+        let f = &sim.fighters[defender];
+        let near_corner = f.pos.x <= stage.left_bound + 24.0 || f.pos.x >= stage.right_bound - 24.0;
+        if near_corner {
+            let push = if defender_airborne {
+                hitdef.air_cornerpush
+            } else {
+                hitdef.ground_cornerpush
+            };
+            if push != 0.0 {
+                velocity_tuple.0.x += push * attacker_facing as f32;
+            }
+        }
+    }
+    let (velocity, hittime, slidetime) = velocity_tuple;
 
     {
         let f = &mut sim.fighters[defender];
@@ -455,4 +565,58 @@ fn projectile_boxes(
             r.translate(pos.x.round() as i32, pos.y.round() as i32)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hitdef::HitState;
+
+    fn hit_state() -> HitState {
+        HitState::default()
+    }
+
+    #[test]
+    fn hitonce_limits_activation_to_one_target() {
+        let mut hitdef = HitDef::default();
+        hitdef.hitonce = true;
+        hitdef.numhits = 3;
+        let mut hit = hit_state();
+        assert!(hit_allowed(&hit, 1, &hitdef));
+        hit.hit_targets.push(1);
+        assert!(!hit_allowed(&hit, 1, &hitdef));
+    }
+
+    #[test]
+    fn numhits_allows_repeated_hits_until_limit() {
+        let mut hitdef = HitDef::default();
+        hitdef.numhits = 2;
+        let mut hit = hit_state();
+        assert!(hit_allowed(&hit, 1, &hitdef));
+        hit.hit_counts.push((1, 1));
+        assert!(hit_allowed(&hit, 1, &hitdef));
+        hit.hit_counts[0].1 = 2;
+        assert!(!hit_allowed(&hit, 1, &hitdef));
+        // Another defender still has its own budget.
+        assert!(hit_allowed(&hit, 0, &hitdef));
+    }
+
+    #[test]
+    fn juggle_points_gate_air_hits() {
+        let mut hitdef = HitDef::default();
+        hitdef.air_juggle = 5;
+        assert!(juggle_allows(10, 0, false, true, &hitdef));
+        assert!(!juggle_allows(4, 0, false, true, &hitdef));
+        // Guarding hits and grounded defenders ignore juggle points.
+        assert!(juggle_allows(0, 0, true, true, &hitdef));
+        assert!(juggle_allows(0, 0, false, false, &hitdef));
+        // AssertSpecial NoJuggleCheck bypasses the check.
+        assert!(juggle_allows(
+            0,
+            crate::fighter::ASSERT_NOJUGGLECHECK,
+            false,
+            true,
+            &hitdef
+        ));
+    }
 }

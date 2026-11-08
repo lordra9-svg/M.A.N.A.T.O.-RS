@@ -1,6 +1,6 @@
 # Combat and collision specification
 
-**Status: DRAFT — awaiting approval.** Derived from the MIT-licensed Ikemen-GO
+**Status: APPROVED / FROZEN.** Derived from the MIT-licensed Ikemen-GO
 source (`src/collision.c`, `src/char.go`, `src/bytecode.go`), public M.U.G.E.N
 HitDef documentation, and observed content.
 
