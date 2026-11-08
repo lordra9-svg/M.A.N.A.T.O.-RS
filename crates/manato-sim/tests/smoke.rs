@@ -1308,4 +1308,10 @@ fn no_bar_display_flag_hides_bars() {
     assert!(sim.bars_hidden());
     sim.fighters[0].assert_flags = 0;
     assert!(!sim.bars_hidden());
+    assert!(!sim.background_hidden());
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOBG;
+    assert!(sim.background_hidden());
+    sim.fighters[1].assert_flags = manato_sim::fighter::ASSERT_NOFG;
+    assert!(sim.foreground_hidden());
+    assert!(!sim.background_hidden());
 }

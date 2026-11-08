@@ -1753,6 +1753,20 @@ impl SimState {
     /// at the stage ground when `zoomanchor = 1`, and otherwise at the
     /// viewport centre. Both forms reduce to the unzoomed mapping at
     /// `scale = 1`, so enabling zoom never jumps the scene.
+    /// True when any fighter asserts `NoBG` (hide background layers).
+    pub fn background_hidden(&self) -> bool {
+        self.fighters
+            .iter()
+            .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOBG != 0)
+    }
+
+    /// True when any fighter asserts `NoFG` (hide foreground layers).
+    pub fn foreground_hidden(&self) -> bool {
+        self.fighters
+            .iter()
+            .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOFG != 0)
+    }
+
     /// True when any fighter asserts `NoBarDisplay` (`docs/spec/rounds.md` §9).
     pub fn bars_hidden(&self) -> bool {
         self.fighters

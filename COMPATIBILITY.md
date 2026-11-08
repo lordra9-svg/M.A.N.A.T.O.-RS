@@ -133,7 +133,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | I-03 | Remapping | Required | Required | Partial | TOML keyboard bindings; gamepad remap pending |
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
-| N-02 | P2P input exchange | Required | Required | Partial | TBD |
+| N-02 | P2P input exchange | Required | Required | Partial | Localhost GGRS loopback test; internet/latency matrix pending |
 | N-03 | Spectators/lobby | N/A | Ikemen | Missing | TBD |
 
 ## 10. Acceptance content
@@ -144,7 +144,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | X-02 | Training Grid | N/A | N/A | Verified | Bundled tests |
 | X-03 | Stock KFM | Required | Required | Partial | Stock tests |
 | X-04 | Stock Ryu | Required | Required | Partial | Content load |
-| X-05 | Stock stages | Required | Required | Partial | TBD |
+| X-05 | Stock stages | Required | Required | Partial | kfm/stage0/stage0-720/stage1 load tests; render oracle pending |
 | X-06 | Ikemen-GO test content | N/A | Required | Missing | TBD |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | Missing | TBD |

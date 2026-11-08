@@ -110,7 +110,12 @@ fighters while effects continue to animate.
   are uploaded as their own glyph atlases.
 - The front end (`--menu`) is app-owned: title → select → fight → result →
   title. It never allocates a `SimState` until a match is confirmed and is
-  never part of rollback.
+  never part of rollback. The select screen supports roster pages, stage
+  cycling, portraits, and an optional countdown.
+- Input is keyboard + gilrs gamepads. Keyboard bindings and gamepad menus are
+  app-level; the simulation only sees `PlayerInput`.
+- `AssertSpecial` flags that affect presentation (`NoBarDisplay`, `NoBG`,
+  `NoFG`, `Invisible`, `NoShadow`) are applied by the renderer.
 
 ## Netcode (`manato-net`)
 

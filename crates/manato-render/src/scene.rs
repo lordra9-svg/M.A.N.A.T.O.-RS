@@ -51,11 +51,13 @@ fn blend_of(blend: BlendMode) -> Blend {
 pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     painter.clear();
     let stage = &sim.assets.stage;
+    let hide_bg = sim.background_hidden();
+    let hide_fg = sim.foreground_hidden();
 
     for (index, layer) in stage
         .render_layers()
         .enumerate()
-        .filter(|(_, layer)| layer.layer_no < 0)
+        .filter(|(_, layer)| layer.layer_no < 0 && !hide_bg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
@@ -68,7 +70,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     for (index, layer) in stage
         .render_layers()
         .enumerate()
-        .filter(|(_, layer)| layer.layer_no == 0)
+        .filter(|(_, layer)| layer.layer_no == 0 && !hide_bg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
@@ -79,7 +81,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         }
     }
 
-    draw_reflections(painter, deps.atlas, sim);
+    if !hide_bg {
+        draw_reflections(painter, deps.atlas, sim);
+    }
     draw_shadows(painter, sim);
 
     // Effects that are explicitly behind characters.
@@ -100,7 +104,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     for (index, layer) in stage
         .render_layers()
         .enumerate()
-        .filter(|(_, layer)| layer.layer_no > 0)
+        .filter(|(_, layer)| layer.layer_no > 0 && !hide_fg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
