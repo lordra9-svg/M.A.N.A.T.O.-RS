@@ -1173,6 +1173,7 @@ impl SimState {
                 if self.round.phase_timer <= 0 {
                     self.round.phase = RoundPhase::Fight;
                     self.round.display.clear();
+                    self.emit_round_sound("fight");
                 }
             }
             RoundPhase::Fight => {
@@ -1192,9 +1193,11 @@ impl SimState {
                         Some(w) => format!("{} Wins", self.assets.characters[w].display_name()),
                         None => "Draw Game".into(),
                     };
+                    self.emit_round_sound(if winner.is_none() { "dko" } else { "ko" });
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
-                        self.record_win(w, false);
+                        let perfect = self.record_win(w, false);
+                        self.emit_round_sound(if perfect { "win2" } else { "win" });
                         self.fighters[w].power = (self.fighters[w].power + 200.0).min(MAX_POWER);
                         self.enter_win_pose(w);
                     }
@@ -1220,9 +1223,11 @@ impl SimState {
                         ),
                         None => "Time Over - Draw".into(),
                     };
+                    self.emit_round_sound(if winner.is_none() { "dko" } else { "to" });
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
-                        self.record_win(w, true);
+                        let perfect = self.record_win(w, true);
+                        self.emit_round_sound(if perfect { "win2" } else { "win" });
                     }
                 }
             }
@@ -1347,7 +1352,7 @@ impl SimState {
     }
 
     /// Records a round win and its perfect/clutch classification (`§6.7`).
-    fn record_win(&mut self, winner: usize, time_over: bool) {
+    fn record_win(&mut self, winner: usize, time_over: bool) -> bool {
         let fighter = &self.fighters[winner];
         let perfect = fighter.life >= fighter.life_max;
         let clutch =
@@ -1356,6 +1361,34 @@ impl SimState {
             time_over,
             perfect,
             clutch,
+        });
+        perfect
+    }
+
+    /// Queues a `fight.def` round sound on the common channel (§6.9).
+    fn emit_round_sound(&mut self, name: &str) {
+        let Some(screenpack) = &self.assets.screenpack else {
+            return;
+        };
+        let Some((group, index)) = screenpack
+            .fight
+            .round
+            .elements
+            .get(name)
+            .and_then(|element| element.snd)
+        else {
+            return;
+        };
+        self.sounds.push(SoundEvent {
+            source: SoundSource::Common,
+            group,
+            index,
+            volume: 1.0,
+            pan: 0.0,
+            channel: -1,
+            loop_sound: false,
+            priority: 0,
+            low_priority: false,
         });
     }
 
