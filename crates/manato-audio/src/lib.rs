@@ -234,9 +234,20 @@ pub(crate) struct Mixer {
     music: Option<Voice>,
     output_channels: usize,
     volume: f32,
+    music_volume: f32,
+    music_base: f32,
 }
 
 impl Mixer {
+    fn set_music_volume(&mut self, volume: f32) {
+        self.music_volume = volume.clamp(0.0, 1.0);
+        let gain = (self.music_base * self.music_volume).clamp(0.0, 1.0);
+        if let Some(music) = self.music.as_mut() {
+            music.gain_l = gain;
+            music.gain_r = gain;
+        }
+    }
+
     pub(crate) fn fill(&mut self, out: &mut [f32]) {
         for sample in out.iter_mut() {
             *sample = 0.0;
@@ -346,6 +357,8 @@ fn new_mixer(channels: usize) -> Arc<Mutex<Mixer>> {
         music: None,
         output_channels: channels,
         volume: 1.0,
+        music_volume: 1.0,
+        music_base: 1.0,
     }))
 }
 
@@ -471,6 +484,11 @@ impl AudioEngine {
             return;
         };
         if let Ok(mut mixer) = self.mixer.lock() {
+            let gain = (volume.clamp(0.0, 1.0) * mixer.music_volume).clamp(0.0, 1.0);
+            let mut voice = voice;
+            voice.gain_l = gain;
+            voice.gain_r = gain;
+            mixer.music_base = volume.clamp(0.0, 1.0);
             mixer.music = Some(voice);
         }
     }
@@ -484,6 +502,13 @@ impl AudioEngine {
     pub fn set_volume(&self, volume: f32) {
         if let Ok(mut mixer) = self.mixer.lock() {
             mixer.volume = volume.clamp(0.0, 1.0);
+        }
+    }
+
+    /// Scales music independently of sound effects.
+    pub fn set_music_volume(&self, volume: f32) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer.set_music_volume(volume);
         }
     }
 
@@ -665,6 +690,8 @@ mod tests {
             music: None,
             output_channels: 2,
             volume: 1.0,
+            music_volume: 1.0,
+            music_base: 1.0,
         };
         mixer
             .pending
@@ -729,6 +756,8 @@ mod tests {
             music: None,
             output_channels: 2,
             volume: 1.0,
+            music_volume: 1.0,
+            music_base: 1.0,
         };
         left.pending
             .push_back(Voice::new(&mono_sound(vec![16_384; 32]), 48_000, 1.0, -1.0).unwrap());
@@ -743,6 +772,8 @@ mod tests {
             music: None,
             output_channels: 2,
             volume: 1.0,
+            music_volume: 1.0,
+            music_base: 1.0,
         };
         right
             .pending
@@ -760,6 +791,8 @@ mod tests {
             music: None,
             output_channels: 2,
             volume: 1.0,
+            music_volume: 1.0,
+            music_base: 1.0,
         }
     }
 
@@ -791,5 +824,32 @@ mod tests {
         assert!(!voice.looping);
         mixer.modify_channel(key, &sound, 48_000, None, None, true);
         assert!(mixer.channels[&key].looping);
+    }
+    #[test]
+    fn music_volume_scales_independently() {
+        let music = Music {
+            samples: Arc::new(vec![10_000; 64]),
+            sample_rate: 48_000,
+            channels: 1,
+            loop_start_ms: 0,
+            loop_end_ms: 0,
+        };
+        let mut mixer = Mixer {
+            pending: VecDeque::new(),
+            channels: std::collections::HashMap::new(),
+            music: Some(Voice::new_music(&music, 48_000, 0.8).unwrap()),
+            output_channels: 2,
+            volume: 1.0,
+            music_volume: 1.0,
+            music_base: 0.8,
+        };
+        mixer.set_music_volume(0.5);
+        let voice = mixer.music.as_ref().unwrap();
+        assert!((voice.gain_l - 0.4).abs() < f32::EPSILON);
+        assert!((voice.gain_r - 0.4).abs() < f32::EPSILON);
+
+        let mut out = vec![0.0f32; 128];
+        mixer.fill(&mut out);
+        assert!(out[0].abs() > 0.01 && out[0].abs() < 0.2);
     }
 }

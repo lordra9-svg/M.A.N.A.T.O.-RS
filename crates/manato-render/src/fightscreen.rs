@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 
 use manato_core::{Vec2, GAME_HEIGHT, GAME_WIDTH};
 use manato_formats::screenpack::{
-    BarDef, ComboDef, Element, FaceDef, FightDef, Layer, NameDef, Screenpack, TextDef, TimeDef,
-    WinIconDef,
+    ActionDef, BarDef, ComboDef, Element, FaceDef, FightDef, Layer, NameDef, Screenpack, TextDef,
+    TimeDef, WinIconDef,
 };
 use manato_sim::{RoundPhase, SimState, MAX_POWER};
 
@@ -626,6 +626,37 @@ fn combo(
     draw_layer(painter, deps, &def.top, fight, map, origin, time, [1.0; 4]);
 }
 
+/// Draws `[Action]` banners for one team (`docs/spec/render.md` §6.10).
+fn actions(
+    painter: &mut Painter,
+    deps: &FightDeps,
+    fight: &FightDef,
+    sim: &SimState,
+    side: usize,
+    def: &ActionDef,
+    map: &ScreenMap,
+) {
+    let time = sim.frame as i32;
+    for (index, message) in sim.actions[side].iter().enumerate() {
+        let progress = (message.time as f32 / message.total.max(1) as f32).clamp(0.0, 1.0);
+        let origin = def.pos + def.spacing * index as f32 + Vec2::new(def.start_x * progress, 0.0);
+        draw_layer(painter, deps, &def.bg, fight, map, origin, time, [1.0; 4]);
+        draw_text(
+            painter,
+            deps,
+            &def.text,
+            &message.text,
+            map,
+            origin,
+            def.text.align,
+            [1.0; 4],
+        );
+        draw_layer(
+            painter, deps, &def.front, fight, map, origin, time, [1.0; 4],
+        );
+    }
+}
+
 fn round_announcement(
     painter: &mut Painter,
     deps: &FightDeps,
@@ -799,6 +830,7 @@ pub fn draw_foreground(
     for side in 0..2 {
         win_icons(painter, deps, fight, sim, side, &fight.win_icon[side], &map);
         combo(painter, deps, fight, sim, side, &fight.combo[side], &map);
+        actions(painter, deps, fight, sim, side, &fight.action[side], &map);
     }
     round_announcement(painter, deps, fight, sim, &map);
 }

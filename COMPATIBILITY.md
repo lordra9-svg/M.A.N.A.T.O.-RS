@@ -27,7 +27,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl/reflection/BGM/window/mask added; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
-| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl; storyboards and `[Action]` banners pending |
+| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners; storyboards pending |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
 | F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview; VS animation not implemented |
 
@@ -72,7 +72,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | HitOverride added; oracle pending |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Roster |
-| C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | TBD |
+| C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented; oracle/tests pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |
 
 ## 5. Collision and combat
@@ -110,7 +110,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Built-in HUD + screenpack bars/names/timer/win icons/combo; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Projectile tests |
 | V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
-| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round announcement sounds; action banners pending |
+| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
 
@@ -121,7 +121,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | A-01 | SND playback | Required | Required | Partial | SND + channels/priority; oracle pending |
 | A-02 | Character/effect sounds | Required | Required | Verified | Roster |
 | A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer; oracle pending |
-| A-04 | Pan/volume/channels | Required | Required | Partial | Channel priority, pan, volume tests |
+| A-04 | Pan/volume/channels | Required | Required | Partial | Channel priority, pan, master/music volume, tests |
 | A-05 | Pause/loop/modify sound | Required | Ikemen | Partial | PlaySnd loop, StopSnd, SndPan, ModifySnd |
 
 ## 9. Input, AI, and netplay

@@ -139,6 +139,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "fallenvshake" => env_shake(sim, who, control),
         "envshake" => env_shake(sim, who, control),
         "zoom" => zoom(sim, who, control),
+        "lifebaraction" => life_bar_action(sim, who, control),
         "explod" => explod(sim, who, control, assets),
         "modifyexplod" => modify_explod(sim, who, control),
         "removeexplod" => remove_explod(sim, who, control),
@@ -984,6 +985,26 @@ fn env_shake(sim: &mut SimState, who: usize, control: &Controller) {
         ampl,
         phase,
     };
+}
+
+/// `LifeBarAction`: queue a fight-screen banner for the executing team
+/// (`docs/spec/render.md` §6.10`).
+fn life_bar_action(sim: &mut SimState, who: usize, control: &Controller) {
+    let Some(text) = str_param(control, "text") else {
+        return;
+    };
+    let side = sim.fighters[who].side;
+    let default_time = sim
+        .assets
+        .screenpack
+        .as_ref()
+        .map(|screenpack| screenpack.fight.action[side].displaytime)
+        .unwrap_or(60);
+    let time = int_param(sim, who, control, "time")
+        .or_else(|| int_param(sim, who, control, "displaytime"))
+        .unwrap_or(default_time);
+    let text = text.trim_matches('"').to_string();
+    sim.push_action(side, text, time);
 }
 
 fn zoom(sim: &mut SimState, who: usize, control: &Controller) {

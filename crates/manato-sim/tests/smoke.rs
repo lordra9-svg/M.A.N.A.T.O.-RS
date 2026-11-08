@@ -1211,3 +1211,42 @@ fn oracle_round_timer_is_sixty_ticks_per_second() {
     );
     assert_eq!(sim.round.timer, 5 * 60);
 }
+
+#[test]
+fn action_banners_queue_drop_and_expire() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "lifebaraction".into(),
+        params: vec![("text".into(), "TEST".into()), ("time".into(), "3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.actions[0].len(), 1);
+    assert_eq!(sim.actions[0][0].text, "TEST");
+    assert_eq!(sim.actions[0][0].time, 3);
+
+    // At most four messages are visible; the oldest is dropped.
+    for index in 0..3 {
+        sim.push_action(0, format!("m{index}"), 3);
+    }
+    sim.push_action(0, "new", 3);
+    assert_eq!(sim.actions[0].len(), 4);
+    assert_eq!(sim.actions[0][0].text, "m0");
+    assert_eq!(sim.actions[0][3].text, "new");
+
+    // Expiry is tick-driven and rollback-safe.
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.actions[0].is_empty());
+    sim.push_action(0, "deterministic", 4);
+    let mut clone = sim.clone();
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+        clone.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.checksum(), clone.checksum());
+}

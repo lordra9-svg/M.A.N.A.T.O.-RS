@@ -99,6 +99,21 @@ hidespeed = 4
 pos = 212, 56
 start.x = -48
 
+[Action]
+pos = 20, 196
+spacing = 0, 11
+start.x = 40
+displaytime = 90
+showspeed = 4
+hidespeed = 4
+text.font = 0
+text.align = 0
+text.offset = 6, 5
+text.color = 180, 228, 255
+bg.spr = 0, 17
+team2.pos = 214, 196
+team2.start.x = -40
+
 [Round]
 pos = 0, 0
 start.waittime = 20

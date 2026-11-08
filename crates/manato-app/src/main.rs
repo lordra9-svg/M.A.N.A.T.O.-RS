@@ -17,7 +17,7 @@ use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowId};
+use winit::window::{Fullscreen, Window, WindowId};
 
 const TICK: Duration = Duration::from_nanos(16_666_667);
 
@@ -1100,6 +1100,17 @@ impl App {
         }
     }
 
+    fn apply_fullscreen(&self) {
+        let Some(window) = &self.window else {
+            return;
+        };
+        let fullscreen = self
+            .frontend
+            .as_ref()
+            .is_some_and(|frontend| frontend.options_fullscreen);
+        window.set_fullscreen(fullscreen.then(|| Fullscreen::Borderless(None)));
+    }
+
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> anyhow::Result<()> {
         let attrs = Window::default_attributes()
             .with_title("M.A.N.A.T.O.-RS")
@@ -1157,6 +1168,7 @@ impl App {
         self.surface = Some(surface);
         self.surface_config = Some(config);
         self.window = Some(window);
+        self.apply_fullscreen();
         Ok(())
     }
 

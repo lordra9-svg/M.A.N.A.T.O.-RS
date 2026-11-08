@@ -540,6 +540,16 @@ pub struct ComboState {
     pub timer: i32,
 }
 
+/// A transient fight-screen banner (`docs/spec/render.md` §6.10).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionMessage {
+    pub text: String,
+    /// Remaining display ticks.
+    pub time: i32,
+    /// Initial display ticks, used for slide animation.
+    pub total: i32,
+}
+
 /// One recorded round win, rendered by the fight screen (`§6.7`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WinRecord {
@@ -600,6 +610,8 @@ pub struct SimState {
     pub win_history: [Vec<WinRecord>; 2],
     /// Delayed life/power bar fill per side (`§6.1`, `§6.2`).
     pub bars: [BarFill; 2],
+    /// `[Action]` banners per team (`§6.10`).
+    pub actions: [Vec<ActionMessage>; 2],
 }
 
 impl SimState {
@@ -668,6 +680,7 @@ impl SimState {
             combo: [ComboState::default(); 2],
             win_history: [Vec::new(), Vec::new()],
             bars: [BarFill::default(); 2],
+            actions: [Vec::new(), Vec::new()],
         };
         state.start_round();
         state
@@ -1264,11 +1277,36 @@ impl SimState {
         }
     }
 
+    /// Queues an `[Action]` banner for a team. At most four are visible; the
+    /// oldest is dropped (`docs/spec/render.md` §6.10`).
+    pub fn push_action(&mut self, side: usize, text: impl Into<String>, time: i32) {
+        let text = text.into();
+        if text.is_empty() {
+            return;
+        }
+        let time = time.max(1);
+        let messages = &mut self.actions[side % 2];
+        while messages.len() >= 4 {
+            messages.remove(0);
+        }
+        messages.push(ActionMessage {
+            text,
+            time,
+            total: time,
+        });
+    }
+
     /// Updates presentation state that lives in the simulation: combo
     /// counters (`docs/spec/render.md` §6.8`) and delayed bar fills
     /// (`§6.1`, `§6.2`).
     fn update_fight_screen(&mut self) {
         self.update_bars();
+        for side in 0..2 {
+            for message in &mut self.actions[side] {
+                message.time -= 1;
+            }
+            self.actions[side].retain(|message| message.time > 0);
+        }
 
         for side in 0..2 {
             let defender = 1 - side;
@@ -1467,6 +1505,7 @@ impl SimState {
         self.effects.clear();
         self.projectiles.clear();
         self.combo = [ComboState::default(); 2];
+        self.actions = [Vec::new(), Vec::new()];
         self.bars = [
             BarFill {
                 mid_life: 1.0,
@@ -1795,6 +1834,15 @@ impl SimState {
             h.write_f32(bar.mid_life);
             h.write_f32(bar.mid_power);
             h.write_i32(bar.delay);
+        }
+        for side in &self.actions {
+            h.write_u32(side.len() as u32);
+            for message in side {
+                h.write_u32(message.text.len() as u32);
+                h.write_bytes(message.text.as_bytes());
+                h.write_i32(message.time);
+                h.write_i32(message.total);
+            }
         }
         h.write_u32(self.effects.len() as u32);
         for e in &self.effects {

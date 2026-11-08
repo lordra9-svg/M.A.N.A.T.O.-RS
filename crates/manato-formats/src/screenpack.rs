@@ -184,6 +184,20 @@ pub struct WinIconDef {
     pub use_icon_upto: i32,
 }
 
+/// A fight-screen action banner (`docs/spec/render.md` §6.10).
+#[derive(Debug, Clone, Default)]
+pub struct ActionDef {
+    pub pos: Vec2,
+    pub spacing: Vec2,
+    pub start_x: f32,
+    pub displaytime: i32,
+    pub showspeed: f32,
+    pub hidespeed: f32,
+    pub bg: Layer,
+    pub front: Layer,
+    pub text: TextDef,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ComboDef {
     pub pos: Vec2,
@@ -233,6 +247,8 @@ pub struct FightDef {
     pub time: TimeDef,
     pub win_icon: [WinIconDef; 2],
     pub combo: [ComboDef; 2],
+    /// `[Action]` banners, indexed by team side.
+    pub action: [ActionDef; 2],
     pub round: RoundDef,
     /// Animations from `[Files] air`, used by `anim` layers.
     pub animations: HashMap<i32, crate::air::Animation>,
@@ -517,6 +533,16 @@ impl FightDef {
         combo[0] = parse_combo(&variant("combop1", &base_combo, "p1."));
         combo[1] = parse_combo(&variant("combop2", &base_combo, "p2."));
 
+        // `[Action]` uses team1./team2. overrides rather than p1./p2.
+        let base_action = text
+            .find_header("action")
+            .map(section_map)
+            .unwrap_or_default();
+        let action = [
+            parse_action(&overlay(&base_action, "team1.")),
+            parse_action(&overlay(&base_action, "team2.")),
+        ];
+
         let time = text
             .find_header("time")
             .map(section_map)
@@ -560,6 +586,7 @@ impl FightDef {
             time,
             win_icon,
             combo,
+            action,
             round,
             animations,
             sound_path,
@@ -985,6 +1012,23 @@ fn parse_combo(map: &HashMap<String, String>) -> ComboDef {
         displaytime: int(map, "displaytime", 60),
         showspeed: num(map, "showspeed", 2.0).max(0.1),
         hidespeed: num(map, "hidespeed", 2.0).max(0.1),
+    }
+}
+
+fn parse_action(map: &HashMap<String, String>) -> ActionDef {
+    ActionDef {
+        pos: map.get("pos").map(|value| vec2(value)).unwrap_or_default(),
+        spacing: map
+            .get("spacing")
+            .map(|value| vec2(value))
+            .unwrap_or_else(|| Vec2::new(0.0, 12.0)),
+        start_x: num(map, "start.x", 0.0),
+        displaytime: int(map, "displaytime", 60).max(1),
+        showspeed: num(map, "showspeed", 2.0).max(0.1),
+        hidespeed: num(map, "hidespeed", 2.0).max(0.1),
+        bg: parse_layer(map, "bg."),
+        front: parse_layer(map, "front."),
+        text: parse_text(map, "text."),
     }
 }
 
