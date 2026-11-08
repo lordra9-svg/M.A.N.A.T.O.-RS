@@ -73,6 +73,19 @@ impl SffFile {
         self.by_key.contains_key(&(group, index))
     }
 
+    /// Builds a sprite file from decoded sprites, used by the font reader.
+    pub fn from_sprites(sprites: Vec<Sprite>) -> Self {
+        let mut by_key = HashMap::new();
+        for (i, sprite) in sprites.iter().enumerate() {
+            by_key.entry((sprite.group, sprite.index)).or_insert(i);
+        }
+        Self {
+            version: 2,
+            sprites,
+            by_key,
+        }
+    }
+
     pub fn from_bytes(data: &[u8]) -> anyhow::Result<Self> {
         if data.len() < 16 {
             bail!("sprite file is too small");
@@ -391,7 +404,7 @@ fn decode_raw(
     (width, height, rgba)
 }
 
-fn decode_pcx(
+pub(crate) fn decode_pcx(
     data: &[u8],
     reuse_palette: Option<Option<&[[u8; 4]]>>,
 ) -> anyhow::Result<(u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>)> {
