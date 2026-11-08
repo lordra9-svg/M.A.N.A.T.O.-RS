@@ -130,7 +130,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | I-01 | Keyboard input | Required | Required | Verified | Window run |
 | I-02 | Gamepad input | Required | Required | Partial | gilrs backend, d-pad/stick/buttons mapped; hardware matrix pending |
-| I-03 | Remapping | Required | Required | Missing | TBD |
+| I-03 | Remapping | Required | Required | Partial | TOML keyboard bindings; gamepad remap pending |
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
 | N-02 | P2P input exchange | Required | Required | Partial | TBD |

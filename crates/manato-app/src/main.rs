@@ -37,6 +37,8 @@ struct Options {
     scale: u32,
     menu: bool,
     menu_screen: String,
+    p1_keys: KeyBindings,
+    p2_keys: KeyBindings,
 }
 
 impl Default for Options {
@@ -58,8 +60,218 @@ impl Default for Options {
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
+            p1_keys: KeyBindings::default(),
+            p2_keys: KeyBindings::player_two(),
         }
     }
+}
+
+/// Keyboard bindings for one player.
+#[derive(Debug, Clone, Copy)]
+struct KeyBindings {
+    up: KeyCode,
+    down: KeyCode,
+    left: KeyCode,
+    right: KeyCode,
+    buttons: [KeyCode; 6],
+    start: KeyCode,
+}
+
+impl Default for KeyBindings {
+    fn default() -> Self {
+        Self {
+            up: KeyCode::KeyW,
+            down: KeyCode::KeyS,
+            left: KeyCode::KeyA,
+            right: KeyCode::KeyD,
+            buttons: [
+                KeyCode::KeyJ,
+                KeyCode::KeyK,
+                KeyCode::KeyL,
+                KeyCode::KeyU,
+                KeyCode::KeyI,
+                KeyCode::KeyO,
+            ],
+            start: KeyCode::Enter,
+        }
+    }
+}
+
+impl KeyBindings {
+    fn player_two() -> Self {
+        Self {
+            up: KeyCode::ArrowUp,
+            down: KeyCode::ArrowDown,
+            left: KeyCode::ArrowLeft,
+            right: KeyCode::ArrowRight,
+            buttons: [
+                KeyCode::Numpad1,
+                KeyCode::Numpad2,
+                KeyCode::Numpad3,
+                KeyCode::Numpad4,
+                KeyCode::Numpad5,
+                KeyCode::Numpad6,
+            ],
+            start: KeyCode::Numpad0,
+        }
+    }
+
+    fn apply(&mut self, file: &KeyFile) {
+        let assign = |slot: &mut KeyCode, name: &Option<String>, label: &str| {
+            if let Some(name) = name {
+                match parse_key(name) {
+                    Some(code) => *slot = code,
+                    None => log::warn!("unknown key {name:?} for {label}"),
+                }
+            }
+        };
+        assign(&mut self.up, &file.up, "up");
+        assign(&mut self.down, &file.down, "down");
+        assign(&mut self.left, &file.left, "left");
+        assign(&mut self.right, &file.right, "right");
+        assign(&mut self.start, &file.start, "start");
+        for (index, (label, name)) in [
+            ("x", &file.x),
+            ("y", &file.y),
+            ("z", &file.z),
+            ("a", &file.a),
+            ("b", &file.b),
+            ("c", &file.c),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assign(&mut self.buttons[index], name, label);
+        }
+    }
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct KeyFile {
+    up: Option<String>,
+    down: Option<String>,
+    left: Option<String>,
+    right: Option<String>,
+    x: Option<String>,
+    y: Option<String>,
+    z: Option<String>,
+    a: Option<String>,
+    b: Option<String>,
+    c: Option<String>,
+    start: Option<String>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct InputFile {
+    p1: Option<KeyFile>,
+    p2: Option<KeyFile>,
+}
+
+fn parse_key(name: &str) -> Option<KeyCode> {
+    const LETTERS: [KeyCode; 26] = [
+        KeyCode::KeyA,
+        KeyCode::KeyB,
+        KeyCode::KeyC,
+        KeyCode::KeyD,
+        KeyCode::KeyE,
+        KeyCode::KeyF,
+        KeyCode::KeyG,
+        KeyCode::KeyH,
+        KeyCode::KeyI,
+        KeyCode::KeyJ,
+        KeyCode::KeyK,
+        KeyCode::KeyL,
+        KeyCode::KeyM,
+        KeyCode::KeyN,
+        KeyCode::KeyO,
+        KeyCode::KeyP,
+        KeyCode::KeyQ,
+        KeyCode::KeyR,
+        KeyCode::KeyS,
+        KeyCode::KeyT,
+        KeyCode::KeyU,
+        KeyCode::KeyV,
+        KeyCode::KeyW,
+        KeyCode::KeyX,
+        KeyCode::KeyY,
+        KeyCode::KeyZ,
+    ];
+    const DIGITS: [KeyCode; 10] = [
+        KeyCode::Digit0,
+        KeyCode::Digit1,
+        KeyCode::Digit2,
+        KeyCode::Digit3,
+        KeyCode::Digit4,
+        KeyCode::Digit5,
+        KeyCode::Digit6,
+        KeyCode::Digit7,
+        KeyCode::Digit8,
+        KeyCode::Digit9,
+    ];
+    const NUMPAD: [KeyCode; 10] = [
+        KeyCode::Numpad0,
+        KeyCode::Numpad1,
+        KeyCode::Numpad2,
+        KeyCode::Numpad3,
+        KeyCode::Numpad4,
+        KeyCode::Numpad5,
+        KeyCode::Numpad6,
+        KeyCode::Numpad7,
+        KeyCode::Numpad8,
+        KeyCode::Numpad9,
+    ];
+    let name = name.trim();
+    let lower = name.to_ascii_lowercase();
+    if lower.len() == 1 {
+        let ch = lower.chars().next().unwrap();
+        if ch.is_ascii_alphabetic() {
+            return Some(LETTERS[(ch as u8 - b'a') as usize]);
+        }
+        if let Some(digit) = ch.to_digit(10) {
+            return Some(DIGITS[digit as usize]);
+        }
+    }
+    if let Some(rest) = lower.strip_prefix("numpad") {
+        return rest
+            .parse::<usize>()
+            .ok()
+            .and_then(|index| NUMPAD.get(index).copied());
+    }
+    Some(match lower.as_str() {
+        "up" | "arrowup" => KeyCode::ArrowUp,
+        "down" | "arrowdown" => KeyCode::ArrowDown,
+        "left" | "arrowleft" => KeyCode::ArrowLeft,
+        "right" | "arrowright" => KeyCode::ArrowRight,
+        "enter" | "return" => KeyCode::Enter,
+        "space" => KeyCode::Space,
+        "escape" | "esc" => KeyCode::Escape,
+        "tab" => KeyCode::Tab,
+        "shift" | "lshift" => KeyCode::ShiftLeft,
+        "rshift" => KeyCode::ShiftRight,
+        "ctrl" | "control" | "lctrl" => KeyCode::ControlLeft,
+        "rctrl" => KeyCode::ControlRight,
+        "alt" | "lalt" => KeyCode::AltLeft,
+        "ralt" => KeyCode::AltRight,
+        "backspace" => KeyCode::Backspace,
+        "comma" => KeyCode::Comma,
+        "period" | "dot" => KeyCode::Period,
+        "slash" => KeyCode::Slash,
+        "semicolon" => KeyCode::Semicolon,
+        "quote" => KeyCode::Quote,
+        "minus" => KeyCode::Minus,
+        "equal" => KeyCode::Equal,
+        "backslash" => KeyCode::Backslash,
+        "grave" => KeyCode::Backquote,
+        "bracketleft" | "leftbracket" => KeyCode::BracketLeft,
+        "bracketright" | "rightbracket" => KeyCode::BracketRight,
+        "home" => KeyCode::Home,
+        "end" => KeyCode::End,
+        "pageup" => KeyCode::PageUp,
+        "pagedown" => KeyCode::PageDown,
+        "insert" => KeyCode::Insert,
+        "delete" | "del" => KeyCode::Delete,
+        _ => return None,
+    })
 }
 
 /// Optional TOML config file. Command-line arguments override these values.
@@ -74,6 +286,7 @@ struct FileConfig {
     rounds: Option<u32>,
     round_time: Option<i32>,
     scale: Option<u32>,
+    input: Option<InputFile>,
 }
 
 impl Options {
@@ -199,6 +412,14 @@ impl Options {
         }
         if let Some(scale) = file.scale {
             self.scale = scale.max(1);
+        }
+        if let Some(input) = file.input {
+            if let Some(p1) = &input.p1 {
+                self.p1_keys.apply(p1);
+            }
+            if let Some(p2) = &input.p2 {
+                self.p2_keys.apply(p2);
+            }
         }
         Ok(())
     }
@@ -1245,7 +1466,7 @@ impl App {
             .as_ref()
             .is_some_and(|f| f.mode == Mode::Versus);
         let pads = self.gamepad_inputs();
-        let p1 = merge_input(p1_input(&self.keys), pads[0]);
+        let p1 = merge_input(player_input(&self.keys, &self.opts.p1_keys), pads[0]);
         let Some(sim) = self.sim.as_mut() else {
             return;
         };
@@ -1254,7 +1475,7 @@ impl App {
         } else if self.opts.ai_level > 0 && self.frontend.is_none() {
             ai::input_for(sim, 1, self.opts.ai_level)
         } else {
-            merge_input(p2_input(&self.keys), pads[1])
+            merge_input(player_input(&self.keys, &self.opts.p2_keys), pads[1])
         };
         sim.tick([p1, p2]);
         self.audio.play_events(sim);
@@ -1547,51 +1768,16 @@ fn pad_input(pad: &gilrs::Gamepad<'_>) -> PlayerInput {
     pad_input_from(dpad, stick, buttons)
 }
 
-fn p1_input(keys: &HashSet<KeyCode>) -> PlayerInput {
+fn player_input(keys: &HashSet<KeyCode>, bindings: &KeyBindings) -> PlayerInput {
     PlayerInput::new(
         dir_bits(
             keys,
-            KeyCode::KeyW,
-            KeyCode::KeyS,
-            KeyCode::KeyA,
-            KeyCode::KeyD,
+            bindings.up,
+            bindings.down,
+            bindings.left,
+            bindings.right,
         ),
-        button_bits(
-            keys,
-            [
-                KeyCode::KeyJ,
-                KeyCode::KeyK,
-                KeyCode::KeyL,
-                KeyCode::KeyU,
-                KeyCode::KeyI,
-                KeyCode::KeyO,
-            ],
-            KeyCode::Enter,
-        ),
-    )
-}
-
-fn p2_input(keys: &HashSet<KeyCode>) -> PlayerInput {
-    PlayerInput::new(
-        dir_bits(
-            keys,
-            KeyCode::ArrowUp,
-            KeyCode::ArrowDown,
-            KeyCode::ArrowLeft,
-            KeyCode::ArrowRight,
-        ),
-        button_bits(
-            keys,
-            [
-                KeyCode::Numpad1,
-                KeyCode::Numpad2,
-                KeyCode::Numpad3,
-                KeyCode::Numpad4,
-                KeyCode::Numpad5,
-                KeyCode::Numpad6,
-            ],
-            KeyCode::Numpad0,
-        ),
+        button_bits(keys, bindings.buttons, bindings.start),
     )
 }
 
@@ -1623,6 +1809,25 @@ mod tests {
         assert_eq!(neutral.dir, 0);
         let diagonal = pad_input_from([false; 4], (0.9, -0.9), [false; 7]);
         assert_eq!(diagonal.dir, DIR_RIGHT | DIR_DOWN);
+    }
+
+    #[test]
+    fn key_parsing_and_overrides() {
+        assert_eq!(parse_key("W"), Some(KeyCode::KeyW));
+        assert_eq!(parse_key("arrowup"), Some(KeyCode::ArrowUp));
+        assert_eq!(parse_key("numpad3"), Some(KeyCode::Numpad3));
+        assert_eq!(parse_key("not-a-key"), None);
+
+        let mut bindings = KeyBindings::default();
+        let file = KeyFile {
+            up: Some("arrowup".into()),
+            x: Some("l".into()),
+            ..Default::default()
+        };
+        bindings.apply(&file);
+        assert_eq!(bindings.up, KeyCode::ArrowUp);
+        assert_eq!(bindings.buttons[0], KeyCode::KeyL);
+        assert_eq!(bindings.down, KeyCode::KeyS);
     }
 
     #[test]

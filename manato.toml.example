@@ -29,3 +29,32 @@ round_time = 99
 
 # Window integer scale (320x240 * scale).
 scale = 3
+
+# Optional keyboard remapping. Any omitted key keeps its default.
+# P1 defaults: WASD + J/K/L (X/Y/Z) + U/I/O (A/B/C) + Enter.
+# P2 defaults: arrows + numpad 1/2/3 (X/Y/Z) + 4/5/6 (A/B/C) + Numpad0.
+[input.p1]
+up = "w"
+down = "s"
+left = "a"
+right = "d"
+x = "j"
+y = "k"
+z = "l"
+a = "u"
+b = "i"
+c = "o"
+start = "enter"
+
+[input.p2]
+up = "arrowup"
+down = "arrowdown"
+left = "arrowleft"
+right = "arrowright"
+x = "numpad1"
+y = "numpad2"
+z = "numpad3"
+a = "numpad4"
+b = "numpad5"
+c = "numpad6"
+start = "numpad0"
