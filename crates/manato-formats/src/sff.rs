@@ -1021,6 +1021,7 @@ mod tests {
         assert_eq!(&sprite.rgba[0..4], &[1, 1, 1, 255]);
         assert_eq!(sff.get(1, 1).map(|s| (s.width, s.height)), Some((1, 1)));
     }
+    #[derive(Clone)]
     struct V2Node {
         group: u16,
         index: u16,
@@ -1035,16 +1036,26 @@ mod tests {
         payload: Option<Vec<u8>>,
     }
 
-    fn build_v2(nodes: &[V2Node], palette: Option<&[[u8; 4]]>) -> Vec<u8> {
+    enum V2Palette {
+        Colors(Vec<[u8; 4]>),
+        Link(u16),
+    }
+
+    fn build_v2(nodes: &[V2Node], palettes: &[V2Palette]) -> Vec<u8> {
         let sprite_offset = 512usize;
         let palette_offset = sprite_offset + nodes.len() * 28;
-        let palette_len = palette.map(|colors| 16 + colors.len() * 4).unwrap_or(0);
-        let ldata_offset = palette_offset + palette_len;
+        let palette_data: usize = palettes
+            .iter()
+            .map(|palette| match palette {
+                V2Palette::Colors(colors) => colors.len() * 4,
+                V2Palette::Link(_) => 0,
+            })
+            .sum();
+        let ldata_offset = palette_offset + palettes.len() * 16 + palette_data;
         let payload_total: usize = nodes
             .iter()
             .map(|node| node.payload.as_ref().map(Vec::len).unwrap_or(0))
             .sum();
-        let palette_data = palette.map(|colors| colors.len() * 4).unwrap_or(0);
         let total = ldata_offset + palette_data + payload_total;
         let mut data = vec![0u8; total];
         data[..12].copy_from_slice(b"ElecbyteSpr\0");
@@ -1053,18 +1064,29 @@ mod tests {
         data[36..40].copy_from_slice(&(sprite_offset as u32).to_le_bytes());
         data[40..44].copy_from_slice(&(nodes.len() as u32).to_le_bytes());
         data[44..48].copy_from_slice(&(palette_offset as u32).to_le_bytes());
-        data[48..52].copy_from_slice(&(palette.map(|_| 1u32).unwrap_or(0)).to_le_bytes());
+        data[48..52].copy_from_slice(&(palettes.len() as u32).to_le_bytes());
         data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
         data[60..64].copy_from_slice(&(total as u32).to_le_bytes());
 
-        if let Some(colors) = palette {
-            let node = palette_offset;
-            data[node + 4..node + 6].copy_from_slice(&(colors.len() as u16).to_le_bytes());
-            let bytes = colors.len() as u32 * 4;
-            data[node + 12..node + 16].copy_from_slice(&bytes.to_le_bytes());
-            for (i, color) in colors.iter().enumerate() {
-                let at = ldata_offset + i * 4;
-                data[at..at + 4].copy_from_slice(&[color[2], color[1], color[0], color[3]]);
+        let mut colors_at = ldata_offset;
+        for (i, palette) in palettes.iter().enumerate() {
+            let node = palette_offset + i * 16;
+            match palette {
+                V2Palette::Colors(colors) => {
+                    data[node + 4..node + 6].copy_from_slice(&(colors.len() as u16).to_le_bytes());
+                    data[node + 8..node + 12]
+                        .copy_from_slice(&((colors_at - ldata_offset) as u32).to_le_bytes());
+                    let bytes = (colors.len() * 4) as u32;
+                    data[node + 12..node + 16].copy_from_slice(&bytes.to_le_bytes());
+                    for color in colors {
+                        data[colors_at..colors_at + 4]
+                            .copy_from_slice(&[color[2], color[1], color[0], color[3]]);
+                        colors_at += 4;
+                    }
+                }
+                V2Palette::Link(link) => {
+                    data[node + 6..node + 8].copy_from_slice(&link.to_le_bytes());
+                }
             }
         }
 
@@ -1132,7 +1154,7 @@ mod tests {
 
         let sff = SffFile::from_bytes(&build_v2(
             &[base, middle, chained, dangling],
-            Some(&palette_colors()),
+            &[V2Palette::Colors(palette_colors())],
         ))
         .expect("parse linked sprites");
 
@@ -1158,7 +1180,7 @@ mod tests {
         let mut sprite = node(0, 0, 0, Some(rle8_payload(&[1, 2])));
         sprite.width = 2;
         sprite.palette = 4; // out of range for a one-palette file
-        let sff = SffFile::from_bytes(&build_v2(&[sprite], Some(&palette_colors())))
+        let sff = SffFile::from_bytes(&build_v2(&[sprite], &[V2Palette::Colors(palette_colors())]))
             .expect("parse missing palette");
         let sprite = sff.get(0, 0).expect("sprite");
         assert_eq!(sprite.rgba, vec![0; 2 * 4]);
@@ -1171,8 +1193,11 @@ mod tests {
         let mut lz5 = node(0, 1, 0, Some(vec![1, 0, 0, 0, 0x00, 0x21]));
         lz5.format = 4;
         lz5.depth = 5;
-        let sff = SffFile::from_bytes(&build_v2(&[rle5, lz5], Some(&palette_colors())))
-            .expect("parse indexed codecs");
+        let sff = SffFile::from_bytes(&build_v2(
+            &[rle5, lz5],
+            &[V2Palette::Colors(palette_colors())],
+        ))
+        .expect("parse indexed codecs");
         assert_eq!(sff.get(0, 0).expect("rle5").rgba, [10, 20, 30, 255]);
         assert_eq!(sff.get(0, 1).expect("lz5").rgba, [10, 20, 30, 255]);
     }
@@ -1246,5 +1271,51 @@ mod tests {
         // A trailing dangling link still parses into an empty sprite.
         let dangling = sff.get(0, 7).expect("dangling link");
         assert_eq!((dangling.width, dangling.height), (0, 0));
+    }
+    #[test]
+    fn v2_palette_links_chain_and_broken_links_fall_back() {
+        let mut first = node(0, 0, 0, Some(rle8_payload(&[2, 2])));
+        first.width = 2;
+        first.palette = 2;
+        let mut second = node(0, 1, 0, Some(rle8_payload(&[1])));
+        second.palette = 1;
+        let palettes = [
+            V2Palette::Colors(palette_colors()),
+            V2Palette::Link(0),
+            V2Palette::Link(1),
+        ];
+        let sff = SffFile::from_bytes(&build_v2(&[first, second], &palettes))
+            .expect("parse palette links");
+        assert_eq!(
+            sff.get(0, 0).expect("chained palette").rgba,
+            [40, 50, 60, 255].repeat(2)
+        );
+        assert_eq!(
+            sff.get(0, 1).expect("direct palette").rgba,
+            [10, 20, 30, 255]
+        );
+
+        // A palette node pointing at a missing source stays absent.
+        let mut sprite = node(0, 2, 0, Some(rle8_payload(&[1])));
+        sprite.palette = 0;
+        let broken = [V2Palette::Link(9)];
+        let sff = SffFile::from_bytes(&build_v2(&[sprite.clone()], &broken))
+            .expect("parse broken palette link");
+        assert_eq!(sff.get(0, 2).expect("sprite").rgba, [0, 0, 0, 0]);
+
+        // No palette section at all also yields transparent indexed pixels.
+        let sff = SffFile::from_bytes(&build_v2(&[sprite], &[])).expect("parse no palettes");
+        assert_eq!(sff.get(0, 2).expect("sprite").rgba, [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn v2_raw_16_bit_depth_is_unsupported_but_safe() {
+        let mut sprite = node(0, 0, 0, Some(vec![0xFF, 0x7F]));
+        sprite.format = 0;
+        sprite.depth = 16;
+        let sff = SffFile::from_bytes(&build_v2(&[sprite], &[])).expect("parse 16-bit raw");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!((sprite.width, sprite.height), (1, 1));
+        assert_eq!(sprite.rgba, [0, 0, 0, 0]);
     }
 }
