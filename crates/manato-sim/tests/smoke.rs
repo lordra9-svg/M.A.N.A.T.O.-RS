@@ -2851,3 +2851,100 @@ fn ctrl_state_type_and_move_type_controllers() {
         "N"
     );
 }
+
+#[test]
+fn after_image_time_and_pal_fx_and_trans_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    let after = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![
+            ("time".into(), "5".into()),
+            ("timegap".into(), "2".into()),
+            ("length".into(), "3".into()),
+            ("trans".into(), "add".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+    let state = sim.fighters[0]
+        .after_image
+        .as_ref()
+        .expect("after image active");
+    assert_eq!(state.time, 5);
+    assert_eq!(state.interval, 2);
+    assert_eq!(state.life, 3);
+    assert!(state.add);
+
+    // Two ticks produce one sampled ghost (timegap = 2).
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].after_images.is_empty());
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].after_images.len(), 1);
+    assert!(sim.fighters[0].after_images[0].add);
+
+    // AfterImageTime shortens the remaining duration.
+    let shorten = manato_formats::Controller {
+        kind: "afterimagetime".into(),
+        params: vec![("time".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &shorten, &assets);
+    assert_eq!(
+        sim.fighters[0]
+            .after_image
+            .as_ref()
+            .expect("still active")
+            .time,
+        1
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].after_image.is_none());
+
+    // Ghost frames decay independently of the emitter.
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.fighters[0].after_images.is_empty());
+
+    let palfx = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("add".into(), "10, 20, 30".into()),
+            ("mul".into(), "128, 128, 128".into()),
+            ("time".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &palfx, &assets);
+    assert_eq!(sim.fighters[0].pal_add, [10.0, 20.0, 30.0]);
+    assert_eq!(sim.fighters[0].pal_mul, [128.0, 128.0, 128.0]);
+    assert_eq!(sim.fighters[0].pal_time, 2);
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_mul, [1.0, 1.0, 1.0]);
+    assert_eq!(sim.fighters[0].pal_alpha, 1.0);
+
+    let trans = manato_formats::Controller {
+        kind: "trans".into(),
+        params: vec![
+            ("trans".into(), "addalpha".into()),
+            ("alpha".into(), "128".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &trans, &assets);
+    assert!((sim.fighters[0].trans_alpha - 128.0 / 255.0).abs() < 0.001);
+    let default = manato_formats::Controller {
+        kind: "trans".into(),
+        params: vec![("trans".into(), "default".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &default, &assets);
+    assert_eq!(sim.fighters[0].trans_alpha, 1.0);
+}
