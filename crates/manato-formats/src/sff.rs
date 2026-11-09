@@ -142,6 +142,17 @@ impl SffFile {
             let link = u16_at(header, 16) as usize;
             let same_palette = header[18] != 0;
 
+            // Zero-length entries are links and may sit at end-of-file, so they
+            // must be handled before the payload bounds check.
+            if data_len == 0 {
+                self.push_link(group, index, axis_x, axis_y, link);
+                if next == 0 || next <= offset {
+                    break;
+                }
+                offset = next;
+                continue;
+            }
+
             let data_start = offset.saturating_add(subheader);
             if data_start >= data.len() {
                 break;
@@ -152,7 +163,7 @@ impl SffFile {
             }
             let payload = &data[data_start..data_end];
 
-            if data_len == 0 || payload.is_empty() {
+            if payload.is_empty() {
                 self.push_link(group, index, axis_x, axis_y, link);
             } else {
                 match decode_pcx(payload, same_palette.then_some(previous_palette.as_deref())) {
@@ -1164,5 +1175,76 @@ mod tests {
             .expect("parse indexed codecs");
         assert_eq!(sff.get(0, 0).expect("rle5").rgba, [10, 20, 30, 255]);
         assert_eq!(sff.get(0, 1).expect("lz5").rgba, [10, 20, 30, 255]);
+    }
+    fn v1_link(next: u32, group: u16, index: u16, link: u16, axis_x: i16, axis_y: i16) -> Vec<u8> {
+        let mut header = vec![0u8; 32];
+        header[0..4].copy_from_slice(&next.to_le_bytes());
+        header[8..10].copy_from_slice(&axis_x.to_le_bytes());
+        header[10..12].copy_from_slice(&axis_y.to_le_bytes());
+        header[12..14].copy_from_slice(&group.to_le_bytes());
+        header[14..16].copy_from_slice(&index.to_le_bytes());
+        header[16..18].copy_from_slice(&link.to_le_bytes());
+        header
+    }
+
+    #[test]
+    fn v1_zero_length_sprites_link_to_earlier_frames() {
+        let mut palette = vec![[0u8, 0, 0]; 256];
+        palette[1] = [90, 80, 70];
+        let payload = pcx(&[1, 1], 2, 1, Some(&palette));
+
+        let base_offset = 32u32;
+        let direct_offset = base_offset + 32 + payload.len() as u32;
+        let chain_offset = direct_offset + 32;
+        let dangling_offset = chain_offset + 32;
+
+        let mut data = vec![0u8; 32];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 1;
+        data[20..24].copy_from_slice(&4u32.to_le_bytes());
+        data[24..28].copy_from_slice(&base_offset.to_le_bytes());
+        data[28..32].copy_from_slice(&32u32.to_le_bytes());
+
+        data.extend_from_slice(&v1_sprite(direct_offset, 0, 0, false, &payload));
+        data.extend_from_slice(&v1_link(chain_offset, 0, 5, 0, 7, 0));
+        data.extend_from_slice(&v1_link(dangling_offset, 0, 6, 1, 0, -9));
+        data.extend_from_slice(&v1_link(0, 0, 7, 99, 0, 0));
+
+        let sff = SffFile::from_bytes(&data).expect("parse v1 links");
+        for (label, at) in [
+            ("base", base_offset),
+            ("direct", direct_offset),
+            ("chain", chain_offset),
+        ] {
+            let at = at as usize;
+            eprintln!(
+                "{label} next={} len={} group={} index={} link={}",
+                u32::from_le_bytes(data[at..at + 4].try_into().unwrap()),
+                u32::from_le_bytes(data[at + 4..at + 8].try_into().unwrap()),
+                u16::from_le_bytes(data[at + 12..at + 14].try_into().unwrap()),
+                u16::from_le_bytes(data[at + 14..at + 16].try_into().unwrap()),
+                u16::from_le_bytes(data[at + 16..at + 18].try_into().unwrap())
+            );
+        }
+        eprintln!(
+            "count={} len={}",
+            u32::from_le_bytes(data[20..24].try_into().unwrap()),
+            data.len()
+        );
+        let base = sff.get(0, 0).expect("base");
+        assert_eq!(base.rgba, [90, 80, 70, 255].repeat(2));
+
+        let direct = sff.get(0, 5).expect("direct link");
+        assert_eq!((direct.width, direct.height), (2, 1));
+        assert_eq!(direct.axis_x, 7);
+        assert_eq!(direct.rgba, base.rgba);
+
+        let chained = sff.get(0, 6).expect("chained link");
+        assert_eq!(chained.axis_y, -9);
+        assert_eq!(chained.rgba, base.rgba);
+
+        // A trailing dangling link still parses into an empty sprite.
+        let dangling = sff.get(0, 7).expect("dangling link");
+        assert_eq!((dangling.width, dangling.height), (0, 0));
     }
 }

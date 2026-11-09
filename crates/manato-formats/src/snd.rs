@@ -175,6 +175,46 @@ mod tests {
         out
     }
 
+    fn wav_u8(samples: &[u8], channels: u16, rate: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        let data_len = samples.len() as u32;
+        out.extend_from_slice(b"RIFF");
+        out.extend_from_slice(&(36 + data_len).to_le_bytes());
+        out.extend_from_slice(b"WAVEfmt ");
+        out.extend_from_slice(&16u32.to_le_bytes());
+        out.extend_from_slice(&1u16.to_le_bytes());
+        out.extend_from_slice(&channels.to_le_bytes());
+        out.extend_from_slice(&rate.to_le_bytes());
+        out.extend_from_slice(&(rate * channels as u32).to_le_bytes());
+        out.extend_from_slice(&channels.to_le_bytes());
+        out.extend_from_slice(&8u16.to_le_bytes());
+        out.extend_from_slice(b"data");
+        out.extend_from_slice(&data_len.to_le_bytes());
+        out.extend_from_slice(samples);
+        out
+    }
+
+    fn wav_i24(samples: &[i32], channels: u16, rate: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        let data_len = (samples.len() * 3) as u32;
+        out.extend_from_slice(b"RIFF");
+        out.extend_from_slice(&(36 + data_len).to_le_bytes());
+        out.extend_from_slice(b"WAVEfmt ");
+        out.extend_from_slice(&16u32.to_le_bytes());
+        out.extend_from_slice(&1u16.to_le_bytes());
+        out.extend_from_slice(&channels.to_le_bytes());
+        out.extend_from_slice(&rate.to_le_bytes());
+        out.extend_from_slice(&(rate * channels as u32 * 3).to_le_bytes());
+        out.extend_from_slice(&(channels * 3).to_le_bytes());
+        out.extend_from_slice(&24u16.to_le_bytes());
+        out.extend_from_slice(b"data");
+        out.extend_from_slice(&data_len.to_le_bytes());
+        for sample in samples {
+            out.extend_from_slice(&sample.to_le_bytes()[..3]);
+        }
+        out
+    }
+
     fn bank(entries: &[(u16, u16, Vec<u8>)]) -> Vec<u8> {
         let mut subheaders = Vec::new();
         let mut payloads = Vec::new();
@@ -240,5 +280,31 @@ mod tests {
         bad.extend_from_slice(&[0u8; 16]);
         bad[512 + 4..512 + 8].copy_from_slice(&4u32.to_le_bytes());
         assert!(SoundBank::from_bytes(&bad).unwrap().sounds.is_empty());
+    }
+    #[test]
+    fn converts_unsigned_8_bit_mono_and_stereo() {
+        let bytes = [128u8, 255, 0, 129];
+        let mono =
+            SoundBank::from_bytes(&bank(&[(2, 1, wav_u8(&bytes, 1, 8_000))])).expect("mono bank");
+        let sound = mono.get(2, 1).expect("mono sound");
+        assert_eq!(sound.channels, 1);
+        assert_eq!(sound.sample_rate, 8_000);
+        assert_eq!(sound.samples, [0, 32512, -32768, 256]);
+
+        let stereo = SoundBank::from_bytes(&bank(&[(2, 2, wav_u8(&bytes, 2, 44_100))]))
+            .expect("stereo bank");
+        let sound = stereo.get(2, 2).expect("stereo sound");
+        assert_eq!(sound.channels, 2);
+        assert_eq!(sound.sample_rate, 44_100);
+        assert_eq!(sound.samples, [0, 32512, -32768, 256]);
+    }
+
+    #[test]
+    fn converts_signed_24_bit_samples() {
+        let samples = [0, 256, 0x7F_FFFF, -0x80_0000];
+        let data = bank(&[(3, 4, wav_i24(&samples, 1, 22_050))]);
+        let bank = SoundBank::from_bytes(&data).expect("bank");
+        let sound = bank.get(3, 4).expect("sound");
+        assert_eq!(sound.samples, [0, 1, 32767, -32768]);
     }
 }

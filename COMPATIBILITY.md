@@ -22,9 +22,9 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-03 | CNS states/controllers | Required | Required | Partial | CNS parser + execution tests incl. HitVelSet/FallSet/FallVel/FallDamage |
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; interpolation rendering pending |
-| F-06 | SFF v1 | Required | Required | Partial | Bundled/stock + synthetic PCX palette and same_palette reuse tests |
+| F-06 | SFF v1 | Required | Required | Partial | PCX palette/reuse + EOF zero-length link chain tests |
 | F-07 | SFF v2 | Required | Required | Partial | Bundled/stock + linked-chain, palette fallback, RLE8/RLE5/LZ5 tests |
-| F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
+| F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo and signed 24-bit conversion |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
 | F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners; storyboards pending |
