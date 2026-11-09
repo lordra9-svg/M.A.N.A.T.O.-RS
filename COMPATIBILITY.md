@@ -49,7 +49,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + loop boundary and invalid AnimElemTime sentinel tests |
-| T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/ScreenPos/ScreenVel integration test |
+| T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/ScreenPos + P2StateType/MoveType/Ctrl/PrevStateNo tests |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar ids/bound + HitVel axes + HitShakeOver/HitOver transitions |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + invalid targets + NumExplod/NumProjID + HitByAttr subset matching |
@@ -108,7 +108,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Win-icon kind/perfect/cap + combo refresh + delayed fills; guard bars pending |
-| V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal + projectile facing/accel + oracle hit/guard scenario |
+| V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + window/perspective/focal edges + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |

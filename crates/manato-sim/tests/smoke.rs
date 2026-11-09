@@ -6178,3 +6178,76 @@ fn hit_vel_and_get_hit_var_ids_and_hit_over_transitions() {
     assert!(shake_seen, "HitShakeOver should become true");
     assert!(hit_over_seen, "HitOver should become true after hitstun");
 }
+
+#[test]
+fn p2_opponent_state_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Attack;
+    sim.fighters[1].ctrl = false;
+    sim.fighters[1].state_no = 50;
+    sim.fighters[1].prev_state_no = 20;
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "P2StateType").as_str(),
+        "A"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "P2MoveType").as_str(),
+        "A"
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2Ctrl"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2StateNo"), 50);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2PrevStateNo"), 20);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "P2Facing"),
+        sim.fighters[1].facing
+    );
+
+    // From P2's perspective the opponent is P1.
+    sim.fighters[0].state_no = 200;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "P2StateNo"), 200);
+}
+
+#[test]
+fn explod_window_perspective_edges_and_modify() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let explod = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "6".into()),
+            ("window".into(), "0, 0, 0, 0".into()),
+            ("space".into(), "screen".into()),
+            ("projection".into(), "perspective".into()),
+            ("focallength".into(), "0".into()),
+            ("xangle".into(), "20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &explod, &assets);
+    let effect = sim.effects.last().expect("explod");
+    assert_eq!(effect.window, None, "all-zero window is ignored");
+    assert!(!effect.wants_camera(), "screen space bypasses the camera");
+    assert_eq!(effect.focal_length, 1.0, "focal length clamps to 1");
+    assert_eq!(effect.projection, manato_sim::ProjectionMode::Perspective);
+    assert_eq!(effect.x_angle, 20.0);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "6".into()),
+            ("projection".into(), "orthographic".into()),
+            ("focallength".into(), "512".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    let effect = sim.effects.last().expect("explod");
+    assert_eq!(effect.projection, manato_sim::ProjectionMode::Orthographic);
+    assert_eq!(effect.focal_length, 512.0);
+}
