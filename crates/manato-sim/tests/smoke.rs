@@ -4718,3 +4718,60 @@ fn nival_super_guard_takes_20() {
     assert!(sim.fighters[0].proj_contact_time >= 0);
     assert_eq!(sim.fighters[0].proj_hit_time, -1);
 }
+
+#[test]
+fn projectile_guard_uses_crouch_and_air_guard_states() {
+    // Crouch guard: back + down.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -15.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 15.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let crouch_back = PlayerInput::new(manato_core::DIR_RIGHT | manato_core::DIR_DOWN, 0);
+    let mut guarded = false;
+    for _ in 0..180 {
+        sim.tick([PlayerInput::default(), crouch_back]);
+        if sim.fighters[0].proj_guarded_time >= 0 {
+            guarded = true;
+            break;
+        }
+    }
+    assert!(guarded, "crouch guard should block the projectile");
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 12);
+    assert!(
+        (150..=155).contains(&sim.fighters[1].state_no),
+        "crouch guard state, got {}",
+        sim.fighters[1].state_no
+    );
+
+    // Air guard: back while airborne and in guard range.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -15.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 15.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].enter_state(50, &assets.characters[1], false);
+    sim.fighters[1].pos.y = -24.0;
+    sim.fighters[1].vel = manato_core::Vec2::ZERO;
+    sim.fighters[1].gravity = Some(0.0);
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    let mut guarded = false;
+    for _ in 0..180 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[0].proj_guarded_time >= 0 {
+            guarded = true;
+            break;
+        }
+    }
+    assert!(guarded, "air guard should block the projectile");
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 12);
+    assert_eq!(sim.fighters[1].state_no, 154);
+}

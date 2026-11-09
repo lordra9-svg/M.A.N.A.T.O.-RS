@@ -191,13 +191,18 @@ fn can_guard(sim: &SimState, _attacker: usize, defender: usize, hitdef: &HitDef)
             return false;
         }
     }
-    if !f.ctrl && !(130..=155).contains(&f.state_no) && f.state_no != 0 && f.state_no != 11 {
+    let airborne = f.state_type == StateType::Air || f.pos.y < -1.0;
+    if !f.ctrl
+        && !(130..=155).contains(&f.state_no)
+        && f.state_no != 0
+        && f.state_no != 11
+        && !airborne
+    {
         return false;
     }
     if f.assert_flags & crate::fighter::ASSERT_UNGUARDABLE != 0 {
         return false;
     }
-    let airborne = f.state_type == StateType::Air || f.pos.y < -1.0;
     let flag = &hitdef.guardflag;
     if airborne {
         if f.assert_flags & crate::fighter::ASSERT_NOAIRGUARD != 0 {
