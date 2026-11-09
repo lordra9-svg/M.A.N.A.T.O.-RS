@@ -781,7 +781,19 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "teamside" => Value::Int(f.side as i32 + 1),
         "playerid" => Value::Int(who as i32),
         "numenemy" => Value::Int(1),
+        "numhelper" => Value::Int(
+            sim.fighters
+                .iter()
+                .filter(|fighter| fighter.owner == Some(sim.root_of(who)))
+                .count() as i32,
+        ),
         "numpartner" => Value::Int(0),
+        "numproj" => Value::Int(
+            sim.projectiles
+                .iter()
+                .filter(|projectile| projectile.owner == who)
+                .count() as i32,
+        ),
         "numtarget" => Value::Int(f.target.is_some() as i32),
         "p2stateno" => Value::Int(o.state_no),
         "p2prevstateno" => Value::Int(o.prev_state_no),

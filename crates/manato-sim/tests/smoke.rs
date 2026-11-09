@@ -1931,3 +1931,64 @@ fn hit_filters_gate_real_attacks() {
         "normal attack should hit once the filters expire"
     );
 }
+
+#[test]
+fn redirect_triggers_resolve_helper_target_and_enemy() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("type".into(), "Helper".into()),
+            ("stateno".into(), "0".into()),
+            ("id".into(), "7".into()),
+            ("pos".into(), "10,0".into()),
+            ("postype".into(), "p1".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = 2;
+    let parent_var = manato_formats::Controller {
+        kind: "parentvarset".into(),
+        params: vec![
+            ("type".into(), "ParentVarSet".into()),
+            ("v".into(), "5".into()),
+            ("value".into(), "42".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &parent_var, &assets);
+
+    let p1_state = sim.fighters[0].state_no;
+    let p2_life = sim.fighters[1].life;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper_index, "root, stateno"),
+        p1_state
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper_index, "parent, stateno"),
+        p1_state
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper_index, "parent, Var(5)"),
+        42
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "p2, life"), p2_life);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "enemy, life"), p2_life);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "helper(7), stateno"),
+        sim.fighters[helper_index].state_no
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumHelper"), 1);
+
+    sim.fighters[0].target = Some(1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "target, life"), p2_life);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumTarget"), 1);
+}
