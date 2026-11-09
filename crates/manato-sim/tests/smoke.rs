@@ -6132,3 +6132,49 @@ fn hitbyattr_matching_semantics() {
     sim.fighters[1].hit.hit_by = None;
     assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = S, NA"), 0);
 }
+
+#[test]
+fn hit_vel_and_get_hit_var_ids_and_hit_over_transitions() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.activation = 42;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+
+    let vars = sim.fighters[1].hit.vars.clone();
+    eprintln!(
+        "vars x={} y={} triggerX={} triggerY={}",
+        vars.x_vel,
+        vars.y_vel,
+        manato_sim::trigger::num(&sim, 1, "HitVel X"),
+        manato_sim::trigger::num(&sim, 1, "HitVel Y")
+    );
+    assert!((manato_sim::trigger::num(&sim, 1, "HitVel X") - vars.x_vel).abs() < 0.001);
+    assert!((manato_sim::trigger::num(&sim, 1, "HitVel Y") - vars.y_vel).abs() < 0.001);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hitid)"), 42);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(chainid)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(isbound)"), 0);
+    sim.fighters[1].hit.vars.chain_id = 7;
+    sim.fighters[1].hit.vars.is_bound = true;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(chainid)"), 7);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(isbound)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(unknown)"), 0);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitOver"), 0);
+    let mut shake_seen = false;
+    let mut hit_over_seen = false;
+    for _ in 0..60 {
+        sim.tick([PlayerInput::default(); 2]);
+        if manato_sim::trigger::int(&sim, 1, "HitShakeOver") != 0 {
+            shake_seen = true;
+        }
+        if manato_sim::trigger::int(&sim, 1, "HitOver") != 0 {
+            hit_over_seen = true;
+            break;
+        }
+    }
+    assert!(shake_seen, "HitShakeOver should become true");
+    assert!(hit_over_seen, "HitOver should become true after hitstun");
+}

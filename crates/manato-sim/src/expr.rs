@@ -490,7 +490,14 @@ fn is_redirect(name: &str) -> bool {
 fn needs_axis_arg(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
-        "vel" | "pos" | "p2dist" | "p2bodydist" | "p2screendist" | "screenpos" | "screenvel"
+        "vel"
+            | "pos"
+            | "hitvel"
+            | "p2dist"
+            | "p2bodydist"
+            | "p2screendist"
+            | "screenpos"
+            | "screenvel"
     )
 }
 
