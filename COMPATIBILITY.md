@@ -70,7 +70,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake/FallEnvShake + effect move-time + Nival pause oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters (incl. timer expiry on all hit paths) + override slots/keepstate/forceguard |
-| C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width override, screen-bound clamp, and PlayerPush separation tests |
+| C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Per-tick Width reset, independent ScreenBound axes, PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |

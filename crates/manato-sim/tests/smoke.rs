@@ -6649,3 +6649,64 @@ fn get_hit_var_times_and_target_rebind_after_drop() {
     assert!((sim.fighters[1].pos.x - (attacker.x + 12.0)).abs() < 0.01);
     assert!((sim.fighters[1].pos.y - (attacker.y - 18.0)).abs() < 0.01);
 }
+
+#[test]
+fn width_override_is_per_tick_and_screenbound_axes_independent() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let width = manato_formats::Controller {
+        kind: "width".into(),
+        params: vec![("edge".into(), "-25, 35".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &width, &assets);
+    assert_eq!(sim.fighters[0].width_override, Some((-25.0, 35.0)));
+    assert_eq!(sim.fighters[0].width_back, -25.0);
+    assert_eq!(sim.fighters[0].width_front, 35.0);
+
+    // The override does not survive a tick without a re-applying controller.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[0].width_override, None,
+        "Width resets each tick"
+    );
+    let char = &assets.characters[0];
+    let expected_back = char.constants.get_or("size.ground.back", 15.0);
+    let expected_front = char.constants.get_or("size.ground.front", 16.0);
+    assert!((sim.fighters[0].width_back - expected_back).abs() < 0.001);
+    assert!((sim.fighters[0].width_front - expected_front).abs() < 0.001);
+
+    // ScreenBound axes are independent: disabling X leaves Y set.
+    let bounds = manato_formats::Controller {
+        kind: "screenbound".into(),
+        params: vec![("value".into(), "0, 1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bounds, &assets);
+    assert_eq!(sim.fighters[0].screen_bound, (false, true));
+
+    // With X disabled, the stage bound no longer clamps horizontal position.
+    let stage_left = sim.assets.stage.left_bound;
+    sim.fighters[0].pos = manato_core::Vec2::new(stage_left - 500.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.fighters[0].pos.x <= stage_left - 400.0,
+        "X bound disabled, position {} should be outside the stage",
+        sim.fighters[0].pos.x
+    );
+
+    // Re-enabling X clamps again.
+    let bounds = manato_formats::Controller {
+        kind: "screenbound".into(),
+        params: vec![("value".into(), "1, 0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bounds, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.fighters[0].pos.x >= stage_left - 0.001,
+        "re-enabled X bound clamps to the stage edge"
+    );
+}

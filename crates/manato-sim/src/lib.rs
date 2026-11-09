@@ -961,6 +961,9 @@ impl SimState {
             }
             // AssertSpecial is a per-tick assertion; states must re-assert it.
             fighter.assert_flags = 0;
+            // `Width` is a per-tick override: Ikemen resets it before the
+            // state controllers run each tick.
+            fighter.width_override = None;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
