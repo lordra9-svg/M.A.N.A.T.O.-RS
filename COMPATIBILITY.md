@@ -26,7 +26,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
-| F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
+| F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
 | F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners; storyboards pending |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
 | F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation not implemented |

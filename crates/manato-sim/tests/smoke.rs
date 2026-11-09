@@ -3889,3 +3889,78 @@ fn win_icon_history_accumulates_and_clears_on_restart() {
     assert!(sim.win_history[1].is_empty());
     assert_eq!(sim.round.wins, [0, 0]);
 }
+
+#[test]
+fn st_state_files_load_in_order_and_override() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-st-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    std::fs::write(
+        dir.join("oracle1.st"),
+        "[Statedef 910]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
+         \n[State 910, Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 6\nvalue = 1\n",
+    )
+    .expect("write st1");
+    std::fs::write(
+        dir.join("oracle2.st"),
+        "[Statedef 910]\ntype = S\nphysics = S\nanim = 10\nctrl = 0\n\
+         \n[Statedef 911]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n",
+    )
+    .expect("write st2");
+    let def = dir.join("kaen.def");
+    let text = std::fs::read_to_string(&def).expect("read def");
+    let text = text.replacen(
+        "st      = kaen.cns",
+        "st      = kaen.cns\nst1     = oracle1.st\nst2     = oracle2.st",
+        1,
+    );
+    std::fs::write(&def, text).expect("patch def");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let assets = manato_sim::Assets::load(&config).expect("assets load");
+    let character = &assets.characters[0];
+    assert_eq!(
+        character.state(910).and_then(|state| state.get("anim")),
+        Some("10"),
+        "st2 overrides st1 for the same state"
+    );
+    assert!(character.state(911).is_some(), "st2 adds a new state");
+
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(std::sync::Arc::new(assets), options);
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(910, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    // The overriding st2 definition has no VarAdd, so the counter stays put.
+    assert_eq!(sim.fighters[0].vars[6], 0);
+    assert_eq!(sim.fighters[0].anim_no, 10);
+    sim.fighters[0].enter_state(911, &assets.characters[0], false);
+    assert_eq!(sim.fighters[0].state_no, 911);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
