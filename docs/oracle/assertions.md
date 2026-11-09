@@ -28,6 +28,9 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-06 | `WinSide` is a zero-based team index, while the `Wins` table is one-based. | Every scenario reports `WinSide = 0` and `Wins[1] = 1` for a P1 win. |
 | O-07 | The round `Timer` in the match dump is elapsed ticks at round end, not remaining ticks. | `ko_full` ends after one tick and reports `Timer = 1`; `time_over_full` runs the full 60-tick round and reports `Timer = 60`. |
 | O-08 | Equal life at time over is a draw: no fighter has `Win = true`, `WinSide = -1`, and `Draws = 1`. | `time_over_draw` (500/500, 1 s). The oracle then replays another round because the first was a draw; both rounds report no winner. |
+| O-09 | KFM state 200 (light punch) hits an idle opponent 4 ticks after state entry, deals 23 damage, and puts the defender in state 5000. | Per-frame capture: injection frame 209, contact frame 213, `p2_life` 1000 -> 977, `p2_state` 5000. |
+| O-10 | One KFM state 200 activation hits only once; the attack does not re-hit after its 8-tick hit pause. | Same capture: `p2_life` has one 23-point drop over the following 25+ ticks while the attacker remains in state 200. |
+| O-11 | Ground hit velocity is applied away from the attacker. With P1 facing right and `ground.velocity = -4`, the defender moves right from x=16 to ~31.9. | Same capture: `p2_x` increases from 16.0 to ~31.9 over 20 ticks. |
 
 ## Mapping to M.A.N.A.T.O.-RS
 
@@ -38,6 +41,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-06 | Presentation only; the engine stores wins per side and does not use `WinSide`. |
 | O-07 | Not represented; the engine tracks remaining time and does not expose elapsed round ticks. |
 | O-08 | `RoundState::winner = None`, `time_over = true`, and no `WinRecord`; covered by `oracle_round_win_classification`. |
+| O-09..O-11 | KFM hit flow is encoded by `oracle_kfm_state_200_hits_idle`; the harness is `tools/oracle/run_frame_capture.py`. |
 
 These assertions remain subject to revision if a later oracle run contradicts
 them. The tests that encode them live in `crates/manato-sim/tests/smoke.rs`.

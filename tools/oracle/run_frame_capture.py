@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""Per-frame Ikemen-GO state capture through its public Lua debug API.
+
+The harness installs ``capture.lua`` as a debug-info provider, patches the
+throwaway runtime's ``main.lua`` to load it before the quick-match path, runs a
+short match, and reduces the CSV to a small derived summary. Raw traces stay in
+a temporary directory and are never committed.
+
+Example:
+    IKEMEN_DIR=/path/to/ikemen-runtime \
+      python3 tools/oracle/run_frame_capture.py --scenario kfm_attack
+
+The runtime needs a binary that supports SDL's ``offscreen`` driver; see
+``docs/oracle/README.md``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+LOAD_SNIPPET = "pcall(function() dofile('external/mods/zz-oracle.lua') end)\n\n"
+QUICK_MATCH = "--initiate quick match only if -loadmotif flag is missing"
+
+
+def find_binary(root: Path) -> Path:
+    override = os.environ.get("IKEMEN_BIN")
+    if override:
+        return Path(override)
+    for name in ("ikemen-local", "Ikemen_GO_Linux", "Ikemen_GO"):
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    raise SystemExit("no Ikemen-GO binary found; set IKEMEN_BIN")
+
+
+def patch_main(root: Path) -> bool:
+    script = root / "external/script/main.lua"
+    text = script.read_text(encoding="utf-8", errors="replace")
+    if "external/mods/zz-oracle.lua" in text:
+        return False
+    if QUICK_MATCH not in text:
+        raise SystemExit(f"{script} has no quick-match hook to patch")
+    script.write_text(text.replace(QUICK_MATCH, LOAD_SNIPPET + QUICK_MATCH, 1))
+    return True
+
+
+def unpatch_main(root: Path, added: bool) -> None:
+    if not added:
+        return
+    script = root / "external/script/main.lua"
+    text = script.read_text(encoding="utf-8", errors="replace")
+    script.write_text(text.replace(LOAD_SNIPPET, "", 1))
+
+
+def prepare_stage(root: Path) -> None:
+    stages = root / "stages"
+    stages.mkdir(exist_ok=True)
+    shutil.copy(ROOT / "tools/oracle/oracle-stage.def", stages / "oracle.def")
+    source = ROOT / "content/stages/training/stage1.sff"
+    shutil.copy(source, stages / "oracle.sff")
+
+
+def summarize(path: Path) -> dict:
+    with path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        raise SystemExit("capture is empty")
+    injection = next((row for row in rows if int(row["p1_state"]) == 200), None)
+    if injection is None:
+        raise SystemExit("scenario never entered KFM state 200")
+    contact = None
+    previous_life = int(injection["p2_life"])
+    hits = 0
+    for row in rows[rows.index(injection) :]:
+        life = int(row["p2_life"])
+        if life < previous_life:
+            hits += 1
+        if contact is None and (life < previous_life or int(row["p2_state"]) >= 5000):
+            contact = row
+        previous_life = life
+    if contact is None:
+        raise SystemExit("scenario never hit the defender")
+    contact_index = rows.index(contact)
+    injection_index = rows.index(injection)
+    contact_x = float(contact["p2_x"])
+    max_x = max(float(row["p2_x"]) for row in rows[contact_index:])
+    return {
+        "injection_frame": int(injection["frame"]),
+        "contact_frame": int(contact["frame"]),
+        "contact_ticks": int(contact["frame"]) - int(injection["frame"]),
+        "damage": int(injection["p2_life"]) - min(int(row["p2_life"]) for row in rows),
+        "hits": hits,
+        "defender_state": int(contact["p2_state"]),
+        "defender_anim": int(contact["p2_anim"]),
+        "push_distance": round(max_x - contact_x, 3),
+        "rows": len(rows),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=os.environ.get("IKEMEN_DIR"))
+    parser.add_argument("--binary", type=Path)
+    parser.add_argument("--scenario", default="kfm_attack")
+    parser.add_argument("--p1", default="kfm")
+    parser.add_argument("--p2", default="kfm")
+    parser.add_argument("--seconds", type=int, default=10)
+    parser.add_argument("--timeout", type=int, default=14)
+    parser.add_argument("--from-csv", type=Path, help="reduce an existing capture")
+    parser.add_argument("--keep", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+
+    if args.from_csv:
+        summary = summarize(args.from_csv)
+    else:
+        if not args.root:
+            parser.error("set IKEMEN_DIR or pass --root")
+        root = args.root.resolve()
+        binary = args.binary or find_binary(root)
+        workdir = Path(tempfile.mkdtemp(prefix="manato-frame-"))
+        capture = workdir / "frames.csv"
+        added = False
+        try:
+            shutil.copy(ROOT / "tools/oracle/capture.lua", root / "external/mods/zz-oracle.lua")
+            prepare_stage(root)
+            added = patch_main(root)
+            env = os.environ.copy()
+            env["SDL_VIDEODRIVER"] = "offscreen"
+            env["IKEMEN_ORACLE_OUT"] = str(capture)
+            env["IKEMEN_ORACLE_SCENARIO"] = args.scenario
+            lib_paths = [str(root / "lib")]
+            if env.get("LD_LIBRARY_PATH"):
+                lib_paths.append(env["LD_LIBRARY_PATH"])
+            env["LD_LIBRARY_PATH"] = ":".join(lib_paths)
+            command = [
+                str(binary),
+                "-windowed",
+                "-nosound",
+                "-nomusic",
+                "-nojoy",
+                "-debug",
+                "-p1",
+                args.p1,
+                "-p2",
+                args.p2,
+                "-p1.ai",
+                "0",
+                "-p2.ai",
+                "0",
+                "-s",
+                "oracle",
+                "-rounds",
+                "1",
+                "-time",
+                str(args.seconds),
+            ]
+            try:
+                subprocess.run(
+                    command,
+                    cwd=root,
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=args.timeout,
+                )
+            except subprocess.TimeoutExpired:
+                # The match loop keeps running in attract mode; the capture
+                # already contains everything we need.
+                pass
+            if not capture.is_file():
+                raise SystemExit("oracle produced no per-frame capture")
+            summary = summarize(capture)
+            if args.keep:
+                print(f"raw capture kept at {capture}", file=sys.stderr)
+        finally:
+            unpatch_main(root, added)
+            (root / "external/mods/zz-oracle.lua").unlink(missing_ok=True)
+
+    if args.json:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+    else:
+        print(
+            f"contact_ticks={summary['contact_ticks']} damage={summary['damage']} "
+            f"hits={summary['hits']} state={summary['defender_state']} "
+            f"anim={summary['defender_anim']} push={summary['push_distance']}"
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,53 @@
+; Close-range stage used only by the per-frame oracle harness.
+; MIT licensed; generated for M.A.N.A.T.O.-RS observations.
+[Info]
+name = "Oracle Close"
+displayname = "Oracle Close"
+mugenversion = 1.1
+localcoord = 320, 240
+author = "M.A.N.A.T.O.-RS contributors"
+
+[Camera]
+startx = 0
+starty = 0
+boundleft = -125
+boundright = 125
+boundhigh = -76
+boundlow = 0
+verticalfollow = .2
+floortension = 0
+tension = 50
+
+[PlayerInfo]
+p1startx = -15
+p1starty = 0
+p1facing = 1
+p2startx = 15
+p2starty = 0
+p2facing = -1
+leftbound = -1000
+rightbound = 1000
+
+[Bound]
+screenleft = 15
+screenright = 15
+
+[StageInfo]
+zoffset = 204
+autoturn = 1
+resetbg = 1
+localcoord = 320, 240
+
+[Shadow]
+intensity = 128
+color = 0, 0, 0
+yscale = .3
+fade.range = 0, 0
+
+[BGdef]
+spr = oracle.sff
+
+[BG 0]
+type = normal
+spriteno = 1, 1
+start = 0, 0

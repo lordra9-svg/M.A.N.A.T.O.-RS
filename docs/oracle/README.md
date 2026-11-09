@@ -57,12 +57,39 @@ SDL_VIDEODRIVER=offscreen LD_LIBRARY_PATH="$PWD/lib:$LD_LIBRARY_PATH" \
 `parse_match_log.py MATCH.log --json` converts one dump into JSON.
 `run_round_oracle.py --from-logs .` reads a directory of such dumps.
 
+## Per-frame capture
+
+`run_frame_capture.py` installs a Lua debug-info module, runs a scripted
+close-range match, and reduces a CSV capture to a compact summary. It uses
+Ikemen's public Lua debug API (`loadDebugInfo`, `player`, `changeState`,
+`life`, `stateNo`, `posX`, ...), not engine internals.
+
+```sh
+export IKEMEN_DIR=/path/to/ikemen-runtime
+python3 tools/oracle/run_frame_capture.py --scenario kfm_attack --json
+```
+
+The runtime must contain a close-range `stages/oracle.def`; the script copies
+`tools/oracle/oracle-stage.def` and `content/stages/training/stage1.sff` into
+place automatically. The script temporarily patches the throwaway runtime's
+`external/script/main.lua` to load the capture module before the quick-match
+path, then restores it.
+
+If the engine cannot be launched from the Python process (for example, no
+offscreen GL session), run the match from a desktop shell with the printed
+environment and then reduce the CSV:
+
+```sh
+python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
+```
+
 ## Current coverage
 
-Round-end classification only (`docs/oracle/assertions.md`, O-01..O-08):
-timer rate, KO vs time-over, perfect, clutch, and time-over draws. Other
-subsystems still rely on the provisional assertions in the frozen specs and
-should be added here as the harness grows.
+Round-end classification (`docs/oracle/assertions.md`, O-01..O-08) and the
+KFM light-punch hit flow (O-09..O-11): timer rate, KO vs time-over, perfect,
+clutch, time-over draws, contact timing, damage, get-hit state, single-hit
+activation, and push direction. Other subsystems still rely on the provisional
+assertions in the frozen specs and should be added here as the harness grows.
 
 Note: Ikemen's `-rounds` command-line flag means "total rounds to play", not
 "rounds needed to win". Use `-rounds 1` and inspect the per-round `Rounds`

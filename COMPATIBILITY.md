@@ -79,9 +79,9 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Box transforms + combat tests; oracle pending |
+| K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Box transforms + combat tests; KFM 200 hit flow in `docs/oracle/` |
 | K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flags + guard damage tests |
-| K-03 | Hit pause/super pause | Required | Required | Partial | Hit pause applied; oracle pending |
+| K-03 | Hit pause/super pause | Required | Required | Partial | Hit pause + single-activation continuity; KFM 200 oracle flow |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + fall states |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw states/target bind test |
 | K-06 | Projectile collision | Required | Required | Partial | Projectile tests |

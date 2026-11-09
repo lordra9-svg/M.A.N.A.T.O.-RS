@@ -356,7 +356,7 @@ pub fn apply_hit_at(
         f.hit.vars.anim_type = hitdef.anim_type.code();
         f.hit.vars.ground_type = hitdef.ground_type.code();
         f.hit.vars.air_type = hitdef.air_type.code();
-        f.hit.vars.x_vel = velocity.x * attacker_facing as f32;
+        f.hit.vars.x_vel = velocity.x * -(attacker_facing as f32);
         f.hit.vars.y_vel = velocity.y;
         f.hit.vars.y_accel = 0.0;
         f.hit.vars.hittime = hittime;

@@ -330,6 +330,9 @@ pub struct HitState {
     pub last_activation: u32,
     /// Simulation frame on which this fighter last ran a `HitDef`.
     pub last_activation_frame: i64,
+    /// Pause ticks since the fighter last ran its controllers. A `HitDef`
+    /// resumed after a pause is the same activation, not a new one.
+    pub pause_gap: i32,
 }
 
 /// Parses expressions used as numeric parameters, falling back to `default`.

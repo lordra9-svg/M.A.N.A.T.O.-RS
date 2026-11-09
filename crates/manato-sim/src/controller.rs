@@ -873,7 +873,8 @@ fn hit_def(sim: &mut SimState, who: usize, control: &Controller) {
         .hit
         .last_activation_frame
         .saturating_add(1)
-        == sim.frame as i64;
+        == sim.frame as i64
+        || sim.fighters[who].hit.pause_gap > 0;
     if !same_activation {
         sim.hit_activation = sim.hit_activation.wrapping_add(1);
         sim.fighters[who].hit.hit_targets.clear();

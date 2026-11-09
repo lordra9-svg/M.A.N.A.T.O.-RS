@@ -369,6 +369,7 @@ impl Fighter {
         self.reversal_time = 0;
         self.hit.hit_targets.clear();
         self.hit.hit_counts.clear();
+        self.hit.pause_gap = 0;
         self.width_override = None;
 
         let _ = face_p2;

@@ -31,4 +31,4 @@ jobs:
         run: cargo test --workspace
 
       - name: Python tooling syntax
-        run: python3 -m py_compile tools/gen_assets.py tools/gen_sfx.py tools/gen_screenpack.py tools/oracle/parse_match_log.py tools/oracle/run_round_oracle.py
+        run: python3 -m py_compile tools/gen_assets.py tools/gen_sfx.py tools/gen_screenpack.py tools/oracle/parse_match_log.py tools/oracle/run_round_oracle.py tools/oracle/run_frame_capture.py

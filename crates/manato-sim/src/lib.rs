@@ -826,14 +826,17 @@ impl SimState {
         for who in 0..self.fighters.len() {
             if self.fighters[who].hit.hit_pause > 0 {
                 self.fighters[who].hit.hit_pause -= 1;
+                self.fighters[who].hit.pause_gap += 1;
                 self.fighters[who].state_changed = false;
                 continue;
             }
             if self.fighters[who].hit.super_pause > 0 {
                 self.fighters[who].hit.super_pause -= 1;
+                self.fighters[who].hit.pause_gap += 1;
                 continue;
             }
             self.update_fighter(who);
+            self.fighters[who].hit.pause_gap = 0;
         }
 
         collision::resolve(self);
@@ -2092,6 +2095,7 @@ impl SimState {
             h.write_u8(f.move_type as u8);
             h.write_u8(f.physics as u8);
             h.write_i32(f.hit.hit_pause);
+            h.write_i32(f.hit.pause_gap);
             h.write_i32(f.hit.vars.hittime);
             h.write_bool(f.hit.guarding);
             h.write_i32(f.received_hits);

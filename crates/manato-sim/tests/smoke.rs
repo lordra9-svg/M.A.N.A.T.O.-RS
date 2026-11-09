@@ -1473,3 +1473,75 @@ fn nokosnd_flag_suppresses_round_end_sounds() {
     sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOKOSND;
     assert!(sim.ko_sounds_suppressed());
 }
+
+#[test]
+fn oracle_kfm_state_200_hits_idle() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let root = std::env::var_os("MANATO_MUGEN_ROOT")
+        .or_else(|| std::env::var_os("MUGEN_ROOT"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| project.parent().unwrap_or(&project).join("mugen"));
+    let kfm = root.join("mugen-1.1b1/chars/kfm/kfm.def");
+    let stage =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../content/stages/training/stage1.def");
+    if !kfm.exists() || !stage.exists() {
+        eprintln!("skipping: stock KFM or bundled stage missing");
+        return;
+    }
+    let config = MatchConfig {
+        mugen_root: root,
+        p1: kfm.clone(),
+        p2: kfm,
+        stage,
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+
+    let mut hit = None;
+    for index in 0..8 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            hit = Some((index, sim.fighters[1].life, sim.fighters[1].state_no));
+            break;
+        }
+    }
+    let (index, life, state) = hit.expect("KFM state 200 should hit an idle opponent");
+    // Ikemen-GO oracle O-09: contact within 4 ticks, 23 damage, state 5000.
+    assert!(index <= 5, "contact took {index} ticks");
+    assert_eq!(life, 977);
+    assert_eq!(state, 5000);
+    assert_eq!(sim.fighters[1].received_damage, 23);
+    assert_eq!(sim.fighters[1].received_hits, 1);
+    let contact_x = sim.fighters[1].pos.x;
+
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    // The attack is one activation: no re-hit after the 8-tick hit pause.
+    assert_eq!(sim.fighters[1].received_damage, 23);
+    assert_eq!(sim.fighters[1].received_hits, 1);
+    assert_eq!(sim.fighters[1].life, 977);
+    // The defender is pushed away from the attacker (oracle O-10).
+    assert!(
+        sim.fighters[1].pos.x > contact_x + 8.0,
+        "defender should be pushed away, x={}",
+        sim.fighters[1].pos.x
+    );
+}
