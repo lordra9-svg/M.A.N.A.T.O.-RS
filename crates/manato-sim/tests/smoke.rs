@@ -4612,3 +4612,48 @@ fn state_3000_blasts_are_guarded_for_15() {
     assert!(sim.fighters[0].proj_contact_time >= 0);
     assert_eq!(sim.fighters[0].proj_hit_time, -1);
 }
+
+#[test]
+fn modify_projectile_targets_newest_or_all_matching_ids() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(3000, &assets.characters[0], false);
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.projectiles.len() >= 2 {
+            break;
+        }
+    }
+    assert_eq!(sim.projectiles.len(), 2);
+    assert!(sim.projectiles.iter().all(|projectile| projectile.id == 0));
+    let newest = sim.projectiles.last().unwrap().hitdef.damage;
+
+    // Without an id only the newest projectile changes.
+    let newest_only = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![("velocity".into(), "0, 0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &newest_only, &assets);
+    assert_eq!(sim.projectiles[0].vel.x, 6.0);
+    assert_eq!(sim.projectiles[1].vel.x, 0.0);
+    assert_eq!(sim.projectiles[1].hitdef.damage, newest);
+
+    // An explicit matching id updates every projectile in the group.
+    let all = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("id".into(), "0".into()),
+            ("velocity".into(), "1, 0".into()),
+            ("damage".into(), "20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &all, &assets);
+    for projectile in &sim.projectiles {
+        assert_eq!(projectile.vel.x, 1.0);
+        assert_eq!(projectile.hitdef.damage, 20);
+    }
+}
