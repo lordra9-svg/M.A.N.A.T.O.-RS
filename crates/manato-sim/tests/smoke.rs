@@ -2948,3 +2948,48 @@ fn after_image_time_and_pal_fx_and_trans_controllers() {
     manato_sim::controller::execute(&mut sim, 0, &default, &assets);
     assert_eq!(sim.fighters[0].trans_alpha, 1.0);
 }
+
+#[test]
+fn statedef_defaults_apply_type_physics_anim_and_ctrl() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    sim.fighters[0].enter_state(50, &assets.characters[0], false);
+    assert_eq!(
+        sim.fighters[0].state_type,
+        manato_sim::fighter::StateType::Air
+    );
+    assert_eq!(sim.fighters[0].physics, manato_sim::fighter::Physics::Air);
+    assert_eq!(sim.fighters[0].anim_no, 41);
+    assert!(!sim.fighters[0].ctrl);
+
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    assert_eq!(
+        sim.fighters[0].state_type,
+        manato_sim::fighter::StateType::Stand
+    );
+    assert_eq!(
+        sim.fighters[0].move_type,
+        manato_sim::fighter::MoveType::Attack
+    );
+    assert_eq!(sim.fighters[0].physics, manato_sim::fighter::Physics::Stand);
+    assert_eq!(sim.fighters[0].anim_no, 200);
+    assert!(!sim.fighters[0].ctrl);
+    assert_eq!(sim.fighters[0].sprite_priority, 1);
+
+    // State 0 restores the idle defaults.
+    sim.fighters[0].enter_state(0, &assets.characters[0], false);
+    assert_eq!(
+        sim.fighters[0].state_type,
+        manato_sim::fighter::StateType::Stand
+    );
+    assert_eq!(
+        sim.fighters[0].move_type,
+        manato_sim::fighter::MoveType::Idle
+    );
+    assert_eq!(sim.fighters[0].physics, manato_sim::fighter::Physics::Stand);
+    assert_eq!(sim.fighters[0].anim_no, 0);
+    assert!(sim.fighters[0].ctrl);
+}
