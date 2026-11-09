@@ -2440,3 +2440,54 @@ fn persistent_and_ignorehitpause_control_execution() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn state_and_animation_controllers_round_trip() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let turn = manato_formats::Controller {
+        kind: "turn".into(),
+        params: vec![],
+        line: 0,
+    };
+    let facing = sim.fighters[0].facing;
+    manato_sim::controller::execute(&mut sim, 0, &turn, &assets);
+    assert_eq!(sim.fighters[0].facing, -facing);
+
+    let anim = manato_formats::Controller {
+        kind: "changeanim".into(),
+        params: vec![("value".into(), "200".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &anim, &assets);
+    assert_eq!(sim.fighters[0].anim_no, 200);
+
+    let state = manato_formats::Controller {
+        kind: "changestate".into(),
+        params: vec![("value".into(), "200".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &state, &assets);
+    assert_eq!(sim.fighters[0].state_no, 200);
+    assert_eq!(sim.fighters[0].prev_state_no, 0);
+
+    let self_state = manato_formats::Controller {
+        kind: "selfstate".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &self_state, &assets);
+    assert_eq!(sim.fighters[0].state_no, 0);
+
+    // ChangeAnim2 is the same engine path but resolves the owner's palette in
+    // full content; here it must at least change the animation number.
+    let anim2 = manato_formats::Controller {
+        kind: "changeanim2".into(),
+        params: vec![("value".into(), "10".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &anim2, &assets);
+    assert_eq!(sim.fighters[0].anim_no, 10);
+}

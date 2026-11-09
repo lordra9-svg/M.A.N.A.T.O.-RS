@@ -36,7 +36,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | S-01 | Statedef defaults/type/physics | Required | Required | Partial | Bundled roster |
-| S-02 | ChangeState/ChangeAnim | Required | Required | Partial | Bundled roster |
+| S-02 | ChangeState/ChangeAnim | Required | Required | Partial | ChangeState/SelfState/ChangeAnim/ChangeAnim2 round-trip test |
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Bundled roster |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N + ignorehitpause during hit/super pause test |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Bundled roster |
@@ -62,7 +62,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | LifeAdd/LifeSet/PlayerPush/Gravity + Var/VarRandom (bounded, deterministic) |
-| C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | Roster |
+| C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn controller round-trip test |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
 | C-04 | Projectile | Required | Required | Partial | Projectile spawn/hit-count/lifetime + ModifyProjectile tests |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Explod binding/projection + ModifyExplod/RemoveExplod id tests |
