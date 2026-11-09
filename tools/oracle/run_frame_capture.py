@@ -173,6 +173,12 @@ def summarize(path: Path) -> dict:
         "juggle_after_second_hit": (
             int(drops[1][0]["p2_juggle"]) if len(drops) > 1 else None
         ),
+        "third_hit_frame": int(drops[2][0]["frame"]) if len(drops) > 2 else None,
+        "third_damage": drops[2][1] if len(drops) > 2 else None,
+        "third_state": int(drops[2][0]["p2_state"]) if len(drops) > 2 else None,
+        "juggle_after_third_hit": (
+            int(drops[2][0]["p2_juggle"]) if len(drops) > 2 else None
+        ),
         "rows": len(rows),
     }
 

@@ -7,6 +7,7 @@ local injected = false
 local started = false
 local last_inject = -1000
 local second_injected = false
+local third_injected = false
 
 local function num(v)
     if type(v) == "boolean" then return v and 1 or 0 end
@@ -80,6 +81,24 @@ function oracle_capture()
             player(1)
             changeState(210)
             second_injected = true
+        end
+    elseif scenario == "kfm_juggle_exhaust" and not injected and num(roundState()) == 2 then
+        player(1)
+        changeState(440)
+        injected = true
+    elseif scenario == "kfm_juggle_exhaust" and injected and not second_injected then
+        player(2)
+        if num(stateNo()) >= 5071 then
+            player(1)
+            changeState(210)
+            second_injected = true
+        end
+    elseif scenario == "kfm_juggle_exhaust" and second_injected and not third_injected then
+        player(2)
+        if num(life()) < 928 and num(stateNo()) >= 5020 then
+            player(1)
+            changeState(240)
+            third_injected = true
         end
     elseif scenario == "kfm_attack_loop" and num(roundState()) == 2
         and frame - last_inject >= 45 then

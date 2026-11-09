@@ -74,12 +74,14 @@ pub fn resolve(sim: &mut SimState) {
             f.state_type == StateType::Air || f.pos.y < -1.0
         };
         let juggle_cost = sim.fighters[attacker].juggle;
+        let already_targeted = sim.fighters[attacker].hit.hit_targets.contains(&defender);
         if !juggle_allows(
             sim.fighters[defender].juggle_points,
             sim.fighters[defender].assert_flags,
             guarding,
             defender_airborne,
             juggle_cost,
+            already_targeted,
         ) {
             continue;
         }
@@ -101,11 +103,17 @@ fn juggle_allows(
     guarding: bool,
     airborne: bool,
     cost: i32,
+    already_targeted: bool,
 ) -> bool {
     if guarding || !airborne || cost <= 0 {
         return true;
     }
     if assert_flags & crate::fighter::ASSERT_NOJUGGLECHECK != 0 {
+        return true;
+    }
+    // M.U.G.E.N lets a fresh activation juggle an enemy that is not one of its
+    // targets yet; the points gate applies to repeat hits within an activation.
+    if !already_targeted {
         return true;
     }
     juggle_points >= cost
@@ -620,18 +628,22 @@ mod tests {
 
     #[test]
     fn juggle_points_gate_air_hits() {
-        assert!(juggle_allows(10, 0, false, true, 5));
-        assert!(!juggle_allows(4, 0, false, true, 5));
+        assert!(juggle_allows(10, 0, false, true, 5, false));
+        assert!(!juggle_allows(4, 0, false, true, 5, true));
+        // A fresh activation bypasses the gate for an untargeted enemy.
+        assert!(juggle_allows(4, 0, false, true, 5, false));
+        assert!(juggle_allows(10, 0, false, true, 5, true));
         // Guarding hits and grounded defenders ignore juggle points.
-        assert!(juggle_allows(0, 0, true, true, 5));
-        assert!(juggle_allows(0, 0, false, false, 5));
+        assert!(juggle_allows(0, 0, true, true, 5, true));
+        assert!(juggle_allows(0, 0, false, false, 5, true));
         // AssertSpecial NoJuggleCheck bypasses the check.
         assert!(juggle_allows(
             0,
             crate::fighter::ASSERT_NOJUGGLECHECK,
             false,
             true,
-            5
+            5,
+            true
         ));
     }
 }
