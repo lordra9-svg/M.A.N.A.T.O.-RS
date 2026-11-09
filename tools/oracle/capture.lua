@@ -15,17 +15,25 @@ local function num(v)
     return 0
 end
 
+-- Debug info callbacks must never raise: a single Lua error makes the engine
+-- stop calling the provider for the rest of the match.
+local function safe(fn, ...)
+    local ok, value = pcall(fn, ...)
+    if ok then return value end
+    return -999
+end
+
 local function snap()
     return table.concat({
-        num(life()), num(lifeMax()), num(power()), num(redLife()),
-        num(stateNo()), num(anim()), num(animTime()),
-        string.format("%.4f", posX()), string.format("%.4f", posY()),
-        string.format("%.4f", velX()), string.format("%.4f", velY()),
-        num(facing()), num(ctrl()), num(stateType()), num(moveType()),
-        num(hitCount()), num(uniqHitCount()),
-        num(guardPoints()), num(dizzyPoints()),
-        num(getHitVar("damage")), num(getHitVar("hittime")),
-        num(moveContact()), num(moveHit()), num(moveGuarded()),
+        num(safe(life)), num(safe(lifeMax)), num(safe(power)), num(safe(redLife)),
+        num(safe(stateNo)), num(safe(anim)), num(safe(animTime)),
+        string.format("%.4f", num(safe(posX))), string.format("%.4f", num(safe(posY))),
+        string.format("%.4f", num(safe(velX))), string.format("%.4f", num(safe(velY))),
+        num(safe(facing)), num(safe(ctrl)), num(safe(stateType)), num(safe(moveType)),
+        num(safe(hitCount)), num(safe(uniqHitCount)),
+        num(safe(guardPoints)), num(safe(dizzyPoints)),
+        num(safe(getHitVar, "damage")), num(safe(getHitVar, "hittime")),
+        num(safe(moveContact)), num(safe(moveHit)), num(safe(moveGuarded)),
     }, ",")
 end
 
@@ -122,9 +130,9 @@ function oracle_capture()
     local p1 = snap()
     player(2)
     local p2 = snap()
-    local p2_id = id()
+    local p2_id = safe(id)
     player(1)
-    local p2_juggle = jugglePoints(p2_id)
+    local p2_juggle = safe(jugglePoints, p2_id)
 
     write_line(table.concat({
         frame, num(gameTime()), num(roundState()), num(roundTime()), p1, p2, p2_juggle
