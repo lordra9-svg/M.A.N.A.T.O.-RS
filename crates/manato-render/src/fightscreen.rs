@@ -503,6 +503,21 @@ fn time(
     draw_layer(painter, deps, &def.top, fight, map, def.pos, time, [1.0; 4]);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WinIconKind {
+    Normal,
+    TimeOver,
+}
+
+/// Chooses the icon layer for a recorded win.
+fn win_icon_kind(record: &manato_sim::WinRecord) -> WinIconKind {
+    if record.time_over {
+        WinIconKind::TimeOver
+    } else {
+        WinIconKind::Normal
+    }
+}
+
 /// Number of round-win icons to draw; `use_icon_upto` caps the list when positive.
 fn win_icon_count(records: usize, use_icon_upto: i32) -> usize {
     if use_icon_upto > 0 {
@@ -535,10 +550,9 @@ fn win_icons(
     for (index, record) in wins.iter().take(limit).enumerate() {
         let origin = def.pos + step * index as f32;
         draw_layer(painter, deps, &def.bg0, fight, map, origin, time, [1.0; 4]);
-        let icon = if record.time_over {
-            &def.time
-        } else {
-            &def.normal
+        let icon = match win_icon_kind(record) {
+            WinIconKind::TimeOver => &def.time,
+            WinIconKind::Normal => &def.normal,
         };
         draw_layer(painter, deps, icon, fight, map, origin, time, [1.0; 4]);
         if record.perfect {
@@ -895,5 +909,22 @@ mod tests {
         assert_eq!(win_icon_count(3, -1), 3);
         assert_eq!(win_icon_count(3, 2), 2);
         assert_eq!(win_icon_count(2, 5), 2);
+    }
+    #[test]
+    fn win_icon_kind_selects_time_over_and_perfect() {
+        let normal = manato_sim::WinRecord {
+            time_over: false,
+            perfect: true,
+            clutch: false,
+        };
+        let time_over = manato_sim::WinRecord {
+            time_over: true,
+            perfect: false,
+            clutch: true,
+        };
+        assert_eq!(win_icon_kind(&normal), WinIconKind::Normal);
+        assert!(normal.perfect);
+        assert_eq!(win_icon_kind(&time_over), WinIconKind::TimeOver);
+        assert!(!time_over.perfect);
     }
 }
