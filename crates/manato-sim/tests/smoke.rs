@@ -5917,3 +5917,81 @@ fn target_vel_add_and_bind_variants() {
     assert_eq!(sim.root_of(helper_index), 0);
     assert_eq!(sim.parent_of(helper_index), 0);
 }
+
+#[test]
+fn target_life_power_composition_and_filter_timers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+
+    // TargetLifeAdd accumulates and honors kill = 0.
+    let life_add = |value: i32, kill: i32| manato_formats::Controller {
+        kind: "targetlifeadd".into(),
+        params: vec![
+            ("value".into(), value.to_string()),
+            ("kill".into(), kill.to_string()),
+        ],
+        line: 0,
+    };
+    let life = sim.fighters[1].life;
+    manato_sim::controller::execute(&mut sim, 0, &life_add(-50, 0), &assets);
+    manato_sim::controller::execute(&mut sim, 0, &life_add(-50, 0), &assets);
+    assert_eq!(sim.fighters[1].life, life - 100);
+    sim.fighters[1].life = 20;
+    manato_sim::controller::execute(&mut sim, 0, &life_add(-50, 0), &assets);
+    assert_eq!(sim.fighters[1].life, 1);
+    manato_sim::controller::execute(&mut sim, 0, &life_add(-50, 1), &assets);
+    assert_eq!(sim.fighters[1].life, 0);
+
+    // TargetPowerAdd accumulates and clamps.
+    sim.fighters[1].power = 100.0;
+    let power_add = manato_formats::Controller {
+        kind: "targetpoweradd".into(),
+        params: vec![("value".into(), "250".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &power_add, &assets);
+    assert_eq!(sim.fighters[1].power, 350.0);
+    let power_cap = manato_formats::Controller {
+        kind: "targetpoweradd".into(),
+        params: vec![("value".into(), "99999".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &power_cap, &assets);
+    assert_eq!(sim.fighters[1].power, manato_sim::MAX_POWER);
+
+    // NotHitBy blocks matching attacks until its timer expires.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    sim.fighters[1].hit.not_hit_by = Some(("SCA, NA".into(), 2));
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life);
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.fighters[1].hit.not_hit_by.is_none());
+    // Force a clean hit after the filter expires.
+    sim.fighters[1].state_no = 0;
+    sim.fighters[1].ctrl = true;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - hit.damage);
+
+    // HitBy whitelist takes precedence over NotHitBy.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].hit.not_hit_by = Some(("SCA, NA".into(), 50));
+    sim.fighters[1].hit.hit_by = Some(("SCA, SA".into(), 50));
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        sim.fighters[1].life, life,
+        "whitelist rejects normal attack"
+    );
+}

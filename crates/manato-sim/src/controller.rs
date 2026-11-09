@@ -1462,8 +1462,12 @@ fn target_life_add(sim: &mut SimState, who: usize, control: &Controller) {
         return;
     };
     let value = int_param(sim, who, control, "value").unwrap_or(0);
-    let life = sim.fighters[target].life + value;
-    sim.fighters[target].life = life.clamp(0, sim.fighters[target].life_max);
+    let kill = int_param(sim, who, control, "kill").unwrap_or(1) != 0;
+    let fighter = &mut sim.fighters[target];
+    fighter.life = (fighter.life + value).clamp(0, fighter.life_max);
+    if !kill && fighter.life <= 0 {
+        fighter.life = 1;
+    }
 }
 
 fn bracket_index(key: &str, prefix: &str) -> Option<usize> {

@@ -314,6 +314,11 @@ pub fn apply_hit_at(
     facing: i32,
     from_fighter: bool,
 ) {
+    // NotHitBy / HitBy filters apply on every hit path, including direct
+    // callers and projectiles.
+    if !guarding && blocks_by_filter(sim, defender, hitdef) {
+        return;
+    }
     // `HitOverride` wins over any hit application path, including projectiles
     // and direct callers (`docs/spec/cns-cmd.md` §4.2).
     if !guarding {

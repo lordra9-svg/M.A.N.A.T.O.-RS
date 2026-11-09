@@ -66,10 +66,10 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef + p2stateno-without-p1stateno override test |
 | C-04 | Projectile | Required | Required | Partial | Spawn/hit-count/lifetime + postype anchors + dual spawn + ModifyProjectile id targeting |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection + lifetime/remove-on-hit/state + Modify/Remove id tests |
-| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/BindTo* facing + TargetVelAdd + SelfState/DestroySelf/Root-ParentVarAdd |
+| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | BindTo* + TargetVelAdd + TargetLifeAdd kill/TargetPowerAdd + helper ownership |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake/FallEnvShake + effect move-time + Nival pause oracle |
-| C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Attr filters/HitBy + override slots/clamp/keepstate/forceguard/infinite time |
+| C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters (incl. timer expiry on all hit paths) + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width override, screen-bound clamp, and PlayerPush separation tests |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |
