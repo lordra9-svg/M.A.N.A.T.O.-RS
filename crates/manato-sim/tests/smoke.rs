@@ -5676,3 +5676,70 @@ fn posfreeze_velmul_and_helper_variable_binds() {
     manato_sim::controller::execute(&mut sim, helper_index, &parent_add, &assets);
     assert_eq!(sim.fighters[0].vars[4], 3);
 }
+
+#[test]
+fn combo_counter_refreshes_on_new_hits() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.combo[0].shown_hits, 1);
+    let first_timer = sim.combo[0].timer;
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.combo[0].timer < first_timer);
+
+    // Two more hits refresh the display timer and accumulate damage.
+    for _ in 0..2 {
+        manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.combo[0].shown_hits, 3);
+    assert_eq!(sim.combo[0].damage, 60);
+    assert_eq!(sim.combo[0].timer, manato_sim::COMBO_DISPLAY_TICKS - 1);
+
+    // Recovering clears combo damage while the displayed count lingers.
+    for _ in 0..180 {
+        if sim.fighters[1].received_hits == 0 {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].received_hits, 0);
+    assert_eq!(sim.combo[0].damage, 0);
+    assert_eq!(sim.combo[0].shown_hits, 3);
+}
+
+#[test]
+fn round_display_strings_match_flow() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let winner_name = sim.assets.characters[0].display_name().to_string();
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.display, format!("{winner_name} Wins"));
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let winner_name = sim.assets.characters[0].display_name().to_string();
+    sim.fighters[0].life = 800;
+    sim.fighters[1].life = 400;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.display, format!("Time Over - {winner_name} Wins"));
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = 500;
+    sim.fighters[1].life = 500;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.display, "Time Over - Draw");
+}
