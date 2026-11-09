@@ -3400,3 +3400,97 @@ fn math_and_resolution_constants() {
         "Random derives from rollback-safe state, not wall-clock time"
     );
 }
+
+#[test]
+fn stage_bg_controllers_drive_layers() {
+    use manato_formats::{BgCtrl, Controller};
+
+    let layer = manato_formats::stage::BgLayer {
+        velocity: manato_core::Vec2::new(2.0, -1.0),
+        visible: true,
+        enabled: true,
+        ..Default::default()
+    };
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+
+    // Layer velocity drifts the offset every call.
+    manato_sim::update_bg_states(&[], &mut states, 0, 1, 0);
+    assert_eq!(states[0].offset.x, 2.0);
+    assert_eq!(states[0].offset.y, -1.0);
+    manato_sim::update_bg_states(&[], &mut states, 1, 1, 0);
+    assert_eq!(states[0].offset.x, 4.0);
+    assert_eq!(states[0].offset.y, -2.0);
+
+    let ctrl = |kind: &str, params: Vec<(&str, &str)>, trigger: &str| BgCtrl {
+        layer: 0,
+        controller: Controller {
+            kind: kind.into(),
+            params: {
+                let mut all: Vec<(String, String)> = vec![
+                    ("type".into(), kind.into()),
+                    ("trigger1".into(), trigger.into()),
+                ];
+                all.extend(
+                    params
+                        .into_iter()
+                        .map(|(key, value)| (key.to_string(), value.to_string())),
+                );
+                all
+            },
+            line: 0,
+        },
+    };
+
+    // `visible` only applies when its time trigger fires.
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let hide = [ctrl("visible", vec![("value", "0")], "time = 5")];
+    manato_sim::update_bg_states(&hide, &mut states, 4, 1, 0);
+    assert!(states[0].visible);
+    manato_sim::update_bg_states(&hide, &mut states, 5, 1, 0);
+    assert!(!states[0].visible);
+
+    // Round-number and round-state triggers.
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let by_round = [ctrl("posadd", vec![("x", "5")], "roundno = 2")];
+    manato_sim::update_bg_states(&by_round, &mut states, 0, 1, 0);
+    assert_eq!(states[0].offset.x, 2.0);
+    manato_sim::update_bg_states(&by_round, &mut states, 0, 2, 0);
+    assert_eq!(states[0].offset.x, 9.0);
+
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let by_state = [ctrl("anim", vec![("value", "7")], "roundstate = 3")];
+    manato_sim::update_bg_states(&by_state, &mut states, 0, 1, 2);
+    assert_eq!(states[0].action, None);
+    manato_sim::update_bg_states(&by_state, &mut states, 0, 1, 3);
+    assert_eq!(states[0].action, Some(7));
+
+    // Velocity changes and modulo triggers.
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let velocity = [
+        ctrl("velset", vec![("x", "1"), ("y", "0.5")], "time = 0"),
+        ctrl("veladd", vec![("x", "0.5")], "time = 1"),
+    ];
+    manato_sim::update_bg_states(&velocity, &mut states, 0, 1, 0);
+    assert!((states[0].velocity.x - 1.0).abs() < 0.001);
+    manato_sim::update_bg_states(&velocity, &mut states, 1, 1, 0);
+    assert!((states[0].velocity.x - 1.5).abs() < 0.001);
+    assert!((states[0].offset.x - 3.0).abs() < 0.001);
+
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let timed = [ctrl(
+        "posset",
+        vec![("x", "10"), ("y", "20")],
+        "time%10 = 0",
+    )];
+    manato_sim::update_bg_states(&timed, &mut states, 9, 1, 0);
+    assert_ne!(states[0].offset.x, 10.0);
+    manato_sim::update_bg_states(&timed, &mut states, 10, 1, 0);
+    assert_eq!(states[0].offset.x, 10.0);
+    assert_eq!(states[0].offset.y, 20.0);
+
+    // Sine/cosine parameters are recorded for rendering.
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let waves = [ctrl("sinx", vec![("value", "1, 2, 3")], "1")];
+    manato_sim::update_bg_states(&waves, &mut states, 0, 1, 0);
+    assert_eq!(states[0].sin_x, [1.0, 2.0, 3.0]);
+}

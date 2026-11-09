@@ -25,7 +25,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
-| F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl/reflection/BGM/window/mask added; oracle pending |
+| F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Ryu option file |
 | F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners; storyboards pending |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
@@ -106,7 +106,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | V-01 | Sprite/palette rendering | Required | Required | Verified | Screenshots |
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
-| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Training Grid |
+| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry parser test + BGCtrl update integration test |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Built-in HUD + screenpack bars/names/timer/win icons/combo; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal rules + projectile facing/accel tests |
 | V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |

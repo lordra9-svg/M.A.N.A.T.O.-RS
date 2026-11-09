@@ -684,4 +684,40 @@ mod tests {
         assert!(!layer.visible);
         assert_eq!(layer.xscale, 2.0);
     }
+    #[test]
+    fn parses_layer_geometry_and_clipping() {
+        let mut map = HashMap::new();
+        map.insert("type".into(), "normal".into());
+        map.insert("spriteno".into(), "3,4".into());
+        map.insert("start".into(), "12,-8".into());
+        map.insert("delta".into(), "0.5,0.75".into());
+        map.insert("trans".into(), "add".into());
+        map.insert("tile".into(), "1,1".into());
+        map.insert("tilespacing".into(), "4,6".into());
+        map.insert("layerno".into(), "1".into());
+        map.insert("mask".into(), "1".into());
+        map.insert("positionlink".into(), "1".into());
+        map.insert("xscale".into(), "1.5".into());
+        map.insert("yscale".into(), "2.5".into());
+        map.insert("window".into(), "1,2,300,200".into());
+        map.insert("startrect".into(), "0,10,320,240".into());
+        map.insert("windowdelta".into(), "1,-1".into());
+        map.insert("id".into(), "9".into());
+        let layer = parse_layer(map);
+        assert_eq!(layer.sprite, Some((3, 4)));
+        assert_eq!(layer.start, Vec2::new(12.0, -8.0));
+        assert_eq!(layer.delta, Vec2::new(0.5, 0.75));
+        assert_eq!(layer.trans, BlendMode::Add);
+        assert_eq!(layer.tile, (1, 1));
+        assert_eq!(layer.tile_spacing, (4, 6));
+        assert_eq!(layer.layer_no, 1);
+        assert!(layer.mask);
+        assert!(layer.position_link);
+        assert!((layer.xscale - 1.5).abs() < f32::EPSILON);
+        assert!((layer.yscale - 2.5).abs() < f32::EPSILON);
+        assert_eq!(layer.window, [1.0, 2.0, 300.0, 200.0]);
+        assert_eq!(layer.start_rect, [0.0, 10.0, 320.0, 240.0]);
+        assert_eq!(layer.window_delta, Vec2::new(1.0, -1.0));
+        assert_eq!(layer.id, 9);
+    }
 }
