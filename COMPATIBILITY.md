@@ -64,7 +64,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | LifeAdd/LifeSet/PlayerPush/Gravity + Var/VarRandom (bounded, deterministic) |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn controller round-trip test |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
-| C-04 | Projectile | Required | Required | Partial | Projectile spawn/hit-count/lifetime + ModifyProjectile tests |
+| C-04 | Projectile | Required | Required | Partial | Spawn/hit-count/lifetime + state 3000 dual spawn + ModifyProjectile id targeting |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection + lifetime/remove-on-hit/state + Modify/Remove id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind/Target* + SelfState ownership and DestroySelf removal tests |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
@@ -84,7 +84,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-03 | Hit pause/super pause | Required | Required | Partial | Freeze semantics + effect move-time + single-activation continuity; KFM 200 oracle |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle/trip/launch + fall controllers and one-shot fall damage; O-20 negative |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw entry, whiff, guard, bind-follow, and TargetDrop tests |
-| K-06 | Projectile collision | Required | Required | Partial | Hit-count/lifetime + Kaen/Nival/Ordan projectile damage/guard oracle flow |
+| K-06 | Projectile collision | Required | Required | Partial | Hit-count/lifetime + Kaen/Nival/Ordan oracle flow + multi-projectile modify tests |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Corner-push + PlayerPush tests |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
