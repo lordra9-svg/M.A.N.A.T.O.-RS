@@ -529,7 +529,17 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Float(b.y - a.y)
             }
         }
-        "p2screendist" => Value::Float(0.0),
+        "p2screendist" => {
+            let axis = axis_arg(sim, who, args);
+            let other = sim.other(who);
+            let a = sim.screen_pos(sim.fighters[who].pos);
+            let b = sim.screen_pos(sim.fighters[other].pos);
+            if axis.starts_with('x') {
+                Value::Float(b.x - a.x)
+            } else {
+                Value::Float(b.y - a.y)
+            }
+        }
         "vel" => {
             let axis = axis_arg(sim, who, args);
             let f = &sim.fighters[who];

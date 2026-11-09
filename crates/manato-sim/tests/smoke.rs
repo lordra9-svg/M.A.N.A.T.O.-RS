@@ -6361,3 +6361,66 @@ fn identity_and_team_triggers() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Helper(9), PlayerID"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Helper(9), NumEnemy"), 1);
 }
+
+#[test]
+fn distance_and_edge_triggers_track_facing_and_position() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 0.0;
+    sim.camera.y = 0.0;
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(50.0, -30.0);
+    sim.fighters[1].facing = -1;
+
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "P2Dist X"), 50.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "P2Dist Y"), -30.0);
+    sim.fighters[0].facing = -1;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "P2Dist X"), -50.0);
+    sim.fighters[0].facing = 1;
+
+    let a = &sim.fighters[0];
+    let expected_body_x = (50.0 - a.width_front - sim.fighters[1].width_back).max(0.0);
+    let expected_body_y = (30.0 - a.height).max(0.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "P2BodyDist X"),
+        expected_body_x
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "P2BodyDist Y"),
+        expected_body_y
+    );
+
+    // Screen distance is the difference after camera mapping.
+    let screen_a = sim.screen_pos(sim.fighters[0].pos);
+    let screen_b = sim.screen_pos(sim.fighters[1].pos);
+    assert!(
+        (manato_sim::trigger::num(&sim, 0, "P2ScreenDist X") - (screen_b.x - screen_a.x)).abs()
+            < 0.001
+    );
+    assert!(
+        (manato_sim::trigger::num(&sim, 0, "P2ScreenDist Y") - (screen_b.y - screen_a.y)).abs()
+            < 0.001
+    );
+
+    // Stage edges depend on facing and body width.
+    sim.fighters[0].pos.x = 0.0;
+    sim.fighters[0].facing = 1;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "FrontEdgeDist"), 160.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "BackEdgeDist"), 160.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "FrontEdgeBodyDist"),
+        160.0 - sim.fighters[0].width_front
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "BackEdgeBodyDist"),
+        160.0 - sim.fighters[0].width_back
+    );
+    sim.fighters[0].facing = -1;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "FrontEdgeDist"), 160.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "FrontEdgeBodyDist"),
+        160.0 - sim.fighters[0].width_back
+    );
+}
