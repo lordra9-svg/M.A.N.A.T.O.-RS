@@ -552,4 +552,41 @@ Clsn2: 1
         assert!(animation.is_infinite());
         assert_eq!(animation.frame_at(100).map(|(index, _)| index), Some(1));
     }
+    #[test]
+    fn parses_subadd_transparency_variants() {
+        let animation = &parse_air_str(
+            "[Begin Action 0]\n0,0, 0,0, 4, , SAS64d32\n0,1, 0,0, 4, , SA\n0,2, 0,0, 4, , SS128d64",
+        )[0];
+        let subadd = &animation.frames[0];
+        assert_eq!(subadd.blend, BlendMode::SubAdd);
+        assert_eq!(subadd.src_alpha, 64);
+        assert_eq!(subadd.dst_alpha, 32);
+        let plain = &animation.frames[1];
+        assert_eq!(plain.blend, BlendMode::SubAdd);
+        assert_eq!(plain.src_alpha, 255);
+        let sub = &animation.frames[2];
+        assert_eq!(sub.blend, BlendMode::Sub);
+        assert_eq!(sub.src_alpha, 128);
+        assert_eq!(sub.dst_alpha, 64);
+    }
+
+    #[test]
+    fn records_interpolation_markers_per_directive() {
+        let text = "[Begin Action 0]\n0,0, 0,0, 2\n\
+                    Interpolate Offset\nInterpolate Scale\n\
+                    Interpolate Angle\nInterpolate Blend\n\
+                    0,1, 0,0, 2\n0,2, 0,0, 2\n";
+        let animation = &parse_air_str(text)[0];
+        assert_eq!(animation.frames.len(), 3);
+        assert_eq!(animation.interpolate_offset, vec![1]);
+        assert_eq!(animation.interpolate_scale, vec![1]);
+        assert_eq!(animation.interpolate_angle, vec![1]);
+        assert_eq!(animation.interpolate_blend, vec![1]);
+
+        let text = "[Begin Action 0]\n0,0, 0,0, 2\n0,1, 0,0, 2\n\
+                    interpolate offset\n0,2, 0,0, 2\n";
+        let animation = &parse_air_str(text)[0];
+        assert_eq!(animation.interpolate_offset, vec![2]);
+        assert!(animation.interpolate_scale.is_empty());
+    }
 }
