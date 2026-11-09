@@ -5406,3 +5406,33 @@ fn round_reset_carries_power_and_removes_helpers() {
     assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
     assert_eq!(sim.fighters[1].state_no, 0);
 }
+
+#[test]
+fn animation_time_loop_and_invalid_elem_edges() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(0, &assets.characters[0], false);
+    // Idle animation 0 is 48 ticks across 6 frames of 8 ticks each.
+    sim.fighters[0].anim_time = 47;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimTime"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElem"), 6);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElem"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimTime"), 47);
+    assert_eq!(sim.fighters[0].anim_looped, 1);
+
+    // Out-of-range elements report the documented sentinel.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "AnimElemTime(0)"),
+        -1_000_000
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "AnimElemTime(99)"),
+        -1_000_000
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(1)"), 1);
+}
