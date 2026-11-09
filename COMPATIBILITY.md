@@ -39,7 +39,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | S-02 | ChangeState/ChangeAnim | Required | Required | Partial | ChangeState/SelfState/ChangeAnim/ChangeAnim2 round-trip test |
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Bundled roster |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N + ignorehitpause during hit/super pause test |
-| S-05 | Special states -1/-2/-3 | Required | Required | Partial | Bundled roster |
+| S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick execution incl. KO control lock test |
 | S-06 | Command buffer/matching | Required | Required | Partial | AI/roster |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
 | S-08 | Intro/KO control locks | Required | Required | Verified | Smoke tests |
@@ -70,7 +70,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX/Trans added; RemapPal pending |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake controller test incl. superpause sound |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Attr filters + HitBy whitelist + override tests; oracle pending |
-| C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
+| C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width override, screen-bound clamp, and PlayerPush separation tests |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |

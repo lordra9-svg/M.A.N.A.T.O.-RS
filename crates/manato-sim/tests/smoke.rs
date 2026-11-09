@@ -2541,3 +2541,156 @@ fn pause_superpause_and_envshake_controllers() {
     assert!((sim.env_shake.ampl - -8.0).abs() < 0.001);
     assert!((sim.env_shake.phase - 1.5).abs() < 0.001);
 }
+
+#[test]
+fn width_screenbound_and_playerpush_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // Pushbox separation happens by default.
+    sim.fighters[0].pos.x = 0.0;
+    sim.fighters[1].pos.x = 0.0;
+    let before = (sim.fighters[0].pos.x, sim.fighters[1].pos.x);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        (sim.fighters[0].pos.x - before.0).abs() > 0.1
+            || (sim.fighters[1].pos.x - before.1).abs() > 0.1,
+        "overlapping pushboxes should separate"
+    );
+
+    // PlayerPush = 0 disables separation for that fighter.
+    sim.fighters[0].pos.x = 0.0;
+    sim.fighters[1].pos.x = 0.0;
+    let push = manato_formats::Controller {
+        kind: "playerpush".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &push, &assets);
+    assert!(!sim.fighters[0].player_push);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pos.x - 0.0).abs() < 0.001);
+    assert!((sim.fighters[1].pos.x - 0.0).abs() < 0.001);
+
+    let width = manato_formats::Controller {
+        kind: "width".into(),
+        params: vec![("edge".into(), "-20, 30".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &width, &assets);
+    assert_eq!(sim.fighters[0].width_override, Some((-20.0, 30.0)));
+    assert!((sim.fighters[0].width_back - -20.0).abs() < 0.001);
+    assert!((sim.fighters[0].width_front - 30.0).abs() < 0.001);
+
+    // Disabling vertical screen bounds persists until changed.
+    let bounds = manato_formats::Controller {
+        kind: "screenbound".into(),
+        params: vec![("value".into(), "1, 0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bounds, &assets);
+    assert_eq!(sim.fighters[0].screen_bound, (true, false));
+
+    let stage_left = sim.assets.stage.left_bound;
+    sim.fighters[0].player_push = true;
+    sim.fighters[0].pos.x = stage_left - 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.fighters[0].pos.x > stage_left - 100.0,
+        "screen bound should clamp horizontal position"
+    );
+}
+
+#[test]
+fn special_states_negative_three_two_one_run_each_tick() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("common.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-special-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let mut text = std::fs::read_to_string(&common).expect("read common.cns");
+    text.push_str(
+        "\n[Statedef -3]\n[State -3, Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 3\nvalue = 1\n\
+         \n[Statedef -2]\n[State -2, Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 4\nvalue = 1\n",
+    );
+    std::fs::write(&common, text).expect("patch common.cns");
+    // Kaen already defines state -1 in kaen.cns, so extend that state in place.
+    let states = dir.join("kaen.cns");
+    let text = std::fs::read_to_string(&states).expect("read kaen.cns");
+    let text = text.replacen(
+        "[Statedef -1]",
+        "[Statedef -1]\n[State -1, Oracle Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 5\nvalue = 1",
+        1,
+    );
+    std::fs::write(&states, text).expect("patch kaen.cns");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let base = [
+        sim.fighters[0].vars[3],
+        sim.fighters[0].vars[4],
+        sim.fighters[0].vars[5],
+    ];
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    for (index, slot) in [3usize, 4, 5].into_iter().enumerate() {
+        assert_eq!(
+            sim.fighters[0].vars[slot],
+            base[index] + 5,
+            "state -{} should run every tick",
+            3 - index
+        );
+    }
+
+    // Special states also run while the round is in KO control lock.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    let before_ko = [
+        sim.fighters[0].vars[3],
+        sim.fighters[0].vars[4],
+        sim.fighters[0].vars[5],
+    ];
+    sim.tick([PlayerInput::default(); 2]);
+    for (index, slot) in [3usize, 4, 5].into_iter().enumerate() {
+        assert_eq!(
+            sim.fighters[0].vars[slot],
+            before_ko[index] + 1,
+            "state -{} should run during KO",
+            3 - index
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
