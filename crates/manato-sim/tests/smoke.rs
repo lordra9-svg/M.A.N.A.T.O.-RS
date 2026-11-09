@@ -3964,3 +3964,58 @@ fn st_state_files_load_in_order_and_override() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn afterimage_frames_sample_and_decay() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let after = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![
+            ("time".into(), "12".into()),
+            ("timegap".into(), "3".into()),
+            ("length".into(), "2".into()),
+            ("trans".into(), "add".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+    sim.fighters[0].pos = manato_core::Vec2::new(-30.0, 0.0);
+    sim.fighters[0].anim_no = 20;
+    sim.fighters[0].anim_frame = 1;
+    sim.fighters[0].facing = -1;
+
+    // Frames are sampled every `timegap` ticks, not every tick.
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].after_images.is_empty());
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].after_images.len(), 1);
+    let ghost = &sim.fighters[0].after_images[0];
+    assert_eq!(ghost.anim_no, 20);
+    assert_eq!(ghost.anim_frame, 1);
+    assert_eq!(ghost.facing, -1);
+    assert!((ghost.pos.x - sim.fighters[0].pos.x).abs() < 0.001);
+    assert!(ghost.add);
+
+    // Ghosts decay by `length` ticks and are reclaimed.
+    for _ in 0..sim.fighters[0].after_images[0].life {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        !sim.fighters[0]
+            .after_images
+            .iter()
+            .any(|frame| frame.life == 0),
+        "zero-life ghost frames are removed"
+    );
+
+    // The emitter expires and stops producing frames.
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.fighters[0].after_image.is_none());
+    assert!(sim.fighters[0].after_images.is_empty());
+}

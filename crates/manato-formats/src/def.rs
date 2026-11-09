@@ -188,3 +188,73 @@ pub fn section_map(section: &crate::text::Section) -> HashMap<String, String> {
     }
     map
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_file(name: &str, body: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "manato-def-{}-{name}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join(name);
+        std::fs::write(&path, body).expect("write def");
+        path
+    }
+
+    #[test]
+    fn parses_character_metadata_files_and_localcoord() {
+        let path = temp_file(
+            "char.def",
+            "[Info]\nname = Test\ndisplayname = Test Fighter\nauthor = Someone\n\
+             mugenversion = 1.1\nlocalcoord = 640, 480\npal1 = char.act\n\
+             [Files]\ncmd = char.cmd\ncns = char.cns\nst = char.cns\n\
+             st1 = extra1.st, extra2.st\nst2 = extra3.st\n\
+             stcommon = common1.cns, common2.cns\nsprite = char.sff\n\
+             anim = char.air\nsound = char.snd\nai = char.ai\n\
+             [Palette Keymap]\nx = 1\ny = 2\n",
+        );
+        let def = CharacterDef::load(&path).expect("parse def");
+        assert_eq!(def.name, "Test");
+        assert_eq!(def.display_name, "Test Fighter");
+        assert_eq!(def.author, "Someone");
+        assert_eq!(def.mugen_version, "1.1");
+        assert_eq!(def.localcoord, (640.0, 480.0));
+        assert_eq!(def.info.get("pal1").map(String::as_str), Some("char.act"));
+        assert_eq!(def.palette_keymap.get("x"), Some(&1));
+        assert_eq!(def.palette_keymap.get("y"), Some(&2));
+        assert!(def.files.cmd.as_ref().unwrap().ends_with("char.cmd"));
+        assert_eq!(def.files.states.len(), 4, "st, st1 (two files), st2");
+        assert_eq!(def.files.common_states.len(), 2);
+        assert!(def.files.ai.as_ref().unwrap().ends_with("char.ai"));
+    }
+
+    #[test]
+    fn parses_stage_metadata_and_localcoord() {
+        let path = temp_file(
+            "stage.def",
+            "[Info]\nname = Room\ndisplayname = Test Room\nauthor = Someone\n\
+             mugenversion = 1.1\nlocalcoord = 640, 360\n\
+             [Camera]\nstartx = 10\nstarty = 0\nboundleft = -100\n\
+             [PlayerInfo]\np1startx = -40\np2startx = 40\n\
+             [BGdef]\nspr = stage.sff\n",
+        );
+        let def = StageDefFile::load(&path).expect("parse stage def");
+        assert_eq!(def.name, "Room");
+        assert_eq!(def.display_name, "Test Room");
+        assert_eq!(def.mugen_version, "1.1");
+        assert_eq!(def.localcoord, (640.0, 360.0));
+        assert_eq!(def.camera.get("startx").map(String::as_str), Some("10"));
+        assert_eq!(
+            def.player_info.get("p1startx").map(String::as_str),
+            Some("-40")
+        );
+        assert_eq!(def.bgdef.get("spr").map(String::as_str), Some("stage.sff"));
+    }
+}

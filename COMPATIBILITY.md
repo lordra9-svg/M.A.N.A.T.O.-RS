@@ -18,7 +18,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | F-01 | Text/INI parsing | Required | Required | Verified | Unit tests |
-| F-02 | DEF character/stage | Required | Required | Partial | Bundled + stock tests |
+| F-02 | DEF character/stage | Required | Required | Partial | Bundled/stock + localcoord, file-list, palette-map, and stage metadata tests |
 | F-03 | CNS states/controllers | Required | Required | Partial | CNS spec + parser; execution gaps remain |
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR spec + parser tests; SubAdd/interpolation rendering pending |
@@ -109,7 +109,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry parser test + BGCtrl update integration test |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | HUD/bars/names/timer + combo counter, delayed fill, win-icon history/reset tests; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal rules + projectile facing/accel tests |
-| V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
+| V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
