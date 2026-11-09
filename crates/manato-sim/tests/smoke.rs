@@ -5848,3 +5848,72 @@ fn life_add_and_set_kill_semantics() {
     manato_sim::controller::execute(&mut sim, 0, &control("lifeset", 99999, 0), &assets);
     assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
 }
+
+#[test]
+fn target_vel_add_and_bind_variants() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // TargetVelAdd uses the target's facing for the X component.
+    sim.fighters[0].target = Some(1);
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].vel = manato_core::Vec2::new(1.0, 1.0);
+    let vel_add = manato_formats::Controller {
+        kind: "targetveladd".into(),
+        params: vec![("x".into(), "2".into()), ("y".into(), "-3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &vel_add, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(-1.0, -2.0));
+
+    // BindToParent places the helper relative to the parent's facing.
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "6".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = sim.fighters.len() - 1;
+    sim.fighters[0].pos = manato_core::Vec2::new(-20.0, 0.0);
+    sim.fighters[0].facing = 1;
+    let bind = manato_formats::Controller {
+        kind: "bindtoparent".into(),
+        params: vec![("pos".into(), "5, -10".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &bind, &assets);
+    assert_eq!(
+        sim.fighters[helper_index].pos,
+        manato_core::Vec2::new(-15.0, -10.0)
+    );
+
+    sim.fighters[0].facing = -1;
+    manato_sim::controller::execute(&mut sim, helper_index, &bind, &assets);
+    assert_eq!(
+        sim.fighters[helper_index].pos,
+        manato_core::Vec2::new(-25.0, -10.0),
+        "facing mirrors the bind offset"
+    );
+
+    // BindToRoot resolves through the helper's root (still fighter 0).
+    sim.fighters[0].pos = manato_core::Vec2::new(40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    let root_bind = manato_formats::Controller {
+        kind: "bindtoroot".into(),
+        params: vec![("pos".into(), "-8, -4".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &root_bind, &assets);
+    assert_eq!(
+        sim.fighters[helper_index].pos,
+        manato_core::Vec2::new(32.0, -4.0)
+    );
+    assert_eq!(sim.root_of(helper_index), 0);
+    assert_eq!(sim.parent_of(helper_index), 0);
+}
