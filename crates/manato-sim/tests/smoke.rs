@@ -3286,3 +3286,85 @@ fn projectile_velocity_and_acceleration_follow_facing() {
     assert!((shot.pos.x - (start_x - 5.0)).abs() < 0.001);
     assert_eq!(shot.vel.x, -7.0);
 }
+
+#[test]
+fn super_pause_and_hit_pause_freeze_effects_with_move_time() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, id: i32, extra: Vec<(String, String)>| {
+        let mut params = vec![
+            ("anim".to_string(), "10".to_string()),
+            ("id".to_string(), id.to_string()),
+            ("vel".to_string(), "1, 0".to_string()),
+            ("removetime".to_string(), "100".to_string()),
+        ];
+        params.extend(extra);
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let pos_of = |sim: &SimState, id: i32| {
+        sim.effects
+            .iter()
+            .find(|effect| effect.id == id)
+            .expect("effect exists")
+            .pos
+            .x
+    };
+
+    // A plain explod freezes during super pause.
+    spawn(&mut sim, 10, vec![("ignorehitpause".into(), "0".into())]);
+    let frozen = pos_of(&sim, 10);
+    sim.super_pause = 4;
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(pos_of(&sim, 10), frozen, "super pause freezes the explod");
+
+    // supermovetime lets the effect move for that many paused ticks.
+    spawn(
+        &mut sim,
+        11,
+        vec![
+            ("ignorehitpause".into(), "0".into()),
+            ("supermovetime".into(), "2".into()),
+        ],
+    );
+    let start = pos_of(&sim, 11);
+    sim.super_pause = 4;
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!((pos_of(&sim, 11) - (start + 2.0)).abs() < 0.001);
+
+    // ignorehitpause = 1 advances normally through the super pause.
+    spawn(&mut sim, 12, vec![("ignorehitpause".into(), "1".into())]);
+    let start = pos_of(&sim, 12);
+    sim.super_pause = 4;
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!((pos_of(&sim, 12) - (start + 3.0)).abs() < 0.001);
+
+    // pausemovetime applies to the owner's hit pause the same way.
+    spawn(
+        &mut sim,
+        13,
+        vec![
+            ("ignorehitpause".into(), "0".into()),
+            ("supermovetime".into(), "0".into()),
+            ("pausemovetime".into(), "2".into()),
+        ],
+    );
+    let start = pos_of(&sim, 13);
+    sim.fighters[0].hit.hit_pause = 4;
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!((pos_of(&sim, 13) - (start + 2.0)).abs() < 0.001);
+}
