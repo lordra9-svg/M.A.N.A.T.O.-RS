@@ -2063,3 +2063,72 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
     }
     assert!(sim.projectiles.is_empty(), "projectile expires by lifetime");
 }
+
+#[test]
+fn target_controllers_modify_bound_player() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+    let life = sim.fighters[1].life;
+    let power = sim.fighters[1].power;
+
+    let life_add = manato_formats::Controller {
+        kind: "targetlifeadd".into(),
+        params: vec![("value".into(), "-100".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &life_add, &assets);
+    assert_eq!(sim.fighters[1].life, life - 100);
+
+    let power_add = manato_formats::Controller {
+        kind: "targetpoweradd".into(),
+        params: vec![("value".into(), "250".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &power_add, &assets);
+    assert!((sim.fighters[1].power - (power + 250.0)).abs() < 0.001);
+
+    let vel_set = manato_formats::Controller {
+        kind: "targetvelset".into(),
+        params: vec![("x".into(), "3".into()), ("y".into(), "-2".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &vel_set, &assets);
+    assert!((sim.fighters[1].vel.x - -3.0).abs() < 0.001);
+    assert!((sim.fighters[1].vel.y - -2.0).abs() < 0.001);
+
+    let facing = manato_formats::Controller {
+        kind: "targetfacing".into(),
+        params: vec![("value".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &facing, &assets);
+    assert_eq!(sim.fighters[1].facing, sim.fighters[0].facing);
+
+    let state = manato_formats::Controller {
+        kind: "targetstate".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &state, &assets);
+    assert_eq!(sim.fighters[1].state_no, 0);
+
+    let bind = manato_formats::Controller {
+        kind: "targetbind".into(),
+        params: vec![("pos".into(), "10, -20".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    assert!((sim.fighters[1].pos.x - (sim.fighters[0].pos.x + 10.0)).abs() < 0.001);
+    assert!((sim.fighters[1].pos.y - (sim.fighters[0].pos.y - 20.0)).abs() < 0.001);
+
+    let drop = manato_formats::Controller {
+        kind: "targetdrop".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
+    assert_eq!(sim.fighters[0].target, None);
+}
