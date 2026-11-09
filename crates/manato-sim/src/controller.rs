@@ -171,6 +171,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "trans" => trans(sim, who, control),
         "remappal" | "forcefeedback" => {}
         "projectile" => projectile(sim, who, control, assets),
+        "modifyprojectile" => modify_projectile(sim, who, control),
         "playerpush" => {
             let value = int_param(sim, who, control, "value").unwrap_or(1) != 0;
             sim.fighters[who].player_push = value;
@@ -787,6 +788,67 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
                 priority: 0,
                 low_priority: false,
             });
+        }
+    }
+}
+
+/// `ModifyProjectile`: updates a live projectile owned by the fighter.
+///
+/// With an explicit `id`, every matching projectile is updated; otherwise the
+/// most recently spawned projectile is. Only supplied parameters change.
+fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller) {
+    let explicit_id = int_param(sim, who, control, "id");
+    let last = sim
+        .projectiles
+        .iter()
+        .rposition(|projectile| projectile.owner == who);
+    let Some(last) = last else {
+        return;
+    };
+    let facing = sim.fighters[who].facing;
+    let indices: Vec<usize> = sim
+        .projectiles
+        .iter()
+        .enumerate()
+        .filter(|(index, projectile)| {
+            projectile.owner == who
+                && match explicit_id {
+                    Some(id) => projectile.id == id,
+                    None => *index == last,
+                }
+        })
+        .map(|(index, _)| index)
+        .collect();
+    let anim = int_param(sim, who, control, "projanim");
+    let velocity = control.get_pair("velocity");
+    let accel = control.get_pair("accel");
+    let remove_time = int_param(sim, who, control, "removetime");
+    let hits = int_param(sim, who, control, "hits");
+    let damage = control.get("damage").and_then(|raw| {
+        raw.split(',')
+            .next()
+            .and_then(|value| value.trim().parse::<i32>().ok())
+    });
+    for index in indices {
+        let projectile = &mut sim.projectiles[index];
+        if let Some(anim) = anim {
+            projectile.anim = anim;
+        }
+        if let Some((x, y)) = velocity {
+            projectile.vel = Vec2::new(x * facing as f32, y);
+            projectile.facing = facing;
+        }
+        if let Some((x, y)) = accel {
+            projectile.accel = Vec2::new(x * facing as f32, y);
+        }
+        if let Some(remove_time) = remove_time {
+            projectile.remove_time = remove_time;
+        }
+        if let Some(hits) = hits {
+            projectile.hits = hits.max(0);
+        }
+        if let Some(damage) = damage {
+            projectile.hitdef.damage = damage;
         }
     }
 }

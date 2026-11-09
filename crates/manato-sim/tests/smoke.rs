@@ -2222,3 +2222,58 @@ fn helper_owned_projectile_damages_opponent() {
         "helper-owned projectile should damage the opponent"
     );
 }
+
+#[test]
+fn modify_projectile_updates_live_projectile() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+        if !sim.projectiles.is_empty() {
+            break;
+        }
+    }
+    let before = sim.projectiles.first().expect("projectile spawns").clone();
+    assert!(before.vel.x > 0.0);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "3".into()),
+            ("hits".into(), "2".into()),
+            ("damage".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    let projectile = &sim.projectiles[0];
+    assert_eq!(projectile.vel.x, 0.0);
+    assert_eq!(projectile.remove_time, 3);
+    assert_eq!(projectile.hits, 2);
+    assert_eq!(projectile.hitdef.damage, 40);
+
+    // An explicit id that matches nothing leaves projectiles untouched.
+    let id = projectile.id;
+    let miss = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("id".into(), (id + 1000).to_string()),
+            ("velocity".into(), "9, 9".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &miss, &assets);
+    assert_eq!(sim.projectiles[0].vel.x, 0.0);
+
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.projectiles.is_empty(), "modified remove time expires");
+}
