@@ -4,7 +4,7 @@ use manato_core::{Dir8, Rect, Vec2};
 use manato_formats::Character;
 
 use crate::fighter::{MoveType, StateType};
-use crate::hitdef::{HitAttr, HitDef};
+use crate::hitdef::{GroundType, HitAttr, HitDef};
 use crate::trigger::command_active;
 use crate::{SimState, SoundEvent, SoundSource};
 
@@ -392,6 +392,12 @@ pub fn apply_hit_at(
         }
     } else if defender_airborne {
         5020
+    } else if hitdef.fall {
+        if hitdef.ground_type == GroundType::Trip {
+            5070
+        } else {
+            5030
+        }
     } else if defender_state_type == StateType::Crouch {
         5010
     } else {

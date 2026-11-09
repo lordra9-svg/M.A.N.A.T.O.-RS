@@ -97,14 +97,16 @@ python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 ## Current coverage
 
 Round-end classification (`docs/oracle/assertions.md`, O-01..O-08) and the
-KFM light-punch hit flow (O-09..O-12) and forced-guard flow (O-13..O-14):
+KFM light-punch hit flow (O-09..O-12), forced-guard flow (O-13..O-14),
+and trip/launch flow (O-15..O-16):
 timer rate, KO vs time-over, perfect, clutch, time-over draws, contact timing,
 damage, get-hit state, hit-shake transition, single-hit activation, push
-direction, guard state/animation, zero guard damage, and guard slide. Run the
-guard scenario with:
+direction, guard state/animation, zero guard damage, guard slide, trip damage, and the
+airborne fall transition. Run the guard and launch scenarios with:
 
 ```sh
 IKEMEN_ORACLE_SCENARIO=kfm_guard tools/oracle/run_frame_capture.sh
+IKEMEN_ORACLE_SCENARIO=kfm_launch tools/oracle/run_frame_capture.sh
 ```
 
 The guard scenario uses the public Lua `changeState(150)` debug API to force a

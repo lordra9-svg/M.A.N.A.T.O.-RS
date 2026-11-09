@@ -1631,3 +1631,43 @@ fn oracle_kfm_guard_flow() {
         sim.fighters[1].pos.x
     );
 }
+
+#[test]
+fn oracle_kfm_launch_flow() {
+    let Some(mut sim) = kfm_close_match() else {
+        return;
+    };
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(440, &assets.characters[0], false);
+
+    let mut hit = None;
+    for index in 0..15 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            hit = Some((index, sim.fighters[1].life, sim.fighters[1].state_no));
+            break;
+        }
+    }
+    let (index, life, state) = hit.expect("KFM state 440 should launch an idle opponent");
+    eprintln!("launch hit index={index} life={life} state={state}");
+    assert_eq!(life, 928);
+    assert_eq!(state, 5070);
+    assert_eq!(sim.fighters[1].received_damage, 72);
+    let mut transition = None;
+    for tick in 0..25 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].state_no >= 5071 {
+            transition = Some(tick + 1);
+            break;
+        }
+    }
+    // Ikemen-GO oracle O-16: trip state 5070 advances to 5071 on contact + 13.
+    assert_eq!(transition, Some(13));
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[1].pos.y < 0.0, "trip should become airborne");
+    assert!(sim.fighters[1].vel.y < 0.0, "trip should launch upward");
+}

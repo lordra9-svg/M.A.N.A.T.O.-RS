@@ -74,9 +74,11 @@ def summarize(path: Path) -> dict:
         rows = list(csv.DictReader(handle))
     if not rows:
         raise SystemExit("capture is empty")
-    injection = next((row for row in rows if int(row["p1_state"]) == 200), None)
+    injection = next(
+        (row for row in rows if int(row["p1_state"]) in (200, 440)), None
+    )
     if injection is None:
-        raise SystemExit("scenario never entered KFM state 200")
+        raise SystemExit("scenario never entered a scripted KFM attack state")
     contact = None
     previous_life = int(injection["p2_life"])
     hits = 0
@@ -93,11 +95,13 @@ def summarize(path: Path) -> dict:
     injection_index = rows.index(injection)
     contact_x = float(contact["p2_x"])
     max_x = max(float(row["p2_x"]) for row in rows[contact_index:])
+    contact_state = int(contact["p2_state"])
     transition = next(
         (
             row
-            for row in rows[contact_index:]
-            if int(row["p2_state"]) >= 5001
+            for row in rows[contact_index + 1 :]
+            if int(row["p2_state"]) >= 5000
+            and int(row["p2_state"]) != contact_state
         ),
         None,
     )

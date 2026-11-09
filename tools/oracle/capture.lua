@@ -65,6 +65,10 @@ function oracle_capture()
         player(1)
         changeState(200)
         injected = true
+    elseif scenario == "kfm_launch" and not injected and num(roundState()) == 2 then
+        player(1)
+        changeState(440)
+        injected = true
     elseif scenario == "kfm_attack_loop" and num(roundState()) == 2
         and frame - last_inject >= 45 then
         player(1)

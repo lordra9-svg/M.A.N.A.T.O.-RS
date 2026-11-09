@@ -34,6 +34,8 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-12 | The defender leaves state 5000 for 5001 on the first tick after the 8-tick hit-shake window, 9 ticks after contact. | Same capture: contact frame 213, `p2_state` 5001 first at frame 222. |
 | O-13 | A forced guard contact puts the defender in state 150 with guard animation 140, deals 0 guard damage for KFM's `damage = 23, 0`, and reports `MoveGuarded = 1`, `MoveHit = 0`. | `kfm_guard` capture: contact frame 213, `p2_state` 150, `p2_life` unchanged at 1000. |
 | O-14 | The guard slide begins 9 ticks after contact (state 151) and the defender is pushed away ~14.8 pixels over the 14-tick guard window. | Same capture: `p2_state` 151 at frame 222, `p2_x` 16.0 -> 30.8345 by frame 226. |
+| O-15 | KFM state 440 (trip) hits an idle opponent around 10 ticks after state entry, deals 72 damage, and enters trip/fall state 5070. | `kfm_launch` capture: injection frame 209, contact frame 219, `p2_life` 1000 -> 928, `p2_state` 5070. |
+| O-16 | Trip state 5070 advances to 5071 on contact + 13, then the defender becomes airborne with upward velocity and gravity. | Same capture: state 5071 first at frame 232, `p2_y` -2.0, `p2_vy` -2.0. |
 
 ## Mapping to M.A.N.A.T.O.-RS
 
@@ -46,6 +48,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-08 | `RoundState::winner = None`, `time_over = true`, and no `WinRecord`; covered by `oracle_round_win_classification`. |
 | O-09..O-12 | KFM hit flow is encoded by `oracle_kfm_state_200_hits_idle`; the harness is `tools/oracle/run_frame_capture.py` / `.sh`. |
 | O-13..O-14 | KFM guard flow is encoded by `oracle_kfm_guard_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_guard`. |
+| O-15..O-16 | KFM trip/launch flow is encoded by `oracle_kfm_launch_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_launch`. |
 
 These assertions remain subject to revision if a later oracle run contradicts
 them. The tests that encode them live in `crates/manato-sim/tests/smoke.rs`.
