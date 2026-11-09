@@ -1746,3 +1746,53 @@ fn restart_match_resets_rounds_wins_and_power() {
     assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
     assert_eq!(sim.round.timer, sim.round.round_time * 60);
 }
+
+#[test]
+fn game_make_anim_spawns_fightfx_effect() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let p2 = sim.fighters[1].pos;
+    let control = manato_formats::Controller {
+        kind: "gamemakeanim".into(),
+        params: vec![
+            ("anim".into(), "40".into()),
+            ("pos".into(), "10, -20".into()),
+            ("postype".into(), "p2".into()),
+            ("sprpriority".into(), "3".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let effect = sim
+        .effects
+        .last()
+        .expect("GameMakeAnim should spawn an effect");
+    assert_eq!(effect.source, manato_sim::EffectSource::FightFx);
+    assert_eq!(effect.anim, 40);
+    assert_eq!(effect.sprite_priority, 3);
+    assert!((effect.pos.x - (p2.x + 10.0)).abs() < 0.001);
+    assert!((effect.pos.y - (p2.y - 20.0)).abs() < 0.001);
+}
+
+#[test]
+fn make_dust_spawns_behind_owner() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "makedust".into(),
+        params: vec![("pos".into(), "6, -2".into())],
+        line: 0,
+    };
+    let owner_x = sim.fighters[0].pos.x;
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let effect = sim.effects.last().expect("MakeDust should spawn an effect");
+    assert_eq!(effect.source, manato_sim::EffectSource::FightFx);
+    assert_eq!(effect.anim, 120);
+    assert!(effect.behind);
+    assert_eq!(effect.owner, 0);
+    assert!((effect.pos.x - (owner_x + 6.0)).abs() < 0.001);
+}
