@@ -49,6 +49,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "varset" => var_op(sim, who, control, VarOp::Set),
         "varadd" => var_op(sim, who, control, VarOp::Add),
         "varrangeset" => var_range_set(sim, who, control),
+        "varrandom" => var_random(sim, who, control),
         "ctrlset" => {
             let value = int_param(sim, who, control, "value").unwrap_or(1) != 0;
             sim.fighters[who].ctrl = value;
@@ -350,6 +351,27 @@ fn var_range_set(sim: &mut SimState, who: usize, control: &Controller) {
     };
     for idx in lo.max(0)..=hi.min(59) {
         sim.fighters[who].vars[idx as usize] = value;
+    }
+}
+
+/// `VarRandom`: stores a uniformly random value in `[range.0, range.1]`.
+///
+/// `v` selects an integer variable (`0..=59`) or a float variable
+/// (`60..=119`). Float results are divided by 100, matching M.U.G.E.N's
+/// hundredths convention. The default range is `0, 1000`.
+fn var_random(sim: &mut SimState, who: usize, control: &Controller) {
+    let Some(v) = int_param(sim, who, control, "v") else {
+        return;
+    };
+    let (lo, hi) = control.get_pair_i32("range").unwrap_or((0, 1000));
+    let (lo, hi) = if lo <= hi { (lo, hi) } else { (hi, lo) };
+    let value = sim.rng.range_i32(lo, hi);
+    if v >= 60 {
+        let index = ((v - 60).clamp(0, 39)) as usize;
+        sim.fighters[who].fvars[index] = value as f32 / 100.0;
+    } else {
+        let index = v.clamp(0, 59) as usize;
+        sim.fighters[who].vars[index] = value;
     }
 }
 

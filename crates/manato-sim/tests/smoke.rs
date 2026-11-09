@@ -2277,3 +2277,40 @@ fn modify_projectile_updates_live_projectile() {
     }
     assert!(sim.projectiles.is_empty(), "modified remove time expires");
 }
+
+#[test]
+fn var_random_is_bounded_and_deterministic() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let int_control = manato_formats::Controller {
+        kind: "varrandom".into(),
+        params: vec![("v".into(), "0".into()), ("range".into(), "5, 9".into())],
+        line: 0,
+    };
+    for _ in 0..50 {
+        manato_sim::controller::execute(&mut sim, 0, &int_control, &assets);
+        assert!((5..=9).contains(&sim.fighters[0].vars[0]));
+    }
+
+    let float_control = manato_formats::Controller {
+        kind: "varrandom".into(),
+        params: vec![
+            ("v".into(), "60".into()),
+            ("range".into(), "150, 250".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &float_control, &assets);
+    assert!((1.5..=2.5).contains(&sim.fighters[0].fvars[0]));
+
+    let mut a = sim.clone();
+    let mut b = sim.clone();
+    for _ in 0..20 {
+        manato_sim::controller::execute(&mut a, 0, &int_control, &assets);
+        manato_sim::controller::execute(&mut b, 0, &int_control, &assets);
+    }
+    assert_eq!(a.checksum(), b.checksum());
+    assert_eq!(a.fighters[0].vars[0], b.fighters[0].vars[0]);
+}

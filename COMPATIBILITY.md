@@ -61,7 +61,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | LifeAdd/LifeSet/PlayerPush/Gravity added |
+| C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | LifeAdd/LifeSet/PlayerPush/Gravity + Var/VarRandom (bounded, deterministic) |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | Roster |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
 | C-04 | Projectile | Required | Required | Partial | Projectile spawn/hit-count/lifetime + ModifyProjectile tests |
