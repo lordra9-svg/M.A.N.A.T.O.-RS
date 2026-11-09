@@ -5037,3 +5037,75 @@ fn ordan_slam_sends_defender_to_820_for_190() {
     assert_eq!(sim.fighters[1].life, life - 190);
     assert!(!sim.fighters[1].hit.guarding);
 }
+
+#[test]
+fn defence_and_attack_multipliers_scale_damage() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let defence = manato_formats::Controller {
+        kind: "defencemulset".into(),
+        params: vec![("value".into(), "0.5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &defence, &assets);
+    assert_eq!(sim.fighters[1].defence_mul, 0.5);
+
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 10, "defence halves damage");
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let attack = manato_formats::Controller {
+        kind: "attackmulset".into(),
+        params: vec![("value".into(), "2".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &attack, &assets);
+    assert_eq!(sim.fighters[0].attack_mul, 2.0);
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 40, "attack doubles damage");
+
+    // Both multipliers compose (2 * 0.5 = 1).
+    let defence = manato_formats::Controller {
+        kind: "defencemulset".into(),
+        params: vec![("value".into(), "0.5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &defence, &assets);
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 20);
+}
+
+#[test]
+fn fall_env_shake_alias_sets_shake() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let shake = manato_formats::Controller {
+        kind: "fallenvshake".into(),
+        params: vec![
+            ("time".into(), "12".into()),
+            ("freq".into(), "120".into()),
+            ("ampl".into(), "-6".into()),
+            ("phase".into(), "0.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
+    assert_eq!(sim.env_shake.time, 12);
+    assert!((sim.env_shake.freq - 120.0).abs() < 0.001);
+    assert!((sim.env_shake.ampl - -6.0).abs() < 0.001);
+    assert!((sim.env_shake.phase - 0.5).abs() < 0.001);
+}
