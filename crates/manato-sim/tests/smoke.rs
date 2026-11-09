@@ -3494,3 +3494,152 @@ fn stage_bg_controllers_drive_layers() {
     manato_sim::update_bg_states(&waves, &mut states, 0, 1, 0);
     assert_eq!(states[0].sin_x, [1.0, 2.0, 3.0]);
 }
+
+#[test]
+fn round_phase_sequence_with_best_of_three() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(sim.round.number, 1);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+
+    // Round 1: P1 KOs P2.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+    assert_eq!(sim.round.wins, [1, 0]);
+    assert!(sim.round.display.contains("Wins"));
+    assert!(!sim.finished);
+
+    // KO control lock zeroes recorded input.
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_RIGHT, manato_core::Buttons::X),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(
+        sim.fighters[0].history.back().map(|frame| frame.input),
+        Some(PlayerInput::default())
+    );
+
+    // After the KO phase the next round starts in Intro with reset state.
+    for _ in 0..200 {
+        if sim.round.phase != manato_sim::RoundPhase::Ko {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.round.wins, [1, 0]);
+    assert_eq!(sim.round.timer, sim.round.round_time * 60);
+    assert_eq!(
+        sim.fighters[0].pos, sim.assets.stage.p1_start,
+        "round reset restores the starting position"
+    );
+
+    // Intro also locks movement input.
+    let start = sim.fighters[0].pos;
+    sim.tick([PlayerInput::new(manato_core::DIR_RIGHT, 0); 2]);
+    assert_eq!(sim.fighters[0].pos, start);
+    assert_eq!(
+        sim.fighters[0].history.back().map(|frame| frame.input),
+        Some(PlayerInput::default())
+    );
+
+    for _ in 0..60 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+
+    // Round 2: P1 wins again, ending the best-of-three.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.wins, [2, 0]);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Over {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(sim.round.number, 2, "no extra round after match point");
+    assert!(sim.finished);
+    assert!(sim.round.display.contains("Wins the Match"));
+}
+
+#[test]
+fn single_round_match_ends_after_one_ko() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 1;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Over {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(sim.round.number, 1);
+    assert!(sim.finished);
+    assert_eq!(sim.round.wins, [1, 0]);
+}
+
+#[test]
+fn draw_round_advances_without_awarding_a_win() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].life = 600;
+    sim.fighters[1].life = 600;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, None);
+    assert!(sim.round.time_over);
+    assert_eq!(sim.round.wins, [0, 0]);
+    assert!(sim.round.display.contains("Draw"));
+    assert!(sim.win_history[0].is_empty());
+
+    for _ in 0..200 {
+        if sim.round.phase != manato_sim::RoundPhase::Ko {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.round.wins, [0, 0]);
+    assert!(!sim.finished);
+}
+
+#[test]
+fn single_round_draw_ends_at_the_round_cap() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 1;
+    sim.fighters[0].life = 500;
+    sim.fighters[1].life = 500;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Over {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(sim.round.number, 1, "cap is derived from rounds_to_win");
+    assert!(sim.finished);
+    assert_eq!(sim.round.winner, None);
+    assert!(sim.round.display.contains("Draw"));
+}

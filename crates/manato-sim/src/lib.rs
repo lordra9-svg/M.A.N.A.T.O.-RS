@@ -1417,9 +1417,15 @@ impl SimState {
                 }
                 self.round.phase_timer -= 1;
                 if self.round.phase_timer <= 0 {
+                    let round_cap = self
+                        .round
+                        .rounds_to_win
+                        .saturating_mul(2)
+                        .saturating_sub(1)
+                        .max(1);
                     if self.round.wins[0] >= self.round.rounds_to_win
                         || self.round.wins[1] >= self.round.rounds_to_win
-                        || self.round.number >= 3
+                        || self.round.number >= round_cap
                     {
                         let winner = if self.round.wins[0] > self.round.wins[1] {
                             Some(0)
