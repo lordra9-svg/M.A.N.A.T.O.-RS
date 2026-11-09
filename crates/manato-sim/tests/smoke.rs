@@ -3179,3 +3179,110 @@ fn collision_boxes_mirror_with_facing_and_translate() {
         (112, -78, 152, -44)
     );
 }
+
+#[test]
+fn explod_lifetime_and_removal_rules() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let make = |params: Vec<(String, String)>| manato_formats::Controller {
+        kind: "explod".into(),
+        params,
+        line: 0,
+    };
+
+    // removetime sets a fixed lifetime.
+    let lifetime = make(vec![
+        ("anim".into(), "10".into()),
+        ("id".into(), "1".into()),
+        ("removetime".into(), "3".into()),
+    ]);
+    manato_sim::controller::execute(&mut sim, 0, &lifetime, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.effects.iter().any(|effect| effect.id == 1));
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        !sim.effects.iter().any(|effect| effect.id == 1),
+        "explod expires at removetime"
+    );
+
+    // removeongethit removes on the tick the owner is hit.
+    let on_hit = make(vec![
+        ("anim".into(), "10".into()),
+        ("id".into(), "2".into()),
+        ("removeongethit".into(), "1".into()),
+        ("removeonchangestate".into(), "0".into()),
+    ]);
+    manato_sim::controller::execute(&mut sim, 0, &on_hit, &assets);
+    let hit = hitdef();
+    let origin = sim.fighters[1].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 1, 0, &hit, false, origin, -1, true);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        !sim.effects.iter().any(|effect| effect.id == 2),
+        "removeongethit clears the explod"
+    );
+
+    // removeonchangestate defaults to 1.
+    let on_state = make(vec![
+        ("anim".into(), "10".into()),
+        ("id".into(), "3".into()),
+    ]);
+    manato_sim::controller::execute(&mut sim, 0, &on_state, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.effects.iter().any(|effect| effect.id == 3));
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        !sim.effects.iter().any(|effect| effect.id == 3),
+        "state change clears the explod"
+    );
+
+    // Opting out keeps it alive across state changes.
+    let persistent = make(vec![
+        ("anim".into(), "10".into()),
+        ("id".into(), "4".into()),
+        ("removeonchangestate".into(), "0".into()),
+    ]);
+    manato_sim::controller::execute(&mut sim, 0, &persistent, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    sim.fighters[0].enter_state(0, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.effects.iter().any(|effect| effect.id == 4),
+        "removeonchangestate=0 keeps the explod"
+    );
+}
+
+#[test]
+fn projectile_velocity_and_acceleration_follow_facing() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = -1;
+    sim.fighters[0].pos.x = 40.0;
+    let projectile = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "5, 0".into()),
+            ("accel".into(), "2, 0".into()),
+            ("removetime".into(), "60".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &projectile, &assets);
+    let shot = sim.projectiles.first().expect("projectile spawned");
+    assert_eq!(shot.facing, -1);
+    assert_eq!(shot.vel.x, -5.0);
+    assert_eq!(shot.accel.x, -2.0);
+    let start_x = shot.pos.x;
+
+    sim.tick([PlayerInput::default(); 2]);
+    let shot = sim.projectiles.first().expect("projectile alive");
+    assert!((shot.pos.x - (start_x - 5.0)).abs() < 0.001);
+    assert_eq!(shot.vel.x, -7.0);
+}

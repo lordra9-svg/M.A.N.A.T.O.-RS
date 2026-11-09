@@ -237,6 +237,9 @@ pub struct Fighter {
 
     /// Set when the fighter changed state this tick (skip duplicate updates).
     pub state_changed: bool,
+    /// Set when a state change occurs this tick and cleared after effects, so
+    /// explod removal can observe it (`docs/spec/render.md` §4).
+    pub state_changed_tick: bool,
 }
 
 impl Fighter {
@@ -327,6 +330,7 @@ impl Fighter {
             received_hits: 0,
             received_damage: 0,
             state_changed: false,
+            state_changed_tick: false,
         };
         f.enter_state(0, char, false);
         f.ctrl = true;
@@ -372,6 +376,7 @@ impl Fighter {
         self.state_no = number;
         self.state_time = 0;
         self.state_changed = true;
+        self.state_changed_tick = true;
         self.ctrl_exec.clear();
         self.attack = AttackState::default();
         self.hitdef = None;

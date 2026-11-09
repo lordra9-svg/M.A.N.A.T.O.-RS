@@ -65,7 +65,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn controller round-trip test |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
 | C-04 | Projectile | Required | Required | Partial | Projectile spawn/hit-count/lifetime + ModifyProjectile tests |
-| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Explod binding/projection + ModifyExplod/RemoveExplod id tests |
+| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection + lifetime/remove-on-hit/state + Modify/Remove id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind + Target* controllers + helper-owned projectile ownership test |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake controller test incl. superpause sound |
@@ -108,7 +108,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Training Grid |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Built-in HUD + screenpack bars/names/timer/win icons/combo; guard/stun bars pending |
-| V-05 | Explods/projectiles | Required | Required | Partial | Projectile tests |
+| V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal rules + projectile facing/accel tests |
 | V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |

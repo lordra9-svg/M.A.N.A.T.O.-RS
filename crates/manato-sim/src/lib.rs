@@ -785,12 +785,14 @@ impl SimState {
             self.update_round();
             self.update_effects();
             self.update_fight_screen();
+            self.clear_state_changed_tick();
             return;
         }
 
         if self.round.phase == RoundPhase::Over {
             self.update_effects();
             self.update_fight_screen();
+            self.clear_state_changed_tick();
             return;
         }
 
@@ -824,6 +826,13 @@ impl SimState {
         self.update_fight_screen();
         self.bg_time += 1.0;
         self.update_stage_layers();
+        self.clear_state_changed_tick();
+    }
+
+    fn clear_state_changed_tick(&mut self) {
+        for fighter in &mut self.fighters {
+            fighter.state_changed_tick = false;
+        }
     }
 
     fn update_gameplay(&mut self) {
@@ -1866,7 +1875,7 @@ impl SimState {
             let owner_hit = owner
                 .map(|f| f.move_type == crate::fighter::MoveType::Hit)
                 .unwrap_or(false);
-            let state_changed = owner.map(|f| f.state_changed).unwrap_or(false);
+            let state_changed = owner.map(|f| f.state_changed_tick).unwrap_or(false);
 
             if effect.remove_on_get_hit && owner_hit {
                 return false;
@@ -2183,6 +2192,7 @@ impl SimState {
             h.write_u8(f.physics as u8);
             h.write_i32(f.hit.hit_pause);
             h.write_i32(f.hit.hit_shake_timer);
+            h.write_bool(f.state_changed_tick);
             h.write_i32(f.hit.pause_gap);
             h.write_i32(f.hit.vars.hittime);
             h.write_i32(f.juggle_points);
