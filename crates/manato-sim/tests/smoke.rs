@@ -1093,7 +1093,7 @@ fn mid_fill_drains_after_delay() {
     options.ai_level = 0;
     let mut sim = SimState::new(
         std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
-        options,
+        options.clone(),
     );
     for _ in 0..50 {
         sim.tick([PlayerInput::default(); 2]);
@@ -1991,4 +1991,30 @@ fn redirect_triggers_resolve_helper_target_and_enemy() {
     sim.fighters[0].target = Some(1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "target, life"), p2_life);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumTarget"), 1);
+}
+
+#[test]
+fn bare_numproj_tracks_projectile_lifetime() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let mut spawned = false;
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+        if !sim.projectiles.is_empty() {
+            spawned = true;
+            break;
+        }
+    }
+    assert!(spawned, "state 1000 should spawn a projectile");
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 1);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 0);
 }

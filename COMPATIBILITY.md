@@ -52,7 +52,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Unit tests |
 | T-03 | Command/command timers | Required | Required | Partial | Roster |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers + GetHitVar/HitShakeOver unit test; oracle pending |
-| T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirect/helper/target tests; bare NumHelper/NumProj fixed |
+| T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirect/helper/target tests; bare NumHelper/NumProj fixed and NumProj lifetime tested |
 | T-06 | Const/expressions/random | Required | Required | Partial | Unit tests incl. Const/IfElse/Min/Max/Abs/Ceil/Floor |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
 | T-08 | Ikemen-only triggers | N/A | Ikemen | Missing | TBD |
