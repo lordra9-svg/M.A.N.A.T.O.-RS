@@ -5313,3 +5313,50 @@ fn hit_override_slot_clamp_and_forceguard() {
     assert!(sim.fighters[1].hit.guarding);
     assert_eq!(sim.fighters[1].state_no, 150);
 }
+
+#[test]
+fn hitdefattr_inguarddist_and_canrecover_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let hitdef_controller = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20".into()),
+            ("hitflag".into(), "MAF".into()),
+            ("guardflag".into(), "MA".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &hitdef_controller, &assets);
+    assert!(sim.fighters[0].hitdef.is_some());
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefAttr = S, NA"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefAttr = S, SA"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefAttr = SCA, NA"), 1);
+
+    // InGuardDist requires a nearby attacking opponent.
+    sim.fighters[0].pos.x = 0.0;
+    sim.fighters[1].pos.x = 50.0;
+    sim.fighters[1].hitdef = Some(manato_sim::hitdef::HitDef::default());
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 1);
+    sim.fighters[1].hitdef = None;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Attack;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 1);
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Idle;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 0);
+    sim.fighters[1].hitdef = Some(manato_sim::hitdef::HitDef::default());
+    sim.fighters[1].pos.x = 200.0;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 0);
+
+    // CanRecover needs a recoverable fall state.
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].hit.vars.fall_recover = true;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "CanRecover"), 1);
+    sim.fighters[1].hit.vars.fall_recover = false;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "CanRecover"), 0);
+    sim.fighters[1].hit.vars.fall_recover = true;
+    sim.fighters[1].state_no = 5000;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "CanRecover"), 0);
+}
