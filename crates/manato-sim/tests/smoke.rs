@@ -2491,3 +2491,53 @@ fn state_and_animation_controllers_round_trip() {
     manato_sim::controller::execute(&mut sim, 0, &anim2, &assets);
     assert_eq!(sim.fighters[0].anim_no, 10);
 }
+
+#[test]
+fn pause_superpause_and_envshake_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    let pause = manato_formats::Controller {
+        kind: "pause".into(),
+        params: vec![("time".into(), "5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &pause, &assets);
+    assert_eq!(sim.super_pause, 5);
+    assert_eq!(sim.super_pause_move_time, 0);
+
+    let super_pause = manato_formats::Controller {
+        kind: "superpause".into(),
+        params: vec![
+            ("time".into(), "10".into()),
+            ("movetime".into(), "3".into()),
+            ("sound".into(), "5, 2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &super_pause, &assets);
+    assert_eq!(sim.super_pause, 10);
+    assert_eq!(sim.super_pause_move_time, 3);
+    assert!(sim
+        .sounds
+        .iter()
+        .any(|sound| sound.group == 5 && sound.index == 2));
+
+    let shake = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "20".into()),
+            ("freq".into(), "90".into()),
+            ("ampl".into(), "-8".into()),
+            ("phase".into(), "1.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
+    assert_eq!(sim.env_shake.time, 20);
+    assert!((sim.env_shake.freq - 90.0).abs() < 0.001);
+    assert!((sim.env_shake.ampl - -8.0).abs() < 0.001);
+    assert!((sim.env_shake.phase - 1.5).abs() < 0.001);
+}

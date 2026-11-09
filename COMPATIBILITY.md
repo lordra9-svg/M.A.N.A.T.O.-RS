@@ -68,7 +68,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Explod binding/projection + ModifyExplod/RemoveExplod id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind + Target* controllers + helper-owned projectile ownership test |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX/Trans added; RemapPal pending |
-| C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
+| C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake controller test incl. superpause sound |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Attr filters + HitBy whitelist + override tests; oracle pending |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
