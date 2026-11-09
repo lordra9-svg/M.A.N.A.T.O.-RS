@@ -937,11 +937,13 @@ impl SimState {
             }
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.hit.invuln_timer = (fighter.hit.invuln_timer - 1).max(0);
-            if let Some(override_) = fighter.hit_override.as_mut() {
-                if override_.time > 0 {
-                    override_.time -= 1;
-                    if override_.time <= 0 {
-                        fighter.hit_override = None;
+            for slot in &mut fighter.hit_overrides {
+                if let Some(override_) = slot.as_mut() {
+                    if override_.time > 0 {
+                        override_.time -= 1;
+                        if override_.time <= 0 {
+                            *slot = None;
+                        }
                     }
                 }
             }
@@ -2162,10 +2164,11 @@ impl SimState {
             h.write_bool(f.screen_bound.1);
             h.write_f32(f.draw_offset.x);
             h.write_f32(f.draw_offset.y);
-            h.write_bool(f.hit_override.is_some());
-            if let Some(override_) = &f.hit_override {
+            h.write_u32(f.hit_overrides.iter().flatten().count() as u32);
+            for override_ in f.hit_overrides.iter().flatten() {
                 h.write_i32(override_.state);
                 h.write_i32(override_.time);
+                h.write_bool(override_.keepstate);
             }
             h.write_bool(f.reversal.is_some());
             h.write_i32(f.reversal_time);

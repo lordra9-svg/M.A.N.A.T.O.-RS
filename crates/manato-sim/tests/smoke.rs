@@ -316,7 +316,7 @@ fn hit_override_redirects_instead_of_damage() {
     };
     sim.fighters[0].pos.x = -20.0;
     sim.fighters[1].pos.x = 20.0;
-    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
         attr: "S, NA".into(),
         state: 0,
         time: 100,
@@ -4831,7 +4831,9 @@ fn hit_override_matches_attributes_and_expires() {
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 1, &control, &assets);
-    let override_ = sim.fighters[1].hit_override.clone().expect("override set");
+    let override_ = sim.fighters[1].hit_overrides[0]
+        .clone()
+        .expect("override set");
     assert_eq!(override_.attr, "S, NA");
     assert_eq!(override_.state, 820);
     assert_eq!(override_.time, 3);
@@ -4854,7 +4856,7 @@ fn hit_override_matches_attributes_and_expires() {
     let mut match_hit = hitdef();
     match_hit.attr.state_types = "S".into();
     match_hit.attr.class = "NA".into();
-    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
         attr: "SCA, NA".into(),
         state: 820,
         time: 50,
@@ -4866,7 +4868,7 @@ fn hit_override_matches_attributes_and_expires() {
     assert_eq!(sim.fighters[1].state_no, 820);
 
     // The override window expires after its `time` ticks.
-    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
         attr: "SCA, NA".into(),
         state: 820,
         time: 1,
@@ -4874,7 +4876,10 @@ fn hit_override_matches_attributes_and_expires() {
     });
     sim.tick([PlayerInput::default(); 2]);
     assert!(
-        sim.fighters[1].hit_override.is_none(),
+        sim.fighters[1]
+            .hit_overrides
+            .iter()
+            .all(|slot| slot.is_none()),
         "override expires after its window"
     );
     let life = sim.fighters[1].life;
@@ -4886,7 +4891,7 @@ fn hit_override_matches_attributes_and_expires() {
         return;
     };
     let assets = sim.assets.clone();
-    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
         attr: "SCA, SP".into(),
         state: 820,
         time: 200,
@@ -4922,7 +4927,7 @@ fn hit_override_matches_attributes_and_expires() {
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 1, &keep, &assets);
-    let override_ = sim.fighters[1].hit_override.clone().expect("override");
+    let override_ = sim.fighters[1].hit_overrides[0].clone().expect("override");
     assert_eq!(override_.time, -1);
     assert!(override_.keepstate);
     let life = sim.fighters[1].life;
@@ -4935,12 +4940,19 @@ fn hit_override_matches_attributes_and_expires() {
     );
     for _ in 0..120 {
         sim.tick([PlayerInput::default(); 2]);
-        if sim.fighters[1].hit_override.is_none() {
+        if sim.fighters[1]
+            .hit_overrides
+            .iter()
+            .all(|slot| slot.is_none())
+        {
             break;
         }
     }
     assert!(
-        sim.fighters[1].hit_override.is_some(),
+        sim.fighters[1]
+            .hit_overrides
+            .iter()
+            .any(|slot| slot.is_some()),
         "time=-1 never expires"
     );
 
@@ -4957,8 +4969,7 @@ fn hit_override_matches_attributes_and_expires() {
         };
         manato_sim::controller::execute(&mut sim, 1, &control, &assets);
         assert_eq!(
-            sim.fighters[1]
-                .hit_override
+            sim.fighters[1].hit_overrides[0]
                 .as_ref()
                 .expect("override")
                 .time,
@@ -5108,4 +5119,64 @@ fn fall_env_shake_alias_sets_shake() {
     assert!((sim.env_shake.freq - 120.0).abs() < 0.001);
     assert!((sim.env_shake.ampl - -6.0).abs() < 0.001);
     assert!((sim.env_shake.phase - 0.5).abs() < 0.001);
+}
+
+#[test]
+fn hit_override_slots_are_independent() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let slot2 = manato_formats::Controller {
+        kind: "hitoverride".into(),
+        params: vec![
+            ("attr".into(), "S, SA".into()),
+            ("stateno".into(), "820".into()),
+            ("slot".into(), "2".into()),
+            ("time".into(), "5".into()),
+            ("keepstate".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &slot2, &assets);
+    assert!(sim.fighters[1].hit_overrides[0].is_none());
+    let stored = sim.fighters[1].hit_overrides[2].clone().expect("slot 2");
+    assert_eq!(stored.attr, "S, SA");
+    assert_eq!(stored.time, 5);
+    assert!(stored.keepstate);
+
+    // Slot 0 and slot 2 match different attack classes independently.
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
+        attr: "SCA, NA".into(),
+        state: 820,
+        time: 1,
+        keepstate: false,
+    });
+    let mut na = hitdef();
+    na.attr.state_types = "S".into();
+    na.attr.class = "NA".into();
+    let mut special = na.clone();
+    special.attr.class = "SA".into();
+
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &special, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life, "slot 2 negates the special");
+    assert_eq!(sim.fighters[1].state_no, 0, "keepstate keeps state");
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.fighters[1].hit_overrides[0].is_none(),
+        "slot 0 expired after one tick"
+    );
+    assert!(
+        sim.fighters[1].hit_overrides[2].is_some(),
+        "slot 2 outlives slot 0"
+    );
+
+    // Slot 0 is gone, so a normal attack now connects.
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &na, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - na.damage);
 }

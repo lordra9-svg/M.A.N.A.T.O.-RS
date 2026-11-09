@@ -213,7 +213,7 @@ pub struct Fighter {
     pub gravity: Option<f32>,
     pub screen_bound: (bool, bool),
     pub draw_offset: Vec2,
-    pub hit_override: Option<HitOverride>,
+    pub hit_overrides: [Option<HitOverride>; 8],
     pub after_image: Option<AfterImageState>,
     pub after_images: Vec<AfterImageFrame>,
     pub pal_add: [f32; 3],
@@ -313,7 +313,7 @@ impl Fighter {
             gravity: None,
             screen_bound: (true, true),
             draw_offset: Vec2::ZERO,
-            hit_override: None,
+            hit_overrides: std::array::from_fn(|_| None),
             after_image: None,
             after_images: Vec::new(),
             pal_add: [0.0, 0.0, 0.0],
@@ -391,7 +391,7 @@ impl Fighter {
         self.face_p2_pending = false;
         self.gravity = None;
         self.draw_offset = Vec2::ZERO;
-        self.hit_override = None;
+        self.hit_overrides = std::array::from_fn(|_| None);
         self.trans_alpha = 1.0;
         self.reversal = None;
         self.reversal_time = 0;
@@ -637,6 +637,18 @@ impl Fighter {
         // (SimState) passes the evaluated result of all matching definitions,
         // so this method only covers pseudo-commands.
         false
+    }
+
+    /// First active `HitOverride` slot matching the incoming attack.
+    pub fn matched_override(&self, hitdef: &HitDef) -> Option<HitOverride> {
+        self.hit_overrides
+            .iter()
+            .flatten()
+            .find(|override_| {
+                override_.time != 0
+                    && crate::collision::override_attr_matches(&override_.attr, &hitdef.attr)
+            })
+            .cloned()
     }
 
     pub fn match_command(&self, def: &CommandDef) -> bool {

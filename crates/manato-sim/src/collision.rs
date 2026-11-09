@@ -52,20 +52,18 @@ pub fn resolve(sim: &mut SimState) {
             continue;
         }
 
-        if let Some(override_) = sim.fighters[defender].hit_override.clone() {
-            if override_.time != 0 && attr_matches(&override_.attr, &hitdef.attr) {
-                if !override_.keepstate {
-                    let assets = sim.assets.clone();
-                    let char_id = sim.fighters[defender].char_id;
-                    sim.fighters[defender].enter_state(
-                        override_.state,
-                        &assets.characters[char_id],
-                        false,
-                    );
-                }
-                record_hit(sim, attacker, defender);
-                continue;
+        if let Some(override_) = sim.fighters[defender].matched_override(&hitdef) {
+            if !override_.keepstate {
+                let assets = sim.assets.clone();
+                let char_id = sim.fighters[defender].char_id;
+                sim.fighters[defender].enter_state(
+                    override_.state,
+                    &assets.characters[char_id],
+                    false,
+                );
             }
+            record_hit(sim, attacker, defender);
+            continue;
         }
 
         let guarding = can_guard(sim, attacker, defender, &hitdef);
@@ -272,7 +270,7 @@ fn attr_matches_attr(candidate: &HitAttr, incoming: &HitAttr) -> bool {
         && (candidate.class.contains(incoming_class) || candidate.class.contains('*'))
 }
 
-fn attr_matches(override_attr: &str, hit_attr: &HitAttr) -> bool {
+pub(crate) fn override_attr_matches(override_attr: &str, hit_attr: &HitAttr) -> bool {
     let mut parts = override_attr.split(',');
     let states = parts.next().unwrap_or("");
     let classes = parts.next().unwrap_or("");
@@ -314,20 +312,18 @@ pub fn apply_hit_at(
     // `HitOverride` wins over any hit application path, including projectiles
     // and direct callers (`docs/spec/cns-cmd.md` §4.2).
     if !guarding {
-        if let Some(override_) = sim.fighters[defender].hit_override.clone() {
-            if override_.time != 0 && attr_matches(&override_.attr, &hitdef.attr) {
-                if !override_.keepstate {
-                    let assets = sim.assets.clone();
-                    let char_id = sim.fighters[defender].char_id;
-                    sim.fighters[defender].enter_state(
-                        override_.state,
-                        &assets.characters[char_id],
-                        false,
-                    );
-                }
-                record_hit(sim, attacker, defender);
-                return;
+        if let Some(override_) = sim.fighters[defender].matched_override(hitdef) {
+            if !override_.keepstate {
+                let assets = sim.assets.clone();
+                let char_id = sim.fighters[defender].char_id;
+                sim.fighters[defender].enter_state(
+                    override_.state,
+                    &assets.characters[char_id],
+                    false,
+                );
             }
+            record_hit(sim, attacker, defender);
+            return;
         }
     }
     if from_fighter && !guarding && hitdef.p1stateno >= 0 {
