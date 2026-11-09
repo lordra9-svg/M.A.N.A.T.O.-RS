@@ -75,33 +75,33 @@ function oracle_capture()
     end
 
     -- Scenario: force P1 into KFM state 200 once the Fight phase starts.
-    if scenario == "kfm_multihit" and not injected and num(roundState()) == 2 then
+    if scenario == "kfm_multihit" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(7000)
         injected = true
-    elseif scenario == "kaen_projectile" and not injected and num(roundState()) == 2 then
+    elseif projectile_scenarios[scenario] and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(1000)
         injected = true
-    elseif scenario == "kaen_projectile_guard" and not injected and num(roundState()) == 2 then
+    elseif projectile_guard_scenarios[scenario] and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(1000)
         last_inject = frame
         injected = true
-    elseif scenario == "kaen_projectile_guard" and injected and not guard_set
+    elseif projectile_guard_scenarios[scenario] and injected and not guard_set
         and frame - last_inject >= 2 then
         player(2)
         changeState(150)
         guard_set = true
-    elseif scenario == "kfm_attack" and not injected and num(roundState()) == 2 then
+    elseif scenario == "kfm_attack" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(200)
         injected = true
-    elseif scenario == "kfm_launch" and not injected and num(roundState()) == 2 then
+    elseif scenario == "kfm_launch" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(440)
         injected = true
-    elseif scenario == "kfm_juggle" and not injected and num(roundState()) == 2 then
+    elseif scenario == "kfm_juggle" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(440)
         injected = true
@@ -112,7 +112,7 @@ function oracle_capture()
             changeState(210)
             second_injected = true
         end
-    elseif scenario == "kfm_juggle_exhaust" and not injected and num(roundState()) == 2 then
+    elseif scenario == "kfm_juggle_exhaust" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(440)
         injected = true
@@ -130,14 +130,14 @@ function oracle_capture()
             changeState(240)
             third_injected = true
         end
-    elseif scenario == "kfm_attack_loop" and num(roundState()) == 2
+    elseif scenario == "kfm_attack_loop" and num(safe(roundState)) == 2
         and frame - last_inject >= 45 then
         player(1)
         if num(stateNo()) == 0 then
             changeState(200)
             last_inject = frame
         end
-    elseif scenario == "kfm_guard" and num(roundState()) == 2
+    elseif scenario == "kfm_guard" and num(safe(roundState)) == 2
         and frame - last_inject >= 45 then
         player(1)
         if num(stateNo()) == 0 then
@@ -157,7 +157,8 @@ function oracle_capture()
     local p2_juggle = safe(jugglePoints, p2_id)
 
     write_line(table.concat({
-        frame, num(gameTime()), num(roundState()), num(roundTime()), p1, p2, p2_juggle
+        frame, num(safe(gameTime)), num(safe(roundState)), num(safe(roundTime)),
+        p1, p2, p2_juggle
     }, ","))
     return ""
 end

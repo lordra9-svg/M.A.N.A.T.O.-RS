@@ -94,6 +94,15 @@ To reduce an existing capture:
 python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 ```
 
+## Nival / Ordan projectile scenarios
+
+`nival_projectile[_guard]` and `ordan_projectile[_guard]` are wired into the
+runner, but the bundled Nival and Ordan characters currently stall the Ikemen
+quick-match before the first captured frame (the capture file is written with
+only a header). Their projectile damage/guard behavior is therefore covered by
+engine integration tests (`nival_projectile_hit_and_guard`,
+`ordan_projectile_hit_and_guard`) rather than an oracle assertion.
+
 ## O-20 negative finding
 
 A purpose-built fixture (`tools/oracle/oracle-char/oracle.cns`) forces a

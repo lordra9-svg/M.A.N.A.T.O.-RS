@@ -206,6 +206,10 @@ fn bundled_projectile_hits() {
         return;
     };
     let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
     sim.fighters[0].enter_state(1000, &assets.characters[0], false);
     let mut spawned = false;
     for _ in 0..120 {
@@ -594,6 +598,15 @@ fn guard_damage_uses_guard_damage() {
     assert_eq!(sim.fighters[1].life, start - 5);
     assert!(sim.fighters[1].hit.guarding);
     assert_eq!(sim.fighters[1].state_no, 150);
+}
+
+fn fight_phase_with(p1: &str, p2: &str) -> Option<SimState> {
+    let mut sim = load(p1, p2)?;
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    Some(sim)
 }
 
 fn fight_phase() -> Option<SimState> {
@@ -4392,4 +4405,95 @@ fn round_and_match_triggers_reflect_state() {
     assert_eq!(trigger(&sim, 0, "Winner"), 1);
     assert_eq!(trigger(&sim, 1, "Loser"), 1);
     assert_eq!(trigger(&sim, 0, "RoundsExisted"), 1);
+}
+
+fn projectile_hit_and_guard(
+    p1: &str,
+    p2: &str,
+    damage: i32,
+    guard_damage: Option<i32>,
+    air_target: bool,
+) {
+    let Some(mut sim) = fight_phase_with(p1, p2) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    if air_target {
+        sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+        sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+        sim.fighters[1].pos.y = -24.0;
+    }
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let mut spawned = false;
+    for _ in 0..160 {
+        sim.tick([PlayerInput::default(); 2]);
+        spawned |= !sim.projectiles.is_empty();
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            break;
+        }
+    }
+    assert!(
+        spawned || sim.fighters[1].life < sim.fighters[1].life_max,
+        "{p1} state 1000 should spawn a projectile"
+    );
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - damage);
+    assert!(sim.fighters[1].state_no >= 5000);
+    assert!(sim.fighters[0].proj_hit_time >= 0);
+    assert_eq!(sim.fighters[0].proj_guarded_time, -1);
+
+    let Some(guard_damage) = guard_damage else {
+        return;
+    };
+    let Some(mut sim) = fight_phase_with(p1, p2) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    let mut guarded = false;
+    for _ in 0..160 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[0].proj_guarded_time >= 0 {
+            guarded = true;
+            break;
+        }
+    }
+    assert!(guarded, "{p1} projectile should be guardable");
+    assert_eq!(
+        sim.fighters[1].life,
+        sim.fighters[1].life_max - guard_damage
+    );
+    assert!((150..=155).contains(&sim.fighters[1].state_no));
+    assert!(sim.fighters[0].proj_contact_time >= 0);
+    assert_eq!(sim.fighters[0].proj_hit_time, -1);
+}
+
+#[test]
+fn nival_projectile_hit_and_guard() {
+    projectile_hit_and_guard(
+        "content/chars/nival/nival.def",
+        "content/chars/kaen/kaen.def",
+        45,
+        Some(10),
+        false,
+    );
+}
+
+#[test]
+fn ordan_projectile_hit_and_guard() {
+    projectile_hit_and_guard(
+        "content/chars/ordan/ordan.def",
+        "content/chars/kaen/kaen.def",
+        60,
+        None,
+        true,
+    );
 }
