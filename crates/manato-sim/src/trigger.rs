@@ -110,6 +110,35 @@ fn redirect_target(sim: &SimState, who: usize, name: &str) -> usize {
     if lower == "enemy" || lower == "enemynear" || lower.starts_with("enemy(") {
         return sim.other(who);
     }
+    if let Some(rest) = lower.strip_prefix("playerindex(") {
+        if let Some(value) = rest
+            .strip_suffix(')')
+            .and_then(|value| value.parse::<usize>().ok())
+        {
+            return value.min(1);
+        }
+    }
+    if lower == "playerindex" {
+        return who;
+    }
+    if let Some(rest) = lower.strip_prefix("helperindex(") {
+        let index = rest
+            .strip_suffix(')')
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(usize::MAX);
+        let root = sim.root_of(who);
+        let helpers: Vec<usize> = sim
+            .fighters
+            .iter()
+            .enumerate()
+            .filter(|(_, fighter)| fighter.owner == Some(root))
+            .map(|(index, _)| index)
+            .collect();
+        return helpers.get(index).copied().unwrap_or(who);
+    }
+    if lower == "stateowner" {
+        return sim.root_of(who);
+    }
     if lower == "self" {
         return who;
     }

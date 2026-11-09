@@ -478,7 +478,8 @@ impl Parser {
 fn is_redirect(name: &str) -> bool {
     match name.to_ascii_lowercase().as_str() {
         "p1" | "p2" | "p3" | "p4" | "enemy" | "enemynear" | "target" | "root" | "parent"
-        | "self" | "playerid" | "helper" | "partner" => true,
+        | "self" | "playerid" | "playerindex" | "helper" | "helperindex" | "stateowner"
+        | "partner" => true,
         _ => {
             name.to_ascii_lowercase().starts_with("enemy")
                 || name.to_ascii_lowercase().starts_with("target")

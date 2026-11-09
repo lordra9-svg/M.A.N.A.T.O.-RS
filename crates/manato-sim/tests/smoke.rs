@@ -5995,3 +5995,64 @@ fn target_life_power_composition_and_filter_timers() {
         "whitelist rejects normal attack"
     );
 }
+
+#[test]
+fn playerindex_helperindex_and_stateowner_redirects() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "8".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = sim.fighters.len() - 1;
+    sim.fighters[1].life = 777;
+    sim.fighters[helper_index].state_no = 200;
+    sim.fighters[0].state_no = 50;
+
+    // playerindex(n) selects a player and clamps out-of-range indices.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "playerindex(1), life"),
+        777
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "playerindex(9), life"),
+        777
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "playerindex(0), life"),
+        sim.fighters[0].life
+    );
+
+    // helperindex(n) selects the root's nth helper; invalid indices fall back to self.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "helperindex(0), stateno"),
+        200
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "helperindex(5), stateno"),
+        sim.fighters[0].state_no
+    );
+
+    // stateowner resolves to the helper's root/owner.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper_index, "stateowner, stateno"),
+        sim.fighters[0].state_no
+    );
+    // Invalid helper redirects fall back to self rather than panicking.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "helper(99), stateno"),
+        sim.fighters[0].state_no
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "enemynear, life"),
+        sim.fighters[1].life
+    );
+}
