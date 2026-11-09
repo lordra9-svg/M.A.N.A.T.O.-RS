@@ -4581,8 +4581,9 @@ fn state_3000_low_blast_hits_for_65() {
             break;
         }
     }
-    // The oracle double-hits for 120; this engine's integer hurt box for the
-    // upper blast is 2px short, so only the 65-damage blast connects here.
+    // The oracle double-hits for 120. Here the upper blast's bottom edge lands
+    // at y=-94 while KFM's tallest idle hurt box starts at y=-93, so strict
+    // integer box intersection misses by 1px and only the low blast connects.
     assert_eq!(sim.fighters[1].life, life - 65);
     assert!(sim.fighters[1].received_damage >= 65);
 }
