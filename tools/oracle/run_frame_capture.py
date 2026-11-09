@@ -105,6 +105,13 @@ def summarize(path: Path) -> dict:
         ),
         None,
     )
+    drops = []
+    previous = int(injection["p2_life"])
+    for row in rows[rows.index(injection) :]:
+        life = int(row["p2_life"])
+        if life < previous:
+            drops.append((row, previous - life))
+        previous = life
     guard = next(
         (
             row
@@ -157,6 +164,15 @@ def summarize(path: Path) -> dict:
         "state_after_contact": int(transition["p2_state"]) if transition else None,
         "push_distance": round(max_x - contact_x, 3),
         **guard_info,
+        "juggle_after_first_hit": (
+            int(drops[0][0]["p2_juggle"]) if drops and "p2_juggle" in drops[0][0] else None
+        ),
+        "second_hit_frame": int(drops[1][0]["frame"]) if len(drops) > 1 else None,
+        "second_damage": drops[1][1] if len(drops) > 1 else None,
+        "second_state": int(drops[1][0]["p2_state"]) if len(drops) > 1 else None,
+        "juggle_after_second_hit": (
+            int(drops[1][0]["p2_juggle"]) if len(drops) > 1 else None
+        ),
         "rows": len(rows),
     }
 

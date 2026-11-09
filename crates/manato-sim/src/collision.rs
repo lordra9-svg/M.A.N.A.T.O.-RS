@@ -73,20 +73,23 @@ pub fn resolve(sim: &mut SimState) {
             let f = &sim.fighters[defender];
             f.state_type == StateType::Air || f.pos.y < -1.0
         };
+        let juggle_cost = sim.fighters[attacker].juggle;
         if !juggle_allows(
             sim.fighters[defender].juggle_points,
             sim.fighters[defender].assert_flags,
             guarding,
             defender_airborne,
-            &hitdef,
+            juggle_cost,
         ) {
             continue;
         }
         apply_hit(sim, attacker, defender, &hitdef, guarding);
         record_hit(sim, attacker, defender);
-        if !guarding && defender_airborne && hitdef.air_juggle > 0 {
+        // Ikemen-GO consumes juggle points when the target was falling before
+        // the hit or the hit itself starts a fall (trip/fall HitDefs).
+        if !guarding && (defender_airborne || hitdef.fall) && juggle_cost > 0 {
             sim.fighters[defender].juggle_points =
-                (sim.fighters[defender].juggle_points - hitdef.air_juggle).max(0);
+                (sim.fighters[defender].juggle_points - juggle_cost).max(0);
         }
     }
 }
@@ -97,15 +100,15 @@ fn juggle_allows(
     assert_flags: u32,
     guarding: bool,
     airborne: bool,
-    hitdef: &HitDef,
+    cost: i32,
 ) -> bool {
-    if guarding || !airborne || hitdef.air_juggle <= 0 {
+    if guarding || !airborne || cost <= 0 {
         return true;
     }
     if assert_flags & crate::fighter::ASSERT_NOJUGGLECHECK != 0 {
         return true;
     }
-    juggle_points >= hitdef.air_juggle
+    juggle_points >= cost
 }
 
 fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
@@ -311,7 +314,8 @@ pub fn apply_hit_at(
     };
     let damage = (base_damage as f32
         * sim.fighters[attacker].attack_mul
-        * sim.fighters[defender].defence_mul) as i32;
+        * sim.fighters[defender].defence_mul
+        / sim.fighters[defender].fall_defence_mul.max(0.01)) as i32;
 
     let mut velocity_tuple = if guarding {
         let mut v = if defender_airborne {
@@ -616,20 +620,18 @@ mod tests {
 
     #[test]
     fn juggle_points_gate_air_hits() {
-        let mut hitdef = HitDef::default();
-        hitdef.air_juggle = 5;
-        assert!(juggle_allows(10, 0, false, true, &hitdef));
-        assert!(!juggle_allows(4, 0, false, true, &hitdef));
+        assert!(juggle_allows(10, 0, false, true, 5));
+        assert!(!juggle_allows(4, 0, false, true, 5));
         // Guarding hits and grounded defenders ignore juggle points.
-        assert!(juggle_allows(0, 0, true, true, &hitdef));
-        assert!(juggle_allows(0, 0, false, false, &hitdef));
+        assert!(juggle_allows(0, 0, true, true, 5));
+        assert!(juggle_allows(0, 0, false, false, 5));
         // AssertSpecial NoJuggleCheck bypasses the check.
         assert!(juggle_allows(
             0,
             crate::fighter::ASSERT_NOJUGGLECHECK,
             false,
             true,
-            &hitdef
+            5
         ));
     }
 }

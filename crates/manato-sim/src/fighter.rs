@@ -173,6 +173,10 @@ pub struct Fighter {
     pub sysfvars: [f32; 5],
 
     pub juggle_points: i32,
+    /// Air-juggle cost of the current state's attack (`[Statedef] juggle`).
+    pub juggle: i32,
+    /// Damage multiplier applied after the first fall (Ikemen fall defence).
+    pub fall_defence_mul: f32,
     pub sprite_priority: i32,
     pub width_back: f32,
     pub width_front: f32,
@@ -270,6 +274,8 @@ impl Fighter {
             sysvars: [0; 5],
             sysfvars: [0.0; 5],
             juggle_points: char.constants.get_or("data.airjuggle", 15.0) as i32,
+            juggle: 0,
+            fall_defence_mul: 1.0,
             sprite_priority: 0,
             width_back: char.constants.get_or("size.ground.back", 15.0),
             width_front: char.constants.get_or("size.ground.front", 16.0),
@@ -375,6 +381,14 @@ impl Fighter {
         let _ = face_p2;
         if number == 0 || number == 52 {
             self.juggle_points = char.constants.get_or("data.airjuggle", 15.0) as i32;
+        }
+        self.juggle = char
+            .state(number)
+            .and_then(|state| state.get_i32("juggle"))
+            .unwrap_or(0);
+        if number == 5070 || number == 5100 {
+            let up = char.constants.get_or("data.fall.defence_up", 50.0);
+            self.fall_defence_mul *= (up + 100.0) / 100.0;
         }
         if let Some(state) = char.state(number) {
             self.apply_state_def(state, char);

@@ -1671,3 +1671,54 @@ fn oracle_kfm_launch_flow() {
     assert!(sim.fighters[1].pos.y < 0.0, "trip should become airborne");
     assert!(sim.fighters[1].vel.y < 0.0, "trip should launch upward");
 }
+
+#[test]
+fn oracle_kfm_juggle_flow() {
+    let Some(mut sim) = kfm_close_match() else {
+        return;
+    };
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(440, &assets.characters[0], false);
+
+    let mut first = None;
+    for _ in 0..15 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            first = Some(sim.fighters[1].life);
+            break;
+        }
+    }
+    assert_eq!(first, Some(928));
+    assert_eq!(sim.fighters[1].state_no, 5070);
+    // O-17: KFM state 440 has Statedef juggle = 7, consumed on the fall hit.
+    assert_eq!(sim.fighters[1].juggle_points, 8);
+
+    let mut airborne = false;
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].state_no >= 5071 {
+            airborne = true;
+            break;
+        }
+    }
+    assert!(airborne, "trip should transition to an airborne state");
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(210, &assets.characters[0], false);
+
+    let mut second = None;
+    for _ in 0..25 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < 928 {
+            second = Some(sim.fighters[1].life);
+            break;
+        }
+    }
+    assert_eq!(second, Some(890), "state 210 should deal 38 on the air hit");
+    assert_eq!(sim.fighters[1].state_no, 5020);
+    // State 210 has Statedef juggle = 4, consuming 4 more points.
+    assert_eq!(sim.fighters[1].juggle_points, 4);
+}

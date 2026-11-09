@@ -36,6 +36,8 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-14 | The guard slide begins 9 ticks after contact (state 151) and the defender is pushed away ~14.8 pixels over the 14-tick guard window. | Same capture: `p2_state` 151 at frame 222, `p2_x` 16.0 -> 30.8345 by frame 226. |
 | O-15 | KFM state 440 (trip) hits an idle opponent around 10 ticks after state entry, deals 72 damage, and enters trip/fall state 5070. | `kfm_launch` capture: injection frame 209, contact frame 219, `p2_life` 1000 -> 928, `p2_state` 5070. |
 | O-16 | Trip state 5070 advances to 5071 on contact + 13, then the defender becomes airborne with upward velocity and gravity. | Same capture: state 5071 first at frame 232, `p2_y` -2.0, `p2_vy` -2.0. |
+| O-17 | KFM state 440 consumes its Statedef `juggle = 7` from the defender even though the first hit is grounded, leaving 8 of 15 points. | `kfm_juggle` capture: `p2_juggle` 15 -> 8 after the 72-damage trip hit. |
+| O-18 | A second airborne hit with KFM state 210 (Statedef `juggle = 4`) consumes 4 more points, enters air-hit state 5020, and deals 38 damage because fall defence multiplies by 1.5. | Same capture: `p2_juggle` 8 -> 4, life 928 -> 890, state 5020. |
 
 ## Mapping to M.A.N.A.T.O.-RS
 
@@ -49,6 +51,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-09..O-12 | KFM hit flow is encoded by `oracle_kfm_state_200_hits_idle`; the harness is `tools/oracle/run_frame_capture.py` / `.sh`. |
 | O-13..O-14 | KFM guard flow is encoded by `oracle_kfm_guard_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_guard`. |
 | O-15..O-16 | KFM trip/launch flow is encoded by `oracle_kfm_launch_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_launch`. |
+| O-17..O-18 | KFM juggle consumption is encoded by `oracle_kfm_juggle_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_juggle`. |
 
 These assertions remain subject to revision if a later oracle run contradicts
 them. The tests that encode them live in `crates/manato-sim/tests/smoke.rs`.

@@ -882,6 +882,9 @@ fn hit_def(sim: &mut SimState, who: usize, control: &Controller) {
     }
     sim.fighters[who].hit.last_activation_frame = sim.frame as i64;
     let hitdef = HitDef::from_controller(control, sim.hit_activation);
+    if hitdef.air_juggle > 0 {
+        sim.fighters[who].juggle = hitdef.air_juggle;
+    }
     sim.fighters[who].hitdef = Some(hitdef);
 }
 

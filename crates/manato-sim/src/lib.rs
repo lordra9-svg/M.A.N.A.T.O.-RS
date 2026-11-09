@@ -918,6 +918,7 @@ impl SimState {
             if fighter.move_type != fighter::MoveType::Hit {
                 fighter.received_hits = 0;
                 fighter.received_damage = 0;
+                fighter.fall_defence_mul = 1.0;
             }
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.hit.invuln_timer = (fighter.hit.invuln_timer - 1).max(0);
@@ -2100,6 +2101,9 @@ impl SimState {
             h.write_i32(f.hit.hit_shake_timer);
             h.write_i32(f.hit.pause_gap);
             h.write_i32(f.hit.vars.hittime);
+            h.write_i32(f.juggle_points);
+            h.write_i32(f.juggle);
+            h.write_f32(f.fall_defence_mul);
             h.write_bool(f.hit.guarding);
             h.write_i32(f.received_hits);
             h.write_i32(f.received_damage);
