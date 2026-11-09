@@ -94,6 +94,15 @@ To reduce an existing capture:
 python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 ```
 
+## Known capture limitation
+
+The same-activation juggle-exhaustion case (a repeat hit inside one
+`numhits = 2` activation) has no clean KFM capture yet. A throwaway KFM state
+with a persistent two-hit HitDef and a forced lunge either misses the airborne
+defender after the preceding hit pause or overshoots past it. The gate itself is
+covered by the `juggle_points_gate_air_hits` unit test; a purpose-built test
+character or a replay fixture is needed to capture it end-to-end.
+
 ## Current coverage
 
 Round-end classification (`docs/oracle/assertions.md`, O-01..O-08) and the
