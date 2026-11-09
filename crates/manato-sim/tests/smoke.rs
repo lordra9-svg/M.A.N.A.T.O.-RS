@@ -3137,3 +3137,45 @@ fn guard_flags_and_unguardable_decide_guarding() {
         "AssertSpecial unguardable bypasses guard"
     );
 }
+
+#[test]
+fn collision_boxes_mirror_with_facing_and_translate() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let bx = manato_formats::CollisionBox {
+        x1: 12,
+        y1: -58,
+        x2: 52,
+        y2: -24,
+    };
+    sim.fighters[0].pos = manato_core::Vec2::new(100.0, 0.0);
+    sim.fighters[0].facing = 1;
+    let right = sim.fighters[0].world_box(&bx);
+    assert_eq!(
+        (right.x1, right.y1, right.x2, right.y2),
+        (112, -58, 152, -24)
+    );
+
+    sim.fighters[0].facing = -1;
+    let left = sim.fighters[0].world_box(&bx);
+    assert_eq!((left.x1, left.y1, left.x2, left.y2), (48, -58, 88, -24));
+
+    sim.fighters[0].pos.y = -20.0;
+    let raised = sim.fighters[0].world_box(&bx);
+    assert_eq!((raised.y1, raised.y2), (-78, -44));
+
+    // Unsorted input boxes are normalized before mirroring.
+    let reversed = manato_formats::CollisionBox {
+        x1: 52,
+        y1: -24,
+        x2: 12,
+        y2: -58,
+    };
+    sim.fighters[0].facing = 1;
+    let normalized = sim.fighters[0].world_box(&reversed);
+    assert_eq!(
+        (normalized.x1, normalized.y1, normalized.x2, normalized.y2),
+        (112, -78, 152, -44)
+    );
+}
