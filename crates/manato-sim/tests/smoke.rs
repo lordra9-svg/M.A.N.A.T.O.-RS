@@ -320,6 +320,7 @@ fn hit_override_redirects_instead_of_damage() {
         attr: "S, NA".into(),
         state: 0,
         time: 100,
+        keepstate: false,
     });
     let assets = sim.assets.clone();
     sim.fighters[0].enter_state(200, &assets.characters[0], false);
@@ -4857,6 +4858,7 @@ fn hit_override_matches_attributes_and_expires() {
         attr: "SCA, NA".into(),
         state: 820,
         time: 50,
+        keepstate: false,
     });
     let life = sim.fighters[1].life;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &match_hit, false, origin, 1, true);
@@ -4868,6 +4870,7 @@ fn hit_override_matches_attributes_and_expires() {
         attr: "SCA, NA".into(),
         state: 820,
         time: 1,
+        keepstate: false,
     });
     sim.tick([PlayerInput::default(); 2]);
     assert!(
@@ -4887,6 +4890,7 @@ fn hit_override_matches_attributes_and_expires() {
         attr: "SCA, SP".into(),
         state: 820,
         time: 200,
+        keepstate: false,
     });
     sim.fighters[0].enter_state(1000, &assets.characters[0], false);
     let life = sim.fighters[1].life;
@@ -4901,6 +4905,66 @@ fn hit_override_matches_attributes_and_expires() {
         "projectile override prevents damage"
     );
     assert_eq!(sim.fighters[1].state_no, 820);
+
+    // keepstate negates the hit without changing state; time=-1 is infinite.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let keep = manato_formats::Controller {
+        kind: "hitoverride".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("stateno".into(), "820".into()),
+            ("time".into(), "-1".into()),
+            ("keepstate".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &keep, &assets);
+    let override_ = sim.fighters[1].hit_override.clone().expect("override");
+    assert_eq!(override_.time, -1);
+    assert!(override_.keepstate);
+    let life = sim.fighters[1].life;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &match_hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life);
+    assert_eq!(
+        sim.fighters[1].state_no, 0,
+        "keepstate keeps the current state"
+    );
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].hit_override.is_none() {
+            break;
+        }
+    }
+    assert!(
+        sim.fighters[1].hit_override.is_some(),
+        "time=-1 never expires"
+    );
+
+    // M.U.G.E.N normalizes time 0 and values below -1 to 1.
+    for (raw, expected) in [("0", 1), ("-2", 1)] {
+        let control = manato_formats::Controller {
+            kind: "hitoverride".into(),
+            params: vec![
+                ("attr".into(), "S, NA".into()),
+                ("stateno".into(), "820".into()),
+                ("time".into(), raw.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+        assert_eq!(
+            sim.fighters[1]
+                .hit_override
+                .as_ref()
+                .expect("override")
+                .time,
+            expected
+        );
+    }
 }
 
 #[test]

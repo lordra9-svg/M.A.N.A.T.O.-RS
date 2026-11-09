@@ -134,8 +134,12 @@ pub struct AfterImageState {
 #[derive(Debug, Clone)]
 pub struct HitOverride {
     pub attr: String,
+    /// Target state, or the current state when `keepstate` is set.
     pub state: i32,
+    /// Remaining ticks; negative = infinite, `0` = inactive.
     pub time: i32,
+    /// `keepstate = 1`: negate the hit without changing state.
+    pub keepstate: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
