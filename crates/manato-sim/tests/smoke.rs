@@ -4019,3 +4019,48 @@ fn afterimage_frames_sample_and_decay() {
     assert!(sim.fighters[0].after_image.is_none());
     assert!(sim.fighters[0].after_images.is_empty());
 }
+
+#[test]
+fn hit_and_super_pause_freeze_fighters_but_not_timers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.pausetime = (4, 4);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert!(sim.fighters[1].hit.hit_pause > 0);
+    sim.tick([PlayerInput::default(); 2]);
+
+    let state_time = sim.fighters[1].state_time;
+    let pos = sim.fighters[1].pos;
+    let phase_timer = sim.round.phase_timer;
+    let pause = sim.fighters[1].hit.hit_pause;
+    assert!(pause > 0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[1].state_time, state_time,
+        "hit pause freezes time"
+    );
+    assert_eq!(sim.fighters[1].pos, pos, "hit pause freezes movement");
+    assert!(sim.fighters[1].hit.hit_pause < pause);
+    assert_eq!(sim.round.phase_timer, phase_timer);
+
+    // SuperPause freezes both fighters' gameplay updates.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let time0 = sim.fighters[0].state_time;
+    let time1 = sim.fighters[1].state_time;
+    let round_timer = sim.round.timer;
+    sim.super_pause = 3;
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].state_time, time0);
+    assert_eq!(sim.fighters[1].state_time, time1);
+    assert!(sim.super_pause > 0);
+    assert!(
+        sim.round.timer <= round_timer,
+        "round timer keeps running during super pause"
+    );
+}
