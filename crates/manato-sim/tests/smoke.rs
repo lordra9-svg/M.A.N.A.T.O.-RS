@@ -5811,3 +5811,40 @@ fn hit_fall_controller_interaction_lands_with_damage() {
     assert!(!sim.fighters[1].hit.vars.fall);
     assert_eq!(sim.fighters[1].hit.vars.y_vel, 4.0);
 }
+
+#[test]
+fn life_add_and_set_kill_semantics() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = |kind: &str, value: i32, kill: i32| manato_formats::Controller {
+        kind: kind.into(),
+        params: vec![
+            ("value".into(), value.to_string()),
+            ("kill".into(), kill.to_string()),
+        ],
+        line: 0,
+    };
+
+    // kill = 0 keeps at least 1 HP.
+    sim.fighters[0].life = 20;
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeadd", -50, 0), &assets);
+    assert_eq!(sim.fighters[0].life, 1);
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeset", 0, 0), &assets);
+    assert_eq!(sim.fighters[0].life, 1);
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeset", -10, 0), &assets);
+    assert_eq!(sim.fighters[0].life, 1);
+
+    // kill = 1 (the default) can reach zero.
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeadd", -50, 1), &assets);
+    assert_eq!(sim.fighters[0].life, 0);
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeset", 0, 1), &assets);
+    assert_eq!(sim.fighters[0].life, 0);
+
+    // Healing and setting clamp to the maximum.
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeadd", 99999, 0), &assets);
+    assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
+    manato_sim::controller::execute(&mut sim, 0, &control("lifeset", 99999, 0), &assets);
+    assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
+}
