@@ -63,7 +63,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power/VarRange/RootVar + Pos/Vel edges + multipliers |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + SprPriority/Offset presentation tests |
-| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + p2stateno override + reversal redirect/attr/expiry test |
+| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + p2stateno + reversal + hit/guard sounds and heavy-hit shake |
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/postype/projsnd + dual spawn + ModifyProjectile id targeting |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection/lifetime/removal + animelem/animfreeze + Modify/Remove id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | BindTo* + TargetVelAdd + TargetLifeAdd kill/TargetPowerAdd + helper ownership |
@@ -119,7 +119,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | A-01 | SND playback | Required | Required | Partial | SND + channels/priority; oracle pending |
-| A-02 | Character/effect sounds | Required | Required | Verified | Roster |
+| A-02 | Character/effect sounds | Required | Required | Verified | Roster + hit/guard sound events and silent group -1 |
 | A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer; oracle pending |
 | A-04 | Pan/volume/channels | Required | Required | Partial | Channel priority, pan, master/music volume, tests |
 | A-05 | Pause/loop/modify sound | Required | Ikemen | Partial | PlaySnd loop, StopSnd/SndPan/ModifySnd, BGM pause/resume test |

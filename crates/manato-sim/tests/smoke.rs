@@ -6864,3 +6864,45 @@ fn reversal_def_redirects_matching_hits_and_expires() {
         "non-matching reversal attr falls through to a normal hit"
     );
 }
+
+#[test]
+fn hit_and_guard_sounds_and_heavy_hit_shake() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.hitsound = (5, 3);
+    hit.guardsound = (6, 4);
+    hit.damage = 20;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert!(
+        sim.sounds.iter().any(|s| s.group == 5 && s.index == 3),
+        "unguarded hit plays hitsound"
+    );
+    assert!(sim.env_shake.time == 0, "light hit does not shake");
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert!(
+        sim.sounds.iter().any(|s| s.group == 6 && s.index == 4),
+        "guarded hit plays guardsound"
+    );
+    assert!(!sim.sounds.iter().any(|s| s.group == 5));
+
+    // Heavy unguarded hits add a short camera shake.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut heavy = hitdef();
+    heavy.damage = 100;
+    heavy.hitsound = (-1, 0);
+    heavy.guardsound = (-1, 0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &heavy, false, origin, 1, true);
+    assert_eq!(sim.env_shake.time, 6);
+    assert!(sim.sounds.is_empty(), "sound group -1 is silent");
+}
