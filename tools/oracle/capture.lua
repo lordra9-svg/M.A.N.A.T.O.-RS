@@ -34,6 +34,8 @@ local function snap()
         num(safe(guardPoints)), num(safe(dizzyPoints)),
         num(safe(getHitVar, "damage")), num(safe(getHitVar, "hittime")),
         num(safe(moveContact)), num(safe(moveHit)), num(safe(moveGuarded)),
+        num(safe(numProj)), num(safe(projContactTime, -1)),
+        num(safe(projHitTime, -1)), num(safe(projGuardedTime, -1)),
     }, ",")
 end
 
@@ -42,10 +44,12 @@ local HEADER = "frame,gameTime,roundState,roundTime,"
     .. "p1_x,p1_y,p1_vx,p1_vy,p1_facing,p1_ctrl,p1_stateType,p1_moveType,"
     .. "p1_hitCount,p1_uniqHitCount,p1_guardPoints,p1_dizzyPoints,"
     .. "p1_hitDamage,p1_hitTime,p1_moveContact,p1_moveHit,p1_moveGuarded,"
+    .. "p1_numProj,p1_projContact,p1_projHit,p1_projGuarded,"
     .. "p2_life,p2_lifeMax,p2_power,p2_redLife,p2_state,p2_anim,p2_animTime,"
     .. "p2_x,p2_y,p2_vx,p2_vy,p2_facing,p2_ctrl,p2_stateType,p2_moveType,"
     .. "p2_hitCount,p2_uniqHitCount,p2_guardPoints,p2_dizzyPoints,"
-    .. "p2_hitDamage,p2_hitTime,p2_moveContact,p2_moveHit,p2_moveGuarded,p2_juggle"
+    .. "p2_hitDamage,p2_hitTime,p2_moveContact,p2_moveHit,p2_moveGuarded,"
+    .. "p2_numProj,p2_projContact,p2_projHit,p2_projGuarded,p2_juggle"
 
 local function write_line(line)
     local f = io.open(out_path, "a")
@@ -75,6 +79,20 @@ function oracle_capture()
         player(1)
         changeState(7000)
         injected = true
+    elseif scenario == "kaen_projectile" and not injected and num(roundState()) == 2 then
+        player(1)
+        changeState(1000)
+        injected = true
+    elseif scenario == "kaen_projectile_guard" and not injected and num(roundState()) == 2 then
+        player(1)
+        changeState(1000)
+        last_inject = frame
+        injected = true
+    elseif scenario == "kaen_projectile_guard" and injected and not guard_set
+        and frame - last_inject >= 2 then
+        player(2)
+        changeState(150)
+        guard_set = true
     elseif scenario == "kfm_attack" and not injected and num(roundState()) == 2 then
         player(1)
         changeState(200)

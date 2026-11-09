@@ -75,19 +75,26 @@ def summarize(path: Path) -> dict:
     if not rows:
         raise SystemExit("capture is empty")
     injection = next(
-        (row for row in rows if int(row["p1_state"]) in (200, 440, 7000)), None
+        (row for row in rows if int(row["p1_state"]) in (200, 440, 7000, 1000)), None
     )
     if injection is None:
         raise SystemExit("scenario never entered a scripted KFM attack state")
     contact = None
     previous_life = int(injection["p2_life"])
     hits = 0
+    guarded = False
     for row in rows[rows.index(injection) :]:
         life = int(row["p2_life"])
         if life < previous_life:
             hits += 1
-        if contact is None and (life < previous_life or int(row["p2_state"]) >= 5000):
+        if contact is None and (
+            life < previous_life
+            or int(row["p2_state"]) >= 5000
+            or int(row.get("p1_projContact", "-1")) >= 0
+        ):
             contact = row
+        if int(row.get("p1_projGuarded", "-1")) >= 0:
+            guarded = True
         previous_life = life
     if contact is None:
         raise SystemExit("scenario never hit the defender")
@@ -158,6 +165,10 @@ def summarize(path: Path) -> dict:
         "hits": hits,
         "defender_state": int(contact["p2_state"]),
         "defender_anim": int(contact["p2_anim"]),
+        "guarded": guarded,
+        "projectile_contact": int(contact.get("p1_projContact", "-1")),
+        "projectile_hit": int(contact.get("p1_projHit", "-1")),
+        "projectile_guarded": int(contact.get("p1_projGuarded", "-1")),
         "transition_ticks": (
             int(transition["frame"]) - int(contact["frame"]) if transition else None
         ),

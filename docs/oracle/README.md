@@ -118,6 +118,8 @@ IKEMEN_ORACLE_SCENARIO=kfm_guard tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kfm_launch tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kfm_juggle tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kfm_juggle_exhaust tools/oracle/run_frame_capture.sh
+IKEMEN_ORACLE_SCENARIO=kaen_projectile tools/oracle/run_frame_capture.sh
+IKEMEN_ORACLE_SCENARIO=kaen_projectile_guard tools/oracle/run_frame_capture.sh
 ```
 
 The guard scenario uses the public Lua `changeState(150)` debug API to force a

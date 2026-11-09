@@ -216,18 +216,18 @@ fn bundled_projectile_hits() {
         }
     }
     assert!(spawned, "state 1000 did not spawn a projectile");
-    assert!(
-        sim.fighters[1].life < sim.fighters[1].life_max,
-        "projectile did not hit the opponent"
+    assert_eq!(
+        sim.fighters[1].life,
+        sim.fighters[1].life_max - 55,
+        "Kaen projectile deals 55 unguarded damage"
     );
+    assert!(sim.fighters[1].state_no >= 5000);
     assert!(
         sim.fighters[0].proj_contact_time >= 0,
         "projectile contact timer should start at the hit tick"
     );
-    assert!(
-        sim.fighters[0].proj_hit_time >= 0 || sim.fighters[0].proj_guarded_time >= 0,
-        "projectile hit/guard timer should be set"
-    );
+    assert!(sim.fighters[0].proj_hit_time >= 0);
+    assert_eq!(sim.fighters[0].proj_guarded_time, -1);
 }
 
 #[test]
@@ -4063,4 +4063,28 @@ fn hit_and_super_pause_freeze_fighters_but_not_timers() {
         sim.round.timer <= round_timer,
         "round timer keeps running during super pause"
     );
+}
+
+#[test]
+fn bundled_projectile_can_be_guarded() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    // P2 faces left, so holding screen-right is "back".
+    let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    let mut guarded = false;
+    for _ in 0..180 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[0].proj_guarded_time >= 0 {
+            guarded = true;
+            break;
+        }
+    }
+    assert!(guarded, "projectile should be guarded while holding back");
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 12);
+    assert!((150..=155).contains(&sim.fighters[1].state_no));
+    assert!(sim.fighters[0].proj_contact_time >= 0);
+    assert_eq!(sim.fighters[0].proj_hit_time, -1);
 }

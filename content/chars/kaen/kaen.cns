@@ -841,8 +841,7 @@ trigger1 = AnimElem = 2
 projanim = 1500
 velocity = 5,0
 removetime = 120
-damage = 55
-guard.damage = 12
+damage = 55, 12
 hitflag = MAF
 guardflag = MA
 pausetime = 4,4
@@ -960,8 +959,7 @@ trigger1 = AnimElem = 2
 projanim = 1500
 velocity = 6,0
 removetime = 120
-damage = 65
-guard.damage = 15
+damage = 65, 15
 hitflag = MAF
 guardflag = MA
 pausetime = 4,4

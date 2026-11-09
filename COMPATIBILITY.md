@@ -84,7 +84,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-03 | Hit pause/super pause | Required | Required | Partial | Freeze semantics + effect move-time + single-activation continuity; KFM 200 oracle |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + KFM trip/launch/consumption; O-20 negative persistent-HitDef finding |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw entry, whiff, guard, bind-follow, and TargetDrop tests |
-| K-06 | Projectile collision | Required | Required | Partial | Projectile hit-count and lifetime tests |
+| K-06 | Projectile collision | Required | Required | Partial | Hit-count/lifetime + KFM/Kaen projectile damage/guard oracle flow |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Corner-push + PlayerPush tests |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
@@ -108,7 +108,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry parser test + BGCtrl update integration test |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | HUD/bars/names/timer + combo counter, delayed fill, win-icon history/reset tests; guard/stun bars pending |
-| V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal rules + projectile facing/accel tests |
+| V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal + projectile facing/accel + oracle hit/guard scenario |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |

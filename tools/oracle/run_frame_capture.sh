@@ -39,6 +39,12 @@ cp "$here/capture.lua" "$mod"
 cp "$here/oracle-stage.def" "$root/stages/oracle.def"
 cp "$repo/content/stages/training/stage1.sff" "$root/stages/oracle.sff"
 
+if [[ "$scenario" == kaen_* ]]; then
+    rm -rf "$root/chars/kaen"
+    cp -r "$repo/content/chars/kaen" "$root/chars/kaen"
+    export IKEMEN_ORACLE_P1=kaen
+fi
+
 if [[ "$scenario" == "kfm_multihit" ]]; then
     rm -rf "$root/chars/oracle"
     cp -r "$root/chars/kfm" "$root/chars/oracle"
