@@ -65,7 +65,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | Roster |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
 | C-04 | Projectile | Required | Required | Partial | Projectile spawn/hit-count/lifetime + ModifyProjectile tests |
-| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | TBD |
+| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Explod binding/projection + ModifyExplod/RemoveExplod id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind + Target* controllers + helper-owned projectile ownership test |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX/Trans added; RemapPal pending |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |

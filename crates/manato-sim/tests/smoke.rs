@@ -2314,3 +2314,61 @@ fn var_random_is_bounded_and_deterministic() {
     assert_eq!(a.checksum(), b.checksum());
     assert_eq!(a.fighters[0].vars[0], b.fighters[0].vars[0]);
 }
+
+#[test]
+fn modify_and_remove_explod_target_the_newest_matching_id() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let explod = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "5".into()),
+            ("pos".into(), "4, 8".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &explod, &assets);
+    assert_eq!(sim.effects.len(), 1);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "5".into()),
+            ("pos".into(), "30, -10".into()),
+            ("scale".into(), "2, 3".into()),
+            ("vel".into(), "1, -2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    let effect = sim.effects.last().expect("explod still exists");
+    assert!((effect.pos.x - 30.0).abs() < 0.001);
+    assert!((effect.pos.y - -10.0).abs() < 0.001);
+    assert!((effect.scale.x - 2.0).abs() < 0.001);
+    assert!((effect.scale.y - 3.0).abs() < 0.001);
+    assert!((effect.vel.x - 1.0).abs() < 0.001);
+    assert!((effect.vel.y - -2.0).abs() < 0.001);
+
+    // A different id leaves the effect alone.
+    let unrelated = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![("id".into(), "6".into()), ("pos".into(), "99, 99".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &unrelated, &assets);
+    assert!((sim.effects[0].pos.x - 30.0).abs() < 0.001);
+
+    let remove = manato_formats::Controller {
+        kind: "removeexplod".into(),
+        params: vec![("id".into(), "5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &remove, &assets);
+    assert!(sim.effects.is_empty());
+}
