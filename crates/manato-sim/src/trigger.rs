@@ -810,6 +810,15 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "teamside" => Value::Int(f.side as i32 + 1),
         "playerid" => Value::Int(who as i32),
         "numenemy" => Value::Int(1),
+        "numexplod" => Value::Int(
+            sim.effects
+                .iter()
+                .filter(|effect| {
+                    effect.owner == who
+                        && matches!(effect.source, crate::EffectSource::Character(_))
+                })
+                .count() as i32,
+        ),
         "numhelper" => Value::Int(
             sim.fighters
                 .iter()

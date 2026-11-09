@@ -6056,3 +6056,57 @@ fn playerindex_helperindex_and_stateowner_redirects() {
         sim.fighters[1].life
     );
 }
+
+#[test]
+fn numexplod_and_numprojid_filters() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), id.to_string()),
+                ("removetime".into(), "60".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    spawn(&mut sim, 3);
+    spawn(&mut sim, 4);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod(3)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod(4)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod(9)"), 0);
+
+    let remove = manato_formats::Controller {
+        kind: "removeexplod".into(),
+        params: vec![("id".into(), "3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &remove, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod(3)"), 0);
+
+    // Projectile ID filtering counts only the owner's matching projectiles.
+    let projectile = |id: i32| manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "60".into()),
+            ("id".into(), id.to_string()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &projectile(7), &assets);
+    manato_sim::controller::execute(&mut sim, 0, &projectile(7), &assets);
+    manato_sim::controller::execute(&mut sim, 0, &projectile(8), &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(7)"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(8)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(9)"), 0);
+}
