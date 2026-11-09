@@ -5436,3 +5436,48 @@ fn animation_time_loop_and_invalid_elem_edges() {
     );
     assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(1)"), 1);
 }
+
+#[test]
+fn round_timer_freezes_outside_fight() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.timer = 500;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.timer, 499, "Fight decrements the timer");
+
+    // KO freezes the timer while the KO phase runs.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    let ko_timer = sim.round.timer;
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.timer, ko_timer, "KO does not tick the timer");
+
+    // Intro also holds the reset timer until Fight starts.
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
+    assert_eq!(sim.round.timer, sim.round.round_time * 60);
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.timer, sim.round.round_time * 60);
+
+    for _ in 0..60 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    let fight_timer = sim.round.timer;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.timer, fight_timer - 1);
+}
