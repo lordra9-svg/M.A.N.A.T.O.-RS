@@ -2018,3 +2018,48 @@ fn bare_numproj_tracks_projectile_lifetime() {
     }
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 0);
 }
+
+#[test]
+fn projectile_hit_limit_consumes_hits_and_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    let mut hitdef = manato_sim::hitdef::HitDef::default();
+    hitdef.damage = 10;
+    hitdef.hitflag = "MAF".into();
+    hitdef.ground_hittime = 12;
+    hitdef.attr.state_types = "S".into();
+    sim.projectiles.push(manato_sim::projectile::Projectile {
+        owner: 0,
+        id: 0,
+        anim: 1500,
+        pos: sim.fighters[1].pos,
+        vel: manato_core::Vec2::ZERO,
+        accel: manato_core::Vec2::ZERO,
+        facing: 1,
+        time: 0,
+        remove_time: 5,
+        hits: 2,
+        hitdef,
+    });
+    let start = sim.fighters[1].life;
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(
+        sim.fighters[1].life,
+        start - 10,
+        "first projectile hit lands"
+    );
+    if let Some(projectile) = sim.projectiles.first() {
+        assert_eq!(projectile.hits, 1, "hit count is consumed");
+    }
+    for _ in 0..8 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.projectiles.is_empty(), "projectile expires by lifetime");
+}

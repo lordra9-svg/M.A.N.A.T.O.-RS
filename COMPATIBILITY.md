@@ -84,7 +84,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-03 | Hit pause/super pause | Required | Required | Partial | Hit pause, hit-shake transition, and single-activation continuity; KFM 200 oracle flow |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + KFM trip/launch/consumption; O-20 negative persistent-HitDef finding |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw states/target bind test |
-| K-06 | Projectile collision | Required | Required | Partial | Projectile tests |
+| K-06 | Projectile collision | Required | Required | Partial | Projectile hit-count and lifetime tests |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef test; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Corner-push + PlayerPush tests |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
