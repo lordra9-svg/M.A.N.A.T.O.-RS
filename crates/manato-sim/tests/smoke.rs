@@ -2749,3 +2749,47 @@ fn command_matching_handles_motion_and_button_windows() {
     assert!(!manato_sim::trigger::command_active(&sim, 0, "FirePalm"));
     assert!(!manato_sim::trigger::command_active(&sim, 0, "x"));
 }
+
+#[test]
+fn animation_and_position_triggers_track_state() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Anim"), 200);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElem"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimTime"), 11);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(1)"), 1);
+    assert!(manato_sim::trigger::int(&sim, 0, "AnimExist(200)") != 0);
+    assert!(manato_sim::trigger::int(&sim, 0, "SelfAnimExist(200)") != 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimExist(9999)"), 0);
+
+    // Frame 0 lasts 3 ticks, then frame 1 starts.
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElem"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(2)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(1)"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimTime"), 9);
+
+    sim.fighters[0].pos = manato_core::Vec2::new(12.5, -4.0);
+    sim.fighters[0].vel = manato_core::Vec2::new(-1.5, 2.0);
+    sim.fighters[0].facing = 1;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Pos X"), 12);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Pos Y"), -4);
+    assert!((manato_sim::trigger::num(&sim, 0, "Vel X") - -1.5).abs() < 0.001);
+    assert!((manato_sim::trigger::num(&sim, 0, "Vel Y") - 2.0).abs() < 0.001);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Facing"), 1);
+
+    // `Vel X` is facing-relative; `ScreenVel X` stays in screen space.
+    sim.fighters[0].facing = -1;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Facing"), -1);
+    assert!((manato_sim::trigger::num(&sim, 0, "Vel X") - 1.5).abs() < 0.001);
+    let screen = sim.screen_pos(sim.fighters[0].pos);
+    assert!((manato_sim::trigger::num(&sim, 0, "ScreenPos X") - screen.x).abs() < 0.001);
+    assert!((manato_sim::trigger::num(&sim, 0, "ScreenPos Y") - screen.y).abs() < 0.001);
+    assert!((manato_sim::trigger::num(&sim, 0, "ScreenVel X") - -1.5).abs() < 0.001);
+}

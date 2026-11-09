@@ -48,8 +48,8 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Unit tests |
-| T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Unit tests |
+| T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim/AnimElem/AnimElemTime/AnimTime/AnimExist integration test |
+| T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/ScreenPos/ScreenVel integration test |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers + GetHitVar/HitShakeOver unit test; oracle pending |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirect/helper/target tests; bare NumHelper/NumProj fixed and NumProj lifetime tested |
