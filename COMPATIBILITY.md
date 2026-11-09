@@ -63,7 +63,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power/VarRange/RootVar + Pos/Vel edges + multipliers |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + SprPriority/Offset presentation tests |
-| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef + p2stateno-without-p1stateno override test |
+| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + p2stateno override + reversal redirect/attr/expiry test |
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/postype/projsnd + dual spawn + ModifyProjectile id targeting |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection/lifetime/removal + animelem/animfreeze + Modify/Remove id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | BindTo* + TargetVelAdd + TargetLifeAdd kill/TargetPowerAdd + helper ownership |

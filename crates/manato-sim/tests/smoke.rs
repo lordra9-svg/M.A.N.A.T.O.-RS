@@ -6798,3 +6798,69 @@ fn win_pose_enters_state_180_and_round_not_over_delays_ko() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn reversal_def_redirects_matching_hits_and_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+
+    let reversal = manato_formats::Controller {
+        kind: "reversaldef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "15".into()),
+            ("time".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &reversal, &assets);
+    assert!(sim.fighters[1].reversal.is_some());
+    assert_eq!(sim.fighters[1].reversal_time, 2);
+
+    let p1_life = sim.fighters[0].life;
+    let p2_life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, p2_life, "reversal negates the hit");
+    assert_eq!(
+        sim.fighters[0].life,
+        p1_life - 15,
+        "attacker is hit instead"
+    );
+    assert!(sim.fighters[0].state_no >= 5000);
+
+    // The window counts down and then clears.
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[1].reversal.is_none(), "reversal expires");
+
+    // A non-matching attribute does not reverse.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    sim.fighters[1].reversal = Some(hitdef());
+    sim.fighters[1].reversal_time = 5;
+    let p2_life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life,
+        p2_life - 20,
+        "non-matching reversal attr falls through to a normal hit"
+    );
+}
