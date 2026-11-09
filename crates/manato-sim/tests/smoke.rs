@@ -2993,3 +2993,147 @@ fn statedef_defaults_apply_type_physics_anim_and_ctrl() {
     assert_eq!(sim.fighters[0].anim_no, 0);
     assert!(sim.fighters[0].ctrl);
 }
+
+#[test]
+fn throw_whiff_guard_bind_and_drop_semantics() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 820;
+    throw.p1facing = 1;
+    throw.p2facing = -1;
+    throw.hitflag = "MAF".into();
+
+    // Whiff: out of range, so no throw states or target link.
+    sim.fighters[0].pos.x = -160.0;
+    sim.fighters[1].pos.x = 160.0;
+    sim.fighters[0].hitdef = Some(throw.clone());
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[0].state_no, 0);
+    assert_eq!(sim.fighters[1].state_no, 0);
+    assert_eq!(sim.fighters[0].target, None);
+
+    // Guarding a throw-style HitDef does not enter the throw states.
+    sim.fighters[0].hitdef = None;
+    sim.fighters[1].enter_state(0, &assets.characters[1], false);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, true, origin, 1, true);
+    assert_eq!(sim.fighters[0].state_no, 0);
+    assert_eq!(sim.fighters[1].state_no, 150);
+    assert_eq!(sim.fighters[0].target, None);
+
+    // A landed throw links the target; TargetBind then follows the attacker.
+    sim.fighters[1].enter_state(0, &assets.characters[1], false);
+    sim.fighters[0].pos.x = -40.0;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].state_no, 800);
+    assert_eq!(sim.fighters[1].state_no, 820);
+    assert_eq!(sim.fighters[0].target, Some(1));
+
+    let bind = manato_formats::Controller {
+        kind: "targetbind".into(),
+        params: vec![
+            ("pos".into(), "20, -30".into()),
+            ("time".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    let attacker = sim.fighters[0].pos;
+    assert!((sim.fighters[1].pos.x - (attacker.x + 20.0)).abs() < 0.001);
+    assert!((sim.fighters[1].pos.y - (attacker.y - 30.0)).abs() < 0.001);
+
+    // TargetDrop releases the link and the binding immediately.
+    let drop = manato_formats::Controller {
+        kind: "targetdrop".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
+    assert_eq!(sim.fighters[0].target, None);
+    assert!(sim.fighters[0].target_bind.is_none());
+
+    // After release, a normal hit uses the regular get-hit state, not 820.
+    sim.fighters[1].enter_state(0, &assets.characters[1], false);
+    let mut normal = hitdef();
+    normal.attr.state_types = "S".into();
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &normal, false, origin, 1, true);
+    assert_ne!(sim.fighters[1].state_no, 820);
+    assert!(sim.fighters[1].state_no >= 5000);
+}
+
+#[test]
+fn guard_flags_and_unguardable_decide_guarding() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let mut attempt = |state_type: manato_sim::fighter::StateType,
+                       y: f32,
+                       guardflag: &str,
+                       unguardable: bool|
+     -> bool {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0));
+        sim.fighters[1].state_type = state_type;
+        sim.fighters[1].pos = manato_core::Vec2::new(10.0, y);
+        sim.fighters[1].facing = -1;
+        sim.fighters[1].life = sim.fighters[1].life_max;
+        sim.fighters[1].assert_flags = if unguardable {
+            manato_sim::fighter::ASSERT_UNGUARDABLE
+        } else {
+            0
+        };
+
+        sim.fighters[0].hitdef = None;
+        sim.fighters[0].hit.hit_targets.clear();
+        sim.fighters[0].hit.hit_counts.clear();
+        sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+        sim.fighters[0].facing = 1;
+        sim.fighters[0].enter_state(200, &assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+        let mut hit = hitdef();
+        hit.guardflag = guardflag.into();
+        hit.damage = 20;
+        hit.guard_damage = 0;
+        hit.guard_damage_set = true;
+        sim.fighters[0].hitdef = Some(hit);
+        manato_sim::collision::resolve(&mut sim);
+        sim.fighters[1].hit.guarding
+    };
+
+    use manato_sim::fighter::StateType;
+    assert!(
+        !attempt(StateType::Crouch, 0.0, "H", false),
+        "low attack beats crouch guard"
+    );
+    assert!(
+        attempt(StateType::Crouch, 0.0, "L", false),
+        "low guard blocks low"
+    );
+    assert!(
+        !attempt(StateType::Stand, 0.0, "L", false),
+        "low attack beats stand guard"
+    );
+    assert!(
+        attempt(StateType::Stand, 0.0, "H", false),
+        "high guard blocks high"
+    );
+    assert!(
+        attempt(StateType::Air, -20.0, "A", false),
+        "air guard blocks"
+    );
+    assert!(
+        !attempt(StateType::Air, -20.0, "H", false),
+        "ground-only guard fails in air"
+    );
+    assert!(
+        !attempt(StateType::Stand, 0.0, "H", true),
+        "AssertSpecial unguardable bypasses guard"
+    );
+}
