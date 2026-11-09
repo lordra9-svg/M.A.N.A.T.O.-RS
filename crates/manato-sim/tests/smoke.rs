@@ -4902,3 +4902,74 @@ fn hit_override_matches_attributes_and_expires() {
     );
     assert_eq!(sim.fighters[1].state_no, 820);
 }
+
+#[test]
+fn ordan_slam_sends_defender_to_820_for_190() {
+    let Some(mut sim) = fight_phase_with(
+        "content/chars/ordan/ordan.def",
+        "content/chars/kaen/kaen.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    // Keep the close range: pushbox separation would otherwise open a 32px gap.
+    sim.fighters[0].player_push = false;
+    sim.fighters[1].player_push = false;
+    sim.fighters[0].enter_state(3000, &assets.characters[0], false);
+    eprintln!(
+        "PRE p1={:?} p2={:?}",
+        sim.fighters[0].pos, sim.fighters[1].pos
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    eprintln!(
+        "POST p1={:?} p2={:?}",
+        sim.fighters[0].pos, sim.fighters[1].pos
+    );
+    assert!(sim.super_pause > 0, "slam opens with SuperPause");
+
+    let life = sim.fighters[1].life;
+    let mut contacted = false;
+    for _ in 0..160 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].state_no == 820 || sim.fighters[1].life < life {
+            contacted = true;
+            break;
+        }
+    }
+    assert!(contacted, "slam should connect");
+    assert_eq!(sim.fighters[1].state_no, 820, "p2stateno without p1stateno");
+    assert_eq!(sim.fighters[1].life, life - 190);
+    assert!(!sim.fighters[1].ctrl);
+
+    // `guardflag` is empty, so holding back must not block the slam.
+    let Some(mut sim) = fight_phase_with(
+        "content/chars/ordan/ordan.def",
+        "content/chars/kaen/kaen.def",
+    ) else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    // Keep the close range: pushbox separation would otherwise open a 32px gap.
+    sim.fighters[0].player_push = false;
+    sim.fighters[1].player_push = false;
+    sim.fighters[0].enter_state(3000, &assets.characters[0], false);
+    let back = PlayerInput::new(manato_core::DIR_LEFT, 0);
+    let life = sim.fighters[1].life;
+    for _ in 0..160 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[1].state_no == 820 || sim.fighters[1].life < life {
+            break;
+        }
+    }
+    assert_eq!(sim.fighters[1].state_no, 820);
+    assert_eq!(sim.fighters[1].life, life - 190);
+    assert!(!sim.fighters[1].hit.guarding);
+}
