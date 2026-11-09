@@ -36,9 +36,7 @@ pub fn resolve(sim: &mut SimState) {
                 continue;
             }
         }
-        if sim.fighters[defender].hit.not_hit_by.is_some()
-            && blocks_by_filter(sim, defender, &hitdef)
-        {
+        if blocks_by_filter(sim, defender, &hitdef) {
             continue;
         }
         if !hitflag_allows(sim, defender, &hitdef) {
@@ -221,14 +219,43 @@ fn can_guard(sim: &SimState, _attacker: usize, defender: usize, hitdef: &HitDef)
 }
 
 fn blocks_by_filter(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
-    let Some((attr, _)) = &sim.fighters[defender].hit.not_hit_by else {
-        return false;
-    };
+    let fighter = &sim.fighters[defender];
+    filter_blocks(
+        fighter
+            .hit
+            .not_hit_by
+            .as_ref()
+            .map(|(attr, _)| attr.as_str()),
+        fighter.hit.hit_by.as_ref().map(|(attr, _)| attr.as_str()),
+        &hitdef.attr,
+    )
+}
+
+/// M.U.G.E.N attribute filter: `states, classes[, ...]`, e.g. `SCA, NA, SA`.
+fn filter_matches(attr: &str, incoming: &HitAttr) -> bool {
+    let attr = attr.trim();
     if attr.is_empty() {
         return false;
     }
-    let state = hitdef.attr.state_types.chars().next().unwrap_or('S');
-    attr.contains(state) || attr.contains('*')
+    let mut parts = attr.split(',');
+    let states = parts.next().unwrap_or("").trim().to_ascii_uppercase();
+    let classes = parts.next().unwrap_or("").trim().to_ascii_uppercase();
+    let state = incoming.state_types.chars().next().unwrap_or('S');
+    let class = incoming.class.chars().next().unwrap_or('N');
+    let state_ok = states.is_empty() || states.contains(state) || states.contains('*');
+    let class_ok = classes.is_empty() || classes.contains(class) || classes.contains('*');
+    state_ok && class_ok
+}
+
+fn filter_blocks(not_hit_by: Option<&str>, hit_by: Option<&str>, incoming: &HitAttr) -> bool {
+    // HitBy is a whitelist and takes precedence over NotHitBy.
+    if let Some(attr) = hit_by.filter(|attr| !attr.trim().is_empty()) {
+        return !filter_matches(attr, incoming);
+    }
+    not_hit_by
+        .filter(|attr| !attr.trim().is_empty())
+        .map(|attr| filter_matches(attr, incoming))
+        .unwrap_or(false)
 }
 
 fn attr_matches_attr(candidate: &HitAttr, incoming: &HitAttr) -> bool {
@@ -530,9 +557,7 @@ pub fn resolve_projectiles(sim: &mut SimState) {
         if defender >= 2 || !sim.fighters[defender].active {
             continue;
         }
-        if sim.fighters[defender].hit.not_hit_by.is_some()
-            && blocks_by_filter(sim, defender, &hitdef)
-        {
+        if blocks_by_filter(sim, defender, &hitdef) {
             continue;
         }
         if !hitflag_allows(sim, defender, &hitdef) {
@@ -645,5 +670,21 @@ mod tests {
             5,
             true
         ));
+    }
+    #[test]
+    fn attribute_filters_match_state_and_class() {
+        let mut hit = HitDef::default();
+        hit.attr.state_types = "S".into();
+        hit.attr.class = "NA".into();
+        assert!(filter_matches("SCA, NA", &hit.attr));
+        assert!(filter_matches("S, NA", &hit.attr));
+        assert!(!filter_matches("C, NA", &hit.attr));
+        assert!(!filter_matches("SCA, SA", &hit.attr));
+        assert!(filter_blocks(Some("SCA, NA"), None, &hit.attr));
+        assert!(!filter_blocks(Some("SCA, SA"), None, &hit.attr));
+        assert!(!filter_blocks(None, Some("SCA, NA"), &hit.attr));
+        assert!(filter_blocks(None, Some("SCA, SA"), &hit.attr));
+        // HitBy wins over NotHitBy.
+        assert!(!filter_blocks(Some("SCA, SA"), Some("SCA, NA"), &hit.attr));
     }
 }

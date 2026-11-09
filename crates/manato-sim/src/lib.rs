@@ -950,6 +950,12 @@ impl SimState {
                     fighter.hit.not_hit_by = None;
                 }
             }
+            if let Some((_, t)) = fighter.hit.hit_by.as_mut() {
+                *t -= 1;
+                if *t <= 0 {
+                    fighter.hit.hit_by = None;
+                }
+            }
         }
 
         // Special states run every tick, in order -3, -2, -1.

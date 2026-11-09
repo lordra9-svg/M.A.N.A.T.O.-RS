@@ -69,7 +69,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/BindTo/ParentVar/RootVar added; oracle pending |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX/Trans added; RemapPal pending |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
-| C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | HitOverride added; oracle pending |
+| C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Attr filters + HitBy whitelist + override tests; oracle pending |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |

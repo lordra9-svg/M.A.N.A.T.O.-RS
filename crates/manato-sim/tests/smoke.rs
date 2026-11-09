@@ -1885,3 +1885,49 @@ fn assert_special_flags_cover_supported_names() {
         );
     }
 }
+
+#[test]
+fn hit_filters_gate_real_attacks() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    let assets = sim.assets.clone();
+
+    sim.fighters[1].hit.not_hit_by = Some(("SCA, NA".into(), 30));
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(
+        sim.fighters[1].life, sim.fighters[1].life_max,
+        "NotHitBy should block matching normal attacks"
+    );
+
+    sim.fighters[1].hit.not_hit_by = None;
+    sim.fighters[1].hit.hit_by = Some(("SCA, SA".into(), 30));
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(
+        sim.fighters[1].life, sim.fighters[1].life_max,
+        "HitBy whitelist should reject non-matching attacks"
+    );
+
+    sim.fighters[1].hit.hit_by = None;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            break;
+        }
+    }
+    assert!(
+        sim.fighters[1].life < sim.fighters[1].life_max,
+        "normal attack should hit once the filters expire"
+    );
+}
