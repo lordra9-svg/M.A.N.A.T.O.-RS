@@ -1817,3 +1817,71 @@ fn get_hitvar_and_hit_shake_triggers() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod"), 0);
 }
+
+#[test]
+fn common_trigger_expressions() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].vars[0] = 7;
+    sim.fighters[0].fvars[0] = 2.5;
+    sim.fighters[0].sysvars[0] = 9;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Var(0)"), 7);
+    assert!((manato_sim::trigger::num(&sim, 0, "FVar(0)") - 2.5).abs() < 0.001);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(0)"), 9);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Const(data.life)"), 1000);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IfElse(1, 10, 20)"), 10);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Min(3, 5)"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Max(3, 5)"), 5);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Abs(-4)"), 4);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Ceil(1.2)"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Floor(1.8)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumEnemy"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumPartner"), 0);
+}
+
+#[test]
+fn assert_special_flags_cover_supported_names() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let cases = [
+        ("invisible", manato_sim::fighter::ASSERT_INVISIBLE),
+        ("noshadow", manato_sim::fighter::ASSERT_NOSHADOW),
+        ("nowalk", manato_sim::fighter::ASSERT_NOWALK),
+        ("noairguard", manato_sim::fighter::ASSERT_NOAIRGUARD),
+        ("nostandguard", manato_sim::fighter::ASSERT_NOSTANDGUARD),
+        ("nocrouchguard", manato_sim::fighter::ASSERT_NOCROUCHGUARD),
+        ("unguardable", manato_sim::fighter::ASSERT_UNGUARDABLE),
+        ("nojugglecheck", manato_sim::fighter::ASSERT_NOJUGGLECHECK),
+        ("noautoturn", manato_sim::fighter::ASSERT_NOAUTOTURN),
+        ("intro", manato_sim::fighter::ASSERT_INTRO),
+        ("nobg", manato_sim::fighter::ASSERT_NOBG),
+        ("nofg", manato_sim::fighter::ASSERT_NOFG),
+        ("noko", manato_sim::fighter::ASSERT_NOKO),
+        ("nokoslow", manato_sim::fighter::ASSERT_NOKOSLOW),
+        ("nokosnd", manato_sim::fighter::ASSERT_NOKOSND),
+        ("nomusic", manato_sim::fighter::ASSERT_NOMUSIC),
+        ("globalnoshadow", manato_sim::fighter::ASSERT_GLOBALNOSHADOW),
+        ("nobardisplay", manato_sim::fighter::ASSERT_NOBARDISPLAY),
+        ("roundnotover", manato_sim::fighter::ASSERT_ROUNDNOTOVER),
+    ];
+    for (name, flag) in cases {
+        sim.fighters[0].assert_flags = 0;
+        let control = manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![
+                ("type".into(), "AssertSpecial".into()),
+                ("flag".into(), name.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+        assert_eq!(
+            sim.fighters[0].assert_flags & flag,
+            flag,
+            "AssertSpecial {name} should set its flag"
+        );
+    }
+}

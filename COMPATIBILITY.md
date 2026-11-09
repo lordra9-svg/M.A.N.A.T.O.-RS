@@ -52,8 +52,8 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Unit tests |
 | T-03 | Command/command timers | Required | Required | Partial | Roster |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers + GetHitVar/HitShakeOver unit test; oracle pending |
-| T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Projectiles |
-| T-06 | Const/expressions/random | Required | Required | Partial | Unit tests |
+| T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Projectiles + trigger expression coverage |
+| T-06 | Const/expressions/random | Required | Required | Partial | Unit tests incl. Const/IfElse/Min/Max/Abs/Ceil/Floor |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
 | T-08 | Ikemen-only triggers | N/A | Ikemen | Missing | TBD |
 
@@ -71,7 +71,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | HitOverride added; oracle pending |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | ScreenBound/PlayerPush added |
-| C-11 | AssertSpecial flags | Required | Required | Partial | Roster |
+| C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |
 
