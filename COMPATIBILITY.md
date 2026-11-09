@@ -95,7 +95,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
 | R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw/cap + triggers + timer freeze + display strings |
-| R-03 | Win poses/quotes | Required | Required | Partial | State 180 win pose; quotes pending |
+| R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay tests; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
 | R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |
 | R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow flags + `restart_match` API and R-key reset |

@@ -6710,3 +6710,91 @@ fn width_override_is_per_tick_and_screenbound_axes_independent() {
         "re-enabled X bound clamps to the stage edge"
     );
 }
+
+#[test]
+fn win_pose_enters_state_180_and_round_not_over_delays_ko() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-winpose-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let states = dir.join("kaen.cns");
+    let text = std::fs::read_to_string(&states).expect("read kaen.cns");
+    let text = text.replacen(
+        "[Statedef -1]",
+        "[Statedef -1]\n[State -1, Delay Ko]\ntype = AssertSpecial\ntrigger1 = RoundState = 3\nflag = roundnotover",
+        1,
+    );
+    let text = format!(
+        "{text}\n[Statedef 180]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
+         \n[State 180, Mark]\ntype = VarSet\ntrigger1 = Time = 0\nv = 7\nvalue = 42\n"
+    );
+    std::fs::write(&states, text).expect("patch kaen.cns");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let new_sim = || {
+        let mut options = MatchOptions::default();
+        options.ai_level = 0;
+        SimState::new(
+            std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+            options,
+        )
+    };
+    let mut sim = new_sim();
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+
+    // Winner enters state 180 on the KO tick.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.fighters[0].state_no, 180, "winner enters the win pose");
+    assert_ne!(sim.fighters[1].state_no, 180, "loser stays in a hit state");
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].state_no, 180);
+    assert_eq!(sim.fighters[0].vars[7], 42, "win pose controller ran");
+
+    // RoundNotOver keeps the Ko phase from advancing even past its timer.
+    let mut sim = new_sim();
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    for _ in 0..200 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(
+        sim.round.phase,
+        manato_sim::RoundPhase::Ko,
+        "RoundNotOver delays the transition"
+    );
+    assert!(!sim.finished);
+    assert_eq!(sim.round.number, 1);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
