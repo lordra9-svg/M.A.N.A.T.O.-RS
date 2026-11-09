@@ -8,6 +8,17 @@ local started = false
 local last_inject = -1000
 local second_injected = false
 local third_injected = false
+local guard_set = false
+local projectile_scenarios = {
+    kaen_projectile = true,
+    nival_projectile = true,
+    ordan_projectile = true,
+}
+local projectile_guard_scenarios = {
+    kaen_projectile_guard = true,
+    nival_projectile_guard = true,
+    ordan_projectile_guard = true,
+}
 
 local function num(v)
     if type(v) == "boolean" then return v and 1 or 0 end

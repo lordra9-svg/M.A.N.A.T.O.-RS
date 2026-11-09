@@ -4418,9 +4418,9 @@ fn projectile_hit_and_guard(
         return;
     };
     let assets = sim.assets.clone();
-    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].pos.x = -15.0;
     sim.fighters[0].facing = 1;
-    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].pos.x = 15.0;
     sim.fighters[1].facing = -1;
     if air_target {
         sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
@@ -4452,9 +4452,9 @@ fn projectile_hit_and_guard(
         return;
     };
     let assets = sim.assets.clone();
-    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].pos.x = -15.0;
     sim.fighters[0].facing = 1;
-    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].pos.x = 15.0;
     sim.fighters[1].facing = -1;
     sim.fighters[0].enter_state(1000, &assets.characters[0], false);
     let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
@@ -4493,7 +4493,7 @@ fn ordan_projectile_hit_and_guard() {
         "content/chars/ordan/ordan.def",
         "content/chars/kaen/kaen.def",
         60,
-        None,
-        true,
+        Some(14),
+        false,
     );
 }

@@ -94,14 +94,12 @@ To reduce an existing capture:
 python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 ```
 
-## Nival / Ordan projectile scenarios
+## Projectile scenarios
 
-`nival_projectile[_guard]` and `ordan_projectile[_guard]` are wired into the
-runner, but the bundled Nival and Ordan characters currently stall the Ikemen
-quick-match before the first captured frame (the capture file is written with
-only a header). Their projectile damage/guard behavior is therefore covered by
-engine integration tests (`nival_projectile_hit_and_guard`,
-`ordan_projectile_hit_and_guard`) rather than an oracle assertion.
+`kaen_projectile[_guard]`, `nival_projectile[_guard]`, and
+`ordan_projectile[_guard]` fire the character's state-1000 projectile at an
+idle or guarding KFM. Assertions O-21..O-24 cover damage, guard damage, get-hit
+vs guard state, and the owner's projectile contact/hit/guard timers.
 
 ## O-20 negative finding
 
@@ -128,7 +126,8 @@ IKEMEN_ORACLE_SCENARIO=kfm_launch tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kfm_juggle tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kfm_juggle_exhaust tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kaen_projectile tools/oracle/run_frame_capture.sh
-IKEMEN_ORACLE_SCENARIO=kaen_projectile_guard tools/oracle/run_frame_capture.sh
+IKEMEN_ORACLE_SCENARIO=nival_projectile tools/oracle/run_frame_capture.sh
+IKEMEN_ORACLE_SCENARIO=ordan_projectile_guard tools/oracle/run_frame_capture.sh
 ```
 
 The guard scenario uses the public Lua `changeState(150)` debug API to force a
