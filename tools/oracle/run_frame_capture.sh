@@ -16,6 +16,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 binary="${IKEMEN_BIN:-$root/ikemen-local}"
 scenario="${IKEMEN_ORACLE_SCENARIO:-kfm_attack}"
+p1_ai="${IKEMEN_ORACLE_P1_AI:-0}"
+p2_ai="${IKEMEN_ORACLE_P2_AI:-0}"
 seconds="${IKEMEN_ORACLE_SECONDS:-10}"
 timeout_s="${IKEMEN_ORACLE_TIMEOUT:-14}"
 main="$root/external/script/main.lua"
@@ -68,7 +70,7 @@ set +e
     timeout "$timeout_s" "$binary" \
         -windowed -nosound -nomusic -nojoy -debug \
         -p1 "${IKEMEN_ORACLE_P1:-kfm}" -p2 "${IKEMEN_ORACLE_P2:-kfm}" \
-        -p1.ai 0 -p2.ai 0 -s oracle -rounds 1 -time "$seconds" \
+        -p1.ai "$p1_ai" -p2.ai "$p2_ai" -s oracle -rounds 1 -time "$seconds" \
         >/dev/null 2>&1
 )
 status=$?

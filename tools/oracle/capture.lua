@@ -5,6 +5,7 @@ local scenario = os.getenv("IKEMEN_ORACLE_SCENARIO") or "idle"
 local last_frame = -1
 local injected = false
 local started = false
+local last_inject = -1000
 
 local function num(v)
     if type(v) == "boolean" then return v and 1 or 0 end
@@ -22,6 +23,7 @@ local function snap()
         num(hitCount()), num(uniqHitCount()),
         num(guardPoints()), num(dizzyPoints()),
         num(getHitVar("damage")), num(getHitVar("hittime")),
+        num(moveContact()), num(moveHit()), num(moveGuarded()),
     }, ",")
 end
 
@@ -29,11 +31,11 @@ local HEADER = "frame,gameTime,roundState,roundTime,"
     .. "p1_life,p1_lifeMax,p1_power,p1_redLife,p1_state,p1_anim,p1_animTime,"
     .. "p1_x,p1_y,p1_vx,p1_vy,p1_facing,p1_ctrl,p1_stateType,p1_moveType,"
     .. "p1_hitCount,p1_uniqHitCount,p1_guardPoints,p1_dizzyPoints,"
-    .. "p1_hitDamage,p1_hitTime,"
+    .. "p1_hitDamage,p1_hitTime,p1_moveContact,p1_moveHit,p1_moveGuarded,"
     .. "p2_life,p2_lifeMax,p2_power,p2_redLife,p2_state,p2_anim,p2_animTime,"
     .. "p2_x,p2_y,p2_vx,p2_vy,p2_facing,p2_ctrl,p2_stateType,p2_moveType,"
     .. "p2_hitCount,p2_uniqHitCount,p2_guardPoints,p2_dizzyPoints,"
-    .. "p2_hitDamage,p2_hitTime"
+    .. "p2_hitDamage,p2_hitTime,p2_moveContact,p2_moveHit,p2_moveGuarded"
 
 local function write_line(line)
     local f = io.open(out_path, "a")
@@ -63,6 +65,22 @@ function oracle_capture()
         player(1)
         changeState(200)
         injected = true
+    elseif scenario == "kfm_attack_loop" and num(roundState()) == 2
+        and frame - last_inject >= 45 then
+        player(1)
+        if num(stateNo()) == 0 then
+            changeState(200)
+            last_inject = frame
+        end
+    elseif scenario == "kfm_guard" and num(roundState()) == 2
+        and frame - last_inject >= 45 then
+        player(1)
+        if num(stateNo()) == 0 then
+            changeState(200)
+            player(2)
+            changeState(150)
+            last_inject = frame
+        end
     end
 
     player(1)

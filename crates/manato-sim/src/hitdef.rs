@@ -95,6 +95,8 @@ pub struct HitDef {
     pub attr: HitAttr,
     pub damage: i32,
     pub guard_damage: i32,
+    /// True when the content explicitly supplied a guard-damage value.
+    pub guard_damage_set: bool,
     pub anim_type: AnimType,
     pub hitflag: String,
     pub guardflag: String,
@@ -140,6 +142,7 @@ impl Default for HitDef {
             attr: HitAttr::default(),
             damage: 0,
             guard_damage: 0,
+            guard_damage_set: false,
             anim_type: AnimType::Light,
             hitflag: "MAF".into(),
             guardflag: "MA".into(),
@@ -194,8 +197,12 @@ impl HitDef {
                     let (dmg, guard) = parse_pair(value);
                     h.damage = dmg as i32;
                     h.guard_damage = guard as i32;
+                    h.guard_damage_set = true;
                 }
-                "guard.damage" => h.guard_damage = parse_i32(value),
+                "guard.damage" => {
+                    h.guard_damage = parse_i32(value);
+                    h.guard_damage_set = true;
+                }
                 "animtype" => h.anim_type = AnimType::parse(value),
                 "hitflag" => h.hitflag = value.to_ascii_uppercase(),
                 "guardflag" => h.guardflag = value.to_ascii_uppercase(),

@@ -1551,3 +1551,83 @@ fn oracle_kfm_state_200_hits_idle() {
         sim.fighters[1].pos.x
     );
 }
+
+fn kfm_close_match() -> Option<SimState> {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let root = std::env::var_os("MANATO_MUGEN_ROOT")
+        .or_else(|| std::env::var_os("MUGEN_ROOT"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| project.parent().unwrap_or(&project).join("mugen"));
+    let kfm = root.join("mugen-1.1b1/chars/kfm/kfm.def");
+    let stage = project.join("content/stages/training/stage1.def");
+    if !kfm.exists() || !stage.exists() {
+        eprintln!("skipping: stock KFM or bundled stage missing");
+        return None;
+    }
+    let config = MatchConfig {
+        mugen_root: root,
+        p1: kfm.clone(),
+        p2: kfm,
+        stage,
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    Some(sim)
+}
+
+#[test]
+fn oracle_kfm_guard_flow() {
+    let Some(mut sim) = kfm_close_match() else {
+        return;
+    };
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+
+    let guard_input = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    let mut guard = None;
+    for index in 0..12 {
+        sim.tick([PlayerInput::default(), guard_input]);
+        if sim.fighters[0].attack.move_guarded {
+            guard = Some(index);
+            break;
+        }
+    }
+    let index = guard.expect("KFM state 200 should be guarded while holding back");
+    assert!(index <= 6, "guard contact took {index} ticks");
+    let defender = &sim.fighters[1];
+    assert_eq!(defender.life, defender.life_max, "guard damage is zero");
+    assert_eq!(defender.state_no, 150);
+    assert_eq!(defender.received_damage, 0);
+    assert!(!sim.fighters[0].attack.move_hit);
+    let start_x = defender.pos.x;
+    let mut transition = None;
+    for tick in 0..12 {
+        sim.tick([PlayerInput::default(), guard_input]);
+        if transition.is_none() && sim.fighters[1].state_no >= 151 {
+            transition = Some(tick + 1);
+        }
+    }
+    // Ikemen-GO oracle O-14: guard slide begins 9 ticks after contact.
+    assert_eq!(transition, Some(9));
+    assert_eq!(sim.fighters[1].state_no, 151);
+    assert!(
+        sim.fighters[1].pos.x > start_x + 2.0,
+        "guarded defender should slide away, x={}",
+        sim.fighters[1].pos.x
+    );
+}

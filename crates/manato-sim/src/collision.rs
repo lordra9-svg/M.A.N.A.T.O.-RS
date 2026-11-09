@@ -301,7 +301,7 @@ pub fn apply_hit_at(
     let defender_state_type = sim.fighters[defender].state_type;
 
     let base_damage = if guarding {
-        if hitdef.guard_damage > 0 {
+        if hitdef.guard_damage_set {
             hitdef.guard_damage
         } else {
             hitdef.damage / 4

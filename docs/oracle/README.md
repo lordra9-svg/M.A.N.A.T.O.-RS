@@ -97,10 +97,20 @@ python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 ## Current coverage
 
 Round-end classification (`docs/oracle/assertions.md`, O-01..O-08) and the
-KFM light-punch hit flow (O-09..O-11): timer rate, KO vs time-over, perfect,
-clutch, time-over draws, contact timing, damage, get-hit state, single-hit
-activation, and push direction. Other subsystems still rely on the provisional
-assertions in the frozen specs and should be added here as the harness grows.
+KFM light-punch hit flow (O-09..O-12) and forced-guard flow (O-13..O-14):
+timer rate, KO vs time-over, perfect, clutch, time-over draws, contact timing,
+damage, get-hit state, hit-shake transition, single-hit activation, push
+direction, guard state/animation, zero guard damage, and guard slide. Run the
+guard scenario with:
+
+```sh
+IKEMEN_ORACLE_SCENARIO=kfm_guard tools/oracle/run_frame_capture.sh
+```
+
+The guard scenario uses the public Lua `changeState(150)` debug API to force a
+block, so it does not depend on AI decision-making. Other subsystems still rely
+on the provisional assertions in the frozen specs and should be added here as
+the harness grows.
 
 Note: Ikemen's `-rounds` command-line flag means "total rounds to play", not
 "rounds needed to win". Use `-rounds 1` and inspect the per-round `Rounds`

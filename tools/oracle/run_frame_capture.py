@@ -101,6 +101,44 @@ def summarize(path: Path) -> dict:
         ),
         None,
     )
+    guard = next(
+        (
+            row
+            for row in rows
+            if int(row["p1_moveGuarded"]) or int(row["p2_moveGuarded"])
+        ),
+        None,
+    )
+    guard_info = {}
+    if guard:
+        guard_index = rows.index(guard)
+        before_life = (
+            int(rows[guard_index - 1]["p2_life"])
+            if guard_index > 0
+            else int(guard["p2_life"])
+        )
+        guard_x = float(guard["p2_x"])
+        guard_states = (150, 151, 152, 153, 154, 155)
+        guard_end = next(
+            (
+                index
+                for index, row in enumerate(rows[guard_index:])
+                if int(row["p2_state"]) not in guard_states
+            ),
+            len(rows) - guard_index,
+        )
+        guard_info = {
+            "guard_contact_frame": int(guard["frame"]),
+            "guard_state": int(guard["p2_state"]),
+            "guard_anim": int(guard["p2_anim"]),
+            "guard_damage": before_life - int(guard["p2_life"]),
+            "guard_push": round(
+                max(float(row["p2_x"]) for row in rows[guard_index : guard_index + guard_end])
+                - guard_x,
+                3,
+            ),
+            "guard_ticks": guard_end,
+        }
     return {
         "injection_frame": int(injection["frame"]),
         "contact_frame": int(contact["frame"]),
@@ -114,6 +152,7 @@ def summarize(path: Path) -> dict:
         ),
         "state_after_contact": int(transition["p2_state"]) if transition else None,
         "push_distance": round(max_x - contact_x, 3),
+        **guard_info,
         "rows": len(rows),
     }
 
@@ -126,6 +165,8 @@ def main() -> int:
     parser.add_argument("--p1", default="kfm")
     parser.add_argument("--p2", default="kfm")
     parser.add_argument("--seconds", type=int, default=10)
+    parser.add_argument("--p1-ai", type=int, default=0)
+    parser.add_argument("--p2-ai", type=int, default=None)
     parser.add_argument("--timeout", type=int, default=14)
     parser.add_argument("--from-csv", type=Path, help="reduce an existing capture")
     parser.add_argument("--keep", action="store_true")
@@ -139,6 +180,7 @@ def main() -> int:
             parser.error("set IKEMEN_DIR or pass --root")
         root = args.root.resolve()
         binary = args.binary or find_binary(root)
+        p2_ai = args.p2_ai if args.p2_ai is not None else 0
         workdir = Path(tempfile.mkdtemp(prefix="manato-frame-"))
         capture = workdir / "frames.csv"
         added = False
@@ -166,9 +208,9 @@ def main() -> int:
                 "-p2",
                 args.p2,
                 "-p1.ai",
-                "0",
+                str(args.p1_ai),
                 "-p2.ai",
-                "0",
+                str(p2_ai),
                 "-s",
                 "oracle",
                 "-rounds",
@@ -206,7 +248,10 @@ def main() -> int:
             f"hits={summary['hits']} state={summary['defender_state']} "
             f"next_state={summary['state_after_contact']} "
             f"transition={summary['transition_ticks']} "
-            f"anim={summary['defender_anim']} push={summary['push_distance']}"
+            f"anim={summary['defender_anim']} push={summary['push_distance']} "
+            f"guard_frame={summary.get('guard_contact_frame')} "
+            f"guard_state={summary.get('guard_state')} "
+            f"guard_damage={summary.get('guard_damage')}"
         )
     return 0
 
