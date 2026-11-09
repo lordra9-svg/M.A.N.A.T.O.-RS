@@ -2694,3 +2694,58 @@ fn special_states_negative_three_two_one_run_each_tick() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn command_matching_handles_motion_and_button_windows() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // Simple button command: active on the press tick only.
+    sim.tick([
+        PlayerInput::new(0, manato_core::Buttons::X),
+        PlayerInput::default(),
+    ]);
+    assert!(manato_sim::trigger::command_active(&sim, 0, "x"));
+    assert!(!manato_sim::trigger::command_active(&sim, 0, "y"));
+
+    // Motion command `~D, DF, F, x` (FirePalm).
+    let sequence = [
+        (manato_core::DIR_DOWN, 0),
+        (manato_core::DIR_DOWN | manato_core::DIR_RIGHT, 0),
+        (manato_core::DIR_RIGHT, 0),
+        (manato_core::DIR_RIGHT, manato_core::Buttons::X),
+    ];
+    for (dir, buttons) in sequence {
+        sim.tick([PlayerInput::new(dir, buttons), PlayerInput::default()]);
+    }
+    assert!(
+        manato_sim::trigger::command_active(&sim, 0, "FirePalm"),
+        "down, down-forward, forward, x should match the FirePalm motion"
+    );
+    assert!(!manato_sim::trigger::command_active(&sim, 0, "BlazingRush"));
+
+    // Two-button command `~D, DF, F, x+y` (InfernoStorm).
+    let sequence = [
+        (manato_core::DIR_DOWN, 0),
+        (manato_core::DIR_DOWN | manato_core::DIR_RIGHT, 0),
+        (manato_core::DIR_RIGHT, 0),
+        (
+            manato_core::DIR_RIGHT,
+            manato_core::Buttons::X | manato_core::Buttons::Y,
+        ),
+    ];
+    for (dir, buttons) in sequence {
+        sim.tick([PlayerInput::new(dir, buttons), PlayerInput::default()]);
+    }
+    assert!(
+        manato_sim::trigger::command_active(&sim, 0, "InfernoStorm"),
+        "x+y should match the two-button command"
+    );
+
+    // Commands expire once their buffer window elapses.
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(!manato_sim::trigger::command_active(&sim, 0, "FirePalm"));
+    assert!(!manato_sim::trigger::command_active(&sim, 0, "x"));
+}

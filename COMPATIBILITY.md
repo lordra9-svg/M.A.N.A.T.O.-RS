@@ -40,7 +40,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Bundled roster |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N + ignorehitpause during hit/super pause test |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick execution incl. KO control lock test |
-| S-06 | Command buffer/matching | Required | Required | Partial | AI/roster |
+| S-06 | Command buffer/matching | Required | Required | Partial | Motion, two-button, and buffer-expiry tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
 | S-08 | Intro/KO control locks | Required | Required | Verified | Smoke tests |
 
@@ -50,7 +50,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Unit tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Unit tests |
-| T-03 | Command/command timers | Required | Required | Partial | Roster |
+| T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers + GetHitVar/HitShakeOver unit test; oracle pending |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirect/helper/target tests; bare NumHelper/NumProj fixed and NumProj lifetime tested |
 | T-06 | Const/expressions/random | Required | Required | Partial | Unit tests incl. Const/IfElse/Min/Max/Abs/Ceil/Floor |
