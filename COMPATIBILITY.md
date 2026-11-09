@@ -94,7 +94,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Full phase-sequence test + control locks; KO slow cadence/NoKOSlow/NoKo/NoKOSnd |
-| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N, draw sequencing, and rounds_to_win-derived round cap tests |
+| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw/cap + Winner/Loser/RoundsExisted/MatchOver/TeamSide trigger tests |
 | R-03 | Win poses/quotes | Required | Required | Partial | State 180 win pose; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
 | R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |
@@ -107,7 +107,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-01 | Sprite/palette rendering | Required | Required | Verified | Screenshots |
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests |
-| V-04 | HUD/lifebars/fonts | Required | Required | Partial | HUD/bars/names/timer + combo counter, delayed fill, win-icon history/reset tests; guard/stun bars pending |
+| V-04 | HUD/lifebars/fonts | Required | Required | Partial | Bars/names/timer/combo/win icons + delayed life and power fill tests; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal + projectile facing/accel + oracle hit/guard scenario |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |

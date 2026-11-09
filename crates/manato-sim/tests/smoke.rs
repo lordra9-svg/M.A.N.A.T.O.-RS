@@ -4289,3 +4289,107 @@ fn destroy_self_removes_helper_and_self_state_keeps_owner() {
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters.len(), 2, "DestroySelf removes the helper");
 }
+
+#[test]
+fn delayed_power_bar_fill_drains_after_delay() {
+    let root = mugen_root();
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: Some(PathBuf::from("content/screenpacks/manato-grid/system.def")),
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    if !root
+        .join("content/screenpacks/manato-grid/system.def")
+        .exists()
+    {
+        eprintln!("skipping: bundled screenpack not present");
+        return;
+    }
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+
+    // Gaining power fills immediately.
+    sim.fighters[0].power = 600.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.bars[0].mid_power - 0.2).abs() < 0.01);
+
+    // Spending power holds the delayed fill, then drains toward the real value.
+    sim.fighters[0].power = 0.0;
+    sim.fighters[0].life = sim.fighters[0].life_max / 2;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.bars[0].mid_power > 0.19,
+        "power fill holds during the delay"
+    );
+    for _ in 0..160 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.bars[0].mid_power, 0.0);
+    assert!(sim.bars[0].mid_power <= 0.2);
+}
+
+#[test]
+fn round_and_match_triggers_reflect_state() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let trigger = |sim: &SimState, who: usize, name: &str| manato_sim::trigger::int(sim, who, name);
+    assert_eq!(trigger(&sim, 0, "TeamSide"), 1);
+    assert_eq!(trigger(&sim, 1, "TeamSide"), 2);
+    assert_eq!(trigger(&sim, 0, "RoundsExisted"), 0);
+    assert_eq!(trigger(&sim, 0, "MatchOver"), 0);
+    assert_eq!(trigger(&sim, 0, "Winner"), 0);
+
+    // P1 wins round 1: winner/loser flags are relative to each fighter.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(trigger(&sim, 0, "Winner"), 1);
+    assert_eq!(trigger(&sim, 1, "Winner"), 0);
+    assert_eq!(trigger(&sim, 1, "Loser"), 1);
+    assert_eq!(trigger(&sim, 0, "Loser"), 0);
+    assert_eq!(trigger(&sim, 0, "MatchOver"), 0);
+
+    // Advancing to round 2 raises RoundsExisted and clears the winner flags.
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(trigger(&sim, 0, "RoundsExisted"), 1);
+    assert_eq!(trigger(&sim, 0, "RoundNo"), 2);
+    assert_eq!(trigger(&sim, 0, "Winner"), 0);
+    assert_eq!(trigger(&sim, 1, "Loser"), 0);
+
+    // Match point: a second KO ends the match.
+    for _ in 0..60 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Over {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(trigger(&sim, 0, "MatchOver"), 1);
+    assert_eq!(trigger(&sim, 0, "Winner"), 1);
+    assert_eq!(trigger(&sim, 1, "Loser"), 1);
+    assert_eq!(trigger(&sim, 0, "RoundsExisted"), 1);
+}
