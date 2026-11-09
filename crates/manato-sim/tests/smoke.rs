@@ -5559,3 +5559,37 @@ fn hit_vel_set_sprpriority_offset_and_power_controllers() {
     manato_sim::controller::execute(&mut sim, 0, &var_add, &assets);
     assert_eq!(sim.fighters[0].vars[2], 11);
 }
+
+#[test]
+fn hit_counts_and_get_hit_var_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.damage = 10;
+    hit.fall_damage = 25;
+    hit.ground_type = manato_sim::hitdef::GroundType::Low;
+    hit.air_type = manato_sim::hitdef::GroundType::High;
+    hit.anim_type = manato_sim::hitdef::AnimType::Medium;
+    let origin = sim.fighters[0].pos;
+    for _ in 0..3 {
+        manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    }
+    assert_eq!(sim.fighters[0].attack.hit_count, 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitCount"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "UniqHitCount"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hitcount)"), 3);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(groundtype)"),
+        1
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(airtype)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(animtype)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(damage)"), 10);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.damage)"),
+        25
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(guarded)"), 0);
+    assert_eq!(sim.fighters[1].received_damage, 30);
+}
