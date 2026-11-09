@@ -503,6 +503,15 @@ fn time(
     draw_layer(painter, deps, &def.top, fight, map, def.pos, time, [1.0; 4]);
 }
 
+/// Number of round-win icons to draw; `use_icon_upto` caps the list when positive.
+fn win_icon_count(records: usize, use_icon_upto: i32) -> usize {
+    if use_icon_upto > 0 {
+        records.min(use_icon_upto as usize)
+    } else {
+        records
+    }
+}
+
 fn win_icons(
     painter: &mut Painter,
     deps: &FightDeps,
@@ -514,11 +523,7 @@ fn win_icons(
 ) {
     let time = sim.frame as i32;
     let wins = &sim.win_history[side];
-    let limit = if def.use_icon_upto > 0 {
-        wins.len().min(def.use_icon_upto as usize)
-    } else {
-        wins.len()
-    };
+    let limit = win_icon_count(wins.len(), def.use_icon_upto);
     let step = Vec2::new(
         if side == 1 {
             -def.icon_offset.x
@@ -882,5 +887,13 @@ mod tests {
         assert_eq!(replace_value("%d / %f", "42", Some(60)), "42 / 60");
         assert_eq!(replace_value("%p%%", "7", Some(70)), "70%");
         assert_eq!(replace_value("plain", "1", None), "plain");
+    }
+    #[test]
+    fn win_icon_cap_respects_use_icon_upto() {
+        assert_eq!(win_icon_count(0, 0), 0);
+        assert_eq!(win_icon_count(3, 0), 3);
+        assert_eq!(win_icon_count(3, -1), 3);
+        assert_eq!(win_icon_count(3, 2), 2);
+        assert_eq!(win_icon_count(2, 5), 2);
     }
 }
