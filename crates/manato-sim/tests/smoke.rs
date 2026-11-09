@@ -5481,3 +5481,81 @@ fn round_timer_freezes_outside_fight() {
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.round.timer, fight_timer - 1);
 }
+
+#[test]
+fn hit_vel_set_sprpriority_offset_and_power_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // HitVelSet copies the stored get-hit velocity on the requested axes.
+    sim.fighters[1].hit.vars.x_vel = 3.0;
+    sim.fighters[1].hit.vars.y_vel = -4.0;
+    sim.fighters[1].vel = manato_core::Vec2::new(9.0, 9.0);
+    let hit_vel = manato_formats::Controller {
+        kind: "hitvelset".into(),
+        params: vec![("x".into(), "1".into()), ("y".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &hit_vel, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(3.0, -4.0));
+
+    // Only the selected axis changes.
+    sim.fighters[1].vel = manato_core::Vec2::new(9.0, 9.0);
+    let x_only = manato_formats::Controller {
+        kind: "hitvelset".into(),
+        params: vec![("x".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &x_only, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(3.0, 9.0));
+
+    // Presentation controllers.
+    let priority = manato_formats::Controller {
+        kind: "sprpriority".into(),
+        params: vec![("value".into(), "4".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &priority, &assets);
+    assert_eq!(sim.fighters[0].sprite_priority, 4);
+
+    let offset = manato_formats::Controller {
+        kind: "offset".into(),
+        params: vec![("x".into(), "5".into()), ("y".into(), "-6".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &offset, &assets);
+    assert_eq!(
+        sim.fighters[0].draw_offset,
+        manato_core::Vec2::new(5.0, -6.0)
+    );
+
+    // Power add/set respect the power cap.
+    sim.fighters[0].power = 100.0;
+    let add = manato_formats::Controller {
+        kind: "poweradd".into(),
+        params: vec![("value".into(), "250".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].power, 350.0);
+    let set = manato_formats::Controller {
+        kind: "powerset".into(),
+        params: vec![("value".into(), "99999".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &set, &assets);
+    assert_eq!(sim.fighters[0].power, manato_sim::MAX_POWER);
+
+    // VarAdd accumulates on the selected int variable.
+    sim.fighters[0].vars[2] = 1;
+    let var_add = manato_formats::Controller {
+        kind: "varadd".into(),
+        params: vec![("v".into(), "2".into()), ("value".into(), "5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &var_add, &assets);
+    manato_sim::controller::execute(&mut sim, 0, &var_add, &assets);
+    assert_eq!(sim.fighters[0].vars[2], 11);
+}
