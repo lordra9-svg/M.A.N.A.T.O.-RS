@@ -5593,3 +5593,86 @@ fn hit_counts_and_get_hit_var_fields() {
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(guarded)"), 0);
     assert_eq!(sim.fighters[1].received_damage, 30);
 }
+
+#[test]
+fn posfreeze_velmul_and_helper_variable_binds() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // PosFreeze holds position for the requested ticks, then movement resumes.
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[0].vel = manato_core::Vec2::new(5.0, 0.0);
+    sim.fighters[0].physics = manato_sim::fighter::Physics::None;
+    let freeze = manato_formats::Controller {
+        kind: "posfreeze".into(),
+        params: vec![("value".into(), "3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &freeze, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.x, 0.0, "position frozen for two ticks");
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.x, 5.0, "movement resumes after freeze");
+
+    // VelMul scales both velocity axes.
+    sim.fighters[0].vel = manato_core::Vec2::new(8.0, -4.0);
+    let mul = manato_formats::Controller {
+        kind: "velmul".into(),
+        params: vec![("x".into(), "0.5".into()), ("y".into(), "0.25".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &mul, &assets);
+    assert_eq!(sim.fighters[0].vel, manato_core::Vec2::new(4.0, -1.0));
+
+    // BindToTarget places a helper relative to the target with facing.
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "4".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = sim.fighters.len() - 1;
+    sim.fighters[0].target = Some(1);
+    sim.fighters[helper_index].target = Some(1);
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(30.0, -5.0);
+    sim.fighters[1].facing = -1;
+    let bind = manato_formats::Controller {
+        kind: "bindtotarget".into(),
+        params: vec![("pos".into(), "10, -20".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &bind, &assets);
+    assert_eq!(
+        sim.fighters[helper_index].pos,
+        manato_core::Vec2::new(20.0, -25.0)
+    );
+
+    // RootVarAdd from a helper updates the root's variable.
+    let root_add = manato_formats::Controller {
+        kind: "rootvaradd".into(),
+        params: vec![("v".into(), "3".into()), ("value".into(), "7".into())],
+        line: 0,
+    };
+    sim.fighters[0].vars[3] = 5;
+    manato_sim::controller::execute(&mut sim, helper_index, &root_add, &assets);
+    assert_eq!(sim.fighters[0].vars[3], 12);
+
+    // ParentVarAdd does the same for the direct parent.
+    let parent_add = manato_formats::Controller {
+        kind: "parentvaradd".into(),
+        params: vec![("v".into(), "4".into()), ("value".into(), "2".into())],
+        line: 0,
+    };
+    sim.fighters[0].vars[4] = 1;
+    manato_sim::controller::execute(&mut sim, helper_index, &parent_add, &assets);
+    assert_eq!(sim.fighters[0].vars[4], 3);
+}
