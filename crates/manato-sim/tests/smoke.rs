@@ -2132,3 +2132,47 @@ fn target_controllers_modify_bound_player() {
     manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
     assert_eq!(sim.fighters[0].target, None);
 }
+
+#[test]
+fn target_bind_expires_and_can_be_rebound() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+    let bind = manato_formats::Controller {
+        kind: "targetbind".into(),
+        params: vec![
+            ("pos".into(), "10, -20".into()),
+            ("time".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    sim.fighters[0].pos = manato_core::Vec2::new(-50.0, 0.0);
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    assert!((sim.fighters[1].pos.x - -40.0).abs() < 0.001);
+    assert!(sim.fighters[0].target_bind.is_some());
+
+    sim.fighters[0].pos.x = 0.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[1].pos.x - 10.0).abs() < 0.001);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].target_bind.is_none());
+
+    sim.fighters[0].pos.x = 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        (sim.fighters[1].pos.x - 110.0).abs() > 1.0,
+        "expired binding must not follow the attacker"
+    );
+
+    // Re-binding restarts the duration.
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    assert!(sim.fighters[0].target_bind.is_some());
+    sim.fighters[0].pos.x = 120.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.fighters[1].pos.x > 120.0,
+        "rebound target should follow the attacker again"
+    );
+}

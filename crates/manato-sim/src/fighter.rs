@@ -135,6 +135,12 @@ pub struct HitOverride {
     pub time: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TargetBind {
+    pub offset: Vec2,
+    pub time: i32,
+}
+
 #[derive(Debug, Clone)]
 pub struct Fighter {
     pub char_id: usize,
@@ -175,6 +181,8 @@ pub struct Fighter {
     pub juggle_points: i32,
     /// Air-juggle cost of the current state's attack (`[Statedef] juggle`).
     pub juggle: i32,
+    /// Active `TargetBind` offset and remaining ticks (`-1` = infinite).
+    pub target_bind: Option<TargetBind>,
     /// Damage multiplier applied after the first fall (Ikemen fall defence).
     pub fall_defence_mul: f32,
     pub sprite_priority: i32,
@@ -275,6 +283,7 @@ impl Fighter {
             sysfvars: [0.0; 5],
             juggle_points: char.constants.get_or("data.airjuggle", 15.0) as i32,
             juggle: 0,
+            target_bind: None,
             fall_defence_mul: 1.0,
             sprite_priority: 0,
             width_back: char.constants.get_or("size.ground.back", 15.0),

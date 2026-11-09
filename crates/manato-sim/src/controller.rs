@@ -148,7 +148,10 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
         "targetbind" => target_bind(sim, who, control),
-        "targetdrop" => sim.fighters[who].target = None,
+        "targetdrop" => {
+            sim.fighters[who].target = None;
+            sim.fighters[who].target_bind = None;
+        }
         "targetadd" => sim.fighters[who].target = Some(sim.other(who)),
         "hitoverride" => hit_override(sim, who, control),
         "targetfacing" => target_facing(sim, who, control),
@@ -1313,12 +1316,17 @@ fn target_bind(sim: &mut SimState, who: usize, control: &Controller) {
         return;
     };
     let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
     let facing = sim.fighters[who].facing as f32;
     sim.fighters[target].pos = Vec2::new(
         sim.fighters[who].pos.x + px * facing,
         sim.fighters[who].pos.y + py,
     );
     sim.fighters[target].facing = -sim.fighters[who].facing;
+    sim.fighters[who].target_bind = Some(crate::fighter::TargetBind {
+        offset: Vec2::new(px, py),
+        time,
+    });
 }
 
 fn target_facing(sim: &mut SimState, who: usize, control: &Controller) {

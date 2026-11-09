@@ -816,6 +816,7 @@ impl SimState {
 
         if run_gameplay {
             self.update_gameplay();
+            self.update_target_binds();
         }
         self.update_round();
         self.update_camera();
@@ -1268,6 +1269,37 @@ impl SimState {
         self.fighters[b].pos.x -= dir * overlap * 0.5;
     }
 
+    fn update_target_binds(&mut self) {
+        for who in 0..self.fighters.len() {
+            let Some(mut bind) = self.fighters[who].target_bind else {
+                continue;
+            };
+            let Some(target) = self.fighters[who].target else {
+                self.fighters[who].target_bind = None;
+                continue;
+            };
+            if target >= self.fighters.len() {
+                self.fighters[who].target_bind = None;
+                continue;
+            }
+            let attacker = self.fighters[who].pos;
+            let facing = self.fighters[who].facing as f32;
+            self.fighters[target].pos = Vec2::new(
+                attacker.x + bind.offset.x * facing,
+                attacker.y + bind.offset.y,
+            );
+            self.fighters[target].facing = -self.fighters[who].facing;
+            if bind.time > 0 {
+                bind.time -= 1;
+                if bind.time == 0 {
+                    self.fighters[who].target_bind = None;
+                } else {
+                    self.fighters[who].target_bind = Some(bind);
+                }
+            }
+        }
+    }
+
     fn update_round(&mut self) {
         match self.round.phase {
             RoundPhase::Intro => {
@@ -1609,6 +1641,7 @@ impl SimState {
             fighter.pal_alpha = 1.0;
             fighter.pal_time = 0;
             fighter.target = None;
+            fighter.target_bind = None;
             fighter.received_hits = 0;
             fighter.received_damage = 0;
             fighter.proj_contact_time = -1;
@@ -2125,6 +2158,12 @@ impl SimState {
             h.write_i32(f.juggle_points);
             h.write_i32(f.juggle);
             h.write_f32(f.fall_defence_mul);
+            h.write_bool(f.target_bind.is_some());
+            if let Some(bind) = f.target_bind {
+                h.write_f32(bind.offset.x);
+                h.write_f32(bind.offset.y);
+                h.write_i32(bind.time);
+            }
             h.write_bool(f.hit.guarding);
             h.write_i32(f.received_hits);
             h.write_i32(f.received_damage);
