@@ -6110,3 +6110,25 @@ fn numexplod_and_numprojid_filters() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(8)"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(9)"), 0);
 }
+
+#[test]
+fn hitbyattr_matching_semantics() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].hit.not_hit_by = Some(("SCA, NA".into(), 60));
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = SCA, NA"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = S"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = S, SA"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = SCA, SA"), 0);
+
+    // HitBy-only filters also answer the trigger.
+    sim.fighters[1].hit.not_hit_by = None;
+    sim.fighters[1].hit.hit_by = Some(("SA, SA".into(), 60));
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = S, SA"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = S, NA"), 0);
+
+    // No filter means no match.
+    sim.fighters[1].hit.hit_by = None;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitByAttr = S, NA"), 0);
+}

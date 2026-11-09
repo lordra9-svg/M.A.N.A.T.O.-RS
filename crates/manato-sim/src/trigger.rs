@@ -190,6 +190,18 @@ fn eval_binary(sim: &SimState, who: usize, op: BinOp, left: &Expr, right: &Expr)
                 return Value::Bool(if op == BinOp::Eq { ok } else { !ok });
             }
         }
+        if lower == "hitbyattr" {
+            let wanted = match right {
+                Expr::List(items) => items
+                    .iter()
+                    .map(|item| eval(sim, who, item).as_str())
+                    .collect::<Vec<_>>()
+                    .join(","),
+                other => eval(sim, who, other).as_str(),
+            };
+            let ok = hitbyattr_value(sim, who, &wanted);
+            return Value::Bool(if op == BinOp::Eq { ok } else { !ok });
+        }
     }
 
     // `x = [a,b)` ranges.
@@ -394,18 +406,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 .first()
                 .map(|arg| eval(sim, who, arg).as_str().to_ascii_uppercase())
                 .unwrap_or_default();
-            let blocked = sim.fighters[who]
-                .hit
-                .not_hit_by
-                .as_ref()
-                .map(|(attr, _)| {
-                    attr.to_ascii_uppercase().contains(&wanted)
-                        || wanted
-                            .chars()
-                            .any(|ch| attr.to_ascii_uppercase().contains(ch))
-                })
-                .unwrap_or(false);
-            Value::Bool(blocked)
+            Value::Bool(hitbyattr_value(sim, who, &wanted))
         }
         "hitdefattr" => {
             let wanted = args
@@ -737,6 +738,45 @@ fn is_trigger_name(name: &str) -> bool {
             | "winner"
             | "loser"
     )
+}
+
+/// `HitByAttr` matching: the wanted state/class groups must be subsets of the
+/// filter's groups. A missing group matches anything; `*` matches anything.
+fn hitbyattr_matches(wanted: &str, filter: &str) -> bool {
+    let groups = |text: &str| -> (String, String) {
+        let mut parts = text.splitn(2, ',');
+        let states = parts.next().unwrap_or("").trim().to_ascii_uppercase();
+        let classes = parts.next().unwrap_or("").trim().to_ascii_uppercase();
+        (states, classes)
+    };
+    let (wanted_states, wanted_classes) = groups(wanted);
+    let (filter_states, filter_classes) = groups(filter);
+    if filter_states.is_empty() && filter_classes.is_empty() {
+        return false;
+    }
+    let group_match = |want: &str, have: &str| {
+        if want.is_empty() {
+            return true;
+        }
+        if have.contains('*') {
+            return true;
+        }
+        want.chars()
+            .filter(|ch| *ch != '*')
+            .all(|ch| have.contains(ch))
+    };
+    group_match(&wanted_states, &filter_states) && group_match(&wanted_classes, &filter_classes)
+}
+
+fn hitbyattr_value(sim: &SimState, who: usize, wanted: &str) -> bool {
+    let fighter = &sim.fighters[who];
+    fighter
+        .hit
+        .not_hit_by
+        .as_ref()
+        .or(fighter.hit.hit_by.as_ref())
+        .map(|(attr, _)| hitbyattr_matches(wanted, attr))
+        .unwrap_or(false)
 }
 
 fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value {
