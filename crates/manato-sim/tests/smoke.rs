@@ -5743,3 +5743,71 @@ fn round_display_strings_match_flow() {
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.round.display, "Time Over - Draw");
 }
+
+#[test]
+fn hit_fall_controller_interaction_lands_with_damage() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].pos.y = 24.0;
+    sim.fighters[1].vel = manato_core::Vec2::ZERO;
+    sim.fighters[1].hit.vars.y_accel = 0.0;
+
+    let set = manato_formats::Controller {
+        kind: "hitfallset".into(),
+        params: vec![
+            ("value".into(), "1".into()),
+            ("xvel".into(), "2".into()),
+            ("yvel".into(), "6".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &set, &assets);
+    assert!(sim.fighters[1].hit.vars.fall);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -2.0);
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, 6.0);
+
+    let vel = manato_formats::Controller {
+        kind: "hitfallvel".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &vel, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(-2.0, 6.0));
+
+    let damage = manato_formats::Controller {
+        kind: "hitfalldamage".into(),
+        params: vec![("value".into(), "33".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &damage, &assets);
+    assert_eq!(sim.fighters[1].hit.vars.fall_damage, 33);
+
+    let life = sim.fighters[1].life;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].pos.y, 0.0);
+    assert_eq!(sim.fighters[1].vel.y, 0.0);
+    assert_eq!(sim.fighters[1].life, life - 33);
+    assert_eq!(sim.fighters[1].hit.vars.fall_damage, 0);
+
+    // HitFallSet(0) clears the fall flag without touching velocity.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].hit.vars.fall = true;
+    sim.fighters[1].hit.vars.y_vel = 4.0;
+    let clear = manato_formats::Controller {
+        kind: "hitfallset".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &clear, &assets);
+    assert!(!sim.fighters[1].hit.vars.fall);
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, 4.0);
+}
