@@ -93,7 +93,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Full phase-sequence test + control locks; KO slow cadence/NoKOSlow/NoKo/NoKOSnd |
+| R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
 | R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw/cap + Winner/Loser/RoundsExisted/MatchOver/TeamSide trigger tests |
 | R-03 | Win poses/quotes | Required | Required | Partial | State 180 win pose; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |

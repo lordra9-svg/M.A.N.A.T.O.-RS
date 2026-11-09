@@ -5360,3 +5360,49 @@ fn hitdefattr_inguarddist_and_canrecover_triggers() {
     sim.fighters[1].state_no = 5000;
     assert_eq!(manato_sim::trigger::int(&sim, 1, "CanRecover"), 0);
 }
+
+#[test]
+fn round_reset_carries_power_and_removes_helpers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "5".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    assert_eq!(sim.fighters.len(), 3);
+    sim.fighters[0].power = 500.0;
+    sim.fighters[1].power = 700.0;
+
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.wins, [1, 0]);
+    // Winner gains 200 power for the round win.
+    assert!((sim.fighters[0].power - 700.0).abs() < 0.001);
+
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.fighters.len(), 2, "helpers are removed between rounds");
+    assert!(
+        (sim.fighters[0].power - 700.0).abs() < 0.001,
+        "power carries"
+    );
+    assert!(
+        (sim.fighters[1].power - 700.0).abs() < 0.001,
+        "power carries"
+    );
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
+    assert_eq!(sim.fighters[1].state_no, 0);
+}
