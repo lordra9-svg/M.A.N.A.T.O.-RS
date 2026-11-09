@@ -3368,3 +3368,35 @@ fn super_pause_and_hit_pause_freeze_effects_with_move_time() {
     }
     assert!((pos_of(&sim, 13) - (start + 2.0)).abs() < 0.001);
 }
+
+#[test]
+fn math_and_resolution_constants() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let num = |expr: &str| manato_sim::trigger::num(&sim, 0, expr);
+    assert!((num("Sin(30)") - 0.5).abs() < 0.001);
+    assert!((num("Cos(60)") - 0.5).abs() < 0.001);
+    assert!((num("Tan(45)") - 1.0).abs() < 0.001);
+    assert!((num("Atan(1)") - 45.0).abs() < 0.001);
+    assert!((num("Sqrt(16)") - 4.0).abs() < 0.001);
+    assert!((num("Pow(2, 10)") - 1024.0).abs() < 0.001);
+    assert!((num("Exp(0)") - 1.0).abs() < 0.001);
+    assert!((num("Log(1)") - 0.0).abs() < 0.001);
+    assert!((num("Ln(1)") - 0.0).abs() < 0.001);
+
+    assert!((num("Const240p(data.life)") - 1000.0).abs() < 0.001);
+    assert!((num("Const480p(data.life)") - 2000.0).abs() < 0.001);
+    assert!((num("Const720p(data.life)") - 3000.0).abs() < 0.001);
+    assert!((num("Const720p(data.unknown)") - 0.0).abs() < 0.001);
+
+    // `Random` is the 0..999 trigger, derived deterministically from frame/owner.
+    let value = manato_sim::trigger::int(&sim, 0, "Random");
+    assert!((0..=999).contains(&value));
+    let clone = sim.clone();
+    assert_eq!(
+        manato_sim::trigger::int(&clone, 0, "Random"),
+        value,
+        "Random derives from rollback-safe state, not wall-clock time"
+    );
+}
