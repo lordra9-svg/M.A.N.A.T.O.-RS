@@ -140,6 +140,8 @@ pub struct HitOverride {
     pub time: i32,
     /// `keepstate = 1`: negate the hit without changing state.
     pub keepstate: bool,
+    /// `forceguard = 1`: convert the overridden hit into a guarded hit.
+    pub forceguard: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

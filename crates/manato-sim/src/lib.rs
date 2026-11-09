@@ -2169,6 +2169,7 @@ impl SimState {
                 h.write_i32(override_.state);
                 h.write_i32(override_.time);
                 h.write_bool(override_.keepstate);
+                h.write_bool(override_.forceguard);
             }
             h.write_bool(f.reversal.is_some());
             h.write_i32(f.reversal_time);

@@ -52,21 +52,26 @@ pub fn resolve(sim: &mut SimState) {
             continue;
         }
 
+        let mut forced_guard = false;
         if let Some(override_) = sim.fighters[defender].matched_override(&hitdef) {
-            if !override_.keepstate {
-                let assets = sim.assets.clone();
-                let char_id = sim.fighters[defender].char_id;
-                sim.fighters[defender].enter_state(
-                    override_.state,
-                    &assets.characters[char_id],
-                    false,
-                );
+            if override_.forceguard {
+                forced_guard = true;
+            } else {
+                if !override_.keepstate {
+                    let assets = sim.assets.clone();
+                    let char_id = sim.fighters[defender].char_id;
+                    sim.fighters[defender].enter_state(
+                        override_.state,
+                        &assets.characters[char_id],
+                        false,
+                    );
+                }
+                record_hit(sim, attacker, defender);
+                continue;
             }
-            record_hit(sim, attacker, defender);
-            continue;
         }
 
-        let guarding = can_guard(sim, attacker, defender, &hitdef);
+        let guarding = forced_guard || can_guard(sim, attacker, defender, &hitdef);
         let defender_airborne = {
             let f = &sim.fighters[defender];
             f.state_type == StateType::Air || f.pos.y < -1.0
@@ -313,6 +318,19 @@ pub fn apply_hit_at(
     // and direct callers (`docs/spec/cns-cmd.md` §4.2).
     if !guarding {
         if let Some(override_) = sim.fighters[defender].matched_override(hitdef) {
+            if override_.forceguard {
+                apply_hit_at(
+                    sim,
+                    attacker,
+                    defender,
+                    hitdef,
+                    true,
+                    origin,
+                    facing,
+                    from_fighter,
+                );
+                return;
+            }
             if !override_.keepstate {
                 let assets = sim.assets.clone();
                 let char_id = sim.fighters[defender].char_id;

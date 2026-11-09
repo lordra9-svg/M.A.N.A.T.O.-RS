@@ -530,6 +530,7 @@ fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {
     let raw = int_param(sim, who, control, "time").unwrap_or(1);
     let time = if raw == 0 || raw < -1 { 1 } else { raw };
     let keepstate = int_param(sim, who, control, "keepstate").unwrap_or(0) != 0;
+    let forceguard = int_param(sim, who, control, "forceguard").unwrap_or(0) != 0;
     let slot = int_param(sim, who, control, "slot")
         .unwrap_or(0)
         .clamp(0, 7) as usize;
@@ -538,6 +539,7 @@ fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {
         state,
         time,
         keepstate,
+        forceguard,
     });
 }
 

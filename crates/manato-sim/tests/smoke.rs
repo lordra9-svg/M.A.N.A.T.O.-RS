@@ -321,6 +321,7 @@ fn hit_override_redirects_instead_of_damage() {
         state: 0,
         time: 100,
         keepstate: false,
+        forceguard: false,
     });
     let assets = sim.assets.clone();
     sim.fighters[0].enter_state(200, &assets.characters[0], false);
@@ -4861,6 +4862,7 @@ fn hit_override_matches_attributes_and_expires() {
         state: 820,
         time: 50,
         keepstate: false,
+        forceguard: false,
     });
     let life = sim.fighters[1].life;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &match_hit, false, origin, 1, true);
@@ -4873,6 +4875,7 @@ fn hit_override_matches_attributes_and_expires() {
         state: 820,
         time: 1,
         keepstate: false,
+        forceguard: false,
     });
     sim.tick([PlayerInput::default(); 2]);
     assert!(
@@ -4896,6 +4899,7 @@ fn hit_override_matches_attributes_and_expires() {
         state: 820,
         time: 200,
         keepstate: false,
+        forceguard: false,
     });
     sim.fighters[0].enter_state(1000, &assets.characters[0], false);
     let life = sim.fighters[1].life;
@@ -5151,6 +5155,7 @@ fn hit_override_slots_are_independent() {
         state: 820,
         time: 1,
         keepstate: false,
+        forceguard: false,
     });
     let mut na = hitdef();
     na.attr.state_types = "S".into();
@@ -5231,4 +5236,80 @@ fn projectile_postype_controls_spawn_anchor() {
     assert!((left.x - -160.0).abs() < 0.001);
     let right = spawn(&mut sim, Some("right"), "0, 0");
     assert!((right.x - 160.0).abs() < 0.001);
+}
+
+#[test]
+fn hit_override_slot_clamp_and_forceguard() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    for (raw_slot, expected) in [("9", 7usize), ("-4", 0)] {
+        let control = manato_formats::Controller {
+            kind: "hitoverride".into(),
+            params: vec![
+                ("attr".into(), "S, NA".into()),
+                ("stateno".into(), "820".into()),
+                ("slot".into(), raw_slot.into()),
+                ("time".into(), "2".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+        assert!(
+            sim.fighters[1].hit_overrides[expected].is_some(),
+            "slot {raw_slot} should clamp to {expected}"
+        );
+    }
+
+    // forceguard turns the overridden hit into a guard instead of a negation.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let force = manato_formats::Controller {
+        kind: "hitoverride".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("stateno".into(), "820".into()),
+            ("time".into(), "10".into()),
+            ("forceguard".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &force, &assets);
+    let override_ = sim.fighters[1].hit_overrides[0].clone().expect("override");
+    assert!(override_.forceguard);
+
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert!(sim.fighters[1].hit.guarding, "forceguard produces a guard");
+    assert_eq!(sim.fighters[1].state_no, 150);
+    assert_eq!(sim.fighters[1].life, life - hit.guard_damage);
+    assert_ne!(sim.fighters[1].state_no, 820);
+
+    // The melee resolve path also honors forceguard.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
+        attr: "S, NA".into(),
+        state: 820,
+        time: 10,
+        keepstate: false,
+        forceguard: true,
+    });
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    manato_sim::collision::resolve(&mut sim);
+    assert!(sim.fighters[1].hit.guarding);
+    assert_eq!(sim.fighters[1].state_no, 150);
 }
