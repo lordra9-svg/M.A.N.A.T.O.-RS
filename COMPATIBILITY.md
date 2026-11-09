@@ -66,7 +66,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
 | C-04 | Projectile | Required | Required | Partial | Projectile tests |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | TBD |
-| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind + TargetLifeAdd/PowerAdd/VelSet/Facing/State/Bind time/re-bind/Drop tests |
+| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind + Target* controllers + helper-owned projectile ownership test |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX/Trans added; RemapPal pending |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Roster |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Attr filters + HitBy whitelist + override tests; oracle pending |
@@ -85,7 +85,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + KFM trip/launch/consumption; O-20 negative persistent-HitDef finding |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw states/target bind test |
 | K-06 | Projectile collision | Required | Required | Partial | Projectile hit-count and lifetime tests |
-| K-07 | Helper collision | Required | Required | Partial | Helper HitDef test; oracle pending |
+| K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Corner-push + PlayerPush tests |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
 

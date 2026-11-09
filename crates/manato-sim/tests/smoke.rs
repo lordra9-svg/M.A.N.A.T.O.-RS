@@ -2176,3 +2176,49 @@ fn target_bind_expires_and_can_be_rebound() {
         "rebound target should follow the attacker again"
     );
 }
+
+#[test]
+fn helper_owned_projectile_damages_opponent() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    sim.fighters[0].pos.x = -60.0;
+    sim.fighters[1].pos.x = 60.0;
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("type".into(), "Helper".into()),
+            ("stateno".into(), "1000".into()),
+            ("id".into(), "9".into()),
+            ("pos".into(), "0,0".into()),
+            ("postype".into(), "p1".into()),
+            ("removetime".into(), "180".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = 2;
+    let mut owned = false;
+    for _ in 0..150 {
+        sim.tick([PlayerInput::default(); 2]);
+        owned |= sim
+            .projectiles
+            .iter()
+            .any(|projectile| projectile.owner == helper_index);
+        if sim.fighters[1].life < sim.fighters[1].life_max {
+            break;
+        }
+    }
+    assert!(
+        owned,
+        "helper should spawn a projectile with owner = helper"
+    );
+    assert!(
+        sim.fighters[1].life < sim.fighters[1].life_max,
+        "helper-owned projectile should damage the opponent"
+    );
+}
