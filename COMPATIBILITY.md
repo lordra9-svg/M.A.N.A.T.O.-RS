@@ -64,7 +64,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power/Var/Gravity + DefenceMulSet/AttackMulSet damage composition |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn controller round-trip test |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef + p2stateno-without-p1stateno override test |
-| C-04 | Projectile | Required | Required | Partial | Spawn/hit-count/lifetime + state 3000 dual spawn (O-25) + ModifyProjectile id targeting |
+| C-04 | Projectile | Required | Required | Partial | Spawn/hit-count/lifetime + postype anchors + dual spawn + ModifyProjectile id targeting |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection + lifetime/remove-on-hit/state + Modify/Remove id tests |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind/Target* + SelfState ownership and DestroySelf removal tests |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |

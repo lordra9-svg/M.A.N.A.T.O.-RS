@@ -5180,3 +5180,55 @@ fn hit_override_slots_are_independent() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &na, false, origin, 1, true);
     assert_eq!(sim.fighters[1].life, life - na.damage);
 }
+
+#[test]
+fn projectile_postype_controls_spawn_anchor() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(60.0, -10.0);
+    let spawn = |sim: &mut SimState, postype: Option<&str>, pos: &str| {
+        let mut params = vec![
+            ("projanim".to_string(), "1500".to_string()),
+            ("velocity".to_string(), "0, 0".to_string()),
+            ("pos".to_string(), pos.to_string()),
+            ("removetime".to_string(), "30".to_string()),
+        ];
+        if let Some(postype) = postype {
+            params.push(("postype".to_string(), postype.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.projectiles.pop().expect("projectile spawned").pos
+    };
+
+    // Default is relative to the owner.
+    let p1 = spawn(&mut sim, None, "0, 0");
+    assert!((p1.x - -40.0).abs() < 0.001);
+    assert!(p1.y.abs() < 0.001);
+
+    // `p2` anchors to the opponent, with facing-relative x and plain y offset.
+    let p2 = spawn(&mut sim, Some("p2"), "5, -3");
+    assert!((p2.x - 65.0).abs() < 0.001);
+    assert!((p2.y - -13.0).abs() < 0.001);
+
+    // `front` and `back` use 100px from the owner along facing.
+    let front = spawn(&mut sim, Some("front"), "0, 0");
+    assert!((front.x - 60.0).abs() < 0.001);
+    let back = spawn(&mut sim, Some("back"), "0, 0");
+    assert!((back.x - -140.0).abs() < 0.001);
+
+    // Screen-edge anchors follow the camera.
+    sim.camera.x = 0.0;
+    let left = spawn(&mut sim, Some("left"), "0, 0");
+    assert!((left.x - -160.0).abs() < 0.001);
+    let right = spawn(&mut sim, Some("right"), "0, 0");
+    assert!((right.x - 160.0).abs() < 0.001);
+}

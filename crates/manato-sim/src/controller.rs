@@ -778,10 +778,19 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
     let hits = int_param(sim, who, control, "hits").unwrap_or(1).max(1);
     let id = int_param(sim, who, control, "id").unwrap_or(0);
-    let pos = Vec2::new(
-        sim.fighters[who].pos.x + px * facing as f32,
-        sim.fighters[who].pos.y + py,
-    );
+    let postype = str_param(control, "postype")
+        .unwrap_or("p1")
+        .to_ascii_lowercase();
+    let owner = sim.fighters[who].pos;
+    let base = match postype.as_str() {
+        "p2" => sim.fighters[sim.other(who)].pos,
+        "front" => Vec2::new(owner.x + facing as f32 * 100.0, owner.y),
+        "back" => Vec2::new(owner.x - facing as f32 * 100.0, owner.y),
+        "left" => Vec2::new(sim.camera.x - manato_core::GAME_WIDTH * 0.5, owner.y),
+        "right" => Vec2::new(sim.camera.x + manato_core::GAME_WIDTH * 0.5, owner.y),
+        _ => owner,
+    };
+    let pos = Vec2::new(base.x + px * facing as f32, base.y + py);
     sim.projectiles.push(crate::projectile::Projectile {
         owner: who,
         id,
