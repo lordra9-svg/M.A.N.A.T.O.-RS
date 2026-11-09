@@ -4775,3 +4775,40 @@ fn projectile_guard_uses_crouch_and_air_guard_states() {
     assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 12);
     assert_eq!(sim.fighters[1].state_no, 154);
 }
+
+#[test]
+fn p2stateno_overrides_get_hit_state_without_p1stateno() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.p2stateno = 820;
+    hit.damage = 30;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 820);
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 30);
+    assert!(!sim.fighters[1].ctrl);
+
+    // Guarded hits never use p2stateno.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 150);
+    assert!(sim.fighters[1].hit.guarding);
+
+    // With p1stateno the throw path still wins and does not apply damage.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut throw = hit;
+    throw.p1stateno = 800;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].state_no, 800);
+    assert_eq!(sim.fighters[1].state_no, 820);
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
+    assert_eq!(sim.fighters[0].target, Some(1));
+}

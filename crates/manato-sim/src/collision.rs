@@ -428,7 +428,7 @@ pub fn apply_hit_at(
     }
 
     let char = &sim.assets.characters[sim.fighters[defender].char_id];
-    let new_state = if guarding {
+    let mut new_state = if guarding {
         match defender_state_type {
             StateType::Air => 154,
             StateType::Crouch => 152,
@@ -447,6 +447,11 @@ pub fn apply_hit_at(
     } else {
         5000
     };
+    // `p2stateno` overrides the get-hit state on unguarded hits even when the
+    // attacker has no `p1stateno` (`docs/spec/combat.md` §5).
+    if !guarding && hitdef.p2stateno >= 0 {
+        new_state = hitdef.p2stateno;
+    }
 
     if char.state(new_state).is_some() {
         sim.fighters[defender].enter_state(new_state, char, false);
