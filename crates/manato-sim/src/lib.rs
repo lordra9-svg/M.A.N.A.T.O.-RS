@@ -832,11 +832,13 @@ impl SimState {
                 self.fighters[who].hit.hit_pause -= 1;
                 self.fighters[who].hit.pause_gap += 1;
                 self.fighters[who].state_changed = false;
+                self.run_paused_controllers(who);
                 continue;
             }
             if self.fighters[who].hit.super_pause > 0 {
                 self.fighters[who].hit.super_pause -= 1;
                 self.fighters[who].hit.pause_gap += 1;
+                self.run_paused_controllers(who);
                 continue;
             }
             self.update_fighter(who);
@@ -1040,9 +1042,34 @@ impl SimState {
         }
     }
 
-    /// Runs `[Statedef n]` controllers in file order. Returns true when a
-    /// controller changed the state (the remaining controllers are skipped).
+    /// Runs only `ignorehitpause = 1` controllers while the fighter is paused
+    /// (`docs/spec/cns-cmd.md` §4.5). Special states run before the current
+    /// state, and a state change stops the remaining controllers.
+    fn run_paused_controllers(&mut self, who: usize) {
+        if !self.fighters[who].active {
+            return;
+        }
+        for state_no in [-3, -2, -1] {
+            self.run_filtered_state_controllers(who, state_no, true);
+        }
+        for _ in 0..8 {
+            let state_no = self.fighters[who].state_no;
+            if state_no < 0 || !self.run_filtered_state_controllers(who, state_no, true) {
+                break;
+            }
+        }
+    }
+
     fn run_state_controllers(&mut self, who: usize, state_no: i32) -> bool {
+        self.run_filtered_state_controllers(who, state_no, false)
+    }
+
+    fn run_filtered_state_controllers(
+        &mut self,
+        who: usize,
+        state_no: i32,
+        paused_only: bool,
+    ) -> bool {
         let assets = self.assets.clone();
         let char = &assets.characters[self.fighters[who].char_id];
         let Some(state) = char.state(state_no) else {
@@ -1051,6 +1078,9 @@ impl SimState {
 
         let mut changed = false;
         for (index, control) in state.controllers.iter().enumerate() {
+            if paused_only && !control.ignore_hit_pause() {
+                continue;
+            }
             let met = trigger::triggers_met(self, who, control);
             let persistent = control.persistent();
             let slot = if state_no == -3 {

@@ -2372,3 +2372,71 @@ fn modify_and_remove_explod_target_the_newest_matching_id() {
     manato_sim::controller::execute(&mut sim, 0, &remove, &assets);
     assert!(sim.effects.is_empty());
 }
+
+#[test]
+fn persistent_and_ignorehitpause_control_execution() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("common.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-persistent-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let mut text = std::fs::read_to_string(&common).expect("read common.cns");
+    text.push_str(
+        "\n[Statedef 900]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
+         \n[State 900, Once]\ntype = VarAdd\ntrigger1 = 1\nv = 0\nvalue = 1\npersistent = 0\n\
+         \n[State 900, Normal]\ntype = VarAdd\ntrigger1 = 1\nv = 1\nvalue = 10\npersistent = 1\n\
+         \n[State 900, Paused]\ntype = VarAdd\ntrigger1 = 1\nv = 2\nvalue = 100\npersistent = 1\nignorehitpause = 1\n",
+    );
+    std::fs::write(&common, text).expect("patch common.cns");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(900, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[0], 1, "persistent=0 runs once");
+    assert_eq!(sim.fighters[0].vars[1], 10);
+    assert_eq!(sim.fighters[0].vars[2], 100);
+
+    sim.fighters[0].hit.hit_pause = 2;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[1], 10, "normal controller pauses");
+    assert_eq!(sim.fighters[0].vars[2], 200, "ignorehitpause keeps running");
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[2], 300);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[1], 20, "normal controller resumes");
+    assert_eq!(sim.fighters[0].vars[2], 400);
+    assert_eq!(sim.fighters[0].vars[0], 1, "persistent=0 never repeats");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
