@@ -6583,3 +6583,69 @@ fn projectile_sound_and_explod_animelem_flags() {
     assert_eq!(effect.anim_elem, 1);
     assert!(!effect.anim_freeze);
 }
+
+#[test]
+fn get_hit_var_times_and_target_rebind_after_drop() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.ground_hittime = 8;
+    hit.ground_slidetime = 5;
+    hit.fall_time = 30;
+    hit.fall_recover = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(slidetime)"), 5);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(ctrltime)"), 13);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.time)"),
+        30
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.recover)"),
+        1
+    );
+
+    // TargetBind survives until TargetDrop, then can be re-established.
+    let assets = sim.assets.clone();
+    let bind = manato_formats::Controller {
+        kind: "targetbind".into(),
+        params: vec![
+            ("pos".into(), "12, -18".into()),
+            ("time".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    sim.fighters[0].target = Some(1);
+    sim.fighters[0].pos = manato_core::Vec2::new(-30.0, 0.0);
+    sim.fighters[0].facing = 1;
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    let attacker = sim.fighters[0].pos;
+    assert!((sim.fighters[1].pos.x - (attacker.x + 12.0)).abs() < 0.01);
+    assert!((sim.fighters[1].pos.y - (attacker.y - 18.0)).abs() < 0.01);
+
+    let drop = manato_formats::Controller {
+        kind: "targetdrop".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
+    assert_eq!(sim.fighters[0].target, None);
+    assert!(sim.fighters[0].target_bind.is_none());
+
+    let add = manato_formats::Controller {
+        kind: "targetadd".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].target, Some(1));
+    sim.fighters[0].pos = manato_core::Vec2::new(40.0, 0.0);
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    let attacker = sim.fighters[0].pos;
+    assert!((sim.fighters[1].pos.x - (attacker.x + 12.0)).abs() < 0.01);
+    assert!((sim.fighters[1].pos.y - (attacker.y - 18.0)).abs() < 0.01);
+}

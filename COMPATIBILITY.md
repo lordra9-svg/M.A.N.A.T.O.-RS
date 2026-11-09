@@ -51,7 +51,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + loop boundary and invalid AnimElemTime sentinel tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing + P2 state + P2Dist/P2BodyDist/P2ScreenDist/edge tests |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar ids/bound + HitVel axes + HitShakeOver/HitOver transitions |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar ids/times/fall fields + HitVel axes + HitShakeOver/HitOver transitions |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumExplod/ProjID + identity/team + constant screen/match triggers |
 | T-06 | Const/expressions/random | Required | Required | Partial | IfElse/Min/Max/Abs/Ceil/Floor + trig/pow/log + Const240p/480p/720p tests |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
