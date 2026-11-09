@@ -52,7 +52,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing + P2 state + P2Dist/P2BodyDist/P2ScreenDist/edge tests |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar ids/bound + HitVel axes + HitShakeOver/HitOver transitions |
-| T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumExplod/ProjID + HitByAttr + identity/team triggers |
+| T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumExplod/ProjID + identity/team + constant screen/match triggers |
 | T-06 | Const/expressions/random | Required | Required | Partial | IfElse/Min/Max/Abs/Ceil/Floor + trig/pow/log + Const240p/480p/720p tests |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
 | T-08 | Ikemen-only triggers | N/A | Ikemen | Missing | TBD |
@@ -61,7 +61,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life kill + Power/Var/multipliers + PosSet/PosAdd/PosFreeze/VelMul edges |
+| C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power/VarRange/RootVar + Pos/Vel edges + multipliers |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + SprPriority/Offset presentation tests |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef + p2stateno-without-p1stateno override test |
 | C-04 | Projectile | Required | Required | Partial | Spawn/hit-count/lifetime + postype anchors + dual spawn + ModifyProjectile id targeting |

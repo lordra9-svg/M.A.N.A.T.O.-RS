@@ -6424,3 +6424,95 @@ fn distance_and_edge_triggers_track_facing_and_position() {
         160.0 - sim.fighters[0].width_back
     );
 }
+
+#[test]
+fn varrange_rootvar_targetadd_and_constant_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // VarRangeSet fills an inclusive range regardless of argument order.
+    let range = manato_formats::Controller {
+        kind: "varrangeset".into(),
+        params: vec![
+            ("value".into(), "9".into()),
+            ("first".into(), "2".into()),
+            ("last".into(), "4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &range, &assets);
+    assert_eq!(&sim.fighters[0].vars[2..=4], &[9, 9, 9]);
+    let reversed = manato_formats::Controller {
+        kind: "varrangeset".into(),
+        params: vec![
+            ("value".into(), "3".into()),
+            ("first".into(), "5".into()),
+            ("last".into(), "4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reversed, &assets);
+    assert_eq!(sim.fighters[0].vars[4], 3);
+    assert_eq!(sim.fighters[0].vars[5], 3);
+    assert_eq!(sim.fighters[0].vars[1], 0);
+
+    // RootVarSet from a helper writes the root's variable.
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "10".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = sim.fighters.len() - 1;
+    let root_var = manato_formats::Controller {
+        kind: "rootvarset".into(),
+        params: vec![("v".into(), "3".into()), ("value".into(), "77".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &root_var, &assets);
+    assert_eq!(sim.fighters[0].vars[3], 77);
+
+    // TargetAdd links the current opponent.
+    sim.fighters[0].target = None;
+    let add = manato_formats::Controller {
+        kind: "targetadd".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].target, Some(1));
+
+    // Constant screen/match triggers.
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "ScreenWidth"),
+        manato_core::GAME_WIDTH
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "ScreenHeight"),
+        manato_core::GAME_HEIGHT
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "GameWidth"),
+        manato_core::GAME_WIDTH
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "GameHeight"),
+        manato_core::GAME_HEIGHT
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TicksPerSecond"), 60);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MatchNo"), 1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "GameTime"),
+        sim.frame as i32
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "RoundTime"),
+        sim.round.seconds()
+    );
+}
