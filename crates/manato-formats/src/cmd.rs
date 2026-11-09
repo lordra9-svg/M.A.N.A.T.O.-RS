@@ -326,6 +326,13 @@ mod tests {
         assert!(step.hold);
         let step = parse_step("x+y").unwrap();
         assert_eq!(step.buttons, Buttons::X | Buttons::Y);
+        let step = parse_step("*F").unwrap();
+        assert!(step.star);
+        let step = parse_step(">F").unwrap();
+        assert!(step.greater);
+        let step = parse_step("~x").unwrap();
+        assert!(step.button_release);
+        assert_eq!(step.buttons, Buttons::X);
     }
 
     #[test]
@@ -340,11 +347,16 @@ mod tests {
     #[test]
     fn parses_defaults() {
         let text = TextFile::parse_str(
-            "[Defaults]\ncommand.time = 20\ncommand.buffer.time = 3\n[Command]\nname = \"x\"\ncommand = x",
+            "[Defaults]\ncommand.time = 20\ncommand.buffer.time = 3\ncommand.steptime = 7\ncommand.autogreater = 1\n             [Command]\nname = \"x\"\ncommand = x\n             [Command]\nname = \"y\"\ncommand = D, F\nsteptime = 2\nautogreater = 0",
         );
         let file = CmdFile::from_text(&text, "test.cmd");
         let command = file.command("x").unwrap();
         assert_eq!(command.time, 20);
         assert_eq!(command.buffer_time, 3);
+        assert_eq!(command.step_time, 7);
+        assert!(command.auto_greater);
+        let overridden = file.command("y").unwrap();
+        assert_eq!(overridden.step_time, 2);
+        assert!(!overridden.auto_greater);
     }
 }

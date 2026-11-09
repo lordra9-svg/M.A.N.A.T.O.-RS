@@ -644,8 +644,15 @@ impl Fighter {
         // The final step may be buffered for `buffer.time` ticks.
         let search_end = n.saturating_sub(1);
         let search_start = n.saturating_sub(1 + buffer);
+        let greater = def.auto_greater;
         for last_idx in (search_start..=search_end).rev() {
-            if !step_matches(self.history.get(last_idx).unwrap(), last_step, true) {
+            if !step_matches(
+                self.history.get(last_idx).unwrap(),
+                last_step,
+                true,
+                greater,
+            ) || !self.charge_ok(last_idx, last_step, greater)
+            {
                 continue;
             }
             let mut cursor = last_idx;
@@ -665,10 +672,18 @@ impl Fighter {
                 };
                 let mut found = None;
                 for j in (window_start..=start).rev() {
-                    if step_matches(self.history.get(j).unwrap(), *step, !step.hold) {
-                        found = Some(j);
-                        break;
+                    if !step_matches(self.history.get(j).unwrap(), *step, !step.hold, greater)
+                        || !self.charge_ok(j, *step, greater)
+                    {
+                        continue;
                     }
+                    if def.step_time >= 0
+                        && cursor.saturating_sub(j) > def.step_time.max(0) as usize
+                    {
+                        continue;
+                    }
+                    found = Some(j);
+                    break;
                 }
                 match found {
                     Some(j) => {
@@ -689,9 +704,41 @@ impl Fighter {
     }
 }
 
-fn dir_matches(frame_dir: Dir8, want: Dir8, pool4: bool) -> bool {
+impl Fighter {
+    /// True when a `/` or `~` charge prefix was held for its full duration.
+    fn charge_ok(&self, end: usize, step: CommandStep, greater: bool) -> bool {
+        let ticks = step.charge_time.max(0) as usize;
+        if ticks == 0 {
+            return true;
+        }
+        let Some(dir) = step.dir else {
+            return true;
+        };
+        if end < ticks {
+            return false;
+        }
+        (end - ticks..end).all(|index| {
+            self.history
+                .get(index)
+                .is_some_and(|frame| dir_matches(frame.dir, dir, step.pool4 && !step.star, greater))
+        })
+    }
+}
+
+fn dir_matches(frame_dir: Dir8, want: Dir8, pool4: bool, greater: bool) -> bool {
     if frame_dir == want {
         return true;
+    }
+    if greater {
+        // `>` (and `autogreater`) accepts any diagonal containing the wanted
+        // cardinal direction.
+        return matches!(
+            (want, frame_dir),
+            (Dir8::Down, Dir8::DnFwd | Dir8::DnBack)
+                | (Dir8::Fwd, Dir8::UpFwd | Dir8::DnFwd)
+                | (Dir8::Back, Dir8::UpBack | Dir8::DnBack)
+                | (Dir8::Up, Dir8::UpFwd | Dir8::UpBack)
+        );
     }
     if !pool4 {
         return false;
@@ -705,9 +752,15 @@ fn dir_matches(frame_dir: Dir8, want: Dir8, pool4: bool) -> bool {
     )
 }
 
-fn step_matches(frame: &HistoryFrame, step: CommandStep, require_press: bool) -> bool {
+fn step_matches(
+    frame: &HistoryFrame,
+    step: CommandStep,
+    require_press: bool,
+    greater: bool,
+) -> bool {
     if let Some(dir) = step.dir {
-        let matches = |d: Dir8| dir_matches(d, dir, step.pool4 && !step.star);
+        let matches =
+            |d: Dir8| dir_matches(d, dir, step.pool4 && !step.star, greater || step.greater);
         if step.release {
             if !matches(frame.prev_dir) || matches(frame.dir) {
                 return false;

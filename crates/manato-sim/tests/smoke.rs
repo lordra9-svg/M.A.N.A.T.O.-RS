@@ -3643,3 +3643,118 @@ fn single_round_draw_ends_at_the_round_cap() {
     assert_eq!(sim.round.winner, None);
     assert!(sim.round.display.contains("Draw"));
 }
+
+#[test]
+fn command_prefix_charge_greater_tap_and_step_time() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cmd").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-cmd-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let cmd = dir.join("kaen.cmd");
+    let mut text = std::fs::read_to_string(&cmd).expect("read kaen.cmd");
+    text.push_str(
+        "\n[Command]\nname = \"oracle_charge\"\ncommand = /3D, F\ntime = 20\n\
+         \n[Command]\nname = \"oracle_release\"\ncommand = ~3D, F\ntime = 20\n\
+         \n[Command]\nname = \"oracle_greater\"\ncommand = >D, F\ntime = 20\n\
+         \n[Command]\nname = \"oracle_tap\"\ncommand = *F\ntime = 20\n\
+         \n[Command]\nname = \"oracle_step\"\ncommand = D, F\ntime = 20\nsteptime = 2\n",
+    );
+    std::fs::write(&cmd, text).expect("patch kaen.cmd");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let new_sim = || {
+        let mut options = MatchOptions::default();
+        options.ai_level = 0;
+        let mut sim = SimState::new(
+            std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+            options,
+        );
+        for _ in 0..50 {
+            sim.tick([PlayerInput::default(); 2]);
+        }
+        sim
+    };
+    let down = manato_core::DIR_DOWN;
+    let forward = manato_core::DIR_RIGHT;
+    let dn_forward = down | forward;
+    let feed = |sim: &mut SimState, inputs: &[(u8, u8)]| {
+        for (dir, buttons) in inputs {
+            sim.tick([PlayerInput::new(*dir, *buttons), PlayerInput::default()]);
+        }
+    };
+    let active = |sim: &SimState, name: &str| manato_sim::trigger::command_active(sim, 0, name);
+
+    // `/3D`: the direction must be held for three ticks before F.
+    let mut sim = new_sim();
+    feed(
+        &mut sim,
+        &[(down, 0), (down, 0), (down, 0), (down, 0), (forward, 0)],
+    );
+    assert!(active(&sim, "oracle_charge"));
+    let mut sim = new_sim();
+    feed(&mut sim, &[(down, 0), (down, 0), (forward, 0)]);
+    assert!(!active(&sim, "oracle_charge"));
+
+    // `~3D`: release after a three-tick hold.
+    let mut sim = new_sim();
+    feed(
+        &mut sim,
+        &[
+            (down, 0),
+            (down, 0),
+            (down, 0),
+            (down, 0),
+            (0, 0),
+            (forward, 0),
+        ],
+    );
+    assert!(active(&sim, "oracle_release"));
+    let mut sim = new_sim();
+    feed(&mut sim, &[(down, 0), (0, 0), (forward, 0)]);
+    assert!(!active(&sim, "oracle_release"));
+
+    // `>D`: a down-forward input satisfies the down step.
+    let mut sim = new_sim();
+    feed(&mut sim, &[(dn_forward, 0), (forward, 0)]);
+    assert!(active(&sim, "oracle_greater"));
+
+    // `*F`: diagonals never satisfy an exact-direction tap.
+    let mut sim = new_sim();
+    feed(&mut sim, &[(dn_forward, 0)]);
+    assert!(!active(&sim, "oracle_tap"));
+    sim.tick([PlayerInput::new(forward, 0), PlayerInput::default()]);
+    assert!(active(&sim, "oracle_tap"));
+
+    // `steptime = 2` rejects a slow follow-up but accepts an adjacent one.
+    let mut sim = new_sim();
+    feed(
+        &mut sim,
+        &[(down, 0), (0, 0), (0, 0), (0, 0), (0, 0), (forward, 0)],
+    );
+    assert!(!active(&sim, "oracle_step"));
+    let mut sim = new_sim();
+    feed(&mut sim, &[(down, 0), (0, 0), (forward, 0)]);
+    assert!(active(&sim, "oracle_step"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
