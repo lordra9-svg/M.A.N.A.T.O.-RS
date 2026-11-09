@@ -6516,3 +6516,70 @@ fn varrange_rootvar_targetadd_and_constant_triggers() {
         sim.round.seconds()
     );
 }
+
+#[test]
+fn projectile_sound_and_explod_animelem_flags() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, projsnd: Option<&str>| {
+        let mut params = vec![
+            ("projanim".to_string(), "1500".to_string()),
+            ("velocity".to_string(), "0, 0".to_string()),
+            ("removetime".to_string(), "30".to_string()),
+        ];
+        if let Some(projsnd) = projsnd {
+            params.push(("projsnd".to_string(), projsnd.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    spawn(&mut sim, Some("5, 2"));
+    let sound = sim
+        .sounds
+        .iter()
+        .find(|sound| sound.group == 5 && sound.index == 2)
+        .expect("projsnd event");
+    assert!(matches!(
+        sound.source,
+        manato_sim::SoundSource::Character(0)
+    ));
+    assert_eq!(sim.projectiles.len(), 1);
+
+    spawn(&mut sim, Some("-1, 0"));
+    assert_eq!(sim.sounds.len(), 1, "negative group queues no sound");
+    spawn(&mut sim, None);
+    assert_eq!(sim.sounds.len(), 1);
+
+    // Explod animelem and animfreeze parameters are recorded.
+    let explod = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "11".into()),
+            ("animelem".into(), "3".into()),
+            ("animfreeze".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &explod, &assets);
+    let effect = sim.effects.last().expect("explod");
+    assert_eq!(effect.anim_elem, 3);
+    assert!(effect.anim_freeze);
+
+    let plain = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![("anim".into(), "10".into()), ("id".into(), "12".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    let effect = sim.effects.last().expect("explod");
+    assert_eq!(effect.anim_elem, 1);
+    assert!(!effect.anim_freeze);
+}
