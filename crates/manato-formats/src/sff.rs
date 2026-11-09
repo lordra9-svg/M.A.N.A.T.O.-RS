@@ -1010,4 +1010,159 @@ mod tests {
         assert_eq!(&sprite.rgba[0..4], &[1, 1, 1, 255]);
         assert_eq!(sff.get(1, 1).map(|s| (s.width, s.height)), Some((1, 1)));
     }
+    struct V2Node {
+        group: u16,
+        index: u16,
+        width: u16,
+        height: u16,
+        axis_x: i16,
+        axis_y: i16,
+        link: u16,
+        format: u8,
+        depth: u8,
+        palette: u16,
+        payload: Option<Vec<u8>>,
+    }
+
+    fn build_v2(nodes: &[V2Node], palette: Option<&[[u8; 4]]>) -> Vec<u8> {
+        let sprite_offset = 512usize;
+        let palette_offset = sprite_offset + nodes.len() * 28;
+        let palette_len = palette.map(|colors| 16 + colors.len() * 4).unwrap_or(0);
+        let ldata_offset = palette_offset + palette_len;
+        let payload_total: usize = nodes
+            .iter()
+            .map(|node| node.payload.as_ref().map(Vec::len).unwrap_or(0))
+            .sum();
+        let palette_data = palette.map(|colors| colors.len() * 4).unwrap_or(0);
+        let total = ldata_offset + palette_data + payload_total;
+        let mut data = vec![0u8; total];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[13] = 0;
+        data[15] = 2;
+        data[36..40].copy_from_slice(&(sprite_offset as u32).to_le_bytes());
+        data[40..44].copy_from_slice(&(nodes.len() as u32).to_le_bytes());
+        data[44..48].copy_from_slice(&(palette_offset as u32).to_le_bytes());
+        data[48..52].copy_from_slice(&(palette.map(|_| 1u32).unwrap_or(0)).to_le_bytes());
+        data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
+        data[60..64].copy_from_slice(&(total as u32).to_le_bytes());
+
+        if let Some(colors) = palette {
+            let node = palette_offset;
+            data[node + 4..node + 6].copy_from_slice(&(colors.len() as u16).to_le_bytes());
+            let bytes = colors.len() as u32 * 4;
+            data[node + 12..node + 16].copy_from_slice(&bytes.to_le_bytes());
+            for (i, color) in colors.iter().enumerate() {
+                let at = ldata_offset + i * 4;
+                data[at..at + 4].copy_from_slice(&[color[2], color[1], color[0], color[3]]);
+            }
+        }
+
+        let mut payload_at = ldata_offset + palette_data;
+        for (i, node) in nodes.iter().enumerate() {
+            let at = sprite_offset + i * 28;
+            data[at..at + 2].copy_from_slice(&node.group.to_le_bytes());
+            data[at + 2..at + 4].copy_from_slice(&node.index.to_le_bytes());
+            data[at + 4..at + 6].copy_from_slice(&node.width.to_le_bytes());
+            data[at + 6..at + 8].copy_from_slice(&node.height.to_le_bytes());
+            data[at + 8..at + 10].copy_from_slice(&node.axis_x.to_le_bytes());
+            data[at + 10..at + 12].copy_from_slice(&node.axis_y.to_le_bytes());
+            data[at + 12..at + 14].copy_from_slice(&node.link.to_le_bytes());
+            data[at + 14] = node.format;
+            data[at + 15] = node.depth;
+            data[at + 24..at + 26].copy_from_slice(&node.palette.to_le_bytes());
+            if let Some(payload) = &node.payload {
+                data[at + 16..at + 20]
+                    .copy_from_slice(&((payload_at - ldata_offset) as u32).to_le_bytes());
+                data[at + 20..at + 24].copy_from_slice(&(payload.len() as u32).to_le_bytes());
+                data[payload_at..payload_at + payload.len()].copy_from_slice(payload);
+                payload_at += payload.len();
+            }
+        }
+        data
+    }
+
+    fn palette_colors() -> Vec<[u8; 4]> {
+        vec![[0, 0, 0, 0], [10, 20, 30, 255], [40, 50, 60, 255]]
+    }
+
+    fn node(group: u16, index: u16, link: u16, payload: Option<Vec<u8>>) -> V2Node {
+        V2Node {
+            group,
+            index,
+            width: if payload.is_some() { 1 } else { 0 },
+            height: if payload.is_some() { 1 } else { 0 },
+            axis_x: 0,
+            axis_y: 0,
+            link,
+            format: 2,
+            depth: 8,
+            palette: 0,
+            payload,
+        }
+    }
+
+    fn rle8_payload(indices: &[u8]) -> Vec<u8> {
+        let mut payload = (indices.len() as u32).to_le_bytes().to_vec();
+        payload.push(0x40 | indices.len() as u8);
+        payload.push(indices[0]);
+        payload
+    }
+
+    #[test]
+    fn v2_linked_sprite_chains_reuse_decoded_pixels() {
+        let mut base = node(0, 0, 0, Some(rle8_payload(&[1, 1])));
+        base.width = 2;
+        base.axis_x = -3;
+        let mut middle = node(0, 5, 0, None);
+        middle.axis_x = 7;
+        let mut chained = node(0, 6, 1, None);
+        chained.axis_y = -9;
+        let dangling = node(0, 7, 99, None);
+
+        let sff = SffFile::from_bytes(&build_v2(
+            &[base, middle, chained, dangling],
+            Some(&palette_colors()),
+        ))
+        .expect("parse linked sprites");
+
+        let first = sff.get(0, 0).expect("base sprite");
+        assert_eq!(first.rgba, [10, 20, 30, 255].repeat(2));
+        assert_eq!(first.axis_x, -3);
+
+        let middle = sff.get(0, 5).expect("direct link");
+        assert_eq!((middle.width, middle.height), (2, 1));
+        assert_eq!(middle.axis_x, 7);
+        assert_eq!(middle.rgba, first.rgba);
+
+        let chained = sff.get(0, 6).expect("chained link");
+        assert_eq!(chained.rgba, first.rgba);
+        assert_eq!(chained.axis_y, -9);
+
+        let dangling = sff.get(0, 7).expect("dangling link");
+        assert_eq!((dangling.width, dangling.height), (0, 0));
+    }
+
+    #[test]
+    fn v2_missing_palette_falls_back_to_transparent() {
+        let mut sprite = node(0, 0, 0, Some(rle8_payload(&[1, 2])));
+        sprite.width = 2;
+        sprite.palette = 4; // out of range for a one-palette file
+        let sff = SffFile::from_bytes(&build_v2(&[sprite], Some(&palette_colors())))
+            .expect("parse missing palette");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!(sprite.rgba, vec![0; 2 * 4]);
+    }
+
+    #[test]
+    fn v2_rle5_and_lz5_payloads_skip_the_size_prefix() {
+        let mut rle5 = node(0, 0, 0, Some(vec![1, 0, 0, 0, 0x00, 0x81, 0x01]));
+        rle5.format = 3;
+        let mut lz5 = node(0, 1, 0, Some(vec![1, 0, 0, 0, 0x00, 0x21]));
+        lz5.format = 4;
+        lz5.depth = 5;
+        let sff = SffFile::from_bytes(&build_v2(&[rle5, lz5], Some(&palette_colors())))
+            .expect("parse indexed codecs");
+        assert_eq!(sff.get(0, 0).expect("rle5").rgba, [10, 20, 30, 255]);
+        assert_eq!(sff.get(0, 1).expect("lz5").rgba, [10, 20, 30, 255]);
+    }
 }
