@@ -2793,3 +2793,61 @@ fn animation_and_position_triggers_track_state() {
     assert!((manato_sim::trigger::num(&sim, 0, "ScreenPos Y") - screen.y).abs() < 0.001);
     assert!((manato_sim::trigger::num(&sim, 0, "ScreenVel X") - -1.5).abs() < 0.001);
 }
+
+#[test]
+fn ctrl_state_type_and_move_type_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    let ctrl_off = manato_formats::Controller {
+        kind: "ctrlset".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &ctrl_off, &assets);
+    assert!(!sim.fighters[0].ctrl);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Ctrl"), 0);
+
+    let ctrl_on = manato_formats::Controller {
+        kind: "ctrlset".into(),
+        params: vec![("value".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &ctrl_on, &assets);
+    assert!(sim.fighters[0].ctrl);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Ctrl"), 1);
+
+    let types = manato_formats::Controller {
+        kind: "statetypeset".into(),
+        params: vec![
+            ("statetype".into(), "A".into()),
+            ("movetype".into(), "H".into()),
+            ("physics".into(), "N".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &types, &assets);
+    assert_eq!(
+        sim.fighters[0].state_type,
+        manato_sim::fighter::StateType::Air
+    );
+    assert_eq!(
+        sim.fighters[0].move_type,
+        manato_sim::fighter::MoveType::Hit
+    );
+    assert_eq!(sim.fighters[0].physics, manato_sim::fighter::Physics::None);
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "StateType").as_str(),
+        "A"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "MoveType").as_str(),
+        "H"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "Physics").as_str(),
+        "N"
+    );
+}
