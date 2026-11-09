@@ -4088,3 +4088,77 @@ fn bundled_projectile_can_be_guarded() {
     assert!(sim.fighters[0].proj_contact_time >= 0);
     assert_eq!(sim.fighters[0].proj_hit_time, -1);
 }
+
+#[test]
+fn hit_fall_controllers_set_vars_velocity_and_landing_damage() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // HitFallSet updates the fall flag and facing-relative fall velocities.
+    sim.fighters[1].facing = -1;
+    let set = manato_formats::Controller {
+        kind: "hitfallset".into(),
+        params: vec![
+            ("value".into(), "1".into()),
+            ("xvel".into(), "3".into()),
+            ("yvel".into(), "-4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &set, &assets);
+    assert!(sim.fighters[1].hit.vars.fall);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -3.0);
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, -4.0);
+
+    // HitFallVel copies the stored fall velocity to the fighter.
+    let vel = manato_formats::Controller {
+        kind: "hitfallvel".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &vel, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(-3.0, -4.0));
+
+    // HitFallDamage stores the landing damage.
+    let damage = manato_formats::Controller {
+        kind: "hitfalldamage".into(),
+        params: vec![("value".into(), "40".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &damage, &assets);
+    assert_eq!(sim.fighters[1].hit.vars.fall_damage, 40);
+}
+
+#[test]
+fn fall_damage_applies_once_on_ground_impact() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[1].pos.y = 24.0;
+    sim.fighters[1].vel.y = 10.0;
+    sim.fighters[1].hit.vars.fall = true;
+    sim.fighters[1].hit.vars.y_accel = 0.0;
+    sim.fighters[1].hit.vars.fall_damage = 40;
+    let life = sim.fighters[1].life;
+    sim.tick([PlayerInput::default(); 2]);
+    eprintln!(
+        "DBG state={} pos={:?} vel={:?} fall={} fd={}",
+        sim.fighters[1].state_no,
+        sim.fighters[1].pos,
+        sim.fighters[1].vel,
+        sim.fighters[1].hit.vars.fall,
+        sim.fighters[1].hit.vars.fall_damage
+    );
+    assert_eq!(sim.fighters[1].pos.y, 0.0, "fighter lands");
+    assert_eq!(sim.fighters[1].life, life - 40, "fall damage applies once");
+    assert_eq!(sim.fighters[1].hit.vars.fall_damage, 0);
+
+    // A second grounded tick must not re-apply the damage.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, life - 40);
+}

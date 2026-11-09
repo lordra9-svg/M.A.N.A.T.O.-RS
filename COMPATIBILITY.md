@@ -19,7 +19,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | F-01 | Text/INI parsing | Required | Required | Verified | Unit tests |
 | F-02 | DEF character/stage | Required | Required | Partial | Bundled/stock + localcoord, file-list, palette-map, and stage metadata tests |
-| F-03 | CNS states/controllers | Required | Required | Partial | CNS spec + parser; execution gaps remain |
+| F-03 | CNS states/controllers | Required | Required | Partial | CNS parser + execution tests incl. HitVelSet/FallSet/FallVel/FallDamage |
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; interpolation rendering pending |
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
@@ -82,7 +82,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Mirror/normalize/translate box test + KFM 200 hit flow |
 | K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flag matrix + unguardable + zero guard damage; KFM guard oracle |
 | K-03 | Hit pause/super pause | Required | Required | Partial | Freeze semantics + effect move-time + single-activation continuity; KFM 200 oracle |
-| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + KFM trip/launch/consumption; O-20 negative persistent-HitDef finding |
+| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle/trip/launch + fall controllers and one-shot fall damage; O-20 negative |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw entry, whiff, guard, bind-follow, and TargetDrop tests |
 | K-06 | Projectile collision | Required | Required | Partial | Hit-count/lifetime + KFM/Kaen projectile damage/guard oracle flow |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |

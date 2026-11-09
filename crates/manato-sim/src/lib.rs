@@ -1269,14 +1269,15 @@ impl SimState {
             }
         }
 
-        // Hit-fall ground level (common1 states use `groundlevel`).
-        if fall_state
-            && fighter.vel.y > 0.0
-            && fighter.pos.y >= ground_level
-            && fighter.state_no == 5030
-        {
+        // Hit-fall ground level (common1 states use `groundlevel`). Landing
+        // applies `fall.damage` once (`docs/spec/combat.md` §6).
+        if fall_state && fighter.vel.y > 0.0 && fighter.pos.y >= ground_level {
             fighter.pos.y = 0.0;
             fighter.vel.y = 0.0;
+            if fighter.hit.vars.fall_damage > 0 {
+                fighter.life = (fighter.life - fighter.hit.vars.fall_damage).max(0);
+                fighter.hit.vars.fall_damage = 0;
+            }
         }
     }
 
