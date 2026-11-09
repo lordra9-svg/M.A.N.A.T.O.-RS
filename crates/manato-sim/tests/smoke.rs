@@ -4533,6 +4533,36 @@ fn state_3000_fires_two_projectiles_with_offsets() {
 }
 
 #[test]
+fn state_3000_blasts_hit_tall_defender_for_120() {
+    // The oracle (O-25) uses KFM as the defender; use stock KFM when present.
+    let root = mugen_root();
+    let kfm = root.join("mugen-1.1b1/chars/kfm/kfm.def");
+    if !kfm.exists() {
+        eprintln!("skipping: stock KFM not available");
+        return;
+    }
+    let Some(mut sim) = fight_phase_with("content/chars/kaen/kaen.def", &kfm.to_string_lossy())
+    else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -15.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 15.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(3000, &assets.characters[0], false);
+    let life = sim.fighters[1].life;
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < life {
+            break;
+        }
+    }
+    assert_eq!(sim.fighters[1].life, life - 120, "65 + 55 blasts connect");
+    assert!(sim.fighters[1].state_no >= 5000);
+}
+
+#[test]
 fn modify_projectile_targets_newest_or_all_matching_ids() {
     let Some(mut sim) = fight_phase() else {
         return;

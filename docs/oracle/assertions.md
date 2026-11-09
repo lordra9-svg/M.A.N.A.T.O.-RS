@@ -43,6 +43,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-22 | Guarding the projectile (P2 in guard state 150) contacts 7 ticks after entry, deals 12 guard damage, keeps the defender in guard state 150, and reports the projectile guard timer with no hit timer. | `kaen_projectile_guard` capture: contact frame 216, `p2_life` 1000 -> 988, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-23 | Nival's projectile hits an idle opponent 6 ticks after entry for 45 damage (state 5000), and a guarded contact 7 ticks after entry costs 10 guard damage in state 150. | `nival_projectile[_guard]` captures: 45/state 5000/`projHit` 0; 10/state 150/`projGuarded` 0. |
 | O-24 | Ordan's projectile hits an idle opponent 6 ticks after entry for 60 damage (state 5000), and a guarded contact 7 ticks after entry costs 14 guard damage in state 150. | `ordan_projectile[_guard]` captures: 60/state 5000/`projHit` 0; 14/state 150/`projGuarded` 0. |
+| O-25 | Kaen state 3000 fires two blasts; at close range both connect on the same frame for combined 120 damage (65 + 55) and put the defender in state 5000. | `kaen_super` capture: contact frame 246, `p2_life` 1000 -> 880, `p2_state` 5000, `p1_projHit` 0. |
 | O-20 | **Negative result:** a persistent `numhits = 2` HitDef does **not** stop repeat hits after the juggle budget reaches 0. The first fall hit consumes all 15 points, then repeat contacts continue until KO (100 hits in the capture). The expected same-activation rejection was not observed with this construct. | `kfm_multihit` capture: `p2_juggle` 15 -> 0 on the first fall hit, then life continues dropping from 990 to 0 with `hits = 100`. Fixture: `tools/oracle/oracle-char/oracle.cns`. |
 
 ## Mapping to M.A.N.A.T.O.-RS
@@ -59,7 +60,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-15..O-16 | KFM trip/launch flow is encoded by `oracle_kfm_launch_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_launch`. |
 | O-17..O-18 | KFM juggle consumption is encoded by `oracle_kfm_juggle_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_juggle`. |
 | O-19 | Fresh-activation bypass and the same-activation gate are encoded in `juggle_allows`; unit test `juggle_points_gate_air_hits`. |
-| O-21..O-24 | Encoded by `bundled_projectile_hits`/`bundled_projectile_can_be_guarded` and `nival_projectile_hit_and_guard`/`ordan_projectile_hit_and_guard`; run `IKEMEN_ORACLE_SCENARIO=<char>_projectile[_guard]`. |
+| O-21..O-25 | Encoded by `bundled_projectile_hits`/`bundled_projectile_can_be_guarded`, `nival_projectile_hit_and_guard`, `ordan_projectile_hit_and_guard`, and `state_3000_blasts_hit_tall_defender_for_120`. |
 | O-20 | Kept as a documented negative oracle finding; the engine gate remains unit-tested and is not changed to match this anomalous persistent-HitDef construct. |
 
 These assertions remain subject to revision if a later oracle run contradicts
