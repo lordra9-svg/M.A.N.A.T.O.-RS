@@ -6251,3 +6251,54 @@ fn explod_window_perspective_edges_and_modify() {
     assert_eq!(effect.projection, manato_sim::ProjectionMode::Orthographic);
     assert_eq!(effect.focal_length, 512.0);
 }
+
+#[test]
+fn posset_absolute_and_posadd_facing_edges() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::new(10.0, -5.0);
+    sim.fighters[0].facing = -1;
+
+    // PosSet is absolute regardless of facing.
+    let set = manato_formats::Controller {
+        kind: "posset".into(),
+        params: vec![("x".into(), "100".into()), ("y".into(), "-20".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &set, &assets);
+    assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(100.0, -20.0));
+
+    // Omitting an axis leaves it unchanged.
+    let set_x = manato_formats::Controller {
+        kind: "posset".into(),
+        params: vec![("x".into(), "40".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &set_x, &assets);
+    assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(40.0, -20.0));
+
+    // PosAdd applies facing to X only.
+    let add = manato_formats::Controller {
+        kind: "posadd".into(),
+        params: vec![("x".into(), "10".into()), ("y".into(), "5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(30.0, -15.0));
+
+    // Reconciled facing flips the X direction.
+    sim.fighters[0].facing = 1;
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(40.0, -10.0));
+
+    // A controller with no axes is a no-op.
+    let empty = manato_formats::Controller {
+        kind: "posadd".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &empty, &assets);
+    assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(40.0, -10.0));
+}
