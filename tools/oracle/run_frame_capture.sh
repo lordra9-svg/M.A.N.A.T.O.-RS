@@ -39,6 +39,28 @@ cp "$here/capture.lua" "$mod"
 cp "$here/oracle-stage.def" "$root/stages/oracle.def"
 cp "$repo/content/stages/training/stage1.sff" "$root/stages/oracle.sff"
 
+if [[ "$scenario" == "kfm_multihit" ]]; then
+    rm -rf "$root/chars/oracle"
+    cp -r "$root/chars/kfm" "$root/chars/oracle"
+    mv "$root/chars/oracle/kfm.def" "$root/chars/oracle/oracle.def"
+    python3 - "$root/chars/oracle/oracle.def" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text()
+if "oracle.cns" not in text:
+    text = text.replace(
+        "stcommon = common1.cns",
+        "stcommon = common1.cns\nst2     = oracle.cns",
+        1,
+    )
+    path.write_text(text)
+PY
+    cp "$here/oracle-char/oracle.cns" "$root/chars/oracle/oracle.cns"
+    export IKEMEN_ORACLE_P1=oracle
+    export IKEMEN_ORACLE_P2=oracle
+fi
+
 cp "$main" "$main.bak"
 if ! grep -q "zz-oracle.lua" "$main"; then
     python3 - "$main" <<'PY'

@@ -1,0 +1,43 @@
+; Purpose-built oracle fixture for O-20: persistent HitDef with a forced
+; airborne target state. Installed into a throwaway runtime by run_frame_capture.sh.
+[Statedef 7000]
+type    = S
+movetype= A
+physics = S
+velset  = 0,0
+anim    = 200
+ctrl    = 0
+juggle  = 15
+
+[State 7000, Persistent HitDef]
+type = HitDef
+trigger1 = 1
+attr = S, NA
+damage = 10, 0
+guardflag = MA
+hitflag = MAF
+pausetime = 0, 0
+ground.type = High
+ground.velocity = 0
+air.velocity = 0, 0
+p2stateno = 7001
+fall = 1
+numhits = 2
+
+[Statedef 7001]
+type    = A
+movetype= H
+physics = N
+anim    = 5030
+ctrl    = 0
+
+[State 7001, Lift]
+type = PosSet
+trigger1 = Time = 0
+y = -20
+
+[State 7001, Freeze]
+type = VelSet
+trigger1 = 1
+x = 0
+y = 0

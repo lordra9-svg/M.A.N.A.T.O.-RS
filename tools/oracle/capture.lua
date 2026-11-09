@@ -71,7 +71,11 @@ function oracle_capture()
     end
 
     -- Scenario: force P1 into KFM state 200 once the Fight phase starts.
-    if scenario == "kfm_attack" and not injected and num(roundState()) == 2 then
+    if scenario == "kfm_multihit" and not injected and num(roundState()) == 2 then
+        player(1)
+        changeState(7000)
+        injected = true
+    elseif scenario == "kfm_attack" and not injected and num(roundState()) == 2 then
         player(1)
         changeState(200)
         injected = true

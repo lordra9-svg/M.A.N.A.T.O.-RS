@@ -94,20 +94,20 @@ To reduce an existing capture:
 python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 ```
 
-## Known capture limitation
+## O-20 negative finding
 
-The same-activation juggle-exhaustion case (a repeat hit inside one
-`numhits = 2` activation) has no clean KFM capture yet. A throwaway KFM state
-with a persistent two-hit HitDef and a forced lunge either misses the airborne
-defender after the preceding hit pause or overshoots past it. The gate itself is
-covered by the `juggle_points_gate_air_hits` unit test; a purpose-built test
-character or a replay fixture is needed to capture it end-to-end.
+A purpose-built fixture (`tools/oracle/oracle-char/oracle.cns`) forces a
+persistent `numhits = 2` HitDef onto an airborne target. Ikemen-GO consumes
+the full 15-point juggle budget on the first fall hit but then continues repeat
+contacts until KO; it does not reject the same-activation repeats. This is
+recorded as negative O-20 in `assertions.md`, not as a rejection assertion.
 
 ## Current coverage
 
 Round-end classification (`docs/oracle/assertions.md`, O-01..O-08) and the
 KFM light-punch hit flow (O-09..O-12), forced-guard flow (O-13..O-14),
-trip/launch flow (O-15..O-16), and juggle consumption/exhaustion (O-17..O-19):
+trip/launch flow (O-15..O-16), juggle consumption (O-17..O-19), and the
+negative O-20 persistent-HitDef finding:
 timer rate, KO vs time-over, perfect, clutch, time-over draws, contact timing,
 damage, get-hit state, hit-shake transition, single-hit activation, push
 direction, guard state/animation, zero guard damage, guard slide, trip damage, and the

@@ -51,7 +51,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Unit tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Unit tests |
 | T-03 | Command/command timers | Required | Required | Partial | Roster |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers; oracle pending |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | Core hit triggers + GetHitVar/HitShakeOver unit test; oracle pending |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Projectiles |
 | T-06 | Const/expressions/random | Required | Required | Partial | Unit tests |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
@@ -82,7 +82,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Box transforms + combat tests; KFM 200 hit flow in `docs/oracle/` |
 | K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flags, zero guard damage, forced-guard KFM oracle flow |
 | K-03 | Hit pause/super pause | Required | Required | Partial | Hit pause, hit-shake transition, and single-activation continuity; KFM 200 oracle flow |
-| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + KFM trip/launch, consumption, and fresh-activation gates |
+| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle point tests + KFM trip/launch/consumption; O-20 negative persistent-HitDef finding |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw states/target bind test |
 | K-06 | Projectile collision | Required | Required | Partial | Projectile tests |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef test; oracle pending |

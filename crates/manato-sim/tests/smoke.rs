@@ -1796,3 +1796,24 @@ fn make_dust_spawns_behind_owner() {
     assert_eq!(effect.owner, 0);
     assert!((effect.pos.x - (owner_x + 6.0)).abs() < 0.001);
 }
+
+#[test]
+fn get_hitvar_and_hit_shake_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.pausetime = (5, 5);
+    let origin = sim.fighters[0].pos;
+    let facing = sim.fighters[0].facing;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, facing, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(damage)"), 20);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitShakeOver"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveHit"), 1);
+    for _ in 0..6 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitShakeOver"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumExplod"), 0);
+}

@@ -39,6 +39,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-17 | KFM state 440 consumes its Statedef `juggle = 7` from the defender even though the first hit is grounded, leaving 8 of 15 points. | `kfm_juggle` capture: `p2_juggle` 15 -> 8 after the 72-damage trip hit. |
 | O-18 | A second airborne hit with KFM state 210 (Statedef `juggle = 4`) consumes 4 more points, enters air-hit state 5020, and deals 38 damage because fall defence multiplies by 1.5. | Same capture: `p2_juggle` 8 -> 4, life 928 -> 890, state 5020. |
 | O-19 | A fresh airborne activation is not blocked by the points gate even when its cost exceeds the remaining points; M.U.G.E.N lets an activation juggle an enemy it has not targeted yet. The gate blocks only repeat hits within one activation. | `kfm_juggle_exhaust` capture: state 240 hits while airborne and consumes 5 (`p2_juggle` 8 -> 3). The insufficient-point same-activation case is covered by `juggle_points_gate_air_hits`. |
+| O-20 | **Negative result:** a persistent `numhits = 2` HitDef does **not** stop repeat hits after the juggle budget reaches 0. The first fall hit consumes all 15 points, then repeat contacts continue until KO (100 hits in the capture). The expected same-activation rejection was not observed with this construct. | `kfm_multihit` capture: `p2_juggle` 15 -> 0 on the first fall hit, then life continues dropping from 990 to 0 with `hits = 100`. Fixture: `tools/oracle/oracle-char/oracle.cns`. |
 
 ## Mapping to M.A.N.A.T.O.-RS
 
@@ -54,6 +55,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-15..O-16 | KFM trip/launch flow is encoded by `oracle_kfm_launch_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_launch`. |
 | O-17..O-18 | KFM juggle consumption is encoded by `oracle_kfm_juggle_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_juggle`. |
 | O-19 | Fresh-activation bypass and the same-activation gate are encoded in `juggle_allows`; unit test `juggle_points_gate_air_hits`. |
+| O-20 | Kept as a documented negative oracle finding; the engine gate remains unit-tested and is not changed to match this anomalous persistent-HitDef construct. |
 
 These assertions remain subject to revision if a later oracle run contradicts
 them. The tests that encode them live in `crates/manato-sim/tests/smoke.rs`.
