@@ -1408,3 +1408,68 @@ fn ko_slow_factor_fades_toward_full_speed() {
     let mid = sim.ko_slow_factor();
     assert!(mid > start && mid < end, "fade should be monotonic: {mid}");
 }
+
+#[test]
+fn noko_assert_prevents_ko_until_cleared() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("common.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-noko-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let text = std::fs::read_to_string(&common).expect("read common.cns");
+    let patched = text.replace(
+        "[Statedef 10]",
+        "[State 0, Test NoKo]\ntype = AssertSpecial\ntrigger1 = 1\nflag = noko\n\n[Statedef 10]",
+    );
+    std::fs::write(&common, patched).expect("patch common.cns");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: dir.join("kaen.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    sim.fighters[1].life = 0;
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(
+            sim.round.phase,
+            manato_sim::RoundPhase::Fight,
+            "NoKo must keep the round alive"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn nokosnd_flag_suppresses_round_end_sounds() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert!(!sim.ko_sounds_suppressed());
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOKOSND;
+    assert!(sim.ko_sounds_suppressed());
+}

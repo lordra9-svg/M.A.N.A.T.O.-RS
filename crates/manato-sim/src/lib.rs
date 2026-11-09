@@ -1268,7 +1268,12 @@ impl SimState {
             }
             RoundPhase::Fight => {
                 self.round.timer -= 1;
-                let dead: Vec<usize> = (0..2).filter(|&i| self.fighters[i].life <= 0).collect();
+                let dead: Vec<usize> = (0..2)
+                    .filter(|&i| {
+                        self.fighters[i].life <= 0
+                            && self.fighters[i].assert_flags & fighter::ASSERT_NOKO == 0
+                    })
+                    .collect();
                 if !dead.is_empty() {
                     let winner = if dead.len() == 1 {
                         Some(1 - dead[0])
@@ -1484,6 +1489,10 @@ impl SimState {
 
     /// Queues a `fight.def` round sound on the common channel (§6.9).
     fn emit_round_sound(&mut self, name: &str) {
+        let round_end = matches!(name, "ko" | "dko" | "to" | "win" | "win2");
+        if round_end && self.ko_sounds_suppressed() {
+            return;
+        }
         let Some(screenpack) = &self.assets.screenpack else {
             return;
         };
@@ -1828,6 +1837,13 @@ impl SimState {
     /// at the stage ground when `zoomanchor = 1`, and otherwise at the
     /// viewport centre. Both forms reduce to the unzoomed mapping at
     /// `scale = 1`, so enabling zoom never jumps the scene.
+    /// True when any fighter asserts `NoKOSnd` (suppress round-end sounds).
+    pub fn ko_sounds_suppressed(&self) -> bool {
+        self.fighters
+            .iter()
+            .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOKOSND != 0)
+    }
+
     /// True when any fighter asserts `NoBG` (hide background layers).
     pub fn background_hidden(&self) -> bool {
         self.fighters
