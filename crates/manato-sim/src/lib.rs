@@ -1537,6 +1537,21 @@ impl SimState {
         }
     }
 
+    /// Restarts the match from round 1, clearing wins, power, and match state.
+    /// The host may call this after `finished` (`docs/spec/rounds.md` §6).
+    pub fn restart_match(&mut self) {
+        self.round.number = 1;
+        self.round.wins = [0, 0];
+        self.round.winner = None;
+        self.round.time_over = false;
+        self.win_history = [Vec::new(), Vec::new()];
+        self.finished = false;
+        for fighter in &mut self.fighters {
+            fighter.power = 0.0;
+        }
+        self.start_round();
+    }
+
     fn start_round(&mut self) {
         self.fighters.truncate(2);
         let stage = &self.assets.stage;

@@ -469,7 +469,7 @@ Controls (window mode):
   P1: WASD move, J/K/L = X/Y/Z, U/I/O = A/B/C
   P2: arrows move, numpad 1/2/3 = X/Y/Z, 4/5/6 = A/B/C
   Pads: d-pad/left stick, South/X/Y/Z = X/Y/Z, West/A/B/C = A/B/C, Start
-  F12 screenshot, Esc quit
+  R restart match, F12 screenshot, Esc quit
 "#
     );
 }
@@ -1683,7 +1683,11 @@ impl ApplicationHandler for App {
                             self.frontend_key(code, Some(event_loop));
                             return;
                         }
-                        if code == KeyCode::Escape {
+                        if code == KeyCode::KeyR {
+                            if let Some(sim) = self.sim.as_mut() {
+                                sim.restart_match();
+                            }
+                        } else if code == KeyCode::Escape {
                             if self.frontend.is_some() {
                                 self.return_to_title();
                             } else {

@@ -98,7 +98,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | R-03 | Win poses/quotes | Required | Required | Partial | State 180 win pose; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
 | R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |
-| R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime trigger + RoundNotOver |
+| R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow flags + `restart_match` API and R-key reset |
 
 ## 7. Rendering
 

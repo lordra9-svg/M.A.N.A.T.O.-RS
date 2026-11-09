@@ -1722,3 +1722,27 @@ fn oracle_kfm_juggle_flow() {
     // State 210 has Statedef juggle = 4, consuming 4 more points.
     assert_eq!(sim.fighters[1].juggle_points, 4);
 }
+
+#[test]
+fn restart_match_resets_rounds_wins_and_power() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.wins = [2, 1];
+    sim.round.number = 3;
+    sim.finished = true;
+    sim.fighters[0].power = 1500.0;
+    sim.win_history[0].push(manato_sim::WinRecord {
+        time_over: false,
+        perfect: true,
+        clutch: false,
+    });
+    sim.restart_match();
+    assert_eq!(sim.round.number, 1);
+    assert_eq!(sim.round.wins, [0, 0]);
+    assert!(!sim.finished);
+    assert!(sim.win_history[0].is_empty());
+    assert_eq!(sim.fighters[0].power, 0.0);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
+    assert_eq!(sim.round.timer, sim.round.round_time * 60);
+}
