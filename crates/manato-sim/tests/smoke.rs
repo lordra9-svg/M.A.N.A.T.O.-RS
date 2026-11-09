@@ -3838,3 +3838,54 @@ fn command_buffering_during_hit_and_super_pause() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn win_icon_history_accumulates_and_clears_on_restart() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 2;
+
+    // Round 1: perfect KO -> normal icon with the perfect flag.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.win_history[0].len(), 1);
+    assert!(sim.win_history[0][0].perfect);
+    assert!(!sim.win_history[0][0].time_over);
+    assert!(sim.win_history[1].is_empty());
+
+    // Round transition clears the transient combo counter.
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.combo[0].shown_hits, 0);
+    assert_eq!(sim.combo[0].timer, 0);
+    for _ in 0..60 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+
+    // Round 2: time-over win -> time icon, no perfect flag.
+    sim.fighters[0].life = sim.fighters[0].life_max / 2;
+    sim.fighters[1].life = 100;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.win_history[0].len(), 2);
+    assert!(sim.win_history[0][1].time_over);
+    assert!(!sim.win_history[0][1].perfect);
+    assert_eq!(sim.round.wins, [2, 0]);
+    assert!(sim.win_history[1].is_empty());
+
+    // A restart clears both sides' icon history and wins.
+    sim.restart_match();
+    assert!(sim.win_history[0].is_empty());
+    assert!(sim.win_history[1].is_empty());
+    assert_eq!(sim.round.wins, [0, 0]);
+}

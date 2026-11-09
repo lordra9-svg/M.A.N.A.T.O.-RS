@@ -107,7 +107,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-01 | Sprite/palette rendering | Required | Required | Verified | Screenshots |
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
 | V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry parser test + BGCtrl update integration test |
-| V-04 | HUD/lifebars/fonts | Required | Required | Partial | Built-in HUD + screenpack bars/names/timer/win icons/combo; guard/stun bars pending |
+| V-04 | HUD/lifebars/fonts | Required | Required | Partial | HUD/bars/names/timer + combo counter, delayed fill, win-icon history/reset tests; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal rules + projectile facing/accel tests |
 | V-06 | Afterimages | Required | Required | Partial | Ghost trail rendering added |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
