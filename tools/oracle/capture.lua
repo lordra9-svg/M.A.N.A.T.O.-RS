@@ -94,6 +94,17 @@ function oracle_capture()
         player(1)
         changeState(3000)
         injected = true
+    elseif scenario == "kaen_super_guard" and not injected and num(safe(roundState)) == 2 then
+        player(1)
+        changeState(3000)
+        last_inject = frame
+        injected = true
+    elseif scenario == "kaen_super_guard" and injected then
+        player(2)
+        local state = num(stateNo())
+        if state < 150 or state > 159 then
+            changeState(150)
+        end
     elseif projectile_scenarios[scenario] and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(1000)

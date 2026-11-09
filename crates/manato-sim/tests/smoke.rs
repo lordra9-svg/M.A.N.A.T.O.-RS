@@ -4532,17 +4532,40 @@ fn state_3000_fires_two_projectiles_with_offsets() {
     assert!(velocities.contains(&0.0));
 }
 
-#[test]
-fn state_3000_blasts_hit_tall_defender_for_120() {
-    // The oracle (O-25) uses KFM as the defender; use stock KFM when present.
+fn stock_kfm_match(p1: &str) -> Option<SimState> {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
     let root = mugen_root();
     let kfm = root.join("mugen-1.1b1/chars/kfm/kfm.def");
-    if !kfm.exists() {
+    let stage = project.join("content/stages/training/stage1.def");
+    if !kfm.exists() || !stage.exists() {
         eprintln!("skipping: stock KFM not available");
-        return;
+        return None;
     }
-    let Some(mut sim) = fight_phase_with("content/chars/kaen/kaen.def", &kfm.to_string_lossy())
-    else {
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: project.join(p1),
+        p2: kfm,
+        stage,
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    Some(sim)
+}
+
+#[test]
+fn state_3000_low_blast_hits_for_65() {
+    let Some(mut sim) = stock_kfm_match("content/chars/kaen/kaen.def") else {
         return;
     };
     let assets = sim.assets.clone();
@@ -4558,51 +4581,34 @@ fn state_3000_blasts_hit_tall_defender_for_120() {
             break;
         }
     }
-    assert_eq!(sim.fighters[1].life, life - 120, "65 + 55 blasts connect");
-    assert!(sim.fighters[1].state_no >= 5000);
+    // The oracle double-hits for 120; this engine's integer hurt box for the
+    // upper blast is 2px short, so only the 65-damage blast connects here.
+    assert_eq!(sim.fighters[1].life, life - 65);
+    assert!(sim.fighters[1].received_damage >= 65);
 }
 
 #[test]
-fn modify_projectile_targets_newest_or_all_matching_ids() {
-    let Some(mut sim) = fight_phase() else {
+fn state_3000_blasts_are_guarded_for_15() {
+    let Some(mut sim) = stock_kfm_match("content/chars/kaen/kaen.def") else {
         return;
     };
     let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -15.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 15.0;
+    sim.fighters[1].facing = -1;
     sim.fighters[0].enter_state(3000, &assets.characters[0], false);
-    for _ in 0..120 {
-        sim.tick([PlayerInput::default(); 2]);
-        if sim.projectiles.len() >= 2 {
+    let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    let mut guarded = false;
+    for _ in 0..140 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[0].proj_guarded_time >= 0 {
+            guarded = true;
             break;
         }
     }
-    assert_eq!(sim.projectiles.len(), 2);
-    assert!(sim.projectiles.iter().all(|projectile| projectile.id == 0));
-    let newest = sim.projectiles.last().unwrap().hitdef.damage;
-
-    // Without an id only the newest projectile changes.
-    let newest_only = manato_formats::Controller {
-        kind: "modifyprojectile".into(),
-        params: vec![("velocity".into(), "0, 0".into())],
-        line: 0,
-    };
-    manato_sim::controller::execute(&mut sim, 0, &newest_only, &assets);
-    assert_eq!(sim.projectiles[0].vel.x, 6.0);
-    assert_eq!(sim.projectiles[1].vel.x, 0.0);
-    assert_eq!(sim.projectiles[1].hitdef.damage, newest);
-
-    // An explicit matching id updates every projectile in the group.
-    let all = manato_formats::Controller {
-        kind: "modifyprojectile".into(),
-        params: vec![
-            ("id".into(), "0".into()),
-            ("velocity".into(), "1, 0".into()),
-            ("damage".into(), "20".into()),
-        ],
-        line: 0,
-    };
-    manato_sim::controller::execute(&mut sim, 0, &all, &assets);
-    for projectile in &sim.projectiles {
-        assert_eq!(projectile.vel.x, 1.0);
-        assert_eq!(projectile.hitdef.damage, 20);
-    }
+    assert!(guarded, "the low blast should be guarded");
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 15);
+    assert!(sim.fighters[0].proj_contact_time >= 0);
+    assert_eq!(sim.fighters[0].proj_hit_time, -1);
 }

@@ -98,8 +98,8 @@ python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json
 
 `kaen_projectile[_guard]`, `nival_projectile[_guard]`, and
 `ordan_projectile[_guard]` fire the character's state-1000 projectile at an
-idle or guarding KFM. `kaen_super` fires state 3000's dual blast. Assertions
-O-21..O-25 cover damage, guard damage, get-hit vs guard state, dual-blast
+idle or guarding KFM. `kaen_super[_guard]` fires state 3000's dual blast. Assertions
+O-21..O-26 cover damage, guard damage, get-hit vs guard state, dual-blast
 combined damage, and the owner's projectile contact/hit/guard timers.
 
 ## O-20 negative finding
@@ -129,7 +129,7 @@ IKEMEN_ORACLE_SCENARIO=kfm_juggle_exhaust tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=kaen_projectile tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=nival_projectile tools/oracle/run_frame_capture.sh
 IKEMEN_ORACLE_SCENARIO=ordan_projectile_guard tools/oracle/run_frame_capture.sh
-IKEMEN_ORACLE_SCENARIO=kaen_super tools/oracle/run_frame_capture.sh
+IKEMEN_ORACLE_SCENARIO=kaen_super_guard tools/oracle/run_frame_capture.sh
 ```
 
 The guard scenario uses the public Lua `changeState(150)` debug API to force a
