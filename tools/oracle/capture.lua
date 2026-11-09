@@ -14,6 +14,14 @@ local projectile_scenarios = {
     nival_projectile = true,
     ordan_projectile = true,
 }
+local super_scenarios = {
+    kaen_super = true,
+    nival_super = true,
+}
+local super_guard_scenarios = {
+    kaen_super_guard = true,
+    nival_super_guard = true,
+}
 local projectile_guard_scenarios = {
     kaen_projectile_guard = true,
     nival_projectile_guard = true,
@@ -90,16 +98,16 @@ function oracle_capture()
         player(1)
         changeState(7000)
         injected = true
-    elseif scenario == "kaen_super" and not injected and num(safe(roundState)) == 2 then
+    elseif super_scenarios[scenario] and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(3000)
         injected = true
-    elseif scenario == "kaen_super_guard" and not injected and num(safe(roundState)) == 2 then
+    elseif super_guard_scenarios[scenario] and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(3000)
         last_inject = frame
         injected = true
-    elseif scenario == "kaen_super_guard" and injected then
+    elseif super_guard_scenarios[scenario] and injected then
         player(2)
         local state = num(stateNo())
         if state < 150 or state > 159 then

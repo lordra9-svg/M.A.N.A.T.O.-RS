@@ -4657,3 +4657,63 @@ fn modify_projectile_targets_newest_or_all_matching_ids() {
         assert_eq!(projectile.hitdef.damage, 20);
     }
 }
+
+#[test]
+fn nival_super_pauses_then_hits_for_90() {
+    let Some(mut sim) = stock_kfm_match("content/chars/nival/nival.def") else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -15.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 15.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(3000, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.super_pause > 0, "state 3000 opens with SuperPause");
+
+    let life = sim.fighters[1].life;
+    let mut contact_tick = None;
+    for tick in 0..140 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].life < life {
+            contact_tick = Some(tick + 2);
+            break;
+        }
+    }
+    let contact_tick = contact_tick.expect("projectile connects");
+    // The 30-tick SuperPause delays contact vs the ~6-tick plain projectile.
+    assert!(
+        contact_tick >= 30,
+        "contact waited for the pause, got {contact_tick}"
+    );
+    assert_eq!(sim.fighters[1].life, life - 90);
+    assert!(sim.fighters[1].received_damage >= 90);
+    assert!(sim.fighters[0].proj_hit_time >= 0);
+}
+
+#[test]
+fn nival_super_guard_takes_20() {
+    let Some(mut sim) = stock_kfm_match("content/chars/nival/nival.def") else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -15.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 15.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(3000, &assets.characters[0], false);
+    let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    let mut guarded = false;
+    for _ in 0..160 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[0].proj_guarded_time >= 0 {
+            guarded = true;
+            break;
+        }
+    }
+    assert!(guarded, "super projectile should be guardable");
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 20);
+    assert!(sim.fighters[0].proj_contact_time >= 0);
+    assert_eq!(sim.fighters[0].proj_hit_time, -1);
+}
