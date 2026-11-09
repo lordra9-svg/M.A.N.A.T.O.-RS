@@ -852,4 +852,54 @@ mod tests {
         mixer.fill(&mut out);
         assert!(out[0].abs() > 0.01 && out[0].abs() < 0.2);
     }
+    #[test]
+    fn pause_music_freezes_and_resumes_position() {
+        let engine = AudioEngine::silent();
+        let music = Music {
+            samples: Arc::new((0..512).map(|i| (i % 64) as i16 * 200).collect()),
+            sample_rate: 48_000,
+            channels: 1,
+            loop_start_ms: 0,
+            loop_end_ms: 0,
+        };
+        engine.play_music(&music, 1.0);
+        let mut out = vec![0.0f32; 64];
+        engine.mixer.lock().unwrap().fill(&mut out);
+        let before = engine
+            .mixer
+            .lock()
+            .unwrap()
+            .music
+            .as_ref()
+            .unwrap()
+            .position;
+
+        engine.pause_music(true);
+        for _ in 0..3 {
+            let mut paused_out = vec![0.0f32; 64];
+            engine.mixer.lock().unwrap().fill(&mut paused_out);
+            assert!(paused_out.iter().all(|sample| *sample == 0.0));
+        }
+        let during = engine
+            .mixer
+            .lock()
+            .unwrap()
+            .music
+            .as_ref()
+            .unwrap()
+            .position;
+        assert!((during - before).abs() < f64::EPSILON);
+
+        engine.pause_music(false);
+        engine.mixer.lock().unwrap().fill(&mut out);
+        let after = engine
+            .mixer
+            .lock()
+            .unwrap()
+            .music
+            .as_ref()
+            .unwrap()
+            .position;
+        assert!(after > during);
+    }
 }

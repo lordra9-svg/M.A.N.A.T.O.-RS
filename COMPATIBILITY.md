@@ -122,7 +122,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | A-02 | Character/effect sounds | Required | Required | Verified | Roster |
 | A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer; oracle pending |
 | A-04 | Pan/volume/channels | Required | Required | Partial | Channel priority, pan, master/music volume, tests |
-| A-05 | Pause/loop/modify sound | Required | Ikemen | Partial | PlaySnd loop, StopSnd, SndPan, ModifySnd |
+| A-05 | Pause/loop/modify sound | Required | Ikemen | Partial | PlaySnd loop, StopSnd/SndPan/ModifySnd, BGM pause/resume test |
 
 ## 9. Input, AI, and netplay
 
