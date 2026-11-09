@@ -924,4 +924,90 @@ mod tests {
         assert_eq!((sprite.width, sprite.height), (1, 1));
         assert_eq!((sprite.axis_x, sprite.axis_y), (9, 10));
     }
+    fn pcx(indices: &[u8], width: u16, height: u16, palette: Option<&[[u8; 3]]>) -> Vec<u8> {
+        let mut out = vec![0u8; 128];
+        out[0] = 0x0A; // PCX magic
+        out[2] = 1; // RLE
+        out[3] = 8; // 8-bit
+        out[4..6].copy_from_slice(&0u16.to_le_bytes());
+        out[6..8].copy_from_slice(&0u16.to_le_bytes());
+        out[8..10].copy_from_slice(&(width - 1).to_le_bytes());
+        out[10..12].copy_from_slice(&(height - 1).to_le_bytes());
+        out[65] = 1; // one color plane
+        out[66..68].copy_from_slice(&width.to_le_bytes());
+
+        // Rows are stored uncompressed when every index is < 0xC0.
+        for &index in indices {
+            out.push(index);
+        }
+        if let Some(palette) = palette {
+            out.push(0x0C);
+            for color in palette.iter().take(256) {
+                out.extend_from_slice(color);
+            }
+        }
+        out
+    }
+
+    fn v1_sprite(next: u32, group: u16, index: u16, same_palette: bool, payload: &[u8]) -> Vec<u8> {
+        let mut header = vec![0u8; 32];
+        header[0..4].copy_from_slice(&next.to_le_bytes());
+        header[4..8].copy_from_slice(&(payload.len() as u32).to_le_bytes());
+        header[8..10].copy_from_slice(&0i16.to_le_bytes());
+        header[10..12].copy_from_slice(&0i16.to_le_bytes());
+        header[12..14].copy_from_slice(&group.to_le_bytes());
+        header[14..16].copy_from_slice(&index.to_le_bytes());
+        header[18] = u8::from(same_palette);
+        let mut out = header;
+        out.extend_from_slice(payload);
+        out
+    }
+
+    #[test]
+    fn v1_same_palette_sprites_reuse_the_previous_palette() {
+        let mut palette = vec![[0u8, 0, 0]; 256];
+        palette[0] = [0, 0, 0];
+        palette[1] = [255, 0, 0];
+        palette[2] = [0, 255, 0];
+        palette[3] = [0, 0, 255];
+
+        let first = pcx(&[1, 2], 2, 1, Some(&palette));
+        let second = pcx(&[3], 1, 1, None);
+
+        let mut data = vec![0u8; 32];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 1;
+        data[20..24].copy_from_slice(&2u32.to_le_bytes());
+        data[24..28].copy_from_slice(&32u32.to_le_bytes());
+        data[28..32].copy_from_slice(&32u32.to_le_bytes());
+
+        let first_offset = data.len() as u32;
+        let second_offset = first_offset + 32 + first.len() as u32;
+        data.extend_from_slice(&v1_sprite(second_offset, 0, 0, false, &first));
+        data.extend_from_slice(&v1_sprite(0, 0, 1, true, &second));
+
+        let sff = SffFile::from_bytes(&data).expect("parse v1 palette reuse");
+        let first_sprite = sff.get(0, 0).expect("first sprite");
+        assert_eq!(&first_sprite.rgba[0..4], &[255, 0, 0, 255]);
+        assert_eq!(&first_sprite.rgba[4..8], &[0, 255, 0, 255]);
+
+        let second_sprite = sff.get(0, 1).expect("same-palette sprite");
+        assert_eq!(&second_sprite.rgba[0..4], &[0, 0, 255, 255]);
+    }
+    #[test]
+    fn v1_same_palette_without_previous_palette_uses_defaults() {
+        let payload = pcx(&[1], 1, 1, None);
+        let mut data = vec![0u8; 32];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 1;
+        data[20..24].copy_from_slice(&1u32.to_le_bytes());
+        data[24..28].copy_from_slice(&32u32.to_le_bytes());
+        data[28..32].copy_from_slice(&32u32.to_le_bytes());
+        data.extend_from_slice(&v1_sprite(0, 1, 1, true, &payload));
+
+        let sff = SffFile::from_bytes(&data).expect("parse v1 default palette");
+        let sprite = sff.get(1, 1).expect("sprite");
+        assert_eq!(&sprite.rgba[0..4], &[1, 1, 1, 255]);
+        assert_eq!(sff.get(1, 1).map(|s| (s.width, s.height)), Some((1, 1)));
+    }
 }

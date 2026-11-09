@@ -22,7 +22,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-03 | CNS states/controllers | Required | Required | Partial | CNS parser + execution tests incl. HitVelSet/FallSet/FallVel/FallDamage |
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; interpolation rendering pending |
-| F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
+| F-06 | SFF v1 | Required | Required | Partial | Bundled/stock + synthetic PCX palette and same_palette reuse tests |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-08 | SND | Required | Required | Partial | SND spec + parser tests; oracle pending |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
