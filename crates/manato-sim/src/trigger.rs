@@ -848,7 +848,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "roundstate" => Value::Int(sim.round.roundstate_code()),
         "roundtime" => Value::Int(sim.round.seconds()),
         "teamside" => Value::Int(f.side as i32 + 1),
-        "playerid" => Value::Int(who as i32),
+        "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
         "numenemy" => Value::Int(1),
         "numexplod" => Value::Int(
             sim.effects

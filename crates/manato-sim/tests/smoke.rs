@@ -6302,3 +6302,62 @@ fn posset_absolute_and_posadd_facing_edges() {
     manato_sim::controller::execute(&mut sim, 0, &empty, &assets);
     assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(40.0, -10.0));
 }
+
+#[test]
+fn identity_and_team_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerID"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumEnemy"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumPartner"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PalNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeMod"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2, PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Enemy, NumEnemy"), 1);
+
+    // Team character names: P1/P2 are populated; P3/P4 are empty in 1v1.
+    let assets = sim.assets.clone();
+    let p1_name = assets.characters[0].display_name().to_string();
+    let p2_name = assets.characters[1].display_name().to_string();
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "P1Name").as_str(),
+        p1_name
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "P2Name").as_str(),
+        p2_name
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "P3Name").as_str(),
+        ""
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "P4Name").as_str(),
+        ""
+    );
+
+    // Helpers report their owner's player ID.
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "9".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = sim.fighters.len() - 1;
+    eprintln!(
+        "DBG helper_index={} owner={:?} len={}",
+        helper_index,
+        sim.fighters[helper_index].owner,
+        sim.fighters.len()
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, helper_index, "PlayerID"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Helper(9), PlayerID"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Helper(9), NumEnemy"), 1);
+}
