@@ -19,7 +19,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | F-01 | Text/INI parsing | Required | Required | Verified | Unit tests |
 | F-02 | DEF character/stage | Required | Required | Partial | Bundled/stock + localcoord, file-list, palette-map, and stage metadata tests |
-| F-03 | CNS states/controllers | Required | Required | Partial | CNS parser + execution tests incl. HitVelSet/FallSet/FallVel/FallDamage |
+| F-03 | CNS states/controllers | Required | Required | Partial | Execution tests incl. fall controllers, EnvColor, Gravity, HitAdd, MoveHitReset |
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; interpolation rendering pending |
 | F-06 | SFF v1 | Required | Required | Partial | PCX palette/reuse + EOF zero-length link chain tests |
@@ -66,7 +66,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef/ReversalDef added |
 | C-04 | Projectile | Required | Required | Partial | Projectile spawn/hit-count/lifetime + ModifyProjectile tests |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/projection + lifetime/remove-on-hit/state + Modify/Remove id tests |
-| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind + Target* controllers + helper-owned projectile ownership test |
+| C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper/bind/Target* + SelfState ownership and DestroySelf removal tests |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Controller test + effect freeze/supermovetime/pausemovetime interaction |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Attr filters + HitBy whitelist + override tests; oracle pending |

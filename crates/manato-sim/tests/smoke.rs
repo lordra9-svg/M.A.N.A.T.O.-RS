@@ -4162,3 +4162,122 @@ fn fall_damage_applies_once_on_ground_impact() {
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters[1].life, life - 40);
 }
+
+#[test]
+fn env_color_gravity_and_attack_counters() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    let color = manato_formats::Controller {
+        kind: "envcolor".into(),
+        params: vec![
+            ("value".into(), "51, 102, 153".into()),
+            ("time".into(), "3".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &color, &assets);
+    let env = sim.env_color.expect("EnvColor active");
+    assert!((env.color[0] - 0.2).abs() < 0.01);
+    assert!((env.color[1] - 0.4).abs() < 0.01);
+    assert!((env.color[2] - 0.6).abs() < 0.01);
+    assert_eq!(env.color[3], 1.0);
+    assert_eq!(env.time, 3);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.env_color.is_none(), "EnvColor expires");
+
+    let gravity = manato_formats::Controller {
+        kind: "gravity".into(),
+        params: vec![("value".into(), "0.5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &gravity, &assets);
+    assert_eq!(sim.fighters[0].gravity, Some(0.5));
+    sim.fighters[0].physics = manato_sim::fighter::Physics::Air;
+    sim.fighters[0].pos.y = -100.0;
+    sim.fighters[0].vel.y = 0.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vel.y, 0.5);
+
+    // Omitting `value` clears the per-fighter gravity override.
+    let clear = manato_formats::Controller {
+        kind: "gravity".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &clear, &assets);
+    assert_eq!(sim.fighters[0].gravity, None);
+
+    let add = manato_formats::Controller {
+        kind: "hitadd".into(),
+        params: vec![("value".into(), "3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].attack.hit_count, 3);
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].attack.hit_count, 6);
+
+    sim.fighters[0].attack.move_contact = true;
+    sim.fighters[0].attack.move_hit = true;
+    sim.fighters[0].attack.move_guarded = true;
+    let reset = manato_formats::Controller {
+        kind: "movehitreset".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    assert!(!sim.fighters[0].attack.move_contact);
+    assert!(!sim.fighters[0].attack.move_hit);
+    assert!(!sim.fighters[0].attack.move_guarded);
+    assert_eq!(sim.fighters[0].attack.hit_count, 0);
+}
+
+#[test]
+fn destroy_self_removes_helper_and_self_state_keeps_owner() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "3".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let helper_index = sim.fighters.len() - 1;
+    assert_eq!(sim.fighters[helper_index].owner, Some(0));
+
+    let self_state = manato_formats::Controller {
+        kind: "selfstate".into(),
+        params: vec![("value".into(), "200".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &self_state, &assets);
+    assert_eq!(sim.fighters[helper_index].state_no, 200);
+    assert_eq!(
+        sim.fighters[helper_index].owner,
+        Some(0),
+        "SelfState keeps helper ownership"
+    );
+    assert_eq!(sim.root_of(helper_index), 0);
+
+    let destroy = manato_formats::Controller {
+        kind: "destroyself".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper_index, &destroy, &assets);
+    assert!(sim.fighters[helper_index].helper_destroy);
+    assert_eq!(sim.fighters.len(), 3);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters.len(), 2, "DestroySelf removes the helper");
+}
