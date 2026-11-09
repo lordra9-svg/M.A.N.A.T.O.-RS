@@ -76,8 +76,19 @@ place automatically. The script temporarily patches the throwaway runtime's
 path, then restores it.
 
 If the engine cannot be launched from the Python process (for example, no
-offscreen GL session), run the match from a desktop shell with the printed
-environment and then reduce the CSV:
+offscreen GL session), use the shell-native wrapper. It prepares the runtime,
+launches the game from the runtime directory, and reduces the capture:
+
+```sh
+IKEMEN_DIR=/path/to/ikemen-runtime tools/oracle/run_frame_capture.sh
+```
+
+Set `IKEMEN_ORACLE_KEEP=1` to keep the raw CSV and `IKEMEN_ORACLE_TIMEOUT` to
+limit the run. Library paths must already include the runtime's SDL/FFmpeg/xmp
+dependencies; the wrapper prepends the existing `LD_LIBRARY_PATH` to the
+runtime `lib/` directory.
+
+To reduce an existing capture:
 
 ```sh
 python3 tools/oracle/run_frame_capture.py --from-csv frames.csv --json

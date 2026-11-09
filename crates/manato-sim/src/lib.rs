@@ -751,6 +751,9 @@ impl SimState {
     pub fn tick(&mut self, inputs: [PlayerInput; 2]) {
         self.frame = self.frame.wrapping_add(1);
         for fighter in &mut self.fighters {
+            if fighter.hit.hit_shake_timer > 0 {
+                fighter.hit.hit_shake_timer -= 1;
+            }
             for timer in [
                 &mut fighter.proj_contact_time,
                 &mut fighter.proj_hit_time,
@@ -909,7 +912,6 @@ impl SimState {
             } else {
                 fighter.state_time = fighter.state_time.saturating_add(1);
             }
-            fighter.hit.hit_shake_timer = (fighter.hit.hit_shake_timer - 1).max(0);
             fighter.hit.hit_over_timer = (fighter.hit.hit_over_timer - 1).max(0);
             // Leaving hitstun ends the combo the attacker was building
             // (`docs/spec/render.md` §6.8).
@@ -2095,6 +2097,7 @@ impl SimState {
             h.write_u8(f.move_type as u8);
             h.write_u8(f.physics as u8);
             h.write_i32(f.hit.hit_pause);
+            h.write_i32(f.hit.hit_shake_timer);
             h.write_i32(f.hit.pause_gap);
             h.write_i32(f.hit.vars.hittime);
             h.write_bool(f.hit.guarding);

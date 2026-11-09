@@ -1530,15 +1530,21 @@ fn oracle_kfm_state_200_hits_idle() {
     assert_eq!(sim.fighters[1].received_damage, 23);
     assert_eq!(sim.fighters[1].received_hits, 1);
     let contact_x = sim.fighters[1].pos.x;
-
-    for _ in 0..30 {
+    let mut transition = None;
+    let mut min_life = sim.fighters[1].life;
+    for tick in 0..30 {
         sim.tick([PlayerInput::default(); 2]);
+        min_life = min_life.min(sim.fighters[1].life);
+        if transition.is_none() && sim.fighters[1].state_no >= 5001 {
+            transition = Some(tick + 1);
+        }
     }
-    // The attack is one activation: no re-hit after the 8-tick hit pause.
-    assert_eq!(sim.fighters[1].received_damage, 23);
-    assert_eq!(sim.fighters[1].received_hits, 1);
-    assert_eq!(sim.fighters[1].life, 977);
-    // The defender is pushed away from the attacker (oracle O-10).
+    // Oracle O-12: the get-hit state advances on the first tick after the
+    // 8-tick hit-shake window (contact + 9 ticks).
+    assert_eq!(transition, Some(9));
+    // Oracle O-10: one activation, so life never drops below 977.
+    assert_eq!(min_life, 977);
+    // Oracle O-11: the defender is pushed away from the attacker.
     assert!(
         sim.fighters[1].pos.x > contact_x + 8.0,
         "defender should be pushed away, x={}",

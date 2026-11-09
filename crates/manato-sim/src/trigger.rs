@@ -869,8 +869,7 @@ fn hit_over(sim: &SimState, who: usize) -> bool {
 }
 
 fn hit_shake_over(sim: &SimState, who: usize) -> bool {
-    let f = &sim.fighters[who];
-    f.state_time >= f.hit.vars.hittime.max(1)
+    sim.fighters[who].hit.hit_shake_timer <= 0
 }
 
 fn inguard_dist(sim: &SimState, who: usize) -> bool {

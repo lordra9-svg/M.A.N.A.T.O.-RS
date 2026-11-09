@@ -93,6 +93,14 @@ def summarize(path: Path) -> dict:
     injection_index = rows.index(injection)
     contact_x = float(contact["p2_x"])
     max_x = max(float(row["p2_x"]) for row in rows[contact_index:])
+    transition = next(
+        (
+            row
+            for row in rows[contact_index:]
+            if int(row["p2_state"]) >= 5001
+        ),
+        None,
+    )
     return {
         "injection_frame": int(injection["frame"]),
         "contact_frame": int(contact["frame"]),
@@ -101,6 +109,10 @@ def summarize(path: Path) -> dict:
         "hits": hits,
         "defender_state": int(contact["p2_state"]),
         "defender_anim": int(contact["p2_anim"]),
+        "transition_ticks": (
+            int(transition["frame"]) - int(contact["frame"]) if transition else None
+        ),
+        "state_after_contact": int(transition["p2_state"]) if transition else None,
         "push_distance": round(max_x - contact_x, 3),
         "rows": len(rows),
     }
@@ -192,6 +204,8 @@ def main() -> int:
         print(
             f"contact_ticks={summary['contact_ticks']} damage={summary['damage']} "
             f"hits={summary['hits']} state={summary['defender_state']} "
+            f"next_state={summary['state_after_contact']} "
+            f"transition={summary['transition_ticks']} "
             f"anim={summary['defender_anim']} push={summary['push_distance']}"
         )
     return 0
