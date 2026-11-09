@@ -20,7 +20,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-01 | Text/INI parsing | Required | Required | Verified | Unit tests |
 | F-02 | DEF character/stage | Required | Required | Partial | Bundled + stock tests |
 | F-03 | CNS states/controllers | Required | Required | Partial | CNS spec + parser; execution gaps remain |
-| F-04 | CMD commands | Required | Required | Partial | Defaults + `$ * / ~ >` prefixes, charge, steptime, and autogreater tests |
+| F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR spec + parser tests; SubAdd/interpolation rendering pending |
 | F-06 | SFF v1 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
 | F-07 | SFF v2 | Required | Required | Partial | SFF spec + bundled/stock tests; oracle pending |
@@ -40,7 +40,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/MoveType/Physics controller and trigger test |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N + ignorehitpause during hit/super pause test |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick execution incl. KO control lock test |
-| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime matching tests |
+| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
 | S-08 | Intro/KO control locks | Required | Required | Verified | Smoke tests |
 

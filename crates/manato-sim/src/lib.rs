@@ -771,8 +771,11 @@ impl SimState {
         } else {
             inputs
         };
+        let super_paused = self.super_pause > 0;
         for (i, input) in inputs.iter().enumerate() {
-            self.fighters[i].append_input(*input);
+            let hit_paused = self.fighters[i].hit.hit_pause > 0;
+            let pause_bits = u8::from(hit_paused) | (u8::from(super_paused) << 1);
+            self.fighters[i].append_input(*input, pause_bits);
         }
         self.sounds.clear();
         self.sound_commands.clear();
@@ -2231,6 +2234,7 @@ impl SimState {
             for frame in &f.history {
                 h.write_u8(frame.input.dir);
                 h.write_u8(frame.input.buttons);
+                h.write_u8(frame.pause_bits);
             }
         }
         h.finish()

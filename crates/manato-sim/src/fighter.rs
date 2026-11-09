@@ -103,6 +103,9 @@ pub struct HistoryFrame {
     pub prev_dir: Dir8,
     pub pressed_buttons: u8,
     pub released_buttons: u8,
+    /// Pause state when the input was sampled: bit 0 = hit pause,
+    /// bit 1 = Pause/SuperPause.
+    pub pause_bits: u8,
 }
 
 /// Mutable state of one fighter. This is the unit of rollback snapshots, so it
@@ -353,7 +356,7 @@ impl Fighter {
         self.history.back().map(|h| h.input).unwrap_or_default()
     }
 
-    pub fn append_input(&mut self, input: PlayerInput) {
+    pub fn append_input(&mut self, input: PlayerInput, pause_bits: u8) {
         let prev = self.history.back().copied();
         let dir = Dir8::relative(input, self.facing);
         let prev_dir = prev.map(|p| p.dir).unwrap_or(Dir8::Neutral);
@@ -364,6 +367,7 @@ impl Fighter {
             prev_dir,
             pressed_buttons: input.buttons & !prev_buttons,
             released_buttons: !input.buttons & prev_buttons,
+            pause_bits,
         };
         self.history.push_back(frame);
         while self.history.len() > 180 {
@@ -645,7 +649,14 @@ impl Fighter {
         let search_end = n.saturating_sub(1);
         let search_start = n.saturating_sub(1 + buffer);
         let greater = def.auto_greater;
+        let frame_usable = |frame: &HistoryFrame| {
+            (frame.pause_bits & 1 == 0 || def.buffer_hitpause)
+                && (frame.pause_bits & 2 == 0 || def.buffer_pauseend)
+        };
         for last_idx in (search_start..=search_end).rev() {
+            if !frame_usable(self.history.get(last_idx).unwrap()) {
+                continue;
+            }
             if !step_matches(
                 self.history.get(last_idx).unwrap(),
                 last_step,
@@ -672,6 +683,9 @@ impl Fighter {
                 };
                 let mut found = None;
                 for j in (window_start..=start).rev() {
+                    if !frame_usable(self.history.get(j).unwrap()) {
+                        continue;
+                    }
                     if !step_matches(self.history.get(j).unwrap(), *step, !step.hold, greater)
                         || !self.charge_ok(j, *step, greater)
                     {

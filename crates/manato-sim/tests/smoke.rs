@@ -3079,7 +3079,7 @@ fn guard_flags_and_unguardable_decide_guarding() {
                        unguardable: bool|
      -> bool {
         sim.fighters[1].enter_state(0, &assets.characters[1], false);
-        sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0));
+        sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0), 0);
         sim.fighters[1].state_type = state_type;
         sim.fighters[1].pos = manato_core::Vec2::new(10.0, y);
         sim.fighters[1].facing = -1;
@@ -3755,6 +3755,86 @@ fn command_prefix_charge_greater_tap_and_step_time() {
     let mut sim = new_sim();
     feed(&mut sim, &[(down, 0), (0, 0), (forward, 0)]);
     assert!(active(&sim, "oracle_step"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn command_buffering_during_hit_and_super_pause() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cmd").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-buffer-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let cmd = dir.join("kaen.cmd");
+    let mut text = std::fs::read_to_string(&cmd).expect("read kaen.cmd");
+    text.push_str(
+        "\n[Command]\nname = \"oracle_hit_off\"\ncommand = x\ntime = 20\nbuffer.time = 6\nbuffer.hitpause = 0\n\
+         \n[Command]\nname = \"oracle_hit_on\"\ncommand = x\ntime = 20\nbuffer.time = 6\nbuffer.hitpause = 1\n\
+         \n[Command]\nname = \"oracle_pause_off\"\ncommand = y\ntime = 20\nbuffer.time = 6\nbuffer.pauseend = 0\n\
+         \n[Command]\nname = \"oracle_pause_on\"\ncommand = y\ntime = 20\nbuffer.time = 6\nbuffer.pauseend = 1\n",
+    );
+    std::fs::write(&cmd, text).expect("patch kaen.cmd");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let new_sim = || {
+        let mut options = MatchOptions::default();
+        options.ai_level = 0;
+        let mut sim = SimState::new(
+            std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+            options,
+        );
+        for _ in 0..50 {
+            sim.tick([PlayerInput::default(); 2]);
+        }
+        sim
+    };
+    let active = |sim: &SimState, name: &str| manato_sim::trigger::command_active(sim, 0, name);
+
+    // Press during hit pause: only `buffer.hitpause = 1` keeps it.
+    let mut sim = new_sim();
+    sim.fighters[0].hit.hit_pause = 3;
+    sim.tick([
+        PlayerInput::new(0, manato_core::Buttons::X),
+        PlayerInput::default(),
+    ]);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(!active(&sim, "oracle_hit_off"));
+    assert!(active(&sim, "oracle_hit_on"));
+
+    // Press during SuperPause: only `buffer.pauseend = 1` keeps it.
+    let mut sim = new_sim();
+    sim.super_pause = 3;
+    sim.tick([
+        PlayerInput::new(0, manato_core::Buttons::Y),
+        PlayerInput::default(),
+    ]);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(!active(&sim, "oracle_pause_off"));
+    assert!(active(&sim, "oracle_pause_on"));
 
     let _ = std::fs::remove_dir_all(&dir);
 }
