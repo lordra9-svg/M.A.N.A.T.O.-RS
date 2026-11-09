@@ -309,6 +309,23 @@ pub fn apply_hit_at(
     facing: i32,
     from_fighter: bool,
 ) {
+    // `HitOverride` wins over any hit application path, including projectiles
+    // and direct callers (`docs/spec/cns-cmd.md` §4.2).
+    if !guarding {
+        if let Some(override_) = sim.fighters[defender].hit_override.clone() {
+            if override_.time > 0 && attr_matches(&override_.attr, &hitdef.attr) {
+                let assets = sim.assets.clone();
+                let char_id = sim.fighters[defender].char_id;
+                sim.fighters[defender].enter_state(
+                    override_.state,
+                    &assets.characters[char_id],
+                    false,
+                );
+                record_hit(sim, attacker, defender);
+                return;
+            }
+        }
+    }
     if from_fighter && !guarding && hitdef.p1stateno >= 0 {
         let assets = sim.assets.clone();
         let attacker_char = sim.fighters[attacker].char_id;

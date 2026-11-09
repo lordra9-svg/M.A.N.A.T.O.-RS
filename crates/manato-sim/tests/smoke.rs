@@ -4812,3 +4812,93 @@ fn p2stateno_overrides_get_hit_state_without_p1stateno() {
     assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
     assert_eq!(sim.fighters[0].target, Some(1));
 }
+
+#[test]
+fn hit_override_matches_attributes_and_expires() {
+    // Controller parsing: attr is stored uppercase with its target state/time.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitoverride".into(),
+        params: vec![
+            ("attr".into(), "s, na".into()),
+            ("stateno".into(), "820".into()),
+            ("time".into(), "3".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+    let override_ = sim.fighters[1].hit_override.clone().expect("override set");
+    assert_eq!(override_.attr, "S, NA");
+    assert_eq!(override_.state, 820);
+    assert_eq!(override_.time, 3);
+
+    // Non-matching class falls through to a normal hit.
+    let mut hit = hitdef();
+    hit.attr.state_types = "S".into();
+    hit.attr.class = "SA".into();
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - hit.damage);
+    assert!(sim.fighters[1].state_no >= 5000);
+
+    // Matching override redirects without damage.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let origin = sim.fighters[0].pos;
+    let mut match_hit = hitdef();
+    match_hit.attr.state_types = "S".into();
+    match_hit.attr.class = "NA".into();
+    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+        attr: "SCA, NA".into(),
+        state: 820,
+        time: 50,
+    });
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &match_hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life, "override prevents damage");
+    assert_eq!(sim.fighters[1].state_no, 820);
+
+    // The override window expires after its `time` ticks.
+    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+        attr: "SCA, NA".into(),
+        state: 820,
+        time: 1,
+    });
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        sim.fighters[1].hit_override.is_none(),
+        "override expires after its window"
+    );
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &match_hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - match_hit.damage);
+
+    // Projectiles honor HitOverride too (attr S, SP for Kaen's fireball).
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].hit_override = Some(manato_sim::fighter::HitOverride {
+        attr: "SCA, SP".into(),
+        state: 820,
+        time: 200,
+    });
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let life = sim.fighters[1].life;
+    for _ in 0..180 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[1].state_no == 820 {
+            break;
+        }
+    }
+    assert_eq!(
+        sim.fighters[1].life, life,
+        "projectile override prevents damage"
+    );
+    assert_eq!(sim.fighters[1].state_no, 820);
+}
