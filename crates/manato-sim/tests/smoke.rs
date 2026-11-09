@@ -3490,9 +3490,17 @@ fn stage_bg_controllers_drive_layers() {
 
     // Sine/cosine parameters are recorded for rendering.
     let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
-    let waves = [ctrl("sinx", vec![("value", "1, 2, 3")], "1")];
+    let waves = [
+        ctrl("sinx", vec![("value", "1, 2, 3")], "1"),
+        ctrl("siny", vec![("value", "4, 5, 6")], "1"),
+        ctrl("cosx", vec![("value", "7, 8, 9")], "1"),
+        ctrl("cosy", vec![("value", "10, 11, 12")], "1"),
+    ];
     manato_sim::update_bg_states(&waves, &mut states, 0, 1, 0);
     assert_eq!(states[0].sin_x, [1.0, 2.0, 3.0]);
+    assert_eq!(states[0].sin_y, [4.0, 5.0, 6.0]);
+    assert_eq!(states[0].cos_x, [7.0, 8.0, 9.0]);
+    assert_eq!(states[0].cos_y, [10.0, 11.0, 12.0]);
 }
 
 #[test]

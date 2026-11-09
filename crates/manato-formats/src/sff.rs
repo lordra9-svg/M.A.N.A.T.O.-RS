@@ -871,7 +871,7 @@ mod tests {
         data[44..48].copy_from_slice(&0u32.to_le_bytes());
         data[48..52].copy_from_slice(&0u32.to_le_bytes());
         data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
-        data[60..64].copy_from_slice(&(total as u32).to_le_bytes());
+        data[60..64].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
         data[sprite_offset..sprite_offset + 2].copy_from_slice(&0u16.to_le_bytes());
         data[sprite_offset + 2..sprite_offset + 4].copy_from_slice(&0u16.to_le_bytes());
         data[sprite_offset + 4..sprite_offset + 6].copy_from_slice(&2u16.to_le_bytes());
@@ -1033,6 +1033,7 @@ mod tests {
         format: u8,
         depth: u8,
         palette: u16,
+        tdata: bool,
         payload: Option<Vec<u8>>,
     }
 
@@ -1052,11 +1053,18 @@ mod tests {
             })
             .sum();
         let ldata_offset = palette_offset + palettes.len() * 16 + palette_data;
-        let payload_total: usize = nodes
+        let ldata_payload: usize = nodes
             .iter()
+            .filter(|node| !node.tdata)
             .map(|node| node.payload.as_ref().map(Vec::len).unwrap_or(0))
             .sum();
-        let total = ldata_offset + palette_data + payload_total;
+        let tdata_payload: usize = nodes
+            .iter()
+            .filter(|node| node.tdata)
+            .map(|node| node.payload.as_ref().map(Vec::len).unwrap_or(0))
+            .sum();
+        let tdata_offset = ldata_offset + palette_data + ldata_payload;
+        let total = tdata_offset + tdata_payload;
         let mut data = vec![0u8; total];
         data[..12].copy_from_slice(b"ElecbyteSpr\0");
         data[13] = 0;
@@ -1066,11 +1074,13 @@ mod tests {
         data[44..48].copy_from_slice(&(palette_offset as u32).to_le_bytes());
         data[48..52].copy_from_slice(&(palettes.len() as u32).to_le_bytes());
         data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
-        data[60..64].copy_from_slice(&(total as u32).to_le_bytes());
+        data[60..64].copy_from_slice(&(tdata_offset as u32).to_le_bytes());
 
         let mut colors_at = ldata_offset;
         for (i, palette) in palettes.iter().enumerate() {
             let node = palette_offset + i * 16;
+            data[node..node + 2].copy_from_slice(&3u16.to_le_bytes());
+            data[node + 2..node + 4].copy_from_slice(&(7u16 + i as u16).to_le_bytes());
             match palette {
                 V2Palette::Colors(colors) => {
                     data[node + 4..node + 6].copy_from_slice(&(colors.len() as u16).to_le_bytes());
@@ -1090,7 +1100,8 @@ mod tests {
             }
         }
 
-        let mut payload_at = ldata_offset + palette_data;
+        let mut ldata_at = ldata_offset + palette_data;
+        let mut tdata_at = tdata_offset;
         for (i, node) in nodes.iter().enumerate() {
             let at = sprite_offset + i * 28;
             data[at..at + 2].copy_from_slice(&node.group.to_le_bytes());
@@ -1104,11 +1115,20 @@ mod tests {
             data[at + 15] = node.depth;
             data[at + 24..at + 26].copy_from_slice(&node.palette.to_le_bytes());
             if let Some(payload) = &node.payload {
-                data[at + 16..at + 20]
-                    .copy_from_slice(&((payload_at - ldata_offset) as u32).to_le_bytes());
+                let (base, offset) = if node.tdata {
+                    data[at + 26..at + 28].copy_from_slice(&1u16.to_le_bytes());
+                    (tdata_at, tdata_offset)
+                } else {
+                    (ldata_at, ldata_offset)
+                };
+                data[at + 16..at + 20].copy_from_slice(&((base - offset) as u32).to_le_bytes());
                 data[at + 20..at + 24].copy_from_slice(&(payload.len() as u32).to_le_bytes());
-                data[payload_at..payload_at + payload.len()].copy_from_slice(payload);
-                payload_at += payload.len();
+                data[base..base + payload.len()].copy_from_slice(payload);
+                if node.tdata {
+                    tdata_at += payload.len();
+                } else {
+                    ldata_at += payload.len();
+                }
             }
         }
         data
@@ -1130,6 +1150,7 @@ mod tests {
             format: 2,
             depth: 8,
             palette: 0,
+            tdata: false,
             payload,
         }
     }
@@ -1317,5 +1338,29 @@ mod tests {
         let sprite = sff.get(0, 0).expect("sprite");
         assert_eq!((sprite.width, sprite.height), (1, 1));
         assert_eq!(sprite.rgba, [0, 0, 0, 0]);
+    }
+    #[test]
+    fn v2_tdata_flag_selects_the_temporary_data_region() {
+        let mut sprite = node(0, 0, 0, Some(rle8_payload(&[1, 1])));
+        sprite.width = 2;
+        sprite.tdata = true;
+        let data = build_v2(&[sprite], &[V2Palette::Colors(palette_colors())]);
+        // Sprite node flags bit 0 selects `tdata_offset`.
+        assert_eq!(data[512 + 26] & 1, 1);
+        // Palette group/index fields are present but selection is by table index.
+        let palette_node = 512 + 28;
+        assert_eq!(
+            u16::from_le_bytes(data[palette_node..palette_node + 2].try_into().unwrap()),
+            3
+        );
+        assert_eq!(
+            u16::from_le_bytes(data[palette_node + 2..palette_node + 4].try_into().unwrap()),
+            7
+        );
+
+        let sff = SffFile::from_bytes(&data).expect("parse tdata sprite");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!((sprite.width, sprite.height), (2, 1));
+        assert_eq!(sprite.rgba, [10, 20, 30, 255].repeat(2));
     }
 }

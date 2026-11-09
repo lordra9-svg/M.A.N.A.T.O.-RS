@@ -23,7 +23,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; interpolation rendering pending |
 | F-06 | SFF v1 | Required | Required | Partial | PCX palette/reuse + EOF zero-length link chain tests |
-| F-07 | SFF v2 | Required | Required | Partial | Sprite/palette link chains, absent-palette and 16-bit fallbacks, RLE8/RLE5/LZ5 tests |
+| F-07 | SFF v2 | Required | Required | Partial | Link chains, palette links/group-index, tdata flag, depth fallback, RLE8/5/LZ5 |
 | F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo and signed 24-bit conversion |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
@@ -106,7 +106,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | V-01 | Sprite/palette rendering | Required | Required | Verified | Screenshots |
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
-| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry parser test + BGCtrl update integration test |
+| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | HUD/bars/names/timer + combo counter, delayed fill, win-icon history/reset tests; guard/stun bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Explod lifetime/removal + projectile facing/accel + oracle hit/guard scenario |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
