@@ -978,11 +978,14 @@ impl SimState {
             }
         }
 
-        // Special states run every tick, in order -3, -2, -1.
+        // Special states run every tick, in order -3, -2, -1. Helpers need
+        // `keyctrl` (or `helpertype = player`) to run them.
         if self.fighters[who].active {
-            self.run_state_controllers(who, -3);
-            self.run_state_controllers(who, -2);
-            self.run_state_controllers(who, -1);
+            for state in [-3, -2, -1] {
+                if self.special_state_enabled(who, state) {
+                    self.run_state_controllers(who, state);
+                }
+            }
         }
         // Built-in default movement (stand/walk/crouch/jump).
         self.builtin_movement(who);
@@ -1054,6 +1057,21 @@ impl SimState {
         &self.assets.characters[fighter.anim_char_id.unwrap_or(fighter.char_id)]
     }
 
+    /// Whether a helper may run the given negative state (`Helper` keyctrl /
+    /// helpertype semantics from `docs/spec/helpers.md`).
+    fn special_state_enabled(&self, who: usize, state: i32) -> bool {
+        let fighter = &self.fighters[who];
+        if fighter.owner.is_none() {
+            return true;
+        }
+        match state {
+            -3 => fighter.helper_type_player || fighter.keyctrl & 4 != 0,
+            -2 => fighter.helper_type_player || fighter.keyctrl & 2 != 0,
+            -1 => fighter.keyctrl & 1 != 0,
+            _ => true,
+        }
+    }
+
     fn update_after_image(&mut self, who: usize) {
         let fighter = &mut self.fighters[who];
         if let Some(state) = fighter.after_image.as_mut() {
@@ -1105,7 +1123,9 @@ impl SimState {
             return;
         }
         for state_no in [-3, -2, -1] {
-            self.run_filtered_state_controllers(who, state_no, true);
+            if self.special_state_enabled(who, state_no) {
+                self.run_filtered_state_controllers(who, state_no, true);
+            }
         }
         for _ in 0..8 {
             let state_no = self.fighters[who].state_no;

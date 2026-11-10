@@ -548,6 +548,12 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     entity.root = Some(sim.root_of(who));
     entity.helper_id = id;
     entity.helper_remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
+    entity.keyctrl = int_param(sim, who, control, "keyctrl")
+        .unwrap_or(0)
+        .clamp(0, 7) as u8;
+    entity.helper_type_player = str_param(control, "helpertype")
+        .map(|value| value.eq_ignore_ascii_case("player"))
+        .unwrap_or(false);
     entity.enter_state(stateno, character, false);
     sim.fighters.push(entity);
 }

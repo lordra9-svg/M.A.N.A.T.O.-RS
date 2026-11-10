@@ -233,6 +233,10 @@ pub struct Fighter {
     pub helper_id: i32,
     pub helper_remove_time: i32,
     pub helper_destroy: bool,
+    /// `keyctrl` bits for helpers: 1 = state -1, 2 = state -2, 4 = state -3.
+    pub keyctrl: u8,
+    /// `helpertype = player` lets states -3/-2 run like a player.
+    pub helper_type_player: bool,
     pub target: Option<usize>,
     pub pal_remap: Option<(i32, i32)>,
     /// Ticks since the last projectile contact (`-1` = never).
@@ -334,6 +338,8 @@ impl Fighter {
             helper_id: 0,
             helper_remove_time: -1,
             helper_destroy: false,
+            keyctrl: 7,
+            helper_type_player: false,
             target: None,
             pal_remap: None,
             proj_contact_time: -1,

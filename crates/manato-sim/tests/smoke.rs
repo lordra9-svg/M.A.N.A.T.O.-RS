@@ -9002,3 +9002,116 @@ fn camera_vertical_follow_and_floor_tension() {
         sim.camera.y
     );
 }
+
+#[test]
+fn helper_keyctrl_and_helpertype_gate_special_states() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-keyctrl-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let mut text = std::fs::read_to_string(&common).expect("read common.cns");
+    text.push_str(
+        "\n[Statedef -3]\n[State -3, Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 3\nvalue = 1\n\
+         \n[Statedef -2]\n[State -2, Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 4\nvalue = 1\n",
+    );
+    std::fs::write(&common, text).expect("patch common.cns");
+    let states = dir.join("kaen.cns");
+    let text = std::fs::read_to_string(&states).expect("read kaen.cns");
+    let text = text.replacen(
+        "[Statedef -1]",
+        "[Statedef -1]\n[State -1, Keyctrl Tick]\ntype = VarAdd\ntrigger1 = 1\nv = 5\nvalue = 1",
+        1,
+    );
+    std::fs::write(&states, text).expect("patch kaen.cns");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, keyctrl: i32, player: bool| {
+        let mut params = vec![
+            ("stateno".to_string(), "0".to_string()),
+            ("id".to_string(), "60".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+            ("keyctrl".to_string(), keyctrl.to_string()),
+        ];
+        if player {
+            params.push(("helpertype".to_string(), "player".to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters.len() - 1
+    };
+
+    let none = spawn(&mut sim, 0, false);
+    let state1 = spawn(&mut sim, 1, false);
+    let state2 = spawn(&mut sim, 2, false);
+    let state3 = spawn(&mut sim, 4, false);
+    let player = spawn(&mut sim, 0, true);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+
+    let vars = |sim: &SimState, who: usize| {
+        (
+            sim.fighters[who].vars[3],
+            sim.fighters[who].vars[4],
+            sim.fighters[who].vars[5],
+        )
+    };
+    assert_eq!(vars(&sim, none), (0, 0, 0), "keyctrl 0 runs nothing");
+    assert_eq!(
+        vars(&sim, state1),
+        (0, 0, 3),
+        "keyctrl 1 runs state -1 only"
+    );
+    assert_eq!(
+        vars(&sim, state2),
+        (0, 3, 0),
+        "keyctrl 2 runs state -2 only"
+    );
+    assert_eq!(
+        vars(&sim, state3),
+        (3, 0, 0),
+        "keyctrl 4 runs state -3 only"
+    );
+    assert_eq!(
+        vars(&sim, player),
+        (3, 3, 0),
+        "helpertype=player runs -3/-2 but not -1 without keyctrl"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
