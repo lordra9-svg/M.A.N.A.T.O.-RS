@@ -497,8 +497,8 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         "p2" => sim.fighters[opponent].pos,
         "front" => Vec2::new(owner_pos.x + facing as f32 * 100.0, owner_pos.y),
         "back" => Vec2::new(owner_pos.x - facing as f32 * 100.0, owner_pos.y),
-        "left" => Vec2::new(owner_pos.x - 100.0, owner_pos.y),
-        "right" => Vec2::new(owner_pos.x + 100.0, owner_pos.y),
+        "left" => Vec2::new(sim.camera.x - manato_core::GAME_WIDTH * 0.5, owner_pos.y),
+        "right" => Vec2::new(sim.camera.x + manato_core::GAME_WIDTH * 0.5, owner_pos.y),
         _ => owner_pos,
     };
     let pos = Vec2::new(base.x + px * facing as f32, base.y + py);

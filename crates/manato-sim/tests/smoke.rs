@@ -7532,3 +7532,50 @@ fn round_timer_clamps_at_zero_and_stays_frozen_after_over() {
     round.timer = 61;
     assert_eq!(round.seconds(), 2);
 }
+
+#[test]
+fn helper_postype_anchors() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(60.0, -10.0);
+    sim.camera.x = 0.0;
+    let spawn = |sim: &mut SimState, postype: Option<&str>, pos: &str| {
+        let mut params = vec![
+            ("stateno".to_string(), "0".to_string()),
+            ("id".to_string(), "12".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+            ("pos".to_string(), pos.to_string()),
+        ];
+        if let Some(postype) = postype {
+            params.push(("postype".to_string(), postype.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        let helper = sim.fighters.last().expect("helper spawned");
+        helper.pos
+    };
+
+    let p1 = spawn(&mut sim, None, "0, 0");
+    assert_eq!(p1, manato_core::Vec2::new(-40.0, 0.0));
+
+    let p2 = spawn(&mut sim, Some("p2"), "5, -3");
+    assert_eq!(p2, manato_core::Vec2::new(65.0, -13.0));
+
+    let front = spawn(&mut sim, Some("front"), "0, 0");
+    assert_eq!(front.x, 60.0);
+    let back = spawn(&mut sim, Some("back"), "0, 0");
+    assert_eq!(back.x, -140.0);
+
+    let left = spawn(&mut sim, Some("left"), "0, 0");
+    assert_eq!(left.x, -manato_core::GAME_WIDTH * 0.5);
+    let right = spawn(&mut sim, Some("right"), "0, 0");
+    assert_eq!(right.x, manato_core::GAME_WIDTH * 0.5);
+}
