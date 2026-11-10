@@ -226,6 +226,12 @@ pub struct Fighter {
     pub after_image: Option<AfterImageState>,
     pub after_images: Vec<AfterImageFrame>,
     pub pal_add: [f32; 3],
+    /// Base add before the `sinadd` oscillation.
+    pub pal_base_add: [f32; 3],
+    pub pal_sinadd: [f32; 3],
+    /// `sinadd` cycle length in ticks; 0 disables the oscillation.
+    pub pal_sin_period: i32,
+    pub pal_cycle: i32,
     pub pal_mul: [f32; 3],
     pub pal_alpha: f32,
     pub pal_time: i32,
@@ -334,6 +340,10 @@ impl Fighter {
             after_image: None,
             after_images: Vec::new(),
             pal_add: [0.0, 0.0, 0.0],
+            pal_base_add: [0.0, 0.0, 0.0],
+            pal_sinadd: [0.0, 0.0, 0.0],
+            pal_sin_period: 0,
+            pal_cycle: 0,
             pal_mul: [1.0, 1.0, 1.0],
             pal_alpha: 1.0,
             pal_time: 0,

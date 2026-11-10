@@ -1112,8 +1112,20 @@ impl SimState {
             fighter.pal_time -= 1;
             if fighter.pal_time == 0 {
                 fighter.pal_add = [0.0, 0.0, 0.0];
+                fighter.pal_base_add = [0.0, 0.0, 0.0];
+                fighter.pal_sinadd = [0.0, 0.0, 0.0];
+                fighter.pal_sin_period = 0;
+                fighter.pal_cycle = 0;
                 fighter.pal_mul = [1.0, 1.0, 1.0];
                 fighter.pal_alpha = 1.0;
+            } else if fighter.pal_sin_period > 0 {
+                fighter.pal_cycle += 1;
+                let phase = std::f32::consts::TAU * fighter.pal_cycle as f32
+                    / fighter.pal_sin_period as f32;
+                for axis in 0..3 {
+                    fighter.pal_add[axis] =
+                        fighter.pal_base_add[axis] + phase.sin() * fighter.pal_sinadd[axis];
+                }
             }
         }
     }
@@ -1752,6 +1764,10 @@ impl SimState {
             fighter.after_image = None;
             fighter.after_images.clear();
             fighter.pal_add = [0.0, 0.0, 0.0];
+            fighter.pal_base_add = [0.0, 0.0, 0.0];
+            fighter.pal_sinadd = [0.0, 0.0, 0.0];
+            fighter.pal_sin_period = 0;
+            fighter.pal_cycle = 0;
             fighter.pal_mul = [1.0, 1.0, 1.0];
             fighter.pal_alpha = 1.0;
             fighter.pal_time = 0;

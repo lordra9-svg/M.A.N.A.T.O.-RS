@@ -10065,3 +10065,91 @@ fn explod_trans_blend_variants() {
     assert!(bare.transparent);
     assert_eq!(bare.alpha, 0.0);
 }
+
+#[test]
+fn palfx_sinadd_oscillates_and_resets() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let palfx = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("add".into(), "10, 20, 30".into()),
+            ("sinadd".into(), "5, 0, 0, 4".into()),
+            ("time".into(), "8".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &palfx, &assets);
+    assert_eq!(sim.fighters[0].pal_add, [10.0, 20.0, 30.0]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_add[0] - 15.0).abs() < 0.01, "sin peak");
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        (sim.fighters[0].pal_add[0] - 10.0).abs() < 0.01,
+        "zero crossing"
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_add[0] - 5.0).abs() < 0.01, "trough");
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_sin_period, 0);
+    assert_eq!(sim.fighters[0].pal_time, 0);
+
+    // Negative period flips the amplitude sign.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let negative = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("add".into(), "10, 0, 0".into()),
+            ("sinadd".into(), "5, 0, 0, -4".into()),
+            ("time".into(), "4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &negative, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_add[0] - 5.0).abs() < 0.01);
+}
+
+#[test]
+fn hit_and_guard_spark_selection() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.sparkno = 100;
+    hit.guard_sparkno = 101;
+    hit.sparkxy = manato_core::Vec2::new(5.0, -10.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    let before = sim.effects.len();
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    let spark = sim.effects.last().expect("hit spark");
+    assert_eq!(spark.anim, 100);
+    assert_eq!(spark.source, manato_sim::EffectSource::FightFx);
+    assert_eq!(spark.pos, manato_core::Vec2::new(5.0, -10.0));
+
+    let before_guard = sim.effects.len();
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    let spark = sim.effects.last().expect("guard spark");
+    assert_eq!(spark.anim, 101);
+    assert!(before_guard > before);
+
+    // Default sparkno uses 0; a guard without guard.sparkno reuses sparkno.
+    let mut plain = hitdef();
+    plain.sparkno = -1;
+    plain.guard_sparkno = -1;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &plain, true, origin, 1, true);
+    assert_eq!(
+        sim.effects.last().expect("default guard spark").anim,
+        40,
+        "guards default to spark 40"
+    );
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &plain, false, origin, 1, true);
+    assert_eq!(sim.effects.last().expect("default hit spark").anim, 0);
+}

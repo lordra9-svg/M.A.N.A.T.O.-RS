@@ -484,6 +484,21 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(value) = control.get("add") {
         if let Some(add) = parse_triplet(sim, who, value) {
             sim.fighters[who].pal_add = add;
+            sim.fighters[who].pal_base_add = add;
+        }
+    }
+    if let Some(value) = control.get("sinadd") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() >= 3 {
+            let period = parts.get(3).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            sim.fighters[who].pal_sinadd = [parts[0] * side, parts[1] * side, parts[2] * side];
+            sim.fighters[who].pal_sin_period = period.abs();
+            sim.fighters[who].pal_cycle = 0;
+            sim.fighters[who].pal_add = sim.fighters[who].pal_base_add;
         }
     }
     if let Some(value) = control.get("mul") {
