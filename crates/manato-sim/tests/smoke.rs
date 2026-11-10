@@ -2353,6 +2353,9 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         facing: 1,
         scale: manato_core::Vec2::new(1.0, 1.0),
         angle: 0.0,
+        x_shear: 0.0,
+        projection: manato_sim::ProjectionMode::Orthographic,
+        focal_length: 1024.0,
         time: 0,
         remove_time: 5,
         anim_loop_time: 4,
@@ -11346,4 +11349,83 @@ fn projectile_projscale_and_projangle_parse_and_modify() {
     manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
     assert_eq!(sim.projectiles[0].scale, manato_core::Vec2::new(1.0, 1.0));
     assert_eq!(sim.projectiles[0].angle, 0.0);
+}
+
+#[test]
+fn projectile_projxshear_projection_and_focallength() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("projid".into(), "13".into()),
+            ("projxshear".into(), "0.25".into()),
+            ("projprojection".into(), "perspective".into()),
+            ("projfocallength".into(), "512".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles[0].x_shear, 0.25);
+    assert_eq!(
+        sim.projectiles[0].projection,
+        manato_sim::ProjectionMode::Perspective
+    );
+    assert_eq!(sim.projectiles[0].focal_length, 512.0);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "13".into()),
+            ("projxshear".into(), "-0.5".into()),
+            ("projprojection".into(), "perspective2".into()),
+            ("projfocallength".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(sim.projectiles[0].x_shear, -0.5);
+    assert_eq!(
+        sim.projectiles[0].projection,
+        manato_sim::ProjectionMode::Perspective2
+    );
+    assert_eq!(sim.projectiles[0].focal_length, 1.0, "clamped to >= 1");
+
+    // Omitting the parameters preserves the stored transform.
+    let velocity = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "13".into()),
+            ("velocity".into(), "1, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &velocity, &assets);
+    assert_eq!(sim.projectiles[0].x_shear, -0.5);
+    assert_eq!(sim.projectiles[0].focal_length, 1.0);
+
+    // Defaults: no shear, orthographic, focal length 1024.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let plain = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    assert_eq!(sim.projectiles[0].x_shear, 0.0);
+    assert_eq!(
+        sim.projectiles[0].projection,
+        manato_sim::ProjectionMode::Orthographic
+    );
+    assert_eq!(sim.projectiles[0].focal_length, 1024.0);
 }

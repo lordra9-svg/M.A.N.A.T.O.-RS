@@ -979,6 +979,13 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let shadow = parse_shadow(sim, who, control, "projshadow").unwrap_or([0; 3]);
     let scale = control.get_pair("projscale").unwrap_or((1.0, 1.0));
     let angle = num_param(sim, who, control, "projangle").unwrap_or(0.0);
+    let x_shear = num_param(sim, who, control, "projxshear").unwrap_or(0.0);
+    let projection = str_param(control, "projprojection")
+        .map(crate::ProjectionMode::parse)
+        .unwrap_or(crate::ProjectionMode::Orthographic);
+    let focal_length = num_param(sim, who, control, "projfocallength")
+        .unwrap_or(1024.0)
+        .max(1.0);
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1009,6 +1016,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         facing,
         scale: Vec2::new(scale.0, scale.1),
         angle,
+        x_shear,
+        projection,
+        focal_length,
         time: 0,
         remove_time,
         anim_loop_time,
@@ -1104,6 +1114,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let shadow = parse_shadow(sim, who, control, "projshadow");
     let scale = control.get_pair("projscale");
     let angle = num_param(sim, who, control, "projangle");
+    let x_shear = num_param(sim, who, control, "projxshear");
+    let projection = str_param(control, "projprojection").map(crate::ProjectionMode::parse);
+    let focal_length = num_param(sim, who, control, "projfocallength").map(|v| v.max(1.0));
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1146,6 +1159,15 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(angle) = angle {
             projectile.angle = angle;
+        }
+        if let Some(x_shear) = x_shear {
+            projectile.x_shear = x_shear;
+        }
+        if let Some(projection) = projection {
+            projectile.projection = projection;
+        }
+        if let Some(focal_length) = focal_length {
+            projectile.focal_length = focal_length;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

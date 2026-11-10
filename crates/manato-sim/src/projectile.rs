@@ -17,6 +17,12 @@ pub struct Projectile {
     pub scale: Vec2,
     /// `projangle` added to the frame angle in degrees.
     pub angle: f32,
+    /// `projxshear` applied to the sprite.
+    pub x_shear: f32,
+    /// `projprojection` perspective mode.
+    pub projection: crate::ProjectionMode,
+    /// `projfocallength` focal length.
+    pub focal_length: f32,
     pub time: i32,
     /// Remaining lifetime in ticks; `0` is expired, `-1` never times out and
     /// `-2` expires when the animation reaches its loop end.
