@@ -4457,8 +4457,8 @@ fn hit_fall_controllers_set_vars_velocity_and_landing_damage() {
     };
     manato_sim::controller::execute(&mut sim, 1, &set, &assets);
     assert!(sim.fighters[1].hit.vars.fall);
-    assert_eq!(sim.fighters[1].hit.vars.x_vel, -3.0);
-    assert_eq!(sim.fighters[1].hit.vars.y_vel, -4.0);
+    assert_eq!(sim.fighters[1].hit.vars.fall_x_vel, Some(-3.0));
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(-4.0));
 
     // HitFallVel copies the stored fall velocity to the fighter.
     let vel = manato_formats::Controller {
@@ -6103,8 +6103,8 @@ fn hit_fall_controller_interaction_lands_with_damage() {
     };
     manato_sim::controller::execute(&mut sim, 1, &set, &assets);
     assert!(sim.fighters[1].hit.vars.fall);
-    assert_eq!(sim.fighters[1].hit.vars.x_vel, -2.0);
-    assert_eq!(sim.fighters[1].hit.vars.y_vel, 6.0);
+    assert_eq!(sim.fighters[1].hit.vars.fall_x_vel, Some(-2.0));
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(6.0));
 
     let vel = manato_formats::Controller {
         kind: "hitfallvel".into(),
@@ -6135,7 +6135,7 @@ fn hit_fall_controller_interaction_lands_with_damage() {
     };
     let assets = sim.assets.clone();
     sim.fighters[1].hit.vars.fall = true;
-    sim.fighters[1].hit.vars.y_vel = 4.0;
+    sim.fighters[1].hit.vars.fall_y_vel = Some(4.0);
     let clear = manato_formats::Controller {
         kind: "hitfallset".into(),
         params: vec![("value".into(), "0".into())],
@@ -6143,7 +6143,7 @@ fn hit_fall_controller_interaction_lands_with_damage() {
     };
     manato_sim::controller::execute(&mut sim, 1, &clear, &assets);
     assert!(!sim.fighters[1].hit.vars.fall);
-    assert_eq!(sim.fighters[1].hit.vars.y_vel, 4.0);
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(4.0));
 }
 
 #[test]
@@ -8422,4 +8422,60 @@ fn target_bind_mirrors_on_turn_and_target_facing() {
     manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
     assert!(sim.fighters[0].target_bind.is_none());
     assert_eq!(sim.fighters[0].target, None);
+}
+
+#[test]
+fn hitdef_fall_velocity_populates_get_hit_var_and_hitfallvel() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("fall".into(), "1".into()),
+            ("fall.xvelocity".into(), "3".into()),
+            ("fall.yvelocity".into(), "6".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.fall_x_vel, Some(-3.0));
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(6.0));
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.xvelocity)"),
+        -3.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.yvelocity)"),
+        6.0
+    );
+
+    // HitFallVel copies only the fall velocity, not the hit velocity.
+    sim.fighters[1].hit.vars.x_vel = 99.0;
+    sim.fighters[1].hit.vars.y_vel = 99.0;
+    let vel = manato_formats::Controller {
+        kind: "hitfallvel".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &vel, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(-3.0, 6.0));
+
+    // Unset fall velocities leave the current velocity untouched.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].vel = manato_core::Vec2::new(2.0, -2.0);
+    sim.fighters[1].hit.vars.fall_x_vel = None;
+    sim.fighters[1].hit.vars.fall_y_vel = None;
+    manato_sim::controller::execute(&mut sim, 1, &vel, &assets);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(2.0, -2.0));
 }

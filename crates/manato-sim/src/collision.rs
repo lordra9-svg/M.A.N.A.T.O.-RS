@@ -456,6 +456,8 @@ pub fn apply_hit_at(
         f.hit.vars.fall_recover = hitdef.fall_recover;
         f.hit.vars.fall_time = hitdef.fall_time;
         f.hit.vars.fall_damage = hitdef.fall_damage;
+        f.hit.vars.fall_x_vel = Some(hitdef.fall_xvel * -(attacker_facing as f32));
+        f.hit.vars.fall_y_vel = Some(hitdef.fall_yvel);
         f.hit.vars.damage = damage;
         f.hit.vars.guarded = guarding;
         f.hit.vars.hitcount += 1;

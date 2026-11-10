@@ -1044,16 +1044,21 @@ fn hit_fall_set(sim: &mut SimState, who: usize, control: &Controller) {
         sim.fighters[who].hit.vars.fall = value != 0;
     }
     if let Some(x) = num_param(sim, who, control, "xvel") {
-        sim.fighters[who].hit.vars.x_vel = x * sim.fighters[who].facing as f32;
+        sim.fighters[who].hit.vars.fall_x_vel = Some(x * sim.fighters[who].facing as f32);
     }
     if let Some(y) = num_param(sim, who, control, "yvel") {
-        sim.fighters[who].hit.vars.y_vel = y;
+        sim.fighters[who].hit.vars.fall_y_vel = Some(y);
     }
 }
 
 fn hit_fall_vel(sim: &mut SimState, who: usize, _control: &Controller) {
     let vars = sim.fighters[who].hit.vars.clone();
-    sim.fighters[who].vel = Vec2::new(vars.x_vel, vars.y_vel);
+    if let Some(x) = vars.fall_x_vel {
+        sim.fighters[who].vel.x = x;
+    }
+    if let Some(y) = vars.fall_y_vel {
+        sim.fighters[who].vel.y = y;
+    }
 }
 
 fn hit_filter(sim: &mut SimState, who: usize, control: &Controller, not_hit_by: bool) {

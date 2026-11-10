@@ -313,6 +313,9 @@ pub struct GetHitVars {
     pub fall_recover: bool,
     pub fall_time: i32,
     pub fall_damage: i32,
+    /// `fall.xvelocity`/`fall.yvelocity`; `None` when unset.
+    pub fall_x_vel: Option<f32>,
+    pub fall_y_vel: Option<f32>,
     pub hitcount: i32,
     pub guarded: bool,
     pub hit_id: i32,
@@ -337,6 +340,8 @@ impl GetHitVars {
             "fall.recover" => Value::Int(self.fall_recover as i32),
             "fall.time" => Value::Int(self.fall_time),
             "fall.damage" => Value::Int(self.fall_damage),
+            "fall.xvelocity" => Value::Float(self.fall_x_vel.unwrap_or(0.0)),
+            "fall.yvelocity" => Value::Float(self.fall_y_vel.unwrap_or(0.0)),
             "hitcount" => Value::Int(self.hitcount),
             "guarded" => Value::Int(self.guarded as i32),
             "hitid" => Value::Int(self.hit_id),
