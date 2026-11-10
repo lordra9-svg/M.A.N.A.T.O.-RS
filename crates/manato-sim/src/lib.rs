@@ -1395,10 +1395,18 @@ impl SimState {
     fn separate_pushboxes(&mut self) {
         let stage_left = self.assets.stage.left_bound;
         let stage_right = self.assets.stage.right_bound;
+        // Vertical stage extent from the camera's high/low bounds: the top is
+        // negative, the floor is the lower value.
+        let stage_top = self.assets.stage.camera.bound_high;
+        let stage_bottom = self.assets.stage.camera.bound_low;
         for i in 0..2 {
             if self.fighters[i].screen_bound.0 {
                 let p = self.fighters[i].pos.x;
                 self.fighters[i].pos.x = clamp(p, stage_left, stage_right);
+            }
+            if self.fighters[i].screen_bound.1 {
+                let p = self.fighters[i].pos.y;
+                self.fighters[i].pos.y = clamp(p, stage_top, stage_bottom);
             }
         }
         let (a, b) = (0usize, 1usize);

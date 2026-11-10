@@ -8887,6 +8887,8 @@ fn camera_zoom_bounds_tension_and_helper_ignoring() {
     for fighter in &mut sim.fighters {
         fighter.player_push = false;
         fighter.ctrl = false;
+        // Synthetic heights exceed the stage extent; bypass ScreenBound Y.
+        fighter.screen_bound = (false, false);
     }
     sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
     sim.fighters[1].pos = manato_core::Vec2::new(0.0, 0.0);
@@ -11117,4 +11119,45 @@ fn projectile_prefixed_aliases_and_projremove() {
     manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
     sim.tick([PlayerInput::default(); 2]);
     assert!(sim.projectiles.is_empty(), "re-enabling removal clears it");
+}
+
+#[test]
+fn screenbound_y_axis_clamps_to_stage_extent() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let top = assets.stage.camera.bound_high;
+    let bottom = assets.stage.camera.bound_low;
+    assert!(top < bottom);
+    // Keep X in play so only the Y clamp is under test.
+    sim.fighters[0].screen_bound = (false, true);
+    sim.fighters[0].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[0].vel = manato_core::Vec2::ZERO;
+    sim.fighters[0].ctrl = false;
+
+    // Outside the top bound: clamped to the top.
+    sim.fighters[0].pos.y = top - 200.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.y, top);
+
+    // Outside the bottom bound: clamped to the floor.
+    sim.fighters[0].pos.y = bottom + 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.y, bottom);
+
+    // Disabling the Y axis leaves the position untouched.
+    sim.fighters[0].screen_bound = (false, false);
+    sim.fighters[0].pos.y = top - 200.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[0].pos.y,
+        top - 200.0,
+        "ScreenBound Y disabled skips the clamp"
+    );
+
+    // Re-enabling clamps again.
+    sim.fighters[0].screen_bound = (false, true);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.y, top);
 }
