@@ -10576,3 +10576,56 @@ fn p2sprpriority_applies_to_hits_and_projectiles() {
     assert!(hitdef.p1sprpriority_set);
     assert!(!hitdef.p2sprpriority_set);
 }
+
+#[test]
+fn palfx_sinadd_with_mul_and_round_reset() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let palfx = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("add".into(), "10, 20, 30".into()),
+            ("mul".into(), "128, 64, 32".into()),
+            ("sinadd".into(), "5, 0, 0, 4".into()),
+            ("time".into(), "10000".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &palfx, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_add[0] - 15.0).abs() < 0.01);
+    assert_eq!(
+        sim.fighters[0].pal_mul,
+        [128.0, 64.0, 32.0],
+        "mul survives sinadd"
+    );
+    assert_eq!(sim.fighters[0].pal_sin_period, 4);
+
+    // Round reset restores identity palette state.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_base_add, [0.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_sinadd, [0.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_sin_period, 0);
+    assert_eq!(sim.fighters[0].pal_cycle, 0);
+    assert_eq!(sim.fighters[0].pal_mul, [1.0, 1.0, 1.0]);
+    assert_eq!(sim.fighters[0].pal_alpha, 1.0);
+    assert_eq!(sim.fighters[0].pal_time, 0);
+
+    // restart_match also clears an active PalFX.
+    sim.fighters[0].pal_add = [9.0, 9.0, 9.0];
+    sim.fighters[0].pal_time = 500;
+    sim.restart_match();
+    assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0]);
+    assert_eq!(sim.fighters[0].pal_time, 0);
+}
