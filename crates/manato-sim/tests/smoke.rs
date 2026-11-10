@@ -9200,3 +9200,119 @@ fn helper_size_scale_parameters() {
     assert!((x - 0.01).abs() < 0.001);
     assert!((y - 0.01).abs() < 0.001);
 }
+
+#[test]
+fn explod_animelem_offsets_lifetime_and_freeze() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    // Animation 10 lasts 3+4+4 = 11 ticks; elem 3 starts at tick 7.
+    let spawn = |sim: &mut SimState, elem: &str, freeze: bool, removetime: Option<&str>| {
+        let mut params = vec![
+            ("anim".to_string(), "10".to_string()),
+            ("id".to_string(), "70".to_string()),
+            ("animelem".to_string(), elem.to_string()),
+            ("removeonchangestate".to_string(), "0".to_string()),
+        ];
+        if freeze {
+            params.push(("animfreeze".to_string(), "1".to_string()));
+        }
+        if let Some(removetime) = removetime {
+            params.push(("removetime".to_string(), removetime.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("explod").clone()
+    };
+
+    let effect = spawn(&mut sim, "3", false, None);
+    assert_eq!(effect.anim_elem, 3);
+    assert_eq!(effect.duration, 4, "remaining animation after elem 3");
+    assert!(effect.remove_on_anim_end);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        !sim.effects.is_empty(),
+        "still alive before the shifted end"
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.effects.is_empty(), "expires after the remaining frames");
+
+    let effect = spawn(&mut sim, "2", true, Some("5"));
+    assert!(effect.anim_freeze);
+    assert!(!effect.remove_on_anim_end);
+    assert_eq!(effect.duration, 5);
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(!sim.effects.is_empty());
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.effects.is_empty(), "frozen explod honors removetime");
+}
+
+#[test]
+fn modify_explod_bindtime_removeongethit_and_ownpal() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "70".into()),
+            ("removetime".into(), "100".into()),
+            ("removeonchangestate".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    let modify = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "70".into()),
+            ("bindtime".into(), "2".into()),
+            ("ownpal".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert!(effect.bound, "bindtime > 0 reattaches to the owner");
+        assert_eq!(effect.bind_target, Some(0));
+        assert_eq!(effect.bind_time, 2);
+        assert!(effect.own_pal);
+    }
+    sim.fighters[0].pos.x += 40.0;
+    sim.tick([PlayerInput::default(); 2]);
+    {
+        let effect = sim.effects.last().expect("still bound");
+        assert_eq!(effect.bind_time, 1);
+        assert_eq!(effect.pos.x, sim.fighters[0].pos.x);
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.effects.last().expect("released").bound);
+
+    // removeongethit applies to the owner being hit.
+    let hit = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "70".into()),
+            ("removeongethit".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &hit, &assets);
+    let strike = hitdef();
+    let origin = sim.fighters[1].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 1, 0, &strike, false, origin, -1, true);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.effects.iter().any(|effect| effect.id == 70));
+}

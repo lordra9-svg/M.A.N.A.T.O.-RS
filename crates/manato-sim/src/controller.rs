@@ -718,6 +718,11 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
     let remove_time = int_param(sim, who, control, "removetime");
     let sprite_priority = int_param(sim, who, control, "sprpriority");
     let ontop = int_param(sim, who, control, "ontop");
+    let bind_time = int_param(sim, who, control, "bindtime");
+    let remove_on_get_hit = int_param(sim, who, control, "removeongethit").map(|v| v != 0);
+    let own_pal = int_param(sim, who, control, "ownpal").map(|v| v != 0);
+    let shadow = int_param(sim, who, control, "shadow").map(|v| v != 0);
+    let fighter_positions: Vec<Vec2> = sim.fighters.iter().map(|fighter| fighter.pos).collect();
 
     // Modify the newest matching explod, per `docs/spec/render.md` §4.
     let Some(effect) = sim
@@ -806,6 +811,30 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(value) = ontop {
         effect.behind = value == 0;
+    }
+    if let Some(value) = bind_time {
+        effect.bind_time = value;
+        if value == 0 {
+            effect.bound = false;
+            effect.bind_target = None;
+        } else {
+            let target = effect.bind_target.unwrap_or(effect.owner);
+            if let Some(target_pos) = fighter_positions.get(target) {
+                effect.bind_target = Some(target);
+                effect.bind_offset =
+                    Vec2::new(effect.pos.x - target_pos.x, effect.pos.y - target_pos.y);
+                effect.bound = true;
+            }
+        }
+    }
+    if let Some(value) = remove_on_get_hit {
+        effect.remove_on_get_hit = value;
+    }
+    if let Some(value) = own_pal {
+        effect.own_pal = value;
+    }
+    if let Some(value) = shadow {
+        effect.shadow = value;
     }
 }
 
@@ -1282,20 +1311,33 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     } else {
         EffectSource::Character(sim.fighters[who].char_id)
     };
-    let anim_time = if fight_fx {
-        assets.effects.animations.get(&anim).map(|a| a.total_time())
+    let animation = if fight_fx {
+        assets.effects.animations.get(&anim)
     } else {
-        assets.characters[sim.fighters[who].char_id]
-            .animation(anim)
-            .map(|a| a.total_time())
-    }
-    .unwrap_or(10);
+        assets.characters[sim.fighters[who].char_id].animation(anim)
+    };
+    let anim_time = animation.map(|a| a.total_time()).unwrap_or(10);
+    let anim_elem = int_param(sim, who, control, "animelem").unwrap_or(1).max(1) as usize;
+    let anim_freeze = int_param(sim, who, control, "animfreeze").unwrap_or(0) != 0;
+    // `animelem` starts the animation part-way through.
+    let start_time = animation
+        .map(|a| {
+            a.frames
+                .iter()
+                .take(anim_elem - 1)
+                .map(|frame| frame.effective_duration())
+                .sum::<i32>()
+        })
+        .unwrap_or(0);
 
     let remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
-    let duration = if remove_time > 0 {
-        remove_time
+    let (duration, remove_on_anim_end) = if remove_time > 0 {
+        (remove_time, false)
+    } else if anim_freeze {
+        // A frozen animation never reaches its end on its own.
+        (-1, false)
     } else {
-        anim_time
+        ((anim_time - start_time).max(1), true)
     };
 
     let (blend, alpha, transparent) = parse_trans(sim, who, control);
@@ -1333,7 +1375,7 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         alpha,
         sprite_priority: int_param(sim, who, control, "sprpriority").unwrap_or(0),
         duration,
-        remove_on_anim_end: remove_time <= 0,
+        remove_on_anim_end,
         id,
         owner: who,
         behind: int_param(sim, who, control, "ontop").unwrap_or(1) == 0,
@@ -1368,8 +1410,8 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         screen_space: str_param(control, "space")
             .map(|value| value.eq_ignore_ascii_case("screen"))
             .unwrap_or(false),
-        anim_elem: int_param(sim, who, control, "animelem").unwrap_or(1),
-        anim_freeze: int_param(sim, who, control, "animfreeze").unwrap_or(0) != 0,
+        anim_elem: anim_elem as i32,
+        anim_freeze,
         ..Effect::default()
     });
 }

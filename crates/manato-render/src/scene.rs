@@ -657,7 +657,20 @@ fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
     let Some((anim, bank)) = effect_animation(sim, effect) else {
         return;
     };
-    let Some((frame_idx, _)) = anim.frame_at(effect.time) else {
+    // `animelem` shifts the animation start; `animfreeze` holds that frame.
+    let elem = effect.anim_elem.max(1) as usize;
+    let start = anim
+        .frames
+        .iter()
+        .take(elem - 1)
+        .map(|frame| frame.effective_duration())
+        .sum::<i32>();
+    let time = if effect.anim_freeze {
+        start
+    } else {
+        effect.time + start
+    };
+    let Some((frame_idx, _)) = anim.frame_at(time) else {
         return;
     };
     let Some(frame) = anim.frames.get(frame_idx) else {
