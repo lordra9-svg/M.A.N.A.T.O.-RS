@@ -429,11 +429,23 @@ fn trans(sim: &mut SimState, who: usize, control: &Controller) {
     let kind = str_param(control, "trans")
         .unwrap_or("default")
         .to_ascii_lowercase();
-    let alpha = int_param(sim, who, control, "alpha");
+    // `alpha` is either a single 0..255 value or a `source, dest` pair; the
+    // destination byte (0..256) supplies opacity, matching explod trans.
+    let alpha = control.get("alpha").map(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        match parts.as_slice() {
+            [_, dest, ..] => (dest / 256.0).clamp(0.0, 1.0),
+            [src, ..] => (src / 255.0).clamp(0.0, 1.0),
+            [] => 1.0,
+        }
+    });
     // Only `addalpha`/`alpha` use the alpha parameter; the blend-only variants
     // stay fully opaque (`docs/spec/render.md` alpha semantics).
-    sim.fighters[who].trans_alpha = match (kind.as_str(), alpha) {
-        ("addalpha" | "alpha", Some(alpha)) => (alpha as f32 / 255.0).clamp(0.0, 1.0),
+    sim.fighters[who].trans_alpha = match kind.as_str() {
+        "addalpha" | "alpha" => alpha.unwrap_or(1.0),
         _ => 1.0,
     };
 }
@@ -448,8 +460,9 @@ fn after_image(sim: &mut SimState, who: usize, control: &Controller) {
             value == "add" || value == "add1"
         })
         .unwrap_or(false);
+    // Negative time runs forever; zero disables emission but keeps the state.
     sim.fighters[who].after_image = Some(crate::fighter::AfterImageState {
-        time: time.max(0),
+        time,
         interval,
         tick: 0,
         life,

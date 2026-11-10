@@ -7927,6 +7927,9 @@ fn trans_variants_only_use_alpha_for_alpha_blends() {
     }
     assert!((apply(&mut sim, "addalpha", Some("64")) - 64.0 / 255.0).abs() < 0.001);
     assert!((apply(&mut sim, "alpha", Some("128")) - 128.0 / 255.0).abs() < 0.001);
+    // Pair form uses the destination byte over 256.
+    assert!((apply(&mut sim, "addalpha", Some("256, 128")) - 0.5).abs() < 0.001);
+    assert!((apply(&mut sim, "alpha", Some("0, 64")) - 0.25).abs() < 0.001);
     assert_eq!(apply(&mut sim, "addalpha", None), 1.0, "no alpha = opaque");
 }
 
@@ -9905,4 +9908,49 @@ fn makedust_spacing_gate_and_pos2() {
     sim.tick([PlayerInput::default(); 2]);
     dust(&mut sim, vec![("spacing", "0")]);
     assert_eq!(sim.effects.len(), before + 4);
+}
+
+#[test]
+fn afterimage_negative_time_is_infinite() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let start = |sim: &mut SimState, time: i32| {
+        let control = manato_formats::Controller {
+            kind: "afterimage".into(),
+            params: vec![
+                ("time".into(), time.to_string()),
+                ("timegap".into(), "1".into()),
+                ("length".into(), "3".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    start(&mut sim, -1);
+    assert_eq!(
+        sim.fighters[0].after_image.as_ref().expect("state").time,
+        -1
+    );
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let state = sim.fighters[0]
+        .after_image
+        .as_ref()
+        .expect("still emitting");
+    assert_eq!(state.time, -1, "infinite timer does not count down");
+    assert!(!sim.fighters[0].after_images.is_empty());
+
+    // time = 0 produces no ghosts.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    start(&mut sim, 0);
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.fighters[0].after_images.is_empty());
 }
