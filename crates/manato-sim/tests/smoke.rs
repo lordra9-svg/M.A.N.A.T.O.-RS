@@ -10263,3 +10263,68 @@ fn palfx_zero_time_disables_and_negative_persists() {
     );
     assert_eq!(sim.fighters[0].pal_time, -1);
 }
+
+#[test]
+fn camera_round_reset_and_zoom_anchor_mapping() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let cam = &mut assets.stage.camera;
+        cam.start = manato_core::Vec2::new(25.0, -10.0);
+        cam.start_zoom = 0.8;
+        cam.zoom_out = 0.5;
+        cam.zoom_in = 2.0;
+    }
+    sim.camera.x = 999.0;
+    sim.camera.y = 999.0;
+    sim.camera.scale = 2.0;
+    sim.camera.target_scale = 2.0;
+    sim.camera.zoom_override = None;
+    sim.restart_match();
+    assert_eq!(sim.camera.x, 25.0, "round reset restores startx");
+    assert_eq!(sim.camera.y, -10.0, "round reset restores starty");
+    assert_eq!(sim.camera.scale, 0.8, "round reset restores start zoom");
+    assert_eq!(sim.camera.target_scale, 0.8);
+
+    // Zoom anchor off: the centre world point stays at the view centre.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.camera.zoom_anchor = false;
+    }
+    sim.camera.x = 0.0;
+    sim.camera.y = -30.0;
+    sim.camera.scale = 2.0;
+    sim.camera.shake = manato_core::Vec2::ZERO;
+    let ground = sim.ground_screen_y();
+    let center_y = manato_core::GAME_HEIGHT * 0.5;
+    let center_world = manato_core::Vec2::new(0.0, sim.camera.y + center_y - ground);
+    let mapped = sim.screen_pos(center_world);
+    assert!(
+        (mapped.y - center_y).abs() < 0.001,
+        "centre anchor stays at view centre, got {}",
+        mapped.y
+    );
+    let ground_at_scale_two = sim.screen_pos(manato_core::Vec2::new(0.0, 0.0)).y;
+    let expected_ground = center_y + (0.0 - sim.camera.y + ground - center_y) * 2.0;
+    assert!(
+        (ground_at_scale_two - expected_ground).abs() < 0.01,
+        "centre anchor scales away from the ground, got {ground_at_scale_two}"
+    );
+
+    // Zoom anchor on: the ground world line stays on the ground line.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.camera.zoom_anchor = true;
+    }
+    let mapped = sim.screen_pos(manato_core::Vec2::new(0.0, 0.0));
+    let expected = ground + (0.0 - sim.camera.y) * 2.0;
+    assert!(
+        (mapped.y - expected).abs() < 0.01,
+        "ground anchor maps world y=0 relative to camera, got {}",
+        mapped.y
+    );
+    sim.camera.y = 0.0;
+    assert!((sim.screen_pos(manato_core::Vec2::new(0.0, 0.0)).y - ground).abs() < 0.001);
+}
