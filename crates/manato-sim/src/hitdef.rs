@@ -152,7 +152,9 @@ pub struct HitDef {
     pub p1facing: i32,
     pub p2facing: i32,
     pub p1sprpriority: i32,
+    pub p1sprpriority_set: bool,
     pub p2sprpriority: i32,
+    pub p2sprpriority_set: bool,
     pub ground_cornerpush: f32,
     pub air_cornerpush: f32,
     pub activation: u32,
@@ -200,7 +202,9 @@ impl Default for HitDef {
             p1facing: 0,
             p2facing: 0,
             p1sprpriority: 0,
+            p1sprpriority_set: false,
             p2sprpriority: 0,
+            p2sprpriority_set: false,
             ground_cornerpush: 0.0,
             air_cornerpush: 0.0,
             activation: 0,
@@ -274,8 +278,14 @@ impl HitDef {
                 "p2stateno" => h.p2stateno = parse_i32(value),
                 "p1facing" => h.p1facing = parse_i32(value),
                 "p2facing" => h.p2facing = parse_i32(value),
-                "p1sprpriority" => h.p1sprpriority = parse_i32(value),
-                "p2sprpriority" => h.p2sprpriority = parse_i32(value),
+                "p1sprpriority" => {
+                    h.p1sprpriority = parse_i32(value);
+                    h.p1sprpriority_set = true;
+                }
+                "p2sprpriority" => {
+                    h.p2sprpriority = parse_i32(value);
+                    h.p2sprpriority_set = true;
+                }
                 "ground.cornerpush.veloff" => h.ground_cornerpush = parse_f32(value),
                 "air.cornerpush.veloff" => h.air_cornerpush = parse_f32(value),
                 _ => {}

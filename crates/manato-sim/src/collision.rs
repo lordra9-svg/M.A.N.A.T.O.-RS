@@ -378,7 +378,9 @@ pub fn apply_hit_at(
         if hitdef.p2facing != 0 {
             sim.fighters[defender].facing = hitdef.p2facing;
         }
-        sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
+        if hitdef.p1sprpriority_set {
+            sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
+        }
         sim.fighters[defender].sprite_priority = hitdef.p2sprpriority;
         sim.fighters[attacker].target = Some(defender);
         sim.fighters[attacker].hit.hit_targets.push(defender);
@@ -443,8 +445,12 @@ pub fn apply_hit_at(
     };
     let (velocity, hittime, slidetime) = velocity_tuple;
 
+    if from_fighter && hitdef.p1sprpriority_set {
+        sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
+    }
     {
         let f = &mut sim.fighters[defender];
+        f.sprite_priority = hitdef.p2sprpriority;
         f.hit.vars.anim_type = hitdef.anim_type.code();
         f.hit.vars.ground_type = hitdef.ground_type.code();
         f.hit.vars.air_type = hitdef.air_type.code();

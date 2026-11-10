@@ -8586,6 +8586,7 @@ fn hit_reaction_state_selection_and_throw_sprpriority() {
     throw.p1stateno = 800;
     throw.p2stateno = 820;
     throw.p1sprpriority = 5;
+    throw.p1sprpriority_set = true;
     throw.p2sprpriority = -2;
     throw.p1facing = -1;
     throw.p2facing = 1;
@@ -10504,4 +10505,74 @@ fn nohardcodedkeys_disables_builtin_movement() {
         sim.fighters[0].assert_flags & manato_sim::fighter::ASSERT_NOHARDCODEDKEYS,
         0
     );
+}
+
+#[test]
+fn p2sprpriority_applies_to_hits_and_projectiles() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.p2sprpriority = 4;
+    hit.p2sprpriority_set = true;
+    sim.fighters[1].sprite_priority = 0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].sprite_priority, 4);
+    assert_eq!(
+        sim.fighters[0].sprite_priority, 0,
+        "p1 untouched when unset"
+    );
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut own = hitdef();
+    own.p1sprpriority = 3;
+    own.p1sprpriority_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &own, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].sprite_priority, 3);
+
+    // Projectiles apply the defender's priority.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    sim.fighters[1].sprite_priority = 0;
+    let projectile = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("damage".into(), "10".into()),
+            ("p2sprpriority".into(), "5".into()),
+            ("postype".into(), "p1".into()),
+            ("pos".into(), "0, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &projectile, &assets);
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    assert_eq!(sim.fighters[1].sprite_priority, 5);
+
+    // Parsing records which priorities were supplied.
+    let parsed = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("p1sprpriority".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &parsed, &assets);
+    let hitdef = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert!(hitdef.p1sprpriority_set);
+    assert!(!hitdef.p2sprpriority_set);
 }
