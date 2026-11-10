@@ -751,6 +751,47 @@ fn round_not_over_delays_the_next_phase() {
 }
 
 #[test]
+fn changeanim_elem_selects_start_frame() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let anim = |elem: Option<&str>| {
+        let mut params = vec![("value".to_string(), "200".to_string())];
+        if let Some(elem) = elem {
+            params.push(("elem".to_string(), elem.to_string()));
+        }
+        manato_formats::Controller {
+            kind: "changeanim".into(),
+            params,
+            line: 0,
+        }
+    };
+
+    // Animation 200 frame 0 lasts 3 ticks.
+    manato_sim::controller::execute(&mut sim, 0, &anim(Some("2")), &assets);
+    assert_eq!(sim.fighters[0].anim_no, 200);
+    assert_eq!(sim.fighters[0].anim_frame, 1);
+    assert_eq!(sim.fighters[0].anim_time, 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElem"), 2);
+
+    // Element 0 clamps to the first frame.
+    manato_sim::controller::execute(&mut sim, 0, &anim(Some("0")), &assets);
+    assert_eq!(sim.fighters[0].anim_frame, 0);
+    assert_eq!(sim.fighters[0].anim_time, 0);
+
+    // Out-of-range elements clamp to the last frame (durations 3+4=7).
+    manato_sim::controller::execute(&mut sim, 0, &anim(Some("99")), &assets);
+    assert_eq!(sim.fighters[0].anim_frame, 2);
+    assert_eq!(sim.fighters[0].anim_time, 7);
+
+    // Omitting elem starts at the first frame.
+    manato_sim::controller::execute(&mut sim, 0, &anim(None), &assets);
+    assert_eq!(sim.fighters[0].anim_frame, 0);
+    assert_eq!(sim.fighters[0].anim_time, 0);
+}
+
+#[test]
 fn stage_autoturn_faces_opponent_when_idle() {
     let Some(mut sim) = fight_phase() else {
         return;
