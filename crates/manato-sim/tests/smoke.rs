@@ -10007,3 +10007,61 @@ fn envcolor_under_flag_and_default() {
     assert!(!apply(&mut sim, Some("0")).under);
     assert!(!apply(&mut sim, None).under, "under defaults to false");
 }
+
+#[test]
+fn explod_trans_blend_variants() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, trans: &str, alpha: Option<&str>| {
+        let mut params = vec![
+            ("anim".to_string(), "10".to_string()),
+            ("id".to_string(), "95".to_string()),
+            ("removeonchangestate".to_string(), "0".to_string()),
+            ("trans".to_string(), trans.to_string()),
+        ];
+        if let Some(alpha) = alpha {
+            params.push(("alpha".to_string(), alpha.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("explod").clone()
+    };
+
+    let none = spawn(&mut sim, "none", Some("128"));
+    assert_eq!(none.blend, manato_sim::EffectBlend::Normal);
+    assert_eq!(none.alpha, 1.0);
+    assert!(!none.transparent);
+    for kind in ["add", "add1"] {
+        let effect = spawn(&mut sim, kind, Some("128"));
+        assert_eq!(effect.blend, manato_sim::EffectBlend::Add);
+        assert_eq!(effect.alpha, 1.0);
+        assert!(!effect.transparent);
+    }
+    for kind in ["sub", "sub1"] {
+        let effect = spawn(&mut sim, kind, Some("128"));
+        assert_eq!(effect.blend, manato_sim::EffectBlend::Sub);
+        assert_eq!(effect.alpha, 1.0);
+        assert!(!effect.transparent);
+    }
+    let alpha = spawn(&mut sim, "alpha", Some("128, 64"));
+    assert_eq!(alpha.blend, manato_sim::EffectBlend::Normal);
+    assert!(alpha.transparent);
+    assert!((alpha.alpha - 0.25).abs() < 0.001);
+    let addalpha = spawn(&mut sim, "addalpha", Some("256, 128"));
+    assert_eq!(addalpha.blend, manato_sim::EffectBlend::Add);
+    assert!((addalpha.alpha - 0.5).abs() < 0.001);
+    let default = spawn(&mut sim, "default", None);
+    assert_eq!(default.blend, manato_sim::EffectBlend::Normal);
+    assert_eq!(default.alpha, 1.0);
+    assert!(!default.transparent);
+    // addalpha without alpha defaults to fully transparent dest 0.
+    let bare = spawn(&mut sim, "addalpha", None);
+    assert!(bare.transparent);
+    assert_eq!(bare.alpha, 0.0);
+}
