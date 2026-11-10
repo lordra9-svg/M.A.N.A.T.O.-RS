@@ -990,6 +990,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let miss_time = int_param(sim, who, control, "projmisstime").unwrap_or(0);
     let hit_anim = int_param(sim, who, control, "projhitanim").unwrap_or(-1);
     let rem_anim = int_param(sim, who, control, "projremanim").unwrap_or(-1);
+    let cancel_anim = int_param(sim, who, control, "projcancelanim").unwrap_or(-1);
+    let layer_no = int_param(sim, who, control, "projlayerno").unwrap_or(0);
+    let sprite_priority = int_param(sim, who, control, "projsprpriority").unwrap_or(3);
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1034,6 +1037,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         miss_time,
         hit_anim,
         rem_anim,
+        cancel_anim,
+        layer_no,
+        sprite_priority,
         hits,
         hitdef,
     });
@@ -1129,6 +1135,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let miss_time = int_param(sim, who, control, "projmisstime");
     let hit_anim = int_param(sim, who, control, "projhitanim");
     let rem_anim = int_param(sim, who, control, "projremanim");
+    let cancel_anim = int_param(sim, who, control, "projcancelanim");
+    let layer_no = int_param(sim, who, control, "projlayerno");
+    let sprite_priority = int_param(sim, who, control, "projsprpriority");
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1192,6 +1201,15 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(rem_anim) = rem_anim {
             projectile.rem_anim = rem_anim;
+        }
+        if let Some(cancel_anim) = cancel_anim {
+            projectile.cancel_anim = cancel_anim;
+        }
+        if let Some(layer_no) = layer_no {
+            projectile.layer_no = layer_no;
+        }
+        if let Some(sprite_priority) = sprite_priority {
+            projectile.sprite_priority = sprite_priority;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

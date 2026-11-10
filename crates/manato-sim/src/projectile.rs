@@ -44,6 +44,12 @@ pub struct Projectile {
     pub hit_anim: i32,
     /// `projremanim` used while removing; -1 keeps the current animation.
     pub rem_anim: i32,
+    /// `projcancelanim` used after a clash; -1 keeps the current animation.
+    pub cancel_anim: i32,
+    /// `projlayerno` draw layer (0 background, 1 foreground).
+    pub layer_no: i32,
+    /// `projsprpriority` draw order.
+    pub sprite_priority: i32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,
