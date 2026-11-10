@@ -9954,3 +9954,28 @@ fn afterimage_negative_time_is_infinite() {
     }
     assert!(sim.fighters[0].after_images.is_empty());
 }
+
+#[test]
+fn get_hit_var_priority_reflects_hitdef() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.priority = 6;
+    hit.damage = 10;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.priority, 6);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(priority)"), 6);
+
+    let mut guarded = hitdef();
+    guarded.priority = 2;
+    guarded.damage = 10;
+    guarded.guard_damage = 3;
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &guarded, true, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(priority)"), 2);
+}

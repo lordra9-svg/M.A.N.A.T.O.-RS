@@ -465,6 +465,7 @@ pub fn apply_hit_at(
         f.hit.vars.damage = damage;
         f.hit.vars.guarded = guarding;
         f.hit.vars.hitcount += 1;
+        f.hit.vars.priority = hitdef.priority;
         f.hit.vars.hit_id = hitdef.activation as i32;
         f.hit.guarding = guarding;
         f.hit.hit_pause = hitdef.pausetime.0.max(0);
