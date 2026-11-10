@@ -9482,3 +9482,67 @@ fn explod_permanent_bind_modify_transitions_and_removeongethit() {
     assert!(!sim.effects.iter().any(|effect| effect.id == 81));
     assert!(sim.effects.iter().any(|effect| effect.id == 80));
 }
+
+#[test]
+fn p2_life_anim_facing_and_numtarget_after_throw() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].life = 700;
+    sim.fighters[1].anim_no = 20;
+    sim.fighters[1].facing = -1;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2Life"), 700);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2Anim"), 20);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2Facing"), -1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "P2Life"),
+        sim.fighters[0].life
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "P2Anim"),
+        sim.fighters[0].anim_no
+    );
+
+    // A normal hit does not link a target; a throw does.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumTarget"), 0);
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 820;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumTarget"), 1);
+    assert_eq!(sim.fighters[0].target, Some(1));
+}
+
+#[test]
+fn alive_physics_lifemax_and_power_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alive"), 1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "LifeMax"),
+        sim.fighters[0].life_max
+    );
+    sim.fighters[0].power = 1234.0;
+    assert!((manato_sim::trigger::num(&sim, 0, "Power") - 1234.0).abs() < 0.001);
+
+    use manato_sim::fighter::Physics;
+    for (physics, code) in [
+        (Physics::Stand, "S"),
+        (Physics::Crouch, "C"),
+        (Physics::Air, "A"),
+        (Physics::None, "N"),
+    ] {
+        sim.fighters[0].physics = physics;
+        assert_eq!(
+            manato_sim::trigger::eval_str(&sim, 0, "Physics").as_str(),
+            code
+        );
+    }
+
+    sim.fighters[0].life = 0;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alive"), 0);
+    sim.fighters[0].life = 1;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alive"), 1);
+}
