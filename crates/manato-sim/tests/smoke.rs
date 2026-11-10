@@ -2351,6 +2351,8 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         vel: manato_core::Vec2::ZERO,
         accel: manato_core::Vec2::ZERO,
         facing: 1,
+        scale: manato_core::Vec2::new(1.0, 1.0),
+        angle: 0.0,
         time: 0,
         remove_time: 5,
         anim_loop_time: 4,
@@ -11279,4 +11281,69 @@ fn hitcount_adds_numhits_once_while_uniq_counts_contacts() {
     manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
     assert_eq!(sim.fighters[0].attack.hit_count, 0);
     assert_eq!(sim.fighters[0].attack.uniq_hit_count, 0);
+}
+
+#[test]
+fn projectile_projscale_and_projangle_parse_and_modify() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("projid".into(), "12".into()),
+            ("projscale".into(), "2, 0.5".into()),
+            ("projangle".into(), "45".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles[0].scale, manato_core::Vec2::new(2.0, 0.5));
+    assert_eq!(sim.projectiles[0].angle, 45.0);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "12".into()),
+            ("projscale".into(), "0.25, 3".into()),
+            ("projangle".into(), "-30".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(sim.projectiles[0].scale, manato_core::Vec2::new(0.25, 3.0));
+    assert_eq!(sim.projectiles[0].angle, -30.0);
+
+    // Omitting the parameters leaves the stored transform untouched.
+    let velocity = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "12".into()),
+            ("velocity".into(), "1, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &velocity, &assets);
+    assert_eq!(sim.projectiles[0].scale, manato_core::Vec2::new(0.25, 3.0));
+    assert_eq!(sim.projectiles[0].angle, -30.0);
+
+    // Defaults are identity scale and zero angle.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let plain = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    assert_eq!(sim.projectiles[0].scale, manato_core::Vec2::new(1.0, 1.0));
+    assert_eq!(sim.projectiles[0].angle, 0.0);
 }

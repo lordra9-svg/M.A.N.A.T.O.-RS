@@ -13,6 +13,10 @@ pub struct Projectile {
     pub vel: Vec2,
     pub accel: Vec2,
     pub facing: i32,
+    /// `projscale` multiplier for the animation frame.
+    pub scale: Vec2,
+    /// `projangle` added to the frame angle in degrees.
+    pub angle: f32,
     pub time: i32,
     /// Remaining lifetime in ticks; `0` is expired, `-1` never times out and
     /// `-2` expires when the animation reaches its loop end.

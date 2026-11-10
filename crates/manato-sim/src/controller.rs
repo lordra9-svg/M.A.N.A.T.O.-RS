@@ -977,6 +977,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let priority = int_param(sim, who, control, "projpriority").unwrap_or(0);
     let remove_on_hits_exhausted = int_param(sim, who, control, "projremove").unwrap_or(1) != 0;
     let shadow = parse_shadow(sim, who, control, "projshadow").unwrap_or([0; 3]);
+    let scale = control.get_pair("projscale").unwrap_or((1.0, 1.0));
+    let angle = num_param(sim, who, control, "projangle").unwrap_or(0.0);
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1005,6 +1007,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         vel: Vec2::new(vx * facing as f32, vy),
         accel: Vec2::new(ax * facing as f32, ay),
         facing,
+        scale: Vec2::new(scale.0, scale.1),
+        angle,
         time: 0,
         remove_time,
         anim_loop_time,
@@ -1098,6 +1102,8 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let priority = int_param(sim, who, control, "projpriority");
     let remove = int_param(sim, who, control, "projremove").map(|value| value != 0);
     let shadow = parse_shadow(sim, who, control, "projshadow");
+    let scale = control.get_pair("projscale");
+    let angle = num_param(sim, who, control, "projangle");
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1134,6 +1140,12 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(shadow) = shadow {
             projectile.shadow = shadow;
+        }
+        if let Some((x, y)) = scale {
+            projectile.scale = Vec2::new(x, y);
+        }
+        if let Some(angle) = angle {
+            projectile.angle = angle;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

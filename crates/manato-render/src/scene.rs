@@ -339,12 +339,15 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             sim.screen_pos(projectile.pos),
             pose.offset,
             projectile.facing,
-            Vec2::new(pose.scale.x * zoom, pose.scale.y * zoom),
+            Vec2::new(
+                pose.scale.x * projectile.scale.x * zoom,
+                pose.scale.y * projectile.scale.y * zoom,
+            ),
             pose.flip_h,
             pose.flip_v,
             pose.blend,
             [1.0, 1.0, 1.0, pose.alpha],
-            pose.angle,
+            pose.angle + projectile.angle * projectile.facing as f32,
         );
     }
 }
