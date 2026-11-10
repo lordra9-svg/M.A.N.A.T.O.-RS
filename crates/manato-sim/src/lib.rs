@@ -2624,14 +2624,15 @@ fn update_exec_counter(
         counters[index] = 1;
         return true;
     }
-    let period = persistent.max(1) as u32;
-    counters[index] += 1;
-    if counters[index] >= period {
-        counters[index] = 0;
-        true
-    } else {
-        false
+    // Ikemen executes on the first matching tick, then skips `N - 1`
+    // matching ticks (counter holds the remaining skip count).
+    let period = persistent as u32;
+    if counters[index] > 0 {
+        counters[index] -= 1;
+        return false;
     }
+    counters[index] = period.saturating_sub(1);
+    true
 }
 
 /// Renders a `Display` for a fighter slot (used by the CLI).

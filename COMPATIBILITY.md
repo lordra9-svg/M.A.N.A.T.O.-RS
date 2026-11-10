@@ -38,7 +38,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | S-01 | Statedef defaults/type/physics | Required | Required | Partial | Statedef type/physics/anim/ctrl/sprpriority defaults test |
 | S-02 | ChangeState/ChangeAnim | Required | Required | Partial | State round-trips + ctrl/anim overrides + ChangeAnim elem + ChangeAnim2 bank |
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/MoveType/Physics controller and trigger test |
-| S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N + ignorehitpause during hit/super pause test |
+| S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + ignorehitpause |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick + KO lock + helper keyctrl/helpertype gating |
 | S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |

@@ -2750,7 +2750,9 @@ fn persistent_and_ignorehitpause_control_execution() {
         "\n[Statedef 900]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
          \n[State 900, Once]\ntype = VarAdd\ntrigger1 = 1\nv = 0\nvalue = 1\npersistent = 0\n\
          \n[State 900, Normal]\ntype = VarAdd\ntrigger1 = 1\nv = 1\nvalue = 10\npersistent = 1\n\
-         \n[State 900, Paused]\ntype = VarAdd\ntrigger1 = 1\nv = 2\nvalue = 100\npersistent = 1\nignorehitpause = 1\n",
+         \n[State 900, Paused]\ntype = VarAdd\ntrigger1 = 1\nv = 2\nvalue = 100\npersistent = 1\nignorehitpause = 1\n\
+         \n[Statedef 901]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
+         \n[State 901, Periodic]\ntype = VarAdd\ntrigger1 = 1\nv = 3\nvalue = 1\npersistent = 3\n",
     );
     std::fs::write(&common, text).expect("patch common.cns");
 
@@ -2790,6 +2792,21 @@ fn persistent_and_ignorehitpause_control_execution() {
     assert_eq!(sim.fighters[0].vars[1], 20, "normal controller resumes");
     assert_eq!(sim.fighters[0].vars[2], 400);
     assert_eq!(sim.fighters[0].vars[0], 1, "persistent=0 never repeats");
+
+    // persistent = 3 runs on the first matching tick, then every third tick.
+    sim.fighters[0].enter_state(901, &assets.characters[0], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[3], 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[3], 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[3], 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[3], 2, "second run after three ticks");
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].vars[3], 3);
 
     let _ = std::fs::remove_dir_all(&dir);
 }
