@@ -53,7 +53,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar ids/times/fall fields + HitVel axes + HitShakeOver/HitOver transitions |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper(id)/NumExplod/ProjID + SysVar persistence |
-| T-06 | Const/expressions/random | Required | Required | Partial | IfElse/Min/Max/Abs/Ceil/Floor + trig/pow/log + Const240p/480p/720p tests |
+| T-06 | Const/expressions/random | Required | Required | Partial | Const scalars/pairs + Const240/480/720p + math/random tests |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
 | T-08 | Ikemen-only triggers | N/A | Ikemen | Missing | TBD |
 

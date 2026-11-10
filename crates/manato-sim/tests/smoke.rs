@@ -8192,3 +8192,30 @@ fn sysvars_persist_across_rounds_and_pauses() {
     assert_eq!(sim.fighters[1].sysvars[3], 7);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "SysVar(3)"), 7);
 }
+
+#[test]
+fn const_reads_character_constants() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let num = |expr: &str| manato_sim::trigger::num(&sim, 0, expr);
+    assert_eq!(num("Const(data.life)"), 1000.0);
+    assert_eq!(num("Const(size.ground.front)"), 16.0);
+    assert_eq!(num("Const(size.air.back)"), 12.0);
+    assert_eq!(num("Const(size.height)"), 60.0);
+    assert_eq!(num("Const(size.head.pos.x)"), -5.0);
+    assert_eq!(num("Const(size.head.pos.y)"), -72.0);
+
+    // Scalar velocity constants expand to .x / .y.
+    assert_eq!(num("Const(velocity.walk.fwd)"), 2.6);
+    assert_eq!(num("Const(velocity.walk.fwd.x)"), 2.6);
+    assert_eq!(num("Const(velocity.walk.fwd.y)"), 0.0);
+    assert_eq!(num("Const(velocity.walk.back)"), -2.6);
+    assert_eq!(num("Const(velocity.run.fwd.x)"), 4.4);
+    assert_eq!(num("Const(velocity.run.fwd.y)"), 0.0);
+    assert_eq!(num("Const(movement.yaccel)"), 0.44);
+    assert_eq!(num("Const(data.airjuggle)"), 15.0);
+
+    // Unknown constants evaluate to 0.
+    assert_eq!(num("Const(no.such.constant)"), 0.0);
+}
