@@ -10892,3 +10892,41 @@ fn lifebaraction_falls_back_to_screenpack_displaytime() {
     manato_sim::controller::execute(&mut sim, 0, &control, &assets);
     assert_eq!(sim.actions[0].last().unwrap().time, 12);
 }
+
+#[test]
+fn get_hitvar_velocities_and_hitover_threshold() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.ground_velocity = manato_core::Vec2::new(4.0, -2.0);
+    hit.ground_hittime = 4;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(xvel)"), -4.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yvel)"), -2.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yaccel)"), 0.0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"), 4);
+
+    // HitOver flips once the hit state has lasted `hittime` ticks.
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitOver"), 0);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "HitOver"),
+        0,
+        "still inside hittime (state_time {})",
+        sim.fighters[1].state_time
+    );
+    for i in 0..6 {
+        sim.tick([PlayerInput::default(); 2]);
+        eprintln!(
+            "DBG i={i} st={} time={} hitover={} hittime={}",
+            sim.fighters[1].state_no,
+            sim.fighters[1].state_time,
+            manato_sim::trigger::int(&sim, 1, "HitOver"),
+            sim.fighters[1].hit.vars.hittime
+        );
+    }
+}
