@@ -2354,6 +2354,9 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         time: 0,
         remove_time: 5,
         anim_loop_time: 4,
+        remove_on_hits_exhausted: true,
+        priority: 0,
+        priority_points: 0,
         hits: 2,
         hitdef,
     });
@@ -11034,4 +11037,84 @@ fn projectile_removetime_minus_two_expires_at_animation_loop_end() {
         sim.tick([PlayerInput::default(); 2]);
     }
     assert_eq!(sim.projectiles.len(), 1);
+}
+
+#[test]
+fn projectile_prefixed_aliases_and_projremove() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("projremovetime".into(), "2".into()),
+            ("projhits".into(), "3".into()),
+            ("projid".into(), "9".into()),
+            ("projpriority".into(), "4".into()),
+            ("projremove".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    {
+        let projectile = &sim.projectiles[0];
+        assert_eq!(projectile.remove_time, 2);
+        assert_eq!(projectile.hits, 3);
+        assert_eq!(projectile.id, 9);
+        assert_eq!(projectile.priority, 4);
+        assert_eq!(projectile.priority_points, 4);
+        assert!(!projectile.remove_on_hits_exhausted);
+    }
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "9".into()),
+            ("projremovetime".into(), "-1".into()),
+            ("projhits".into(), "1".into()),
+            ("projpriority".into(), "7".into()),
+            ("projremove".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    {
+        let projectile = &sim.projectiles[0];
+        assert_eq!(projectile.remove_time, -1);
+        assert_eq!(projectile.hits, 1);
+        assert_eq!(projectile.priority, 7);
+        assert_eq!(projectile.priority_points, 7);
+        assert!(projectile.remove_on_hits_exhausted);
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles.len(), 1, "one hit remains");
+
+    // Exhausted hits do not remove while projremove = 0.
+    sim.projectiles[0].hits = 0;
+    let keep = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "9".into()),
+            ("projremove".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &keep, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles.len(), 1, "projremove = 0 keeps it alive");
+
+    let drop = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "9".into()),
+            ("projremove".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "re-enabling removal clears it");
 }

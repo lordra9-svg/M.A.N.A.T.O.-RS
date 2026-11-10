@@ -961,9 +961,19 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     sim.hit_activation = sim.hit_activation.wrapping_add(1);
     // Projectile sparks sit at the impact point, not at a body offset.
     hitdef.sparkxy = Vec2::ZERO;
-    let remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
-    let hits = int_param(sim, who, control, "hits").unwrap_or(1).max(1);
-    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    // Both the plain and `proj*`-prefixed aliases are accepted.
+    let remove_time = int_param(sim, who, control, "projremovetime")
+        .or_else(|| int_param(sim, who, control, "removetime"))
+        .unwrap_or(-1);
+    let hits = int_param(sim, who, control, "projhits")
+        .or_else(|| int_param(sim, who, control, "hits"))
+        .unwrap_or(1)
+        .max(1);
+    let id = int_param(sim, who, control, "projid")
+        .or_else(|| int_param(sim, who, control, "id"))
+        .unwrap_or(0);
+    let priority = int_param(sim, who, control, "projpriority").unwrap_or(0);
+    let remove_on_hits_exhausted = int_param(sim, who, control, "projremove").unwrap_or(1) != 0;
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -995,6 +1005,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         time: 0,
         remove_time,
         anim_loop_time,
+        remove_on_hits_exhausted,
+        priority,
+        priority_points: priority,
         hits,
         hitdef,
     });
@@ -1030,7 +1043,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
 /// most recently spawned projectile is. Only supplied parameters change.
 fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let character = char_of(assets, sim, who);
-    let explicit_id = int_param(sim, who, control, "id");
+    let explicit_id =
+        int_param(sim, who, control, "id").or_else(|| int_param(sim, who, control, "projid"));
     let last = sim
         .projectiles
         .iter()
@@ -1055,8 +1069,12 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let anim = int_param(sim, who, control, "projanim");
     let velocity = control.get_pair("velocity");
     let accel = control.get_pair("accel");
-    let remove_time = int_param(sim, who, control, "removetime");
-    let hits = int_param(sim, who, control, "hits");
+    let remove_time = int_param(sim, who, control, "projremovetime")
+        .or_else(|| int_param(sim, who, control, "removetime"));
+    let hits =
+        int_param(sim, who, control, "projhits").or_else(|| int_param(sim, who, control, "hits"));
+    let priority = int_param(sim, who, control, "projpriority");
+    let remove = int_param(sim, who, control, "projremove").map(|value| value != 0);
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1083,6 +1101,13 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(hits) = hits {
             projectile.hits = hits.max(0);
+        }
+        if let Some(priority) = priority {
+            projectile.priority = priority;
+            projectile.priority_points = priority;
+        }
+        if let Some(remove) = remove {
+            projectile.remove_on_hits_exhausted = remove;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

@@ -19,6 +19,11 @@ pub struct Projectile {
     pub remove_time: i32,
     /// One animation pass length in ticks; `0` when unknown.
     pub anim_loop_time: i32,
+    /// Remove once `hits` is exhausted (`projremove`, default true).
+    pub remove_on_hits_exhausted: bool,
+    /// Clash priority points (`projpriority`); unused until clashes resolve.
+    pub priority: i32,
+    pub priority_points: i32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,
@@ -28,7 +33,7 @@ impl Projectile {
     pub fn is_expired(&self) -> bool {
         let loop_expired =
             self.remove_time <= -2 && self.anim_loop_time > 0 && self.time >= self.anim_loop_time;
-        self.hits <= 0 || self.remove_time == 0 || loop_expired
+        (self.hits <= 0 && self.remove_on_hits_exhausted) || self.remove_time == 0 || loop_expired
     }
 
     pub fn advance(&mut self) {
