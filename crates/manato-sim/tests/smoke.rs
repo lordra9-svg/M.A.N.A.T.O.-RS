@@ -8153,11 +8153,20 @@ fn sysvars_persist_across_rounds_and_pauses() {
     let Some(mut sim) = fight_phase() else {
         return;
     };
+    sim.fighters[0].sysvars[0] = -3;
     sim.fighters[0].sysvars[3] = 42;
     sim.fighters[0].sysfvars[2] = 1.5;
+    sim.fighters[0].sysfvars[4] = -0.25;
     sim.fighters[1].sysvars[3] = 7;
     assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(3)"), 42);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(0)"), -3);
     assert!((manato_sim::trigger::num(&sim, 0, "SysFVar(2)") - 1.5).abs() < 0.001);
+    assert!((manato_sim::trigger::num(&sim, 0, "SysFVar(4)") + 0.25).abs() < 0.001);
+    // Out-of-range indices clamp to the last slot.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "SysVar(99)"),
+        sim.fighters[0].sysvars[4]
+    );
 
     // Values remain readable during hit pause and super pause.
     sim.fighters[0].hit.hit_pause = 3;
@@ -8182,7 +8191,9 @@ fn sysvars_persist_across_rounds_and_pauses() {
     }
     assert_eq!(sim.round.number, 2);
     assert_eq!(sim.fighters[0].sysvars[3], 42);
+    assert_eq!(sim.fighters[0].sysvars[0], -3);
     assert!((sim.fighters[0].sysfvars[2] - 1.5).abs() < 0.001);
+    assert!((sim.fighters[0].sysfvars[4] + 0.25).abs() < 0.001);
     assert_eq!(sim.fighters[1].sysvars[3], 7);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(3)"), 42);
 
@@ -8351,4 +8362,64 @@ fn assertspecial_render_flags_are_per_tick() {
     assert!(!sim.background_hidden());
     assert!(!sim.foreground_hidden());
     assert!(!sim.bars_hidden());
+}
+
+#[test]
+fn target_bind_mirrors_on_turn_and_target_facing() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[0].facing = 1;
+    let bind = manato_formats::Controller {
+        kind: "targetbind".into(),
+        params: vec![
+            ("pos".into(), "10, -20".into()),
+            ("time".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    // Pushbox separation can move the attacker, so compare relative offsets.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[1].pos,
+        manato_core::Vec2::new(sim.fighters[0].pos.x + 10.0, -20.0)
+    );
+
+    // Turning the attacker mirrors the stored offset on the next tick.
+    sim.fighters[0].facing = -1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[1].pos,
+        manato_core::Vec2::new(sim.fighters[0].pos.x - 10.0, -20.0),
+        "bind offset is facing-relative each tick"
+    );
+    assert_eq!(sim.fighters[1].facing, 1);
+
+    // TargetFacing +1 matches the attacker, -1 opposes it.
+    let face = |sim: &mut SimState, value: i32| {
+        let control = manato_formats::Controller {
+            kind: "targetfacing".into(),
+            params: vec![("value".into(), value.to_string())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    face(&mut sim, 1);
+    assert_eq!(sim.fighters[1].facing, -1);
+    face(&mut sim, -1);
+    assert_eq!(sim.fighters[1].facing, 1);
+
+    // TargetDrop clears the binding completely.
+    let drop = manato_formats::Controller {
+        kind: "targetdrop".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &drop, &assets);
+    assert!(sim.fighters[0].target_bind.is_none());
+    assert_eq!(sim.fighters[0].target, None);
 }
