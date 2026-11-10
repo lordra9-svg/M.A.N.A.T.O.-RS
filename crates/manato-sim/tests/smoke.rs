@@ -9384,3 +9384,101 @@ fn modify_explod_animelem_and_animfreeze() {
         "frozen explod persists"
     );
 }
+
+#[test]
+fn explod_permanent_bind_modify_transitions_and_removeongethit() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let spawn = |sim: &mut SimState, id: i32, removeongethit: bool| {
+        let mut params = vec![
+            ("anim".to_string(), "10".to_string()),
+            ("id".to_string(), id.to_string()),
+            ("pos".to_string(), "10, -5".to_string()),
+            ("bindtime".to_string(), "-1".to_string()),
+            ("removeonchangestate".to_string(), "0".to_string()),
+            ("removetime".to_string(), "100".to_string()),
+        ];
+        if removeongethit {
+            params.push(("removeongethit".to_string(), "1".to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let modify = |sim: &mut SimState, id: i32, bindtime: i32| {
+        let control = manato_formats::Controller {
+            kind: "modifyexplod".into(),
+            params: vec![
+                ("id".into(), id.to_string()),
+                ("bindtime".into(), bindtime.to_string()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // spawn bindtime = -1 is a permanent bind.
+    spawn(&mut sim, 80, false);
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert!(effect.bound);
+        assert_eq!(effect.bind_time, -1);
+        assert_eq!(
+            effect.pos,
+            manato_core::Vec2::new(sim.fighters[0].pos.x + 10.0, -5.0)
+        );
+    }
+    for _ in 0..10 {
+        sim.fighters[0].pos.x += 5.0;
+        sim.tick([PlayerInput::default(); 2]);
+        let effect = sim.effects.last().expect("bound explod");
+        assert_eq!(effect.bind_time, -1, "permanent bind never counts down");
+        assert_eq!(effect.pos.x, sim.fighters[0].pos.x + 10.0);
+    }
+
+    // Modify bindtime = 0 releases it.
+    modify(&mut sim, 80, 0);
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert!(!effect.bound);
+        assert_eq!(effect.bind_target, None);
+    }
+    let frozen_x = sim.effects.last().unwrap().pos.x;
+    sim.fighters[0].pos.x += 40.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.effects.last().unwrap().pos.x,
+        frozen_x,
+        "released explod does not follow the owner"
+    );
+
+    // Modify bindtime = -1 rebinds permanently at the current offset.
+    modify(&mut sim, 80, -1);
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert!(effect.bound);
+        assert_eq!(effect.bind_time, -1);
+    }
+    sim.fighters[0].pos.x += 20.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.effects.last().unwrap().pos.x,
+        sim.fighters[0].pos.x - 30.0,
+        "rebound offset stays fixed relative to the owner"
+    );
+
+    // Spawn removeongethit removes on the owner's next hit.
+    spawn(&mut sim, 81, true);
+    let strike = hitdef();
+    let origin = sim.fighters[1].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 1, 0, &strike, false, origin, -1, true);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.effects.iter().any(|effect| effect.id == 81));
+    assert!(sim.effects.iter().any(|effect| effect.id == 80));
+}
