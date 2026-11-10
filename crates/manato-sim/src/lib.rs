@@ -1889,7 +1889,14 @@ impl SimState {
             } else {
                 mid_x
             };
-            let target_y = clamp(highest, cam.bound_high, cam.bound_low);
+            // `verticalfollow` scales how far the camera tracks height;
+            // `floortension` raises the target by a dead-zone offset.
+            let vertical_follow = cam.vertical_follow.clamp(0.0, 1.0);
+            let target_y = clamp(
+                (highest + cam.floor_tension) * vertical_follow,
+                cam.bound_high,
+                cam.bound_low,
+            );
             // Smooth follow.
             self.camera.x += (target_x - self.camera.x) * 0.35;
             self.camera.y += (target_y - self.camera.y) * 0.35;

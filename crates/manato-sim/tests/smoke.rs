@@ -8912,3 +8912,93 @@ fn camera_zoom_bounds_tension_and_helper_ignoring() {
         sim.camera.y
     );
 }
+
+#[test]
+fn camera_vertical_follow_and_floor_tension() {
+    // verticalfollow = 1 clamps the target to boundhigh.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let cam = &mut assets.stage.camera;
+        cam.vertical_follow = 1.0;
+        cam.floor_tension = 0.0;
+        cam.bound_high = -76.0;
+        cam.bound_low = 0.0;
+        cam.zoom_out = 1.0;
+        cam.zoom_in = 1.0;
+    }
+    sim.fighters[0].pos.y = -300.0;
+    sim.fighters[1].pos.y = 0.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.y + 76.0).abs() < 1.0,
+        "camera clamps to boundhigh, got {}",
+        sim.camera.y
+    );
+
+    // verticalfollow = 0.2 tracks only a fifth of the height.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let cam = &mut assets.stage.camera;
+        cam.vertical_follow = 0.2;
+        cam.floor_tension = 0.0;
+        cam.bound_high = -500.0;
+        cam.bound_low = 500.0;
+    }
+    sim.fighters[0].pos.y = -300.0;
+    sim.fighters[1].pos.y = 0.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.y + 60.0).abs() < 1.0,
+        "0.2 * -300 should target -60, got {}",
+        sim.camera.y
+    );
+
+    // verticalfollow = 0 pins the camera to 0 regardless of height.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let cam = &mut assets.stage.camera;
+        cam.vertical_follow = 0.0;
+        cam.floor_tension = 0.0;
+        cam.bound_high = -500.0;
+        cam.bound_low = 500.0;
+    }
+    sim.fighters[0].pos.y = -300.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.camera.y.abs() < 1.0, "follow 0 keeps y at 0");
+
+    // floor tension raises the target: (0 + 100) * 0.5 = 50.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let cam = &mut assets.stage.camera;
+        cam.vertical_follow = 0.5;
+        cam.floor_tension = 100.0;
+        cam.bound_high = -500.0;
+        cam.bound_low = 500.0;
+    }
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.y - 50.0).abs() < 1.0,
+        "floor tension target, got {}",
+        sim.camera.y
+    );
+}
