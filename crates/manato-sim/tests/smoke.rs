@@ -424,6 +424,18 @@ fn reversal_and_trans_execute() {
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 0, &trans, &assets);
+    // Blend-only `add` ignores `alpha`; use `addalpha` for opacity.
+    assert_eq!(sim.fighters[0].trans_alpha, 1.0);
+    let add_alpha = manato_formats::Controller {
+        kind: "trans".into(),
+        params: vec![
+            ("type".into(), "Trans".into()),
+            ("trans".into(), "addalpha".into()),
+            ("alpha".into(), "128".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add_alpha, &assets);
     assert!((sim.fighters[0].trans_alpha - 128.0 / 255.0).abs() < 0.001);
 }
 
@@ -2535,6 +2547,8 @@ fn modify_projectile_updates_live_projectile() {
             ("removetime".into(), "3".into()),
             ("hits".into(), "2".into()),
             ("damage".into(), "40".into()),
+            ("projanim".into(), "10".into()),
+            ("accel".into(), "1, -2".into()),
         ],
         line: 0,
     };
@@ -2544,6 +2558,8 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.remove_time, 3);
     assert_eq!(projectile.hits, 2);
     assert_eq!(projectile.hitdef.damage, 40);
+    assert_eq!(projectile.anim, 10);
+    assert_eq!(projectile.accel, manato_core::Vec2::new(1.0, -2.0));
 
     // An explicit id that matches nothing leaves projectiles untouched.
     let id = projectile.id;
@@ -2629,6 +2645,9 @@ fn modify_and_remove_explod_target_the_newest_matching_id() {
             ("pos".into(), "30, -10".into()),
             ("scale".into(), "2, 3".into()),
             ("vel".into(), "1, -2".into()),
+            ("accel".into(), "0.5, 0.25".into()),
+            ("trans".into(), "addalpha".into()),
+            ("alpha".into(), "128, 64".into()),
         ],
         line: 0,
     };
@@ -2640,6 +2659,11 @@ fn modify_and_remove_explod_target_the_newest_matching_id() {
     assert!((effect.scale.y - 3.0).abs() < 0.001);
     assert!((effect.vel.x - 1.0).abs() < 0.001);
     assert!((effect.vel.y - -2.0).abs() < 0.001);
+    assert!((effect.accel.x - 0.5).abs() < 0.001);
+    assert!((effect.accel.y - 0.25).abs() < 0.001);
+    assert_eq!(effect.blend, manato_sim::EffectBlend::Add);
+    assert!(effect.transparent);
+    assert!((effect.alpha - 0.25).abs() < 0.001, "alpha[1]/256");
 
     // A different id leaves the effect alone.
     let unrelated = manato_formats::Controller {
@@ -7830,4 +7854,36 @@ fn vel_add_set_facing_and_power_clamp() {
     };
     manato_sim::controller::execute(&mut sim, 0, &power_set, &assets);
     assert_eq!(sim.fighters[0].power, 0.0);
+}
+
+#[test]
+fn trans_variants_only_use_alpha_for_alpha_blends() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let apply = |sim: &mut SimState, kind: &str, alpha: Option<&str>| {
+        let mut params = vec![("trans".to_string(), kind.to_string())];
+        if let Some(alpha) = alpha {
+            params.push(("alpha".to_string(), alpha.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "trans".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].trans_alpha
+    };
+
+    for kind in ["default", "none", "add", "add1", "sub", "sub1"] {
+        assert_eq!(
+            apply(&mut sim, kind, Some("64")),
+            1.0,
+            "{kind} stays opaque even with an alpha parameter"
+        );
+    }
+    assert!((apply(&mut sim, "addalpha", Some("64")) - 64.0 / 255.0).abs() < 0.001);
+    assert!((apply(&mut sim, "alpha", Some("128")) - 128.0 / 255.0).abs() < 0.001);
+    assert_eq!(apply(&mut sim, "addalpha", None), 1.0, "no alpha = opaque");
 }

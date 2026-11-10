@@ -64,10 +64,10 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power clamps + VelSet/VelAdd/VelMul facing + Pos/Var edges |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + auto-turn (stage autoturn/noautoturn) + presentation tests |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + numhits activation limit + p2stateno/reversal/sounds/shake |
-| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits removal + edge postype + ModifyProjectile id targeting |
-| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Bindtime release + unbound edge postype + projection/lifetime + Modify/Remove id |
+| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits removal + edge postype + ModifyProjectile anim/accel/id |
+| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Bindtime/edge postype + Modify scale/vel/accel/trans + Remove id |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
-| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
+| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX + Trans alpha only for addalpha/alpha; RemapPal deferred |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake/FallEnvShake + shake lifecycle + Nival pause oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters (incl. timer expiry on all hit paths) + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Per-tick Width reset, independent ScreenBound axes, PlayerPush separation |

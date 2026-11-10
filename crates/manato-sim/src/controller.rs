@@ -400,9 +400,10 @@ fn trans(sim: &mut SimState, who: usize, control: &Controller) {
         .unwrap_or("default")
         .to_ascii_lowercase();
     let alpha = int_param(sim, who, control, "alpha");
+    // Only `addalpha`/`alpha` use the alpha parameter; the blend-only variants
+    // stay fully opaque (`docs/spec/render.md` alpha semantics).
     sim.fighters[who].trans_alpha = match (kind.as_str(), alpha) {
-        ("default", _) => 1.0,
-        (_, Some(alpha)) => (alpha as f32 / 255.0).clamp(0.0, 1.0),
+        ("addalpha" | "alpha", Some(alpha)) => (alpha as f32 / 255.0).clamp(0.0, 1.0),
         _ => 1.0,
     };
 }
