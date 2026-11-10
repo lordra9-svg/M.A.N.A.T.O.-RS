@@ -496,8 +496,12 @@ pub struct EnvShake {
     pub freq: f32,
     pub ampl: f32,
     pub phase: f32,
-    /// Amplitude multiplier applied each tick.
+    /// Amplitude multiplier applied once per full cycle.
     pub mul: f32,
+    /// Initial shake direction in degrees.
+    pub dir: f32,
+    /// Degrees added to the direction per tick.
+    pub diradd: f32,
     /// Amplitude decay exponent over the remaining duration.
     pub decay: f32,
 }
@@ -511,6 +515,8 @@ impl Default for EnvShake {
             ampl: -4.0,
             phase: 0.0,
             mul: 1.0,
+            dir: 0.0,
+            diradd: 0.0,
             decay: 0.0,
         }
     }
@@ -1971,20 +1977,34 @@ impl SimState {
         }
 
         if self.env_shake.time > 0 {
-            self.env_shake.time -= 1;
-            self.env_shake.phase += 1.0;
-            if self.env_shake.mul != 0.0 && self.env_shake.mul != 1.0 {
-                self.env_shake.ampl *= self.env_shake.mul;
+            // Ikemen recomputes the offset from the elapsed time each frame
+            // (`src/system.go` EnvShake.update), so `mul` applies once per
+            // full `freq` cycle rather than every tick.
+            let shake = &mut self.env_shake;
+            let elapsed = (shake.initial_time - shake.time).max(0) as f32;
+            let current_phase = shake.phase + shake.freq * elapsed;
+            let current_dir = shake.dir + shake.diradd * elapsed;
+            let mut factor = 1.0_f32;
+            if shake.mul != 0.0 && shake.mul != 1.0 {
+                let cycles = (shake.freq * elapsed / 360.0).floor();
+                factor *= shake.mul.powf(cycles);
             }
-            if self.env_shake.decay != 0.0 && self.env_shake.initial_time > 0 {
-                let t = self.env_shake.time as f32 / self.env_shake.initial_time as f32;
-                self.env_shake.ampl *= t.max(0.0).powf(self.env_shake.decay);
+            if shake.decay != 0.0 && shake.initial_time > 0 {
+                let t = shake.time as f32 / shake.initial_time as f32;
+                if t > 0.0 {
+                    factor *= t.powf(shake.decay);
+                }
             }
-            let amp = self.env_shake.ampl;
-            self.camera.shake = Vec2::new(
-                (self.env_shake.phase * self.env_shake.freq * 0.1).sin() * amp,
-                (self.env_shake.phase * self.env_shake.freq * 0.13).cos() * amp * 0.5,
-            );
+            let ampl = shake.ampl * factor;
+            if ampl == 0.0 {
+                self.camera.shake = Vec2::ZERO;
+            } else {
+                let phase_rad = current_phase.to_radians();
+                let dir_rad = current_dir.to_radians();
+                let offset = ampl * phase_rad.sin();
+                self.camera.shake = Vec2::new(offset * (-dir_rad).sin(), offset * (-dir_rad).cos());
+            }
+            shake.time -= 1;
         } else {
             self.camera.shake = Vec2::ZERO;
         }

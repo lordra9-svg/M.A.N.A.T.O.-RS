@@ -7322,7 +7322,10 @@ fn env_shake_advances_and_expires() {
 
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.env_shake.time, 2);
-    assert_eq!(sim.env_shake.phase, phase + 1.0);
+    assert_eq!(
+        sim.env_shake.phase, phase,
+        "phase is an offset, not a counter"
+    );
     assert!(
         sim.camera.shake.x.abs() > 0.001 || sim.camera.shake.y.abs() > 0.001,
         "active shake moves the camera"
@@ -10641,6 +10644,7 @@ fn envshake_mul_decay_and_globalnoshadow() {
         params: vec![
             ("time".into(), "5".into()),
             ("ampl".into(), "-8".into()),
+            ("freq".into(), "90".into()),
             ("mul".into(), "0.5".into()),
         ],
         line: 0,
@@ -10648,10 +10652,18 @@ fn envshake_mul_decay_and_globalnoshadow() {
     manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
     assert_eq!(sim.env_shake.initial_time, 5);
     assert_eq!(sim.env_shake.mul, 0.5);
-    sim.tick([PlayerInput::default(); 2]);
-    assert!((sim.env_shake.ampl - -4.0).abs() < 0.001);
-    sim.tick([PlayerInput::default(); 2]);
-    assert!((sim.env_shake.ampl - -2.0).abs() < 0.001);
+    assert_eq!(sim.env_shake.phase, 90.0, "freq >= 90 defaults phase 90");
+    // One mul step per full freq cycle (90 deg/tick => cycle every 4 ticks).
+    let mut xs = Vec::new();
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+        xs.push(sim.camera.shake.y);
+    }
+    assert!((xs[0] - -8.0).abs() < 0.01, "first frame: {xs:?}");
+    assert!(xs[1].abs() < 0.01, "zero crossing: {xs:?}");
+    assert!((xs[2] - 8.0).abs() < 0.01, "opposite peak: {xs:?}");
+    assert!(xs[3].abs() < 0.01, "second crossing: {xs:?}");
+    assert!((xs[4] - -4.0).abs() < 0.01, "one cycle applies mul: {xs:?}");
 
     // decay scales amplitude by (remaining / initial)^decay.
     let Some(mut sim) = fight_phase() else {
@@ -10662,15 +10674,83 @@ fn envshake_mul_decay_and_globalnoshadow() {
         params: vec![
             ("time".into(), "4".into()),
             ("ampl".into(), "-8".into()),
+            ("freq".into(), "0".into()),
+            ("phase".into(), "90".into()),
             ("decay".into(), "1".into()),
         ],
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 0, &decay, &assets);
     sim.tick([PlayerInput::default(); 2]);
-    assert!((sim.env_shake.ampl - -6.0).abs() < 0.001);
+    assert!((sim.camera.shake.y - -8.0).abs() < 0.01);
     sim.tick([PlayerInput::default(); 2]);
-    assert!((sim.env_shake.ampl - -3.0).abs() < 0.001);
+    assert!((sim.camera.shake.y - -6.0).abs() < 0.01);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.camera.shake.y - -4.0).abs() < 0.01);
+
+    // dir rotates the shake vector; phase is clamped to [-180, 180].
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let directed = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "3".into()),
+            ("ampl".into(), "-8".into()),
+            ("freq".into(), "0".into()),
+            ("phase".into(), "999".into()),
+            ("dir".into(), "90".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &directed, &assets);
+    assert_eq!(sim.env_shake.phase, 180.0, "phase clamps to 180");
+    sim.tick([PlayerInput::default(); 2]);
+    // phase 180 => offset 0, so rotate is moot; use phase -90 for a live test.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let directed = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "3".into()),
+            ("ampl".into(), "-8".into()),
+            ("freq".into(), "0".into()),
+            ("phase".into(), "-90".into()),
+            ("dir".into(), "90".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &directed, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        (sim.camera.shake.x - -8.0).abs() < 0.01,
+        "dir 90 rotates to -X"
+    );
+    assert!(sim.camera.shake.y.abs() < 0.01);
+
+    // diradd advances the direction each tick: 0 deg then 90 deg.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let rotating = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "3".into()),
+            ("ampl".into(), "-8".into()),
+            ("freq".into(), "0".into()),
+            ("phase".into(), "90".into()),
+            ("diradd".into(), "90".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &rotating, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.camera.shake.x.abs() < 0.01);
+    assert!((sim.camera.shake.y - -8.0).abs() < 0.01);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.camera.shake.x - 8.0).abs() < 0.01);
+    assert!(sim.camera.shake.y.abs() < 0.01);
 
     // GlobalNoShadow hides all fighter shadows.
     let Some(mut sim) = fight_phase() else {

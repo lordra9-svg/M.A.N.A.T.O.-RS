@@ -599,6 +599,8 @@ pub fn apply_hit_at(
             ampl: -2.0,
             phase: 0.0,
             mul: 1.0,
+            dir: 0.0,
+            diradd: 0.0,
             decay: 0.0,
         };
     }

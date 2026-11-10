@@ -1283,10 +1283,18 @@ fn width(sim: &mut SimState, who: usize, control: &Controller) {
 
 fn env_shake(sim: &mut SimState, who: usize, control: &Controller) {
     let time = int_param(sim, who, control, "time").unwrap_or(0);
-    let freq = num_param(sim, who, control, "freq").unwrap_or(60.0);
+    let freq = num_param(sim, who, control, "freq")
+        .unwrap_or(60.0)
+        .max(0.0);
     let ampl = num_param(sim, who, control, "ampl").unwrap_or(-4.0);
-    let phase = num_param(sim, who, control, "phase").unwrap_or(0.0);
+    // Ikemen clamps the phase to [-180, 180] and defaults it to 90 when the
+    // frequency is at least 90 degrees per tick.
+    let phase = num_param(sim, who, control, "phase")
+        .map(|phase| phase.clamp(-180.0, 180.0))
+        .unwrap_or(if freq >= 90.0 { 90.0 } else { 0.0 });
     let mul = num_param(sim, who, control, "mul").unwrap_or(1.0);
+    let dir = num_param(sim, who, control, "dir").unwrap_or(0.0);
+    let diradd = num_param(sim, who, control, "diradd").unwrap_or(0.0);
     let decay = num_param(sim, who, control, "decay").unwrap_or(0.0);
     let time = time.max(0);
     sim.env_shake = EnvShake {
@@ -1296,6 +1304,8 @@ fn env_shake(sim: &mut SimState, who: usize, control: &Controller) {
         ampl,
         phase,
         mul,
+        dir,
+        diradd,
         decay,
     };
 }
