@@ -65,7 +65,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + auto-turn (stage autoturn/noautoturn) + presentation tests |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + numhits activation limit + p2stateno/reversal/sounds/shake |
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime + edge-based postype + dual spawn + ModifyProjectile id targeting |
-| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Binding/edge postype/projection/lifetime + animelem/freeze + Modify/Remove id |
+| C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Bindtime release + unbound edge postype + projection/lifetime + Modify/Remove id |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake/FallEnvShake + shake lifecycle + Nival pause oracle |

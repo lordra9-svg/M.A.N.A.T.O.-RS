@@ -7638,3 +7638,104 @@ fn explod_and_gamemakeanim_front_back_use_screen_edges() {
     let anim_back = spawn(&mut sim, "gamemakeanim", "back", "0, 0");
     assert_eq!(anim_back.pos.x, -160.0);
 }
+
+#[test]
+fn explod_bindtime_release_and_edge_unbound_behavior() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.camera.x = 0.0;
+    let spawn = |sim: &mut SimState, postype: &str, bindtime: &str| {
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), "21".into()),
+                ("pos".into(), "10, -5".into()),
+                ("postype".into(), postype.into()),
+                ("bindtime".into(), bindtime.into()),
+                ("removeonchangestate".into(), "0".into()),
+                ("vel".into(), "2, 0".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("explod").clone()
+    };
+
+    // p1 explod binds to the owner, then releases after bindtime.
+    let bound = spawn(&mut sim, "p1", "2");
+    assert!(bound.bound);
+    assert_eq!(bound.bind_time, 2);
+    assert_eq!(bound.pos, manato_core::Vec2::new(-30.0, -5.0));
+    sim.tick([PlayerInput::default(); 2]);
+    let effect = sim.effects.last().expect("bound explod");
+    assert!(effect.bound);
+    assert_eq!(effect.bind_time, 1);
+    sim.fighters[0].pos.x = 10.0;
+    sim.tick([PlayerInput::default(); 2]);
+    let effect = sim.effects.last().expect("released explod");
+    assert!(!effect.bound, "bindtime expired");
+    assert_eq!(effect.pos, manato_core::Vec2::new(20.0, -5.0));
+
+    // After release the explod moves by its own velocity.
+    sim.fighters[0].pos.x = 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    let effect = sim.effects.last().expect("free explod");
+    assert!(!effect.bound);
+    assert_eq!(effect.pos.x, 22.0, "moves by vel, not with the owner");
+
+    // Edge-anchored explods ignore bindtime and never follow the owner.
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].ctrl = true;
+    sim.fighters[0].move_type = manato_sim::fighter::MoveType::Idle;
+    sim.fighters[1].pos = manato_core::Vec2::new(300.0, 0.0);
+    sim.camera.x = 0.0;
+    let edge = spawn(&mut sim, "front", "5");
+    assert!(!edge.bound);
+    assert!(edge.bind_target.is_none());
+    assert_eq!(edge.pos, manato_core::Vec2::new(170.0, -5.0));
+    sim.fighters[0].pos.x = -200.0;
+    sim.tick([PlayerInput::default(); 2]);
+    let effect = sim
+        .effects
+        .iter()
+        .find(|effect| effect.id == 21 && effect.pos.x > 160.0)
+        .expect("edge explod");
+    assert!(!effect.bound, "edge explod stays unbound");
+    assert_eq!(effect.pos.x, 172.0, "edge explod moves by velocity only");
+}
+
+#[test]
+fn gamemakeanim_left_right_follow_camera_edges() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    sim.camera.x = 50.0;
+    let spawn = |sim: &mut SimState, postype: &str, pos: &str| {
+        let control = manato_formats::Controller {
+            kind: "gamemakeanim".into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("pos".into(), pos.into()),
+                ("postype".into(), postype.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("effect").pos
+    };
+    assert_eq!(spawn(&mut sim, "left", "0, 0").x, -110.0);
+    assert_eq!(spawn(&mut sim, "right", "0, 0").x, 210.0);
+
+    // pos.x is facing-mirrored.
+    sim.fighters[0].facing = -1;
+    assert_eq!(spawn(&mut sim, "left", "10, 0").x, -120.0);
+    assert_eq!(spawn(&mut sim, "right", "10, 0").x, 200.0);
+}
