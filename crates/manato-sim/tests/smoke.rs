@@ -8068,3 +8068,33 @@ fn hitby_not_hitby_wildcard_filters() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
     assert_eq!(sim.fighters[1].life, life - hit.damage);
 }
+
+#[test]
+fn root_parent_self_redirects_from_helper() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "31".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    let index = sim.fighters.len() - 1;
+    sim.fighters[0].state_no = 200;
+    sim.fighters[0].vars[2] = 77;
+    sim.fighters[1].state_no = 50;
+    sim.fighters[index].state_no = 20;
+
+    assert_eq!(manato_sim::trigger::int(&sim, index, "Root, stateno"), 200);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "Parent, var(2)"), 77);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "Self, stateno"), 20);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "Enemy, stateno"), 50);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "Root, PlayerID"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "P2, PlayerID"), 1);
+}
