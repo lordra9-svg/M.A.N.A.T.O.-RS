@@ -8504,3 +8504,75 @@ fn airborne_hit_uses_air_velocity_and_air_hittime() {
     assert_eq!(sim.fighters[1].hit.vars.ctrltime, 7);
     assert_eq!(sim.fighters[1].state_no, 5020);
 }
+
+#[test]
+fn hit_reaction_state_selection_and_throw_sprpriority() {
+    use manato_sim::fighter::{Physics, StateType};
+    use manato_sim::hitdef::GroundType;
+
+    // Crouching defenders enter 5010.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let hit = hitdef();
+    sim.fighters[1].state_type = StateType::Crouch;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5010);
+
+    // Trip and non-trip falls select 5070 / 5030 (inject the bundled-missing
+    // common states so entry is observable).
+    for (ground, expected) in [(GroundType::Trip, 5070), (GroundType::Low, 5030)] {
+        let Some(mut sim) = fight_phase() else {
+            return;
+        };
+        {
+            let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+            let character = &mut assets.characters[1];
+            character.states.insert(
+                expected,
+                manato_formats::StateDef {
+                    number: expected,
+                    params: vec![
+                        ("type".into(), "A".into()),
+                        ("physics".into(), "N".into()),
+                        ("anim".into(), "0".into()),
+                    ],
+                    controllers: Vec::new(),
+                    line: 0,
+                    source: String::new(),
+                },
+            );
+        }
+        let mut fall = hitdef();
+        fall.fall = true;
+        fall.ground_type = ground;
+        fall.p2stateno = -1;
+        let origin = sim.fighters[0].pos;
+        sim.fighters[1].state_type = StateType::Stand;
+        sim.fighters[1].pos.y = 0.0;
+        sim.fighters[1].physics = Physics::Stand;
+        manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &fall, false, origin, 1, true);
+        assert_eq!(sim.fighters[1].state_no, expected, "ground type {ground:?}");
+    }
+
+    // Throw HitDefs apply p1/p2 sprite priorities.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 820;
+    throw.p1sprpriority = 5;
+    throw.p2sprpriority = -2;
+    throw.p1facing = -1;
+    throw.p2facing = 1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].sprite_priority, 5);
+    assert_eq!(sim.fighters[1].sprite_priority, -2);
+    assert_eq!(sim.fighters[0].facing, -1);
+    assert_eq!(sim.fighters[1].facing, 1);
+    assert_eq!(sim.fighters[0].state_no, 800);
+    assert_eq!(sim.fighters[1].state_no, 820);
+}
