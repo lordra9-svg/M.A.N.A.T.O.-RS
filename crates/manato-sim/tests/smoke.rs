@@ -7788,3 +7788,46 @@ fn projectile_hits_limit_removes_after_final_contact() {
     assert_eq!(sim.projectiles.len(), 1);
     assert_eq!(sim.projectiles[0].hits, 1, "one hit left");
 }
+
+#[test]
+fn vel_add_set_facing_and_power_clamp() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = -1;
+    sim.fighters[0].vel = manato_core::Vec2::new(1.0, 1.0);
+    let add = manato_formats::Controller {
+        kind: "veladd".into(),
+        params: vec![("x".into(), "2".into()), ("y".into(), "-3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].vel, manato_core::Vec2::new(-1.0, -2.0));
+
+    // VelSet mirrors x and leaves an omitted y unchanged.
+    let set = manato_formats::Controller {
+        kind: "velset".into(),
+        params: vec![("x".into(), "4".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &set, &assets);
+    assert_eq!(sim.fighters[0].vel, manato_core::Vec2::new(-4.0, -2.0));
+
+    // Power never goes below zero.
+    sim.fighters[0].power = 50.0;
+    let power_add = manato_formats::Controller {
+        kind: "poweradd".into(),
+        params: vec![("value".into(), "-100".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &power_add, &assets);
+    assert_eq!(sim.fighters[0].power, 0.0);
+    let power_set = manato_formats::Controller {
+        kind: "powerset".into(),
+        params: vec![("value".into(), "-5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &power_set, &assets);
+    assert_eq!(sim.fighters[0].power, 0.0);
+}
