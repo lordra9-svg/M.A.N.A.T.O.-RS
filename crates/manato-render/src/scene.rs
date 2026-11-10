@@ -367,8 +367,8 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
         let mut anchor = sim.screen_pos(fighter.pos);
         anchor.y = sim.ground_screen_y() * 2.0 - anchor.y;
         let base_scale = Vec2::new(
-            character.constants.get_or("size.xscale", 1.0),
-            character.constants.get_or("size.yscale", 1.0),
+            character.constants.get_or("size.xscale", 1.0) * fighter.size_xscale,
+            character.constants.get_or("size.yscale", 1.0) * fighter.size_yscale,
         );
         draw_sprite(
             painter,
@@ -538,8 +538,8 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     anchor.x += character.constants.get_or("draw.offset.x", 0.0) + fighter.draw_offset.x;
     anchor.y += character.constants.get_or("draw.offset.y", 0.0) + fighter.draw_offset.y;
     let base_scale = Vec2::new(
-        character.constants.get_or("size.xscale", 1.0),
-        character.constants.get_or("size.yscale", 1.0),
+        character.constants.get_or("size.xscale", 1.0) * fighter.size_xscale,
+        character.constants.get_or("size.yscale", 1.0) * fighter.size_yscale,
     );
     let pose = Pose::from_frame(frame);
     let zoom = sim.camera.scale;

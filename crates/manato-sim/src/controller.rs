@@ -551,6 +551,12 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         entity.vel = Vec2::new(vx * facing as f32, vy);
     }
     entity.helper_remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
+    entity.size_xscale = num_param(sim, who, control, "size.xscale")
+        .unwrap_or(1.0)
+        .max(0.01);
+    entity.size_yscale = num_param(sim, who, control, "size.yscale")
+        .unwrap_or(1.0)
+        .max(0.01);
     entity.keyctrl = int_param(sim, who, control, "keyctrl")
         .unwrap_or(0)
         .clamp(0, 7) as u8;

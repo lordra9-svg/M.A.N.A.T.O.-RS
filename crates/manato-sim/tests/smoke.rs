@@ -9166,3 +9166,37 @@ fn helper_velocity_is_facing_relative() {
         "default helper velocity is zero"
     );
 }
+
+#[test]
+fn helper_size_scale_parameters() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, scale: Option<(&str, &str)>| {
+        let mut params = vec![
+            ("stateno".to_string(), "0".to_string()),
+            ("id".to_string(), "62".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+        ];
+        if let Some((x, y)) = scale {
+            params.push(("size.xscale".to_string(), x.to_string()));
+            params.push(("size.yscale".to_string(), y.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        let helper = sim.fighters.last().expect("helper");
+        (helper.size_xscale, helper.size_yscale)
+    };
+
+    assert_eq!(spawn(&mut sim, Some(("2", "1.5"))), (2.0, 1.5));
+    assert_eq!(spawn(&mut sim, None), (1.0, 1.0), "default scale is 1");
+    // Non-positive values clamp to a tiny positive scale.
+    let (x, y) = spawn(&mut sim, Some(("0", "-3")));
+    assert!((x - 0.01).abs() < 0.001);
+    assert!((y - 0.01).abs() < 0.001);
+}

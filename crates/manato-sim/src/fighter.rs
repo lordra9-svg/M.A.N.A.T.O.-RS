@@ -200,6 +200,9 @@ pub struct Fighter {
     pub width_back: f32,
     pub width_front: f32,
     pub height: f32,
+    /// Per-entity sprite scale (Helper `size.xscale`/`size.yscale`).
+    pub size_xscale: f32,
+    pub size_yscale: f32,
     /// A `Width` controller override that lasts until the state changes.
     pub width_override: Option<(f32, f32)>,
 
@@ -308,6 +311,8 @@ impl Fighter {
             width_back: char.constants.get_or("size.ground.back", 15.0),
             width_front: char.constants.get_or("size.ground.front", 16.0),
             height: char.constants.get_or("size.height", 60.0),
+            size_xscale: 1.0,
+            size_yscale: 1.0,
             width_override: None,
             hitdef: None,
             hit: HitState::default(),
