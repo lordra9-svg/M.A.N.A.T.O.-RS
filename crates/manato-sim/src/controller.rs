@@ -148,7 +148,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "zoom" => zoom(sim, who, control),
         "lifebaraction" => life_bar_action(sim, who, control),
         "explod" => explod(sim, who, control, assets),
-        "modifyexplod" => modify_explod(sim, who, control),
+        "modifyexplod" => modify_explod(sim, who, control, assets),
         "removeexplod" => remove_explod(sim, who, control),
         "makedust" => make_dust(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
@@ -692,7 +692,7 @@ fn game_make_anim(sim: &mut SimState, who: usize, control: &Controller) {
     });
 }
 
-fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
+fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let id = int_param(sim, who, control, "id").unwrap_or(0);
     let pos = control.get_pair("pos");
     let scale = control.get_pair("scale");
@@ -722,6 +722,8 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
     let remove_on_get_hit = int_param(sim, who, control, "removeongethit").map(|v| v != 0);
     let own_pal = int_param(sim, who, control, "ownpal").map(|v| v != 0);
     let shadow = int_param(sim, who, control, "shadow").map(|v| v != 0);
+    let anim_elem = int_param(sim, who, control, "animelem");
+    let anim_freeze = int_param(sim, who, control, "animfreeze").map(|v| v != 0);
     let fighter_positions: Vec<Vec2> = sim.fighters.iter().map(|fighter| fighter.pos).collect();
 
     // Modify the newest matching explod, per `docs/spec/render.md` §4.
@@ -835,6 +837,37 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(value) = shadow {
         effect.shadow = value;
+    }
+    if let Some(elem) = anim_elem {
+        effect.anim_elem = elem.max(1);
+        effect.time = 0;
+        let animation = match effect.source {
+            crate::EffectSource::FightFx => assets.effects.animations.get(&effect.anim),
+            crate::EffectSource::Character(char_id) => assets
+                .characters
+                .get(char_id)
+                .and_then(|char| char.animation(effect.anim)),
+            crate::EffectSource::Stage => None,
+        };
+        if let Some(animation) = animation {
+            let start = animation
+                .frames
+                .iter()
+                .take(effect.anim_elem as usize - 1)
+                .map(|frame| frame.effective_duration())
+                .sum::<i32>();
+            if effect.remove_on_anim_end {
+                effect.duration = (animation.total_time() - start).max(1);
+            }
+        }
+    }
+    if let Some(freeze) = anim_freeze {
+        effect.anim_freeze = freeze;
+        if freeze {
+            // A frozen animation must not expire with its animation.
+            effect.remove_on_anim_end = false;
+            effect.duration = -1;
+        }
     }
 }
 

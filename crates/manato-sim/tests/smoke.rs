@@ -9316,3 +9316,71 @@ fn modify_explod_bindtime_removeongethit_and_ownpal() {
     sim.tick([PlayerInput::default(); 2]);
     assert!(!sim.effects.iter().any(|effect| effect.id == 70));
 }
+
+#[test]
+fn modify_explod_animelem_and_animfreeze() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), id.to_string()),
+                ("removeonchangestate".into(), "0".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let modify = |sim: &mut SimState, id: i32, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "modifyexplod".into(),
+            params: {
+                let mut all = vec![("id".to_string(), id.to_string())];
+                all.extend(
+                    params
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v.to_string())),
+                );
+                all
+            },
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    spawn(&mut sim, 71);
+    modify(&mut sim, 71, vec![("animelem", "3")]);
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert_eq!(effect.anim_elem, 3);
+        assert_eq!(effect.time, 0, "restarts from the new element");
+        assert_eq!(effect.duration, 4, "11 - 7 frames");
+    }
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(!sim.effects.is_empty());
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.effects.iter().any(|effect| effect.id == 71));
+
+    spawn(&mut sim, 72);
+    modify(&mut sim, 72, vec![("animelem", "2"), ("animfreeze", "1")]);
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert_eq!(effect.anim_elem, 2);
+        assert!(effect.anim_freeze);
+        assert!(!effect.remove_on_anim_end);
+        assert_eq!(effect.duration, -1);
+    }
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        sim.effects.iter().any(|effect| effect.id == 72),
+        "frozen explod persists"
+    );
+}
