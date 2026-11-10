@@ -24,6 +24,8 @@ pub struct Projectile {
     /// Clash priority points (`projpriority`); unused until clashes resolve.
     pub priority: i32,
     pub priority_points: i32,
+    /// `projshadow` RGB components; all zero disables the shadow.
+    pub shadow: [i32; 3],
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,

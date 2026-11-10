@@ -974,6 +974,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         .unwrap_or(0);
     let priority = int_param(sim, who, control, "projpriority").unwrap_or(0);
     let remove_on_hits_exhausted = int_param(sim, who, control, "projremove").unwrap_or(1) != 0;
+    let shadow = parse_shadow(sim, who, control, "projshadow").unwrap_or([0; 3]);
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1008,6 +1009,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         remove_on_hits_exhausted,
         priority,
         priority_points: priority,
+        shadow,
         hits,
         hitdef,
     });
@@ -1041,6 +1043,24 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
 ///
 /// With an explicit `id`, every matching projectile is updated; otherwise the
 /// most recently spawned projectile is. Only supplied parameters change.
+fn parse_shadow(sim: &SimState, who: usize, control: &Controller, key: &str) -> Option<[i32; 3]> {
+    let raw = control.get(key)?;
+    let mut parts = raw.split(',').map(str::trim);
+    let mut shadow = [0_i32; 3];
+    let mut any = false;
+    for slot in &mut shadow {
+        let Some(part) = parts.next() else {
+            break;
+        };
+        if part.is_empty() {
+            continue;
+        }
+        *slot = trigger::int(sim, who, part);
+        any = true;
+    }
+    any.then_some(shadow)
+}
+
 fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let character = char_of(assets, sim, who);
     let explicit_id =
@@ -1075,6 +1095,7 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         int_param(sim, who, control, "projhits").or_else(|| int_param(sim, who, control, "hits"));
     let priority = int_param(sim, who, control, "projpriority");
     let remove = int_param(sim, who, control, "projremove").map(|value| value != 0);
+    let shadow = parse_shadow(sim, who, control, "projshadow");
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1108,6 +1129,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(remove) = remove {
             projectile.remove_on_hits_exhausted = remove;
+        }
+        if let Some(shadow) = shadow {
+            projectile.shadow = shadow;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

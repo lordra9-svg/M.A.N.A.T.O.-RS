@@ -2357,6 +2357,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         remove_on_hits_exhausted: true,
         priority: 0,
         priority_points: 0,
+        shadow: [0; 3],
         hits: 2,
         hitdef,
     });
@@ -11160,4 +11161,67 @@ fn screenbound_y_axis_clamps_to_stage_extent() {
     sim.fighters[0].screen_bound = (false, true);
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters[0].pos.y, top);
+}
+
+#[test]
+fn projectile_projshadow_parsing_and_modify() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("projid".into(), "11".into()),
+            ("projshadow".into(), "32, 64, 128".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles[0].shadow, [32, 64, 128]);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "11".into()),
+            ("projshadow".into(), "10, 20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(
+        sim.projectiles[0].shadow,
+        [10, 20, 0],
+        "missing components default to zero"
+    );
+
+    // No projshadow parameter leaves the stored color untouched.
+    let velocity = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "11".into()),
+            ("velocity".into(), "1, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &velocity, &assets);
+    assert_eq!(sim.projectiles[0].shadow, [10, 20, 0]);
+
+    // A projectile spawned without projshadow has no shadow color.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let plain = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    assert_eq!(sim.projectiles[0].shadow, [0, 0, 0]);
 }
