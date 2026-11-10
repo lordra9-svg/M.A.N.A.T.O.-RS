@@ -10153,3 +10153,113 @@ fn hit_and_guard_spark_selection() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &plain, false, origin, 1, true);
     assert_eq!(sim.effects.last().expect("default hit spark").anim, 0);
 }
+
+#[test]
+fn modify_explod_trans_variants_and_toggles() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "96".into()),
+            ("removeonchangestate".into(), "0".into()),
+            ("trans".into(), "addalpha".into()),
+            ("alpha".into(), "256, 128".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    let modify = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let mut all = vec![("id".to_string(), "96".to_string())];
+        all.extend(
+            params
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
+        let control = manato_formats::Controller {
+            kind: "modifyexplod".into(),
+            params: all,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("explod").clone()
+    };
+
+    let effect = modify(&mut sim, vec![("trans", "none")]);
+    assert_eq!(effect.blend, manato_sim::EffectBlend::Normal);
+    assert!(!effect.transparent);
+    assert_eq!(effect.alpha, 1.0);
+
+    for (kind, blend) in [
+        ("add", manato_sim::EffectBlend::Add),
+        ("add1", manato_sim::EffectBlend::Add),
+        ("sub", manato_sim::EffectBlend::Sub),
+        ("sub1", manato_sim::EffectBlend::Sub),
+    ] {
+        let effect = modify(&mut sim, vec![("trans", kind)]);
+        assert_eq!(effect.blend, blend, "{kind}");
+        assert!(!effect.transparent);
+        assert_eq!(effect.alpha, 1.0);
+    }
+
+    let effect = modify(&mut sim, vec![("trans", "alpha"), ("alpha", "128, 64")]);
+    assert_eq!(effect.blend, manato_sim::EffectBlend::Normal);
+    assert!(effect.transparent);
+    assert!((effect.alpha - 0.25).abs() < 0.001);
+
+    let effect = modify(&mut sim, vec![("trans", "addalpha"), ("alpha", "256, 128")]);
+    assert_eq!(effect.blend, manato_sim::EffectBlend::Add);
+    assert!((effect.alpha - 0.5).abs() < 0.001);
+
+    // ownpal/shadow toggles.
+    let effect = modify(&mut sim, vec![("ownpal", "1"), ("shadow", "1")]);
+    assert!(effect.own_pal);
+    assert!(effect.shadow);
+    let effect = modify(&mut sim, vec![("ownpal", "0"), ("shadow", "0")]);
+    assert!(!effect.own_pal);
+    assert!(!effect.shadow);
+}
+
+#[test]
+fn palfx_zero_time_disables_and_negative_persists() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let apply = |sim: &mut SimState, time: i32| {
+        let control = manato_formats::Controller {
+            kind: "palfx".into(),
+            params: vec![
+                ("add".into(), "50, 60, 70".into()),
+                ("time".into(), time.to_string()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    apply(&mut sim, 5);
+    assert_eq!(sim.fighters[0].pal_add, [50.0, 60.0, 70.0]);
+    apply(&mut sim, 0);
+    assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0], "time 0 clears");
+    assert_eq!(sim.fighters[0].pal_time, 0);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0]);
+
+    apply(&mut sim, -1);
+    assert_eq!(sim.fighters[0].pal_add, [50.0, 60.0, 70.0]);
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(
+        sim.fighters[0].pal_add,
+        [50.0, 60.0, 70.0],
+        "negative persists"
+    );
+    assert_eq!(sim.fighters[0].pal_time, -1);
+}

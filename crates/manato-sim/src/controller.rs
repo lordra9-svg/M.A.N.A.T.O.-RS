@@ -481,6 +481,20 @@ fn parse_triplet(sim: &SimState, who: usize, value: &str) -> Option<[f32; 3]> {
 }
 
 fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
+    if time == 0 {
+        // `time = 0` disables the effect entirely.
+        let fighter = &mut sim.fighters[who];
+        fighter.pal_add = [0.0; 3];
+        fighter.pal_base_add = [0.0; 3];
+        fighter.pal_sinadd = [0.0; 3];
+        fighter.pal_sin_period = 0;
+        fighter.pal_cycle = 0;
+        fighter.pal_mul = [1.0; 3];
+        fighter.pal_alpha = 1.0;
+        fighter.pal_time = 0;
+        return;
+    }
     if let Some(value) = control.get("add") {
         if let Some(add) = parse_triplet(sim, who, value) {
             sim.fighters[who].pal_add = add;
@@ -509,7 +523,7 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(value) = control.get("alpha") {
         sim.fighters[who].pal_alpha = trigger::num(sim, who, value).clamp(0.0, 1.0);
     }
-    sim.fighters[who].pal_time = int_param(sim, who, control, "time").unwrap_or(1);
+    sim.fighters[who].pal_time = time;
 }
 
 enum BindTarget {
