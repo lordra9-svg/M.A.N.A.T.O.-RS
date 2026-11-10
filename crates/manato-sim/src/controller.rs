@@ -600,16 +600,20 @@ fn game_make_anim(sim: &mut SimState, who: usize, control: &Controller) {
         .unwrap_or("p1")
         .to_ascii_lowercase();
     let facing = sim.fighters[who].facing;
+    let left_edge = sim.camera.x - manato_core::GAME_WIDTH * 0.5;
+    let right_edge = sim.camera.x + manato_core::GAME_WIDTH * 0.5;
     let base = match pos_type.as_str() {
         "p2" => sim.fighters[sim.other(who)].pos,
         "front" => Vec2::new(
-            sim.fighters[who].pos.x + facing as f32 * 100.0,
+            if facing > 0 { right_edge } else { left_edge },
             sim.fighters[who].pos.y,
         ),
         "back" => Vec2::new(
-            sim.fighters[who].pos.x - facing as f32 * 100.0,
+            if facing > 0 { left_edge } else { right_edge },
             sim.fighters[who].pos.y,
         ),
+        "left" => Vec2::new(left_edge, sim.fighters[who].pos.y),
+        "right" => Vec2::new(right_edge, sim.fighters[who].pos.y),
         _ => sim.fighters[who].pos,
     };
     let duration = sim
@@ -1190,36 +1194,34 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     let pos_type = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
+    let left_edge = sim.camera.x - manato_core::GAME_WIDTH * 0.5;
+    let right_edge = sim.camera.x + manato_core::GAME_WIDTH * 0.5;
     let (base, bind_target) = match pos_type.as_str() {
         "p2" => (sim.fighters[sim.other(who)].pos, Some(sim.other(who))),
         "front" => (
             Vec2::new(
-                sim.fighters[who].pos.x + facing_f * 100.0,
+                if facing_f > 0.0 {
+                    right_edge
+                } else {
+                    left_edge
+                },
                 sim.fighters[who].pos.y,
             ),
-            Some(who),
+            None,
         ),
         "back" => (
             Vec2::new(
-                sim.fighters[who].pos.x - facing_f * 100.0,
-                sim.fighters[who].pos.y,
-            ),
-            Some(who),
-        ),
-        "left" => (
-            Vec2::new(
-                sim.camera.x - manato_core::GAME_WIDTH * 0.5,
+                if facing_f > 0.0 {
+                    left_edge
+                } else {
+                    right_edge
+                },
                 sim.fighters[who].pos.y,
             ),
             None,
         ),
-        "right" => (
-            Vec2::new(
-                sim.camera.x + manato_core::GAME_WIDTH * 0.5,
-                sim.fighters[who].pos.y,
-            ),
-            None,
-        ),
+        "left" => (Vec2::new(left_edge, sim.fighters[who].pos.y), None),
+        "right" => (Vec2::new(right_edge, sim.fighters[who].pos.y), None),
         _ => (sim.fighters[who].pos, Some(who)),
     };
 

@@ -7588,3 +7588,53 @@ fn helper_postype_anchors() {
     let right = spawn(&mut sim, Some("right"), "0, 0");
     assert_eq!(right.x, manato_core::GAME_WIDTH * 0.5);
 }
+
+#[test]
+fn explod_and_gamemakeanim_front_back_use_screen_edges() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.camera.x = 0.0;
+    let spawn = |sim: &mut SimState, kind: &str, postype: &str, pos: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), "13".into()),
+                ("pos".into(), pos.into()),
+                ("postype".into(), postype.into()),
+                ("bindtime".into(), "5".into()),
+                ("removetime".into(), "60".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("effect").clone()
+    };
+
+    // Explod front/back anchor to the screen edge and do not bind to the owner.
+    let front = spawn(&mut sim, "explod", "front", "10, -5");
+    assert_eq!(front.pos, manato_core::Vec2::new(170.0, -5.0));
+    assert!(!front.bound, "edge-anchored explod is not bound");
+    assert!(front.bind_target.is_none());
+
+    let back = spawn(&mut sim, "explod", "back", "10, -5");
+    assert_eq!(back.pos, manato_core::Vec2::new(-150.0, -5.0));
+
+    // Facing flips which edge is front.
+    sim.fighters[0].facing = -1;
+    let front_left = spawn(&mut sim, "explod", "front", "10, -5");
+    assert_eq!(front_left.pos, manato_core::Vec2::new(-170.0, -5.0));
+    let back_right = spawn(&mut sim, "explod", "back", "10, -5");
+    assert_eq!(back_right.pos, manato_core::Vec2::new(150.0, -5.0));
+    sim.fighters[0].facing = 1;
+
+    // GameMakeAnim follows the same edge rule.
+    let anim_front = spawn(&mut sim, "gamemakeanim", "front", "0, 0");
+    assert_eq!(anim_front.pos.x, 160.0);
+    let anim_back = spawn(&mut sim, "gamemakeanim", "back", "0, 0");
+    assert_eq!(anim_back.pos.x, -160.0);
+}
