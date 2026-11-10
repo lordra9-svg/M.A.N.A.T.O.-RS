@@ -1045,7 +1045,8 @@ fn hit_vel_set(sim: &mut SimState, who: usize, control: &Controller) {
 }
 
 fn hit_fall_set(sim: &mut SimState, who: usize, control: &Controller) {
-    if let Some(value) = int_param(sim, who, control, "value") {
+    // Negative values leave the flag untouched, like Ikemen's `hitFallSet`.
+    if let Some(value) = int_param(sim, who, control, "value").filter(|value| *value >= 0) {
         sim.fighters[who].hit.vars.fall = value != 0;
     }
     if let Some(x) = num_param(sim, who, control, "xvel") {

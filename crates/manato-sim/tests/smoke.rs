@@ -8774,3 +8774,63 @@ fn explod_and_gamemakeanim_p2_anchor_and_binding() {
     assert_eq!(anim.pos, manato_core::Vec2::new(105.0, -13.0));
     assert!(!anim.bound);
 }
+
+#[test]
+fn hitfallset_negative_value_leaves_flag_unchanged() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let set = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "hitfallset".into(),
+            params: params
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 1, &control, &assets);
+    };
+
+    sim.fighters[1].hit.vars.fall = false;
+    set(&mut sim, vec![("value", "-1")]);
+    assert!(!sim.fighters[1].hit.vars.fall, "-1 leaves the flag alone");
+
+    sim.fighters[1].hit.vars.fall = true;
+    set(&mut sim, vec![("value", "-1")]);
+    assert!(sim.fighters[1].hit.vars.fall, "still unchanged");
+
+    // A non-negative value still sets/clears, and velocities apply even
+    // without a value parameter.
+    set(&mut sim, vec![("value", "0")]);
+    assert!(!sim.fighters[1].hit.vars.fall);
+    set(&mut sim, vec![("value", "1")]);
+    assert!(sim.fighters[1].hit.vars.fall);
+    sim.fighters[1].facing = -1;
+    set(&mut sim, vec![("xvel", "4"), ("yvel", "-2")]);
+    assert!(sim.fighters[1].hit.vars.fall);
+    assert_eq!(sim.fighters[1].hit.vars.fall_x_vel, Some(-4.0));
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(-2.0));
+}
+
+#[test]
+fn lethal_fall_damage_ends_the_round() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 24.0);
+    sim.fighters[1].vel = manato_core::Vec2::new(0.0, 10.0);
+    sim.fighters[1].hit.vars.y_accel = 0.0;
+    sim.fighters[1].hit.vars.fall = true;
+    sim.fighters[1].hit.vars.fall_damage = 50;
+    sim.fighters[1].life = 20;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, 0, "life clamps at zero");
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+    assert_eq!(sim.round.wins, [1, 0]);
+}

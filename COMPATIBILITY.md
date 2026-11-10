@@ -82,7 +82,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Mirror/normalize/translate box test + KFM 200 hit flow |
 | K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flags incl. M + guard.velocity/hittime parsing + F gate; KFM guard oracle |
 | K-03 | Hit pause/super pause | Required | Required | Partial | Freeze + air hit + reaction-state selection (5010/5020/5030/5070); KFM oracle |
-| K-04 | Juggle/air hit/fall states | Required | Required | Partial | Melee/projectile air.juggle gate + fall velocity vars + landing damage; O-20 negative |
+| K-04 | Juggle/air hit/fall states | Required | Required | Partial | air.juggle gate + HitFallSet semantics + fall velocity/landing + lethal fall KO |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw/bind/drop + Ordan slam + p1/p2 facing/sprpriority application |
 | K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28 + hits-limit removal; state 3000 upper blast 1px box margin |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
