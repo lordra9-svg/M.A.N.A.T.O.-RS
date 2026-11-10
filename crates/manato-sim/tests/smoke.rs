@@ -7308,3 +7308,65 @@ fn fall_landing_without_damage_only_snaps_position() {
     assert_eq!(sim.fighters[1].vel.y, 0.0);
     assert_eq!(sim.fighters[1].life, life);
 }
+
+#[test]
+fn guardflag_m_blocks_stand_and_crouch_but_not_air() {
+    let attempt = |state_type: manato_sim::fighter::StateType, y: f32| -> bool {
+        let Some(mut sim) = fight_phase() else {
+            return false;
+        };
+        let assets = sim.assets.clone();
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0), 0);
+        sim.fighters[1].state_type = state_type;
+        sim.fighters[1].pos = manato_core::Vec2::new(10.0, y);
+        sim.fighters[1].facing = -1;
+        sim.fighters[1].life = sim.fighters[1].life_max;
+        sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+        sim.fighters[0].facing = 1;
+        sim.fighters[0].enter_state(200, &assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+        let mut hit = hitdef();
+        hit.guardflag = "M".into();
+        hit.damage = 20;
+        sim.fighters[0].hitdef = Some(hit);
+        manato_sim::collision::resolve(&mut sim);
+        sim.fighters[1].hit.guarding
+    };
+
+    use manato_sim::fighter::StateType;
+    assert!(attempt(StateType::Stand, 0.0), "M blocks standing");
+    assert!(attempt(StateType::Crouch, 0.0), "M blocks crouching");
+    assert!(
+        !attempt(StateType::Air, -20.0),
+        "M does not grant air guard"
+    );
+}
+
+#[test]
+fn air_guard_uses_airguard_velocity_and_guard_hittime() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.airguard_velocity = manato_core::Vec2::new(-6.0, -2.0);
+    hit.guard_hittime = 6;
+    hit.ground_slidetime = 3;
+    hit.guard_damage = 5;
+    hit.guard_damage_set = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    sim.fighters[1].facing = -1;
+    let life = sim.fighters[1].life;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 5, "guard damage");
+    assert_eq!(
+        sim.fighters[1].hit.vars.x_vel, 3.0,
+        "airguard velocity halved and mirrored"
+    );
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, -2.0);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 6);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 9);
+    assert_eq!(sim.fighters[1].state_no, 154);
+}
