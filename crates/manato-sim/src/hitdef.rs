@@ -64,6 +64,25 @@ impl GroundType {
     }
 }
 
+/// `priority = N[, Hit|Miss|Dodge]` clash type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PriorityType {
+    #[default]
+    Hit,
+    Miss,
+    Dodge,
+}
+
+impl PriorityType {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "miss" => Self::Miss,
+            "dodge" => Self::Dodge,
+            _ => Self::Hit,
+        }
+    }
+}
+
 /// Attack attributes (`attr = S, NA`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HitAttr {
@@ -126,6 +145,7 @@ pub struct HitDef {
     pub fall_yvel: f32,
     pub air_juggle: i32,
     pub priority: i32,
+    pub priority_type: PriorityType,
     pub numhits: i32,
     pub p1stateno: i32,
     pub p2stateno: i32,
@@ -173,6 +193,7 @@ impl Default for HitDef {
             fall_yvel: 0.0,
             air_juggle: 0,
             priority: 4,
+            priority_type: PriorityType::Hit,
             numhits: 1,
             p1stateno: -1,
             p2stateno: -1,
@@ -237,7 +258,17 @@ impl HitDef {
                 "fall.yvelocity" => h.fall_yvel = parse_f32(value),
                 "air.juggle" => h.air_juggle = parse_i32(value),
                 "juggle" => h.air_juggle = h.air_juggle.max(parse_i32(value)),
-                "priority" => h.priority = parse_i32(value),
+                "priority" => {
+                    let mut parts = value.split(',');
+                    h.priority = parts
+                        .next()
+                        .and_then(|part| part.trim().parse().ok())
+                        .unwrap_or(0);
+                    h.priority_type = parts
+                        .next()
+                        .map(PriorityType::parse)
+                        .unwrap_or(PriorityType::Hit);
+                }
                 "numhits" | "hits" => h.numhits = parse_i32(value).max(1),
                 "p1stateno" => h.p1stateno = parse_i32(value),
                 "p2stateno" => h.p2stateno = parse_i32(value),

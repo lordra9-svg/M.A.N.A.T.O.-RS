@@ -8219,3 +8219,33 @@ fn const_reads_character_constants() {
     // Unknown constants evaluate to 0.
     assert_eq!(num("Const(no.such.constant)"), 0.0);
 }
+
+#[test]
+fn hitdef_parses_priority_points_and_type() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, value: &str| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params: vec![
+                ("attr".into(), "S, NA".into()),
+                ("damage".into(), "10".into()),
+                ("priority".into(), value.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        let hitdef = sim.fighters[0].hitdef.clone().expect("hitdef");
+        (hitdef.priority, hitdef.priority_type)
+    };
+
+    use manato_sim::hitdef::PriorityType;
+    assert_eq!(parse(&mut sim, "6, Dodge"), (6, PriorityType::Dodge));
+    assert_eq!(parse(&mut sim, "3"), (3, PriorityType::Hit));
+    assert_eq!(parse(&mut sim, "2, miss"), (2, PriorityType::Miss));
+    assert_eq!(parse(&mut sim, "7, HIT"), (7, PriorityType::Hit));
+    // Invalid numbers fall back to 0 without losing the type.
+    assert_eq!(parse(&mut sim, "abc, Dodge"), (0, PriorityType::Dodge));
+}
