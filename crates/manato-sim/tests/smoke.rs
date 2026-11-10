@@ -9690,3 +9690,73 @@ fn projectile_spawns_get_unique_hit_activation_ids() {
         activation as i32
     );
 }
+
+#[test]
+fn hitonce_limits_resolve_to_one_hit_per_activation() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -1.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    let mut hit = hitdef();
+    hit.hitonce = true;
+    hit.numhits = 5;
+    hit.damage = 10;
+    hit.pausetime = (0, 0);
+    sim.fighters[0].hitdef = Some(hit);
+    let reset = |sim: &mut SimState| {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    };
+
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 10);
+    reset(&mut sim);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life,
+        life - 10,
+        "hitonce stops subsequent hits in the activation"
+    );
+
+    // A new activation clears the target list and allows another hit.
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.fighters[0].hit.hit_counts.clear();
+    reset(&mut sim);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 20);
+}
+
+#[test]
+fn stateno_prevstateno_and_time_triggers_after_transition() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateNo"), 200);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateNo"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Time"), 0);
+
+    sim.fighters[0].enter_state(210, &assets.characters[0], false);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateNo"), 210);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateNo"), 200);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Time"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateTime"), 0);
+
+    // The entry tick keeps Time at 0; the next tick advances it.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateNo"), 210);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateNo"), 200);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Time"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateTime"), 0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Time"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateTime"), 1);
+}
