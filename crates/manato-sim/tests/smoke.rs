@@ -8249,3 +8249,58 @@ fn hitdef_parses_priority_points_and_type() {
     // Invalid numbers fall back to 0 without losing the type.
     assert_eq!(parse(&mut sim, "abc, Dodge"), (0, PriorityType::Dodge));
 }
+
+#[test]
+fn projectile_contact_hit_guarded_trigger_timing() {
+    // Unguarded: contact and hit timers start at 0 and advance together.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    assert_eq!(sim.fighters[0].proj_contact_time, -1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjContact"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHit"), 0);
+
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    for _ in 0..200 {
+        sim.tick([PlayerInput::default(); 2]);
+        if sim.fighters[0].proj_hit_time == 0 {
+            break;
+        }
+    }
+    assert_eq!(sim.fighters[0].proj_contact_time, 0);
+    assert_eq!(sim.fighters[0].proj_hit_time, 0);
+    assert_eq!(sim.fighters[0].proj_guarded_time, -1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjContactTime"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHitTime"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHit"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuarded"), 0);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].proj_contact_time, 1);
+    assert_eq!(sim.fighters[0].proj_hit_time, 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHitTime"), 1);
+
+    // Guarded: contact and guarded timers advance; the hit timer stays -1.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(1000, &assets.characters[0], false);
+    let back = PlayerInput::new(manato_core::DIR_RIGHT, 0);
+    for _ in 0..200 {
+        sim.tick([PlayerInput::default(), back]);
+        if sim.fighters[0].proj_guarded_time == 0 {
+            break;
+        }
+    }
+    assert_eq!(sim.fighters[0].proj_contact_time, 0);
+    assert_eq!(sim.fighters[0].proj_guarded_time, 0);
+    assert_eq!(sim.fighters[0].proj_hit_time, -1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuarded"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHit"), 0);
+    sim.tick([PlayerInput::default(), back]);
+    assert_eq!(sim.fighters[0].proj_contact_time, 1);
+    assert_eq!(sim.fighters[0].proj_guarded_time, 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuardedTime"), 1);
+}
