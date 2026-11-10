@@ -71,7 +71,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause/EnvShake/FallEnvShake + shake lifecycle + Nival pause oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Per-tick Width reset, independent ScreenBound axes, PlayerPush separation |
-| C-11 | AssertSpecial flags | Required | Required | Partial | Full supported-flag mapping test |
+| C-11 | AssertSpecial flags | Required | Required | Partial | Full flag mapping + per-tick NoBG/NoFG/NoBarDisplay/invisible/intro test |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |
 

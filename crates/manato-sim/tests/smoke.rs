@@ -8307,3 +8307,48 @@ fn projectile_contact_hit_guarded_trigger_timing() {
     assert_eq!(sim.fighters[0].proj_guarded_time, 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuardedTime"), 1);
 }
+
+#[test]
+fn assertspecial_render_flags_are_per_tick() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[0].states.get_mut(&0).expect("statedef 0");
+        state.controllers.push(manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![
+                ("type".into(), "AssertSpecial".into()),
+                ("nobg".into(), "1".into()),
+                ("nofg".into(), "1".into()),
+                ("nobardisplay".into(), "1".into()),
+                ("invisible".into(), "1".into()),
+                ("intro".into(), "1".into()),
+            ],
+            line: 0,
+        });
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.background_hidden());
+    assert!(sim.foreground_hidden());
+    assert!(sim.bars_hidden());
+    let flags = sim.fighters[0].assert_flags;
+    assert_ne!(flags & manato_sim::fighter::ASSERT_INVISIBLE, 0);
+    assert_ne!(flags & manato_sim::fighter::ASSERT_INTRO, 0);
+    assert_ne!(flags & manato_sim::fighter::ASSERT_NOBG, 0);
+    assert_ne!(flags & manato_sim::fighter::ASSERT_NOFG, 0);
+    assert_ne!(flags & manato_sim::fighter::ASSERT_NOBARDISPLAY, 0);
+
+    // Assertions are not latched: removing the controller clears them.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[0].states.get_mut(&0).expect("statedef 0");
+        state.controllers.retain(|c| c.kind != "assertspecial");
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].assert_flags, 0);
+    assert!(!sim.background_hidden());
+    assert!(!sim.foreground_hidden());
+    assert!(!sim.bars_hidden());
+}
