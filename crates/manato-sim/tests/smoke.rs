@@ -9546,3 +9546,87 @@ fn alive_physics_lifemax_and_power_triggers() {
     sim.fighters[0].life = 1;
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Alive"), 1);
 }
+
+#[test]
+fn modify_explod_removetime_negative_restores_animation_expiry() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, id: i32, removetime: &str| {
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), id.to_string()),
+                ("removetime".into(), removetime.into()),
+                ("removeonchangestate".into(), "0".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let modify = |sim: &mut SimState, id: i32, removetime: &str| {
+        let control = manato_formats::Controller {
+            kind: "modifyexplod".into(),
+            params: vec![
+                ("id".into(), id.to_string()),
+                ("removetime".into(), removetime.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Fixed lifetime, then -1 restores animation expiry (11 ticks).
+    spawn(&mut sim, 90, "100");
+    modify(&mut sim, 90, "-1");
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert!(effect.remove_on_anim_end);
+        assert_eq!(effect.duration, 11);
+    }
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.effects.iter().any(|effect| effect.id == 90));
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.effects.iter().any(|effect| effect.id == 90));
+
+    // With animelem 3 the restored lifetime is the remaining 4 ticks.
+    spawn(&mut sim, 91, "100");
+    {
+        let control = manato_formats::Controller {
+            kind: "modifyexplod".into(),
+            params: vec![("id".into(), "91".into()), ("animelem".into(), "3".into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    }
+    modify(&mut sim, 91, "-1");
+    {
+        let effect = sim.effects.last().expect("explod");
+        assert_eq!(effect.anim_elem, 3);
+        assert_eq!(effect.duration, 4);
+    }
+
+    // A frozen explod ignores removetime = -1.
+    spawn(&mut sim, 92, "100");
+    let freeze = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "92".into()),
+            ("animfreeze".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &freeze, &assets);
+    modify(&mut sim, 92, "-1");
+    let effect = sim
+        .effects
+        .iter()
+        .find(|effect| effect.id == 92)
+        .expect("frozen explod");
+    assert!(effect.anim_freeze);
+    assert_eq!(effect.duration, -1);
+}

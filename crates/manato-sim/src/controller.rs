@@ -803,9 +803,34 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
         effect.focal_length = value.max(1.0);
     }
     if let Some(value) = remove_time {
+        eprintln!(
+            "DBG modify removetime={value} elem={} freeze={}",
+            effect.anim_elem, effect.anim_freeze
+        );
         if value > 0 {
             effect.duration = value;
             effect.remove_on_anim_end = false;
+        } else if !effect.anim_freeze {
+            // Non-positive `removetime` restores animation-length expiry
+            // (from the current `animelem`, when set).
+            let animation = match effect.source {
+                crate::EffectSource::FightFx => assets.effects.animations.get(&effect.anim),
+                crate::EffectSource::Character(char_id) => assets
+                    .characters
+                    .get(char_id)
+                    .and_then(|char| char.animation(effect.anim)),
+                crate::EffectSource::Stage => None,
+            };
+            if let Some(animation) = animation {
+                let start = animation
+                    .frames
+                    .iter()
+                    .take(effect.anim_elem.max(1) as usize - 1)
+                    .map(|frame| frame.effective_duration())
+                    .sum::<i32>();
+                effect.duration = (animation.total_time() - start).max(1);
+                effect.remove_on_anim_end = true;
+            }
         }
     }
     if let Some(value) = sprite_priority {
