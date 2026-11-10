@@ -27,7 +27,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo and signed 24-bit conversion |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
-| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners; storyboards pending |
+| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards pending |
 | F-12 | Storyboards | Required | Required | Missing | TBD |
 | F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation not implemented |
 
@@ -110,7 +110,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Win-icon kind/perfect/cap + combo refresh + delayed fills; guard bars pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
-| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
+| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner lifecycle; VS/storyboards pending |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor mapping + tension/bounds/verticalfollow |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
 

@@ -10689,3 +10689,71 @@ fn envshake_mul_decay_and_globalnoshadow() {
     manato_sim::controller::execute(&mut sim, 0, &no_shadow, &assets);
     assert!(sim.shadows_hidden());
 }
+
+#[test]
+fn action_banners_are_per_side_clamped_and_cleared_by_round() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = |text: &str, extra: Vec<(&str, &str)>| {
+        let mut params = vec![("text".to_string(), text.to_string())];
+        params.extend(
+            extra
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
+        manato_formats::Controller {
+            kind: "lifebaraction".into(),
+            params,
+            line: 0,
+        }
+    };
+
+    // Side 1 does not disturb side 0 (and side 2 wraps back to 0).
+    let first = control("P1", vec![("time", "5")]);
+    manato_sim::controller::execute(&mut sim, 0, &first, &assets);
+    {
+        let mut side1 = control("P2", vec![("displaytime", "4")]);
+        side1.params.push(("redirectid".into(), "1".into()));
+        // Execute as P2 so the banner lands on side 1.
+        manato_sim::controller::execute(&mut sim, 1, &side1, &assets);
+    }
+    assert_eq!(sim.actions[0].len(), 1);
+    assert_eq!(sim.actions[1].len(), 1);
+    assert_eq!(sim.actions[0][0].text, "P1");
+    assert_eq!(sim.actions[1][0].text, "P2");
+    assert_eq!(sim.actions[0][0].time, 5);
+    assert_eq!(sim.actions[1][0].time, 4, "displaytime fallback used");
+
+    // Empty text is ignored; non-positive time clamps to one tick.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let empty = control("   ", vec![("time", "3")]);
+    manato_sim::controller::execute(&mut sim, 0, &empty, &assets);
+    assert!(sim.actions[0].is_empty(), "blank text is dropped");
+    let clamped = control("CLAMP", vec![("time", "0")]);
+    manato_sim::controller::execute(&mut sim, 0, &clamped, &assets);
+    assert_eq!(sim.actions[0][0].time, 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.actions[0].is_empty(), "one-tick banner expires");
+
+    // Starting a new round clears both sides' banners.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.push_action(0, "leftover-p1", 100);
+    sim.push_action(1, "leftover-p2", 100);
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert!(sim.actions[0].is_empty());
+    assert!(sim.actions[1].is_empty());
+}
