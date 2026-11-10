@@ -8275,6 +8275,9 @@ fn projectile_contact_hit_guarded_trigger_timing() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHitTime"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjHit"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjGuarded"), 0);
+    // The single-hit projectile is gone at the end of its contact tick.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(0)"), 0);
 
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters[0].proj_contact_time, 1);
