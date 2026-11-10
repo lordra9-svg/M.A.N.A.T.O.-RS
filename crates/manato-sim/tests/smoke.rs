@@ -751,6 +751,51 @@ fn round_not_over_delays_the_next_phase() {
 }
 
 #[test]
+fn noko_flag_prevents_ko_classification() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // Re-assert NoKO every tick from the helper state so zero life is ignored.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[1]
+            .states
+            .get_mut(&-1)
+            .expect("statedef -1");
+        state.controllers.push(manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![
+                ("type".into(), "AssertSpecial".into()),
+                ("noko".into(), "1".into()),
+            ],
+            line: 0,
+        });
+    }
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.round.phase,
+        manato_sim::RoundPhase::Fight,
+        "NoKO keeps the round in Fight despite zero life"
+    );
+    assert_eq!(sim.fighters[1].life, 0);
+    assert_eq!(sim.round.winner, None);
+
+    // Removing the assertion allows the KO to register.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[1]
+            .states
+            .get_mut(&-1)
+            .expect("statedef -1");
+        state.controllers.retain(|c| c.kind != "assertspecial");
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+}
+
+#[test]
 fn round_triggers_report_phase_and_time() {
     let Some(sim) = fight_phase() else {
         return;
