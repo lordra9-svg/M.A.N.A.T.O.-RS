@@ -7180,3 +7180,81 @@ fn hit_and_guard_sounds_and_heavy_hit_shake() {
     assert_eq!(sim.env_shake.time, 6);
     assert!(sim.sounds.is_empty(), "sound group -1 is silent");
 }
+
+#[test]
+fn air_corner_push_uses_air_offset_and_threshold() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let right = sim.assets.stage.right_bound;
+    let mut hit = hitdef();
+    hit.ground_velocity = manato_core::Vec2::new(-4.0, 0.0);
+    hit.air_velocity = manato_core::Vec2::new(-4.0, -6.0);
+    hit.ground_cornerpush = -8.0;
+    hit.air_cornerpush = -6.0;
+    let origin = sim.fighters[0].pos;
+
+    // Airborne defender inside the 24px threshold uses air.cornerpush.
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos = manato_core::Vec2::new(right - 10.0, -20.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -2.0, "4 - 6 air push");
+
+    // The same airborne hit outside the threshold gets no push.
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos = manato_core::Vec2::new(right - 30.0, -20.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        sim.fighters[1].hit.vars.x_vel, 4.0,
+        "outside corner threshold"
+    );
+
+    // A grounded defender at the same spot uses ground.cornerpush instead.
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Stand;
+    sim.fighters[1].pos = manato_core::Vec2::new(right - 10.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -4.0, "4 - 8 ground push");
+
+    // Guarded hits also receive the corner push.
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Stand;
+    sim.fighters[1].pos = manato_core::Vec2::new(right - 10.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -6.0, "guard velocity/2 - 8");
+}
+
+#[test]
+fn env_shake_advances_and_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let shake = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "3".into()),
+            ("freq".into(), "90".into()),
+            ("ampl".into(), "-8".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
+    assert_eq!(sim.env_shake.time, 3);
+    let phase = sim.env_shake.phase;
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.env_shake.time, 2);
+    assert_eq!(sim.env_shake.phase, phase + 1.0);
+    assert!(
+        sim.camera.shake.x.abs() > 0.001 || sim.camera.shake.y.abs() > 0.001,
+        "active shake moves the camera"
+    );
+
+    // Two ticks reach time 0 (still applying the final frame); the next tick
+    // observes the expired timer and clears the offset.
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.env_shake.time, 0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.camera.shake, manato_core::Vec2::ZERO, "shake clears");
+}
