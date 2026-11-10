@@ -751,6 +751,53 @@ fn round_not_over_delays_the_next_phase() {
 }
 
 #[test]
+fn numhits_limits_persistent_hitdef_in_resolve() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -1.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    let mut hit = hitdef();
+    hit.numhits = 2;
+    hit.damage = 10;
+    hit.pausetime = (0, 0);
+    sim.fighters[0].hitdef = Some(hit);
+
+    // Bundled get-hit actions have no Clsn2 boxes, so restore the idle animation
+    // between resolutions to give the next hit a hurt box to connect with.
+    let reset_defender = |sim: &mut SimState, assets: &manato_sim::Assets| {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    };
+
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 10, "first hit connects");
+    reset_defender(&mut sim, &assets);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 20, "second hit connects");
+    reset_defender(&mut sim, &assets);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life,
+        life - 20,
+        "numhits stops further hits in this activation"
+    );
+
+    // A new activation resets the budget.
+    sim.fighters[0].hit.hit_counts.clear();
+    sim.fighters[0].hit.hit_targets.clear();
+    reset_defender(&mut sim, &assets);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 30);
+}
+
+#[test]
 fn changeanim_elem_selects_start_frame() {
     let Some(mut sim) = fight_phase() else {
         return;
