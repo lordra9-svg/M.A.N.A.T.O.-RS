@@ -5924,6 +5924,7 @@ fn hit_counts_and_get_hit_var_fields() {
     hit.ground_type = manato_sim::hitdef::GroundType::Low;
     hit.air_type = manato_sim::hitdef::GroundType::High;
     hit.anim_type = manato_sim::hitdef::AnimType::Medium;
+    hit.numhits = 3;
     let origin = sim.fighters[0].pos;
     for _ in 0..3 {
         manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
@@ -11224,4 +11225,58 @@ fn projectile_projshadow_parsing_and_modify() {
     };
     manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
     assert_eq!(sim.projectiles[0].shadow, [0, 0, 0]);
+}
+
+#[test]
+fn hitcount_adds_numhits_once_while_uniq_counts_contacts() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.numhits = 2;
+    hit.damage = 5;
+    let origin = sim.fighters[0].pos;
+    for _ in 0..3 {
+        manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    }
+    assert_eq!(
+        sim.fighters[0].attack.hit_count, 2,
+        "HitCount adds numhits on first contact only"
+    );
+    assert_eq!(sim.fighters[0].attack.uniq_hit_count, 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitCount"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "UniqHitCount"), 3);
+
+    // Guarded contacts raise guard_count instead of hit_count.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut guarded = hitdef();
+    guarded.numhits = 2;
+    guarded.guard_damage = 1;
+    guarded.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &guarded, true, origin, 1, true);
+    assert_eq!(sim.fighters[0].attack.guard_count, 2);
+    assert_eq!(sim.fighters[0].attack.hit_count, 0);
+    assert_eq!(sim.fighters[0].attack.uniq_hit_count, 1);
+
+    // HitAdd and MoveHitReset affect both counters.
+    let assets = sim.assets.clone();
+    let add = manato_formats::Controller {
+        kind: "hitadd".into(),
+        params: vec![("value".into(), "3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &add, &assets);
+    assert_eq!(sim.fighters[0].attack.hit_count, 3);
+    assert_eq!(sim.fighters[0].attack.uniq_hit_count, 4);
+    let reset = manato_formats::Controller {
+        kind: "movehitreset".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    assert_eq!(sim.fighters[0].attack.hit_count, 0);
+    assert_eq!(sim.fighters[0].attack.uniq_hit_count, 0);
 }

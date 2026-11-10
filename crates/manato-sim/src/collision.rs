@@ -526,10 +526,20 @@ pub fn apply_hit_at(
 
     if from_fighter {
         let f = &mut sim.fighters[attacker];
+        let first_contact = f.hit.hit_targets.is_empty();
         f.attack.move_contact = true;
         f.attack.move_hit |= !guarding;
         f.attack.move_guarded |= guarding;
-        f.attack.hit_count += 1;
+        f.attack.uniq_hit_count += 1;
+        // Ikemen adds `numhits` once per swing (on the first contact) and
+        // tracks guarded contacts separately.
+        if first_contact {
+            if guarding {
+                f.attack.guard_count += hitdef.numhits.max(1);
+            } else {
+                f.attack.hit_count += hitdef.numhits.max(1);
+            }
+        }
         f.hit.hit_targets.push(defender);
         f.hit.hit_pause = hitdef.pausetime.1.max(0);
     }

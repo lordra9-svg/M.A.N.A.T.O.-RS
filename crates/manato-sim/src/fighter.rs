@@ -88,7 +88,10 @@ impl Physics {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AttackState {
+    /// `HitCount`: sum of `numhits` from the first contact of each swing.
     pub hit_count: i32,
+    /// `UniqHitCount`: every individual contact in the current swing.
+    pub uniq_hit_count: i32,
     pub move_contact: bool,
     pub move_hit: bool,
     pub move_guarded: bool,

@@ -79,14 +79,16 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "lifeset" => life_set(sim, who, control),
         "hitadd" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
-            sim.fighters[who].attack.hit_count =
-                sim.fighters[who].attack.hit_count.saturating_add(value);
+            let attack = &mut sim.fighters[who].attack;
+            attack.hit_count = attack.hit_count.saturating_add(value);
+            attack.uniq_hit_count = attack.uniq_hit_count.saturating_add(value);
         }
         "movehitreset" => {
             sim.fighters[who].attack.move_contact = false;
             sim.fighters[who].attack.move_hit = false;
             sim.fighters[who].attack.move_guarded = false;
             sim.fighters[who].attack.hit_count = 0;
+            sim.fighters[who].attack.uniq_hit_count = 0;
         }
         "playsnd" => play_snd(sim, who, control),
         "stopsnd" => stop_snd(sim, who, control),
