@@ -8147,3 +8147,48 @@ fn changeanim2_reads_another_players_animation_bank() {
     assert_eq!(sim.fighters[0].anim_char_id, None);
     assert_eq!(sim.anim_character(0).name(), assets.characters[0].name());
 }
+
+#[test]
+fn sysvars_persist_across_rounds_and_pauses() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].sysvars[3] = 42;
+    sim.fighters[0].sysfvars[2] = 1.5;
+    sim.fighters[1].sysvars[3] = 7;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(3)"), 42);
+    assert!((manato_sim::trigger::num(&sim, 0, "SysFVar(2)") - 1.5).abs() < 0.001);
+
+    // Values remain readable during hit pause and super pause.
+    sim.fighters[0].hit.hit_pause = 3;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(3)"), 42);
+    assert!(sim.fighters[0].hit.hit_pause > 0);
+    sim.fighters[0].hit.hit_pause = 0;
+    sim.super_pause = 3;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(3)"), 42);
+    sim.super_pause = 0;
+
+    // Round reset carries sysvars for both players.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(sim.fighters[0].sysvars[3], 42);
+    assert!((sim.fighters[0].sysfvars[2] - 1.5).abs() < 0.001);
+    assert_eq!(sim.fighters[1].sysvars[3], 7);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SysVar(3)"), 42);
+
+    // A match restart also keeps them (only round/match state resets).
+    sim.restart_match();
+    assert_eq!(sim.fighters[0].sysvars[3], 42);
+    assert_eq!(sim.fighters[1].sysvars[3], 7);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "SysVar(3)"), 7);
+}
