@@ -8479,3 +8479,28 @@ fn hitdef_fall_velocity_populates_get_hit_var_and_hitfallvel() {
     manato_sim::controller::execute(&mut sim, 1, &vel, &assets);
     assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(2.0, -2.0));
 }
+
+#[test]
+fn airborne_hit_uses_air_velocity_and_air_hittime() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.air_velocity = manato_core::Vec2::new(-4.0, -6.0);
+    hit.air_hittime = 5;
+    hit.ground_slidetime = 2;
+    hit.pausetime = (0, 0);
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    sim.fighters[1].facing = -1;
+    let life = sim.fighters[1].life;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - hit.damage);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0, "air velocity mirrored");
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, -6.0);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 5);
+    assert_eq!(sim.fighters[1].hit.vars.slidetime, 2);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 7);
+    assert_eq!(sim.fighters[1].state_no, 5020);
+}
