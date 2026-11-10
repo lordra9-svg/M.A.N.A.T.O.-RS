@@ -72,7 +72,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width value/player/edge forms, ScreenBound axes, PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full flag mapping + per-tick NoBG/NoFG/NoBarDisplay/invisible/intro test |
-| C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | Controllers implemented + unit tests; oracle pending |
+| C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |
 
 ## 5. Collision and combat

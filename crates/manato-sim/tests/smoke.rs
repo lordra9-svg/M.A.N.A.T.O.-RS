@@ -9848,3 +9848,61 @@ fn changestate_ctrl_and_anim_overrides() {
     assert!(!sim.fighters[0].ctrl);
     assert_eq!(sim.fighters[0].anim_no, 220);
 }
+
+#[test]
+fn makedust_spacing_gate_and_pos2() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let dust = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "makedust".into(),
+            params: params
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Emits after the spacing gate, then resets the counter.
+    let before = sim.effects.len();
+    dust(
+        &mut sim,
+        vec![("spacing", "3"), ("pos", "1, 2"), ("pos2", "-3, 4")],
+    );
+    assert_eq!(sim.effects.len(), before + 2, "pos and pos2 spawn");
+    let owner = sim.fighters[0].pos;
+    let effects: Vec<_> = sim.effects.iter().rev().take(2).collect();
+    assert!((effects[0].pos.x - (owner.x - 3.0)).abs() < 0.001);
+    assert!((effects[0].pos.y - (owner.y + 4.0)).abs() < 0.001);
+    assert!((effects[1].pos.x - (owner.x + 1.0)).abs() < 0.001);
+    assert!((effects[1].pos.y - (owner.y + 2.0)).abs() < 0.001);
+    for effect in &effects {
+        assert_eq!(effect.sprite_priority, i32::MAX);
+        assert!(effect.own_pal);
+        assert!(effect.behind);
+    }
+    assert_eq!(sim.fighters[0].make_dust_spacing, 0);
+
+    // Immediate re-execution is blocked by the gate.
+    dust(&mut sim, vec![("spacing", "3")]);
+    assert_eq!(sim.effects.len(), before + 2);
+    sim.tick([PlayerInput::default(); 2]);
+    dust(&mut sim, vec![("spacing", "3")]);
+    assert_eq!(sim.effects.len(), before + 2, "counter 1 < spacing 3");
+
+    // After two more ticks the gate opens.
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    dust(&mut sim, vec![("spacing", "3")]);
+    assert_eq!(sim.effects.len(), before + 3);
+
+    // spacing = 0 clamps to 1 tick.
+    sim.tick([PlayerInput::default(); 2]);
+    dust(&mut sim, vec![("spacing", "0")]);
+    assert_eq!(sim.effects.len(), before + 4);
+}

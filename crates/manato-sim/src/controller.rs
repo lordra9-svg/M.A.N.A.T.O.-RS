@@ -1513,12 +1513,17 @@ fn parse_trans(sim: &SimState, who: usize, control: &Controller) -> (EffectBlend
     }
 }
 fn make_dust(sim: &mut SimState, who: usize, control: &Controller) {
-    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let spacing = int_param(sim, who, control, "spacing").unwrap_or(3).max(1);
+    // `spacing` is a tick gate, not a positional offset.
+    if sim.fighters[who].make_dust_spacing < spacing {
+        return;
+    }
     let facing = sim.fighters[who].facing as f32;
-    let pos = Vec2::new(
-        sim.fighters[who].pos.x + px * facing,
-        sim.fighters[who].pos.y + py,
-    );
+    let base = sim.fighters[who].pos;
+    let mut positions: Vec<(f32, f32)> = vec![control.get_pair("pos").unwrap_or((0.0, 0.0))];
+    if let Some(pos2) = control.get_pair("pos2") {
+        positions.push(pos2);
+    }
     let duration = sim
         .assets
         .effects
@@ -1526,17 +1531,22 @@ fn make_dust(sim: &mut SimState, who: usize, control: &Controller) {
         .get(&120)
         .map(|a| a.total_time())
         .unwrap_or(10);
-    sim.effects.push(Effect {
-        source: EffectSource::FightFx,
-        anim: 120,
-        pos,
-        facing: sim.fighters[who].facing,
-        sprite_priority: -1,
-        duration,
-        owner: who,
-        behind: true,
-        ..Effect::default()
-    });
+    for (px, py) in positions {
+        let pos = Vec2::new(base.x + px * facing, base.y + py);
+        sim.effects.push(Effect {
+            source: EffectSource::FightFx,
+            anim: 120,
+            pos,
+            facing: sim.fighters[who].facing,
+            sprite_priority: i32::MAX,
+            duration,
+            owner: who,
+            behind: true,
+            own_pal: true,
+            ..Effect::default()
+        });
+    }
+    sim.fighters[who].make_dust_spacing = 0;
 }
 
 fn pause(sim: &mut SimState, who: usize, control: &Controller) {

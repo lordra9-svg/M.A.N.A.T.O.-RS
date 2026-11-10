@@ -936,6 +936,7 @@ impl SimState {
                 fighter.fall_defence_mul = 1.0;
             }
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
+            fighter.make_dust_spacing = fighter.make_dust_spacing.saturating_add(1);
             fighter.hit.invuln_timer = (fighter.hit.invuln_timer - 1).max(0);
             for slot in &mut fighter.hit_overrides {
                 if let Some(override_) = slot.as_mut() {

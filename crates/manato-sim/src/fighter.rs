@@ -203,6 +203,8 @@ pub struct Fighter {
     /// Per-entity sprite scale (Helper `size.xscale`/`size.yscale`).
     pub size_xscale: f32,
     pub size_yscale: f32,
+    /// Ticks since the last MakeDust emission (`spacing` gate).
+    pub make_dust_spacing: i32,
     /// A `Width` controller override that lasts until the state changes.
     pub width_override: Option<(f32, f32)>,
 
@@ -313,6 +315,7 @@ impl Fighter {
             height: char.constants.get_or("size.height", 60.0),
             size_xscale: 1.0,
             size_yscale: 1.0,
+            make_dust_spacing: 0,
             width_override: None,
             hitdef: None,
             hit: HitState::default(),
