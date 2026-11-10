@@ -111,7 +111,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banners; VS/storyboards pending |
-| V-08 | Zoom/camera controls | N/A | Ikemen | Partial | `Zoom`/`ZoomVar`, stage keys, automatic tracking; oracle pending |
+| V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Zoom/Var + tension/bounds/helper ignoring tests; verticalfollow/floor tension pending |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
 
 ## 8. Audio

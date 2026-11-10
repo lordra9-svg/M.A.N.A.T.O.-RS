@@ -8834,3 +8834,81 @@ fn lethal_fall_damage_ends_the_round() {
     assert_eq!(sim.round.winner, Some(0));
     assert_eq!(sim.round.wins, [1, 0]);
 }
+
+#[test]
+fn camera_zoom_bounds_tension_and_helper_ignoring() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let cam = &mut assets.stage.camera;
+        cam.zoom_out = 0.5;
+        cam.zoom_in = 2.0;
+        cam.zoom_in_delay = 0;
+        cam.zoom_in_speed = 1.0;
+        cam.zoom_out_speed = 1.0;
+        cam.tension = 50.0;
+        cam.bound_left = -100.0;
+        cam.bound_right = 1000.0;
+        cam.bound_high = -200.0;
+        cam.bound_low = 100.0;
+    }
+    for fighter in &mut sim.fighters {
+        fighter.player_push = false;
+        fighter.ctrl = false;
+    }
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[1].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    // Close fighters: the wide tension sets the target to the max zoom.
+    assert!((sim.camera.target_scale - 2.0).abs() < 0.001);
+    assert!(sim.camera.scale > 1.0);
+
+    // Far fighters: target clamps to the minimum zoom and follows down.
+    sim.fighters[0].pos.x = -300.0;
+    sim.fighters[1].pos.x = 300.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.camera.target_scale - 0.5).abs() < 0.001);
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!((sim.camera.scale - 0.5).abs() < 0.01);
+    // Half-width at 0.5 zoom is 320, so the camera clamps to x=220.
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.x - 220.0).abs() < 5.0,
+        "camera x clamps inside the bounds, got {}",
+        sim.camera.x
+    );
+
+    // A helper far away does not widen the framing.
+    let assets = sim.assets.clone();
+    let before = sim.camera.target_scale;
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "50".into()),
+            ("removetime".into(), "-1".into()),
+            ("pos".into(), "4000, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.camera.target_scale - before).abs() < 0.001);
+
+    // Vertical target clamps to boundhigh; the camera follows toward it.
+    sim.fighters[0].pos.y = -300.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        sim.camera.y < -50.0,
+        "camera follows the clamped height, got {}",
+        sim.camera.y
+    );
+}
