@@ -7258,3 +7258,53 @@ fn env_shake_advances_and_expires() {
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.camera.shake, manato_core::Vec2::ZERO, "shake clears");
 }
+
+#[test]
+fn down_and_bounce_fall_states_land_with_one_shot_damage() {
+    for state in [5040, 5050] {
+        let Some(mut sim) = fight_phase() else {
+            return;
+        };
+        sim.fighters[1].state_no = state;
+        sim.fighters[1].state_time = 1;
+        sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+        sim.fighters[1].pos = manato_core::Vec2::new(20.0, 24.0);
+        sim.fighters[1].vel = manato_core::Vec2::new(3.0, 10.0);
+        sim.fighters[1].hit.vars.y_accel = 0.0;
+        sim.fighters[1].hit.vars.fall = true;
+        sim.fighters[1].hit.vars.fall_damage = 25;
+        let life = sim.fighters[1].life;
+
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.fighters[1].pos.y, 0.0, "state {state} lands at y=0");
+        assert_eq!(sim.fighters[1].vel.y, 0.0, "state {state} stops falling");
+        assert_eq!(sim.fighters[1].life, life - 25, "state {state} fall damage");
+        assert_eq!(sim.fighters[1].hit.vars.fall_damage, 0);
+
+        // A second grounded tick does not re-apply fall damage.
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.fighters[1].life, life - 25);
+        assert_eq!(sim.fighters[1].pos.y, 0.0);
+    }
+}
+
+#[test]
+fn fall_landing_without_damage_only_snaps_position() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_no = 5040;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 30.0);
+    sim.fighters[1].vel = manato_core::Vec2::new(2.0, 4.0);
+    sim.fighters[1].hit.vars.y_accel = 0.0;
+    sim.fighters[1].hit.vars.fall = true;
+    sim.fighters[1].hit.vars.fall_damage = 0;
+    let life = sim.fighters[1].life;
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].pos.y, 0.0);
+    assert_eq!(sim.fighters[1].vel.y, 0.0);
+    assert_eq!(sim.fighters[1].life, life);
+}
