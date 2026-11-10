@@ -10757,3 +10757,58 @@ fn action_banners_are_per_side_clamped_and_cleared_by_round() {
     assert!(sim.actions[0].is_empty());
     assert!(sim.actions[1].is_empty());
 }
+
+#[test]
+fn lifebaraction_falls_back_to_screenpack_displaytime() {
+    let root = mugen_root();
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: Some(PathBuf::from("content/screenpacks/manato-grid/system.def")),
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    if !root
+        .join("content/screenpacks/manato-grid/system.def")
+        .exists()
+    {
+        eprintln!("skipping: bundled screenpack not present");
+        return;
+    }
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let assets = sim.assets.clone();
+    let banner = |params: Vec<(&str, &str)>| manato_formats::Controller {
+        kind: "lifebaraction".into(),
+        params: params
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        line: 0,
+    };
+
+    // No time/displaytime: the screenpack [Action] displaytime (90) applies.
+    let control = banner(vec![("text", "ROUND")]);
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.actions[0][0].time, 90);
+    assert_eq!(sim.actions[0][0].total, 90);
+
+    // Explicit time wins over displaytime and the screenpack default.
+    let control = banner(vec![("text", "TIME"), ("time", "7"), ("displaytime", "30")]);
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.actions[0].last().unwrap().time, 7);
+
+    // displaytime wins over the screenpack default when time is absent.
+    let control = banner(vec![("text", "DISPLAY"), ("displaytime", "12")]);
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.actions[0].last().unwrap().time, 12);
+}
