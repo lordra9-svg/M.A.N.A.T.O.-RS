@@ -6407,6 +6407,11 @@ fn numexplod_and_numprojid_filters() {
         return;
     };
     let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].set_anim(0, &assets.characters[1], None);
     let spawn = |sim: &mut SimState, id: i32| {
         let control = manato_formats::Controller {
             kind: "explod".into(),
@@ -9629,4 +9634,59 @@ fn modify_explod_removetime_negative_restores_animation_expiry() {
         .expect("frozen explod");
     assert!(effect.anim_freeze);
     assert_eq!(effect.duration, -1);
+}
+
+#[test]
+fn projectile_spawns_get_unique_hit_activation_ids() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    let spawn = |sim: &mut SimState, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "1500".into()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), "30".into()),
+                ("id".into(), id.to_string()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    spawn(&mut sim, 1);
+    spawn(&mut sim, 2);
+    assert_eq!(sim.projectiles.len(), 2);
+    assert_ne!(
+        sim.projectiles[0].hitdef.activation, sim.projectiles[1].hitdef.activation,
+        "each projectile spawn is a distinct activation"
+    );
+
+    // GetHitVar(hitid) reports the projectile's activation after contact.
+    let activation = sim.projectiles[0].hitdef.activation;
+    eprintln!(
+        "DBG activations {:?} pos {:?} defender {:?} anim {:?}",
+        sim.projectiles
+            .iter()
+            .map(|p| p.hitdef.activation)
+            .collect::<Vec<_>>(),
+        sim.projectiles[0].pos,
+        sim.fighters[1].pos,
+        sim.fighters[1].anim_no
+    );
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    eprintln!(
+        "DBG after life {} hitid {}",
+        sim.fighters[1].life, sim.fighters[1].hit.vars.hit_id
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(hitid)"),
+        activation as i32
+    );
 }

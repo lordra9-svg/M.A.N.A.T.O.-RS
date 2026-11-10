@@ -914,6 +914,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
     let facing = sim.fighters[who].facing;
     let mut hitdef = HitDef::from_controller(control, sim.hit_activation);
+    // Each projectile spawn is its own hit activation.
+    sim.hit_activation = sim.hit_activation.wrapping_add(1);
     // Projectile sparks sit at the impact point, not at a body offset.
     hitdef.sparkxy = Vec2::ZERO;
     let remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);

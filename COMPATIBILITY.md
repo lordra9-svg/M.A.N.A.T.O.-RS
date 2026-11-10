@@ -51,7 +51,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + loop boundary and invalid AnimElemTime sentinel tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/Physics/Alive + P2 life/anim/state + distances/edges |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar ids/times/fall velocities + HitVel axes + HitShakeOver/HitOver |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar melee/projectile hitid/ids/fall + HitVel + HitShakeOver/HitOver |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/Explod/ProjID + NumTarget + SysVar persistence |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const scalars/pairs + Const240/480/720p + math/random tests |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
@@ -64,7 +64,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power clamps + Vel/Pos edges + EnvColor zero/negative time |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + ChangeAnim2 anim bank + auto-turn + presentation |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + priority parse + numhits + p2stateno/reversal/sounds/shake |
-| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits removal + contact/hit/guarded timer timing + ModifyProjectile |
+| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + unique activation ids + timer timing + ModifyProjectile |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify bind/removetime -1/removeongethit |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime 0/infinite semantics + PalFX + Trans alpha; RemapPal deferred |
