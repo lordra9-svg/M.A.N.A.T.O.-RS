@@ -7417,3 +7417,66 @@ fn move_contact_hit_guarded_triggers_reflect_attacks() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveHit"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveGuarded"), 0);
 }
+
+#[test]
+fn hitdef_parses_guard_velocity_hittime_and_airguard() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20, 6".into()),
+            ("ground.velocity".into(), "-4, 0".into()),
+            ("guard.velocity".into(), "-10, 1".into()),
+            ("airguard.velocity".into(), "-6, -2".into()),
+            ("guard.hittime".into(), "7".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(
+        parsed.guard_velocity,
+        Some(manato_core::Vec2::new(-10.0, 1.0))
+    );
+    assert_eq!(parsed.airguard_velocity, manato_core::Vec2::new(-6.0, -2.0));
+    assert_eq!(parsed.guard_hittime, 7);
+    assert_eq!(parsed.guard_damage, 6);
+    // Guard flag defaults to MA when omitted.
+    assert_eq!(parsed.guardflag, "MA");
+
+    // Supplying guard.velocity drives the guarded reaction (halved).
+    let origin = sim.fighters[0].pos;
+    sim.fighters[1].facing = -1;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 6);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 5.0, "-10/2 mirrored");
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, 1.0);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 7);
+
+    // Without guard.velocity the ground velocity is halved instead.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let fallback = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20".into()),
+            ("ground.velocity".into(), "-8, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &fallback, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(parsed.guard_velocity, None);
+    let origin = sim.fighters[0].pos;
+    sim.fighters[1].facing = -1;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0, "-8/2 mirrored");
+}

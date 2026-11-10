@@ -407,7 +407,7 @@ pub fn apply_hit_at(
         let mut v = if defender_airborne {
             hitdef.airguard_velocity
         } else {
-            hitdef.ground_velocity
+            hitdef.guard_velocity.unwrap_or(hitdef.ground_velocity)
         };
         v.x *= 0.5;
         (v, hitdef.guard_hittime.max(1), hitdef.ground_slidetime)
