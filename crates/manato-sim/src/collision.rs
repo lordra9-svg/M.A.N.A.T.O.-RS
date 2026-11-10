@@ -92,7 +92,11 @@ pub fn resolve(sim: &mut SimState) {
         record_hit(sim, attacker, defender);
         // Ikemen-GO consumes juggle points when the target was falling before
         // the hit or the hit itself starts a fall (trip/fall HitDefs).
-        if !guarding && (defender_airborne || hitdef.fall) && juggle_cost > 0 {
+        if !guarding
+            && (defender_airborne || hitdef.fall)
+            && juggle_cost > 0
+            && sim.fighters[defender].assert_flags & crate::fighter::ASSERT_NOJUGGLECHECK == 0
+        {
             sim.fighters[defender].juggle_points =
                 (sim.fighters[defender].juggle_points - juggle_cost).max(0);
         }
@@ -621,6 +625,24 @@ pub fn resolve_projectiles(sim: &mut SimState) {
         if !hitflag_allows(sim, defender, &hitdef) {
             continue;
         }
+        let defender_airborne = {
+            let f = &sim.fighters[defender];
+            f.state_type == StateType::Air || f.pos.y < -1.0
+        };
+        // Projectiles use their own `air.juggle` cost.
+        let juggle_cost = hitdef.air_juggle;
+        if !juggle_allows(
+            sim.fighters[defender].juggle_points,
+            sim.fighters[defender].assert_flags,
+            false,
+            defender_airborne,
+            juggle_cost,
+            // Each projectile contact is its own activation, so the
+            // melee "fresh activation" bypass does not apply.
+            true,
+        ) {
+            continue;
+        }
 
         let attack_boxes = projectile_boxes(sim, owner, anim, time, facing, pos);
         let hurt_boxes = clsn_boxes(sim, defender, false);
@@ -638,6 +660,14 @@ pub fn resolve_projectiles(sim: &mut SimState) {
             sim.fighters[owner].proj_guarded_time = 0;
         } else {
             sim.fighters[owner].proj_hit_time = 0;
+        }
+        if !defender_airborne && !hitdef.fall
+            || juggle_cost <= 0
+            || sim.fighters[defender].assert_flags & crate::fighter::ASSERT_NOJUGGLECHECK != 0
+        {
+        } else if !guarding {
+            sim.fighters[defender].juggle_points =
+                (sim.fighters[defender].juggle_points - juggle_cost).max(0);
         }
         sim.projectiles[i].hits -= 1;
     }

@@ -8576,3 +8576,106 @@ fn hit_reaction_state_selection_and_throw_sprpriority() {
     assert_eq!(sim.fighters[0].state_no, 800);
     assert_eq!(sim.fighters[1].state_no, 820);
 }
+
+#[test]
+fn projectile_air_juggle_consumes_and_gates_hits() {
+    let setup = |points: i32, no_juggle_check: bool| -> Option<SimState> {
+        let mut sim = fight_phase()?;
+        let assets = sim.assets.clone();
+        sim.fighters[0].pos.x = -5.0;
+        sim.fighters[0].facing = 1;
+        sim.fighters[1].pos = manato_core::Vec2::new(5.0, -20.0);
+        sim.fighters[1].facing = -1;
+        sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+        sim.fighters[1].set_anim(0, &assets.characters[1], None);
+        sim.fighters[1].juggle_points = points;
+        if no_juggle_check {
+            sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOJUGGLECHECK;
+        }
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "1500".into()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), "-1".into()),
+                ("damage".into(), "10".into()),
+                ("hits".into(), "1".into()),
+                ("air.juggle".into(), "5".into()),
+                ("postype".into(), "p1".into()),
+                ("pos".into(), "0, 0".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+        Some(sim)
+    };
+
+    // First hit consumes 5 of 9 juggle points.
+    let mut sim = setup(9, false).expect("content");
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 10);
+    assert_eq!(sim.fighters[1].juggle_points, 4);
+
+    // A repeat hit with only 4 points left misses.
+    let assets = sim.assets.clone();
+    sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let control = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("damage".into(), "10".into()),
+            ("hits".into(), "1".into()),
+            ("air.juggle".into(), "5".into()),
+            ("postype".into(), "p1".into()),
+            ("pos".into(), "0, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life,
+        life - 10,
+        "insufficient juggle points"
+    );
+    assert_eq!(sim.fighters[1].juggle_points, 4);
+
+    // NoJuggleCheck bypasses the gate and the consumption.
+    let mut sim = setup(0, true).expect("content");
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 10);
+    assert_eq!(sim.fighters[1].juggle_points, 0);
+}
+
+#[test]
+fn nojugglecheck_skips_melee_juggle_consumption() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(5.0, -20.0);
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    sim.fighters[1].juggle_points = 0;
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOJUGGLECHECK;
+    sim.fighters[0].juggle = 5;
+    sim.fighters[0].hit.hit_targets.push(1);
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    let mut hit = hitdef();
+    hit.air_juggle = 5;
+    sim.fighters[0].hitdef = Some(hit);
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 20, "NoJuggleCheck lets it hit");
+    assert_eq!(sim.fighters[1].juggle_points, 0, "and skips consumption");
+}
