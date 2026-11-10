@@ -9115,3 +9115,44 @@ fn helper_keyctrl_and_helpertype_gate_special_states() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn helper_velocity_is_facing_relative() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, facing: i32, velocity: Option<&str>| {
+        sim.fighters[0].facing = facing;
+        let mut params = vec![
+            ("stateno".to_string(), "0".to_string()),
+            ("id".to_string(), "61".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+        ];
+        if let Some(velocity) = velocity {
+            params.push(("velocity".to_string(), velocity.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters.last().expect("helper").vel
+    };
+
+    assert_eq!(
+        spawn(&mut sim, 1, Some("3, -2")),
+        manato_core::Vec2::new(3.0, -2.0)
+    );
+    assert_eq!(
+        spawn(&mut sim, -1, Some("3, -2")),
+        manato_core::Vec2::new(-3.0, -2.0),
+        "velocity X mirrors with the owner facing"
+    );
+    assert_eq!(
+        spawn(&mut sim, 1, None),
+        manato_core::Vec2::ZERO,
+        "default helper velocity is zero"
+    );
+}

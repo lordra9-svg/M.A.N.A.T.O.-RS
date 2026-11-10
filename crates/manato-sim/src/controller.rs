@@ -547,6 +547,9 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     entity.parent = Some(who);
     entity.root = Some(sim.root_of(who));
     entity.helper_id = id;
+    if let Some((vx, vy)) = control.get_pair("velocity") {
+        entity.vel = Vec2::new(vx * facing as f32, vy);
+    }
     entity.helper_remove_time = int_param(sim, who, control, "removetime").unwrap_or(-1);
     entity.keyctrl = int_param(sim, who, control, "keyctrl")
         .unwrap_or(0)
