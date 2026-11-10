@@ -10328,3 +10328,72 @@ fn camera_round_reset_and_zoom_anchor_mapping() {
     sim.camera.y = 0.0;
     assert!((sim.screen_pos(manato_core::Vec2::new(0.0, 0.0)).y - ground).abs() < 0.001);
 }
+
+#[test]
+fn pause_movetime_lets_only_the_pauser_act() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    for fighter in &mut sim.fighters {
+        fighter.physics = manato_sim::fighter::Physics::None;
+        fighter.ctrl = false;
+        fighter.vel = manato_core::Vec2::new(2.0, 0.0);
+    }
+    let pause = manato_formats::Controller {
+        kind: "pause".into(),
+        params: vec![("time".into(), "5".into()), ("movetime".into(), "3".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &pause, &assets);
+    assert_eq!(sim.super_pause, 5);
+    assert_eq!(sim.pause_mover, Some(0));
+    assert_eq!(sim.pause_movetime, 3);
+
+    let start0 = sim.fighters[0].pos.x;
+    let start1 = sim.fighters[1].pos.x;
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.fighters[0].pos.x - (start0 + 6.0)).abs() < 0.001,
+        "pauser moves during movetime"
+    );
+    assert_eq!(sim.fighters[1].pos.x, start1, "opponent stays frozen");
+    assert_eq!(sim.pause_movetime, 0);
+
+    // Remaining pause ticks freeze both.
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.super_pause, 0);
+    assert!((sim.fighters[0].pos.x - (start0 + 6.0)).abs() < 0.001);
+    assert_eq!(sim.fighters[1].pos.x, start1);
+
+    // Gameplay resumes after the pause.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].pos.x > start0 + 6.0);
+    assert!(sim.fighters[1].pos.x > start1);
+
+    // movetime greater than time is ignored.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    for fighter in &mut sim.fighters {
+        fighter.physics = manato_sim::fighter::Physics::None;
+        fighter.vel = manato_core::Vec2::new(2.0, 0.0);
+    }
+    let over = manato_formats::Controller {
+        kind: "pause".into(),
+        params: vec![("time".into(), "2".into()), ("movetime".into(), "9".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &over, &assets);
+    assert_eq!(sim.pause_movetime, 0);
+    let start = sim.fighters[0].pos.x;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[0].pos.x, start,
+        "no movement when movetime > time"
+    );
+}

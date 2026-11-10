@@ -615,6 +615,9 @@ pub struct SimState {
     pub rng: Rng,
     pub super_pause: i32,
     pub super_pause_move_time: i32,
+    /// Fighter allowed to act during a `Pause` controller's movetime.
+    pub pause_mover: Option<usize>,
+    pub pause_movetime: i32,
     pub hit_activation: u32,
     pub finished: bool,
     /// Per-side combo counters (`§6.8`).
@@ -688,6 +691,8 @@ impl SimState {
             rng: Rng::new(0x4D41_4E41_544F_5253),
             super_pause: 0,
             super_pause_move_time: 0,
+            pause_mover: None,
+            pause_movetime: 0,
             hit_activation: 1,
             finished: false,
             combo: [ComboState::default(); 2],
@@ -776,7 +781,8 @@ impl SimState {
         let super_paused = self.super_pause > 0;
         for (i, input) in inputs.iter().enumerate() {
             let hit_paused = self.fighters[i].hit.hit_pause > 0;
-            let pause_bits = u8::from(hit_paused) | (u8::from(super_paused) << 1);
+            let can_move = self.pause_mover == Some(i) && self.pause_movetime > 0;
+            let pause_bits = u8::from(hit_paused) | (u8::from(super_paused && !can_move) << 1);
             self.fighters[i].append_input(*input, pause_bits);
         }
         self.sounds.clear();
@@ -786,6 +792,14 @@ impl SimState {
             self.super_pause -= 1;
             if self.super_pause_move_time > 0 {
                 self.super_pause_move_time -= 1;
+            }
+            if self.pause_movetime > 0 {
+                self.pause_movetime -= 1;
+                if let Some(mover) = self.pause_mover {
+                    if mover < self.fighters.len() && self.fighters[mover].active {
+                        self.update_fighter(mover);
+                    }
+                }
             }
             self.update_round();
             self.update_effects();
@@ -1813,6 +1827,8 @@ impl SimState {
         self.camera.target_scale = self.assets.stage.camera.start_zoom;
         self.camera.zoom_delay = 0;
         self.camera.zoom_override = None;
+        self.pause_mover = None;
+        self.pause_movetime = 0;
         self.env_shake = EnvShake::default();
         self.env_color = None;
         if self.assets.stage.reset_bg {
@@ -2142,6 +2158,8 @@ impl SimState {
         }
         h.write_u64(self.rng.state());
         h.write_i32(self.super_pause);
+        h.write_i32(self.pause_movetime);
+        h.write_u8(self.pause_mover.map(|i| i as u8 + 1).unwrap_or(0));
         h.write_u32(self.hit_activation);
         for combo in &self.combo {
             h.write_i32(combo.hits);
