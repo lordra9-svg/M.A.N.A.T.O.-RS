@@ -2363,6 +2363,10 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         priority: 0,
         priority_points: 0,
         shadow: [0; 3],
+        reflection: 0,
+        miss_time: 0,
+        hit_anim: -1,
+        rem_anim: -1,
         hits: 2,
         hitdef,
     });
@@ -11445,4 +11449,79 @@ fn projectile_projxshear_projection_and_focallength() {
         manato_sim::ProjectionMode::Orthographic
     );
     assert_eq!(sim.projectiles[0].focal_length, 1024.0);
+}
+
+#[test]
+fn projectile_reflection_misstime_and_hit_anims() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("projid".into(), "14".into()),
+            ("projreflection".into(), "1".into()),
+            ("projmisstime".into(), "6".into()),
+            ("projhitanim".into(), "20".into()),
+            ("projremanim".into(), "30".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles[0].reflection, 1);
+    assert_eq!(sim.projectiles[0].miss_time, 6);
+    assert_eq!(sim.projectiles[0].hit_anim, 20);
+    assert_eq!(sim.projectiles[0].rem_anim, 30);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "14".into()),
+            ("projreflection".into(), "-1".into()),
+            ("projmisstime".into(), "2".into()),
+            ("projhitanim".into(), "21".into()),
+            ("projremanim".into(), "31".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(sim.projectiles[0].reflection, -1);
+    assert_eq!(sim.projectiles[0].miss_time, 2);
+    assert_eq!(sim.projectiles[0].hit_anim, 21);
+    assert_eq!(sim.projectiles[0].rem_anim, 31);
+
+    // Omitting them preserves the stored values.
+    let velocity = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "14".into()),
+            ("velocity".into(), "1, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &velocity, &assets);
+    assert_eq!(sim.projectiles[0].hit_anim, 21);
+    assert_eq!(sim.projectiles[0].rem_anim, 31);
+
+    // Defaults: no reflection, zero miss timer, keep animations.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let plain = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    assert_eq!(sim.projectiles[0].reflection, 0);
+    assert_eq!(sim.projectiles[0].miss_time, 0);
+    assert_eq!(sim.projectiles[0].hit_anim, -1);
+    assert_eq!(sim.projectiles[0].rem_anim, -1);
 }

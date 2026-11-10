@@ -36,6 +36,14 @@ pub struct Projectile {
     pub priority_points: i32,
     /// `projshadow` RGB components; all zero disables the shadow.
     pub shadow: [i32; 3],
+    /// `projreflection` mode (0 = off).
+    pub reflection: i32,
+    /// `projmisstime` stored miss timer.
+    pub miss_time: i32,
+    /// `projhitanim` used after a hit; -1 keeps the projectile animation.
+    pub hit_anim: i32,
+    /// `projremanim` used while removing; -1 keeps the current animation.
+    pub rem_anim: i32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,

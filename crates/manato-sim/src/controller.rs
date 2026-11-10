@@ -986,6 +986,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let focal_length = num_param(sim, who, control, "projfocallength")
         .unwrap_or(1024.0)
         .max(1.0);
+    let reflection = int_param(sim, who, control, "projreflection").unwrap_or(0);
+    let miss_time = int_param(sim, who, control, "projmisstime").unwrap_or(0);
+    let hit_anim = int_param(sim, who, control, "projhitanim").unwrap_or(-1);
+    let rem_anim = int_param(sim, who, control, "projremanim").unwrap_or(-1);
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1026,6 +1030,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         priority,
         priority_points: priority,
         shadow,
+        reflection,
+        miss_time,
+        hit_anim,
+        rem_anim,
         hits,
         hitdef,
     });
@@ -1117,6 +1125,10 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let x_shear = num_param(sim, who, control, "projxshear");
     let projection = str_param(control, "projprojection").map(crate::ProjectionMode::parse);
     let focal_length = num_param(sim, who, control, "projfocallength").map(|v| v.max(1.0));
+    let reflection = int_param(sim, who, control, "projreflection");
+    let miss_time = int_param(sim, who, control, "projmisstime");
+    let hit_anim = int_param(sim, who, control, "projhitanim");
+    let rem_anim = int_param(sim, who, control, "projremanim");
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1168,6 +1180,18 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(focal_length) = focal_length {
             projectile.focal_length = focal_length;
+        }
+        if let Some(reflection) = reflection {
+            projectile.reflection = reflection;
+        }
+        if let Some(miss_time) = miss_time {
+            projectile.miss_time = miss_time;
+        }
+        if let Some(hit_anim) = hit_anim {
+            projectile.hit_anim = hit_anim;
+        }
+        if let Some(rem_anim) = rem_anim {
+            projectile.rem_anim = rem_anim;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;
