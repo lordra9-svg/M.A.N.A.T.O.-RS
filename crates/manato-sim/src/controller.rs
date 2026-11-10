@@ -1286,11 +1286,17 @@ fn env_shake(sim: &mut SimState, who: usize, control: &Controller) {
     let freq = num_param(sim, who, control, "freq").unwrap_or(60.0);
     let ampl = num_param(sim, who, control, "ampl").unwrap_or(-4.0);
     let phase = num_param(sim, who, control, "phase").unwrap_or(0.0);
+    let mul = num_param(sim, who, control, "mul").unwrap_or(1.0);
+    let decay = num_param(sim, who, control, "decay").unwrap_or(0.0);
+    let time = time.max(0);
     sim.env_shake = EnvShake {
-        time: time.max(0),
+        time,
+        initial_time: time,
         freq,
         ampl,
         phase,
+        mul,
+        decay,
     };
 }
 

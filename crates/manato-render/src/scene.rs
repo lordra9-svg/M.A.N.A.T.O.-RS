@@ -405,6 +405,9 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
 }
 
 fn draw_shadows(painter: &mut Painter, sim: &SimState) {
+    if sim.shadows_hidden() {
+        return;
+    }
     for fighter in &sim.fighters {
         if fighter.owner.is_some()
             || !fighter.active

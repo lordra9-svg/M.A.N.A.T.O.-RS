@@ -68,10 +68,10 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/mul + round reset + Trans alpha; RemapPal deferred |
-| C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause movetime exemptions + env shake + Nival pause oracle |
+| C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause movetime + EnvShake mul/decay + Nival pause oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width value/player/edge forms, ScreenBound axes, PlayerPush separation |
-| C-11 | AssertSpecial flags | Required | Required | Partial | Full flag mapping + per-tick render flags + NoHardcodedKeys movement gate |
+| C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
 | C-13 | Ikemen-only controllers | N/A | Ikemen | Missing | TBD |
 

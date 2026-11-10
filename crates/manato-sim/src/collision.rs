@@ -594,9 +594,12 @@ pub fn apply_hit_at(
     if !guarding && hitdef.damage >= 80 {
         sim.env_shake = crate::EnvShake {
             time: 6,
+            initial_time: 6,
             freq: 60.0,
             ampl: -2.0,
             phase: 0.0,
+            mul: 1.0,
+            decay: 0.0,
         };
     }
     let _ = anim_duration;

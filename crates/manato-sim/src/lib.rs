@@ -491,18 +491,27 @@ pub struct EnvColor {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EnvShake {
     pub time: i32,
+    /// Time when the shake started, used by `decay`.
+    pub initial_time: i32,
     pub freq: f32,
     pub ampl: f32,
     pub phase: f32,
+    /// Amplitude multiplier applied each tick.
+    pub mul: f32,
+    /// Amplitude decay exponent over the remaining duration.
+    pub decay: f32,
 }
 
 impl Default for EnvShake {
     fn default() -> Self {
         Self {
             time: 0,
+            initial_time: 0,
             freq: 60.0,
             ampl: -4.0,
             phase: 0.0,
+            mul: 1.0,
+            decay: 0.0,
         }
     }
 }
@@ -1964,6 +1973,13 @@ impl SimState {
         if self.env_shake.time > 0 {
             self.env_shake.time -= 1;
             self.env_shake.phase += 1.0;
+            if self.env_shake.mul != 0.0 && self.env_shake.mul != 1.0 {
+                self.env_shake.ampl *= self.env_shake.mul;
+            }
+            if self.env_shake.decay != 0.0 && self.env_shake.initial_time > 0 {
+                let t = self.env_shake.time as f32 / self.env_shake.initial_time as f32;
+                self.env_shake.ampl *= t.max(0.0).powf(self.env_shake.decay);
+            }
             let amp = self.env_shake.ampl;
             self.camera.shake = Vec2::new(
                 (self.env_shake.phase * self.env_shake.freq * 0.1).sin() * amp,
@@ -2081,6 +2097,13 @@ impl SimState {
         self.fighters
             .iter()
             .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOBARDISPLAY != 0)
+    }
+
+    /// True when any fighter asserts `GlobalNoShadow`.
+    pub fn shadows_hidden(&self) -> bool {
+        self.fighters
+            .iter()
+            .any(|fighter| fighter.assert_flags & fighter::ASSERT_GLOBALNOSHADOW != 0)
     }
 
     pub fn screen_pos(&self, world: Vec2) -> Vec2 {

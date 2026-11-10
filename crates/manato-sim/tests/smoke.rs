@@ -10629,3 +10629,63 @@ fn palfx_sinadd_with_mul_and_round_reset() {
     assert_eq!(sim.fighters[0].pal_add, [0.0, 0.0, 0.0]);
     assert_eq!(sim.fighters[0].pal_time, 0);
 }
+
+#[test]
+fn envshake_mul_decay_and_globalnoshadow() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let shake = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "5".into()),
+            ("ampl".into(), "-8".into()),
+            ("mul".into(), "0.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
+    assert_eq!(sim.env_shake.initial_time, 5);
+    assert_eq!(sim.env_shake.mul, 0.5);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.env_shake.ampl - -4.0).abs() < 0.001);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.env_shake.ampl - -2.0).abs() < 0.001);
+
+    // decay scales amplitude by (remaining / initial)^decay.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let decay = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "4".into()),
+            ("ampl".into(), "-8".into()),
+            ("decay".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &decay, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.env_shake.ampl - -6.0).abs() < 0.001);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.env_shake.ampl - -3.0).abs() < 0.001);
+
+    // GlobalNoShadow hides all fighter shadows.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    assert!(!sim.shadows_hidden());
+    let no_shadow = manato_formats::Controller {
+        kind: "assertspecial".into(),
+        params: vec![
+            ("type".into(), "AssertSpecial".into()),
+            ("globalnoshadow".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &no_shadow, &assets);
+    assert!(sim.shadows_hidden());
+}
