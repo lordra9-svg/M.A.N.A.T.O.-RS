@@ -1214,7 +1214,11 @@ impl SimState {
     /// (0 stand, 10/11 crouch, 20 walk, 40 jump start, 50/52 jump).
     fn builtin_movement(&mut self, who: usize) {
         let fighter = &self.fighters[who];
-        if !fighter.active || !fighter.ctrl || fighter.hit_pause() > 0 {
+        if !fighter.active
+            || !fighter.ctrl
+            || fighter.hit_pause() > 0
+            || fighter.assert_flags & fighter::ASSERT_NOHARDCODEDKEYS != 0
+        {
             return;
         }
         if fighter.pos_freeze > 0 {

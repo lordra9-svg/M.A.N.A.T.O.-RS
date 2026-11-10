@@ -901,3 +901,4 @@ pub const ASSERT_NOMUSIC: u32 = 1 << 15;
 pub const ASSERT_GLOBALNOSHADOW: u32 = 1 << 16;
 pub const ASSERT_NOBARDISPLAY: u32 = 1 << 17;
 pub const ASSERT_ROUNDNOTOVER: u32 = 1 << 18;
+pub const ASSERT_NOHARDCODEDKEYS: u32 = 1 << 19;

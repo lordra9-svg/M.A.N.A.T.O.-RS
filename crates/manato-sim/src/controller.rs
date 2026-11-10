@@ -1248,6 +1248,7 @@ fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
             "globalnoshadow" => crate::fighter::ASSERT_GLOBALNOSHADOW,
             "nobardisplay" => crate::fighter::ASSERT_NOBARDISPLAY,
             "roundnotover" => crate::fighter::ASSERT_ROUNDNOTOVER,
+            "nohardcodedkeys" => crate::fighter::ASSERT_NOHARDCODEDKEYS,
             _ => 0,
         };
         if flag != 0 {

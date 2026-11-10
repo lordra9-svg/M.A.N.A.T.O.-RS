@@ -2172,6 +2172,10 @@ fn assert_special_flags_cover_supported_names() {
         ("globalnoshadow", manato_sim::fighter::ASSERT_GLOBALNOSHADOW),
         ("nobardisplay", manato_sim::fighter::ASSERT_NOBARDISPLAY),
         ("roundnotover", manato_sim::fighter::ASSERT_ROUNDNOTOVER),
+        (
+            "nohardcodedkeys",
+            manato_sim::fighter::ASSERT_NOHARDCODEDKEYS,
+        ),
     ];
     for (name, flag) in cases {
         sim.fighters[0].assert_flags = 0;
@@ -10451,4 +10455,53 @@ fn superpause_movetime_lets_only_the_pauser_act() {
     let start = sim.fighters[0].pos.x;
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters[0].pos.x, start);
+}
+
+#[test]
+fn nohardcodedkeys_disables_builtin_movement() {
+    // Control: holding forward enters the walk state.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].enter_state(0, &sim.assets.clone().characters[0], false);
+    let start = sim.fighters[0].pos.x;
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_RIGHT, 0),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(sim.fighters[0].state_no, 20, "hardcoded walk state");
+    assert!(sim.fighters[0].pos.x != start);
+
+    // With NoHardcodedKeys asserted every tick, no automatic walk occurs.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[0]
+            .states
+            .get_mut(&-1)
+            .expect("statedef -1");
+        state.controllers.push(manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![
+                ("type".into(), "AssertSpecial".into()),
+                ("nohardcodedkeys".into(), "1".into()),
+            ],
+            line: 0,
+        });
+    }
+    let assets = sim.assets.clone();
+    sim.fighters[0].enter_state(0, &assets.characters[0], false);
+    let start = sim.fighters[0].pos.x;
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_RIGHT, 0),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(sim.fighters[0].state_no, 0, "no built-in walk transition");
+    assert_eq!(sim.fighters[0].pos.x, start, "no built-in movement");
+    assert_ne!(
+        sim.fighters[0].assert_flags & manato_sim::fighter::ASSERT_NOHARDCODEDKEYS,
+        0
+    );
 }
