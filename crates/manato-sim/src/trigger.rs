@@ -460,12 +460,23 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                     .count() as i32,
             )
         }
-        "numhelper" => Value::Int(
-            sim.fighters
-                .iter()
-                .filter(|fighter| fighter.owner == Some(sim.root_of(who)))
-                .count() as i32,
-        ),
+        "numhelper" => {
+            let wanted = if args.is_empty() {
+                None
+            } else {
+                Some(arg_i32(sim, who, args, 0))
+            };
+            let root = sim.root_of(who);
+            Value::Int(
+                sim.fighters
+                    .iter()
+                    .filter(|fighter| {
+                        fighter.owner == Some(root)
+                            && wanted.is_none_or(|id| fighter.helper_id == id)
+                    })
+                    .count() as i32,
+            )
+        }
         "leftedge" => Value::Float(sim.camera.x - GAME_WIDTH * 0.5),
         "rightedge" => Value::Float(sim.camera.x + GAME_WIDTH * 0.5),
         "topedge" => Value::Float(sim.camera.y - sim.ground_screen_y()),
@@ -869,12 +880,15 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
                 })
                 .count() as i32,
         ),
-        "numhelper" => Value::Int(
-            sim.fighters
-                .iter()
-                .filter(|fighter| fighter.owner == Some(sim.root_of(who)))
-                .count() as i32,
-        ),
+        "numhelper" => {
+            let root = sim.root_of(who);
+            Value::Int(
+                sim.fighters
+                    .iter()
+                    .filter(|fighter| fighter.owner == Some(root))
+                    .count() as i32,
+            )
+        }
         "numpartner" => Value::Int(0),
         "numproj" => Value::Int(
             sim.projectiles

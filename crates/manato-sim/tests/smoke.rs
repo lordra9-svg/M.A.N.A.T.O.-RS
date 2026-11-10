@@ -7964,3 +7964,88 @@ fn afterimage_time_zero_disables_and_negative_is_infinite() {
     assert_eq!(state.time, -1);
     assert!(!sim.fighters[0].after_images.is_empty());
 }
+
+#[test]
+fn numhelper_filters_by_id() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params: vec![
+                ("stateno".into(), "0".into()),
+                ("id".into(), id.to_string()),
+                ("removetime".into(), "-1".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    spawn(&mut sim, 4);
+    spawn(&mut sim, 4);
+    spawn(&mut sim, 5);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumHelper"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumHelper(4)"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumHelper(5)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumHelper(9)"), 0);
+
+    // A helper sees the same sibling set through its root.
+    let helper = sim.fighters.len() - 1;
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "NumHelper"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "NumHelper(4)"), 2);
+
+    // The opponent has no helpers.
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "NumHelper"), 0);
+}
+
+#[test]
+fn hitby_not_hitby_wildcard_filters() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.attr.state_types = "S".into();
+    hit.attr.class = "NA".into();
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+
+    // Full wildcard blocks any attack.
+    sim.fighters[1].hit.not_hit_by = Some(("*, *".into(), 60));
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life);
+
+    // State wildcard with a specific class still blocks NA.
+    sim.fighters[1].hit.not_hit_by = Some(("SCA, *".into(), 60));
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life);
+
+    // Non-matching class with a wildcard state does not block.
+    sim.fighters[1].hit.not_hit_by = Some(("*, SA".into(), 60));
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - hit.damage);
+
+    // HitBy whitelist with a wildcard class allows the attack through a
+    // permissive NotHitBy.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let life = sim.fighters[1].life;
+    sim.fighters[1].hit.not_hit_by = Some(("*, *".into(), 60));
+    sim.fighters[1].hit.hit_by = Some(("SCA, *".into(), 60));
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - hit.damage);
+
+    // An empty filter never blocks.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let life = sim.fighters[1].life;
+    sim.fighters[1].hit.not_hit_by = Some(("   ".into(), 60));
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - hit.damage);
+}
