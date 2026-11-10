@@ -7480,3 +7480,55 @@ fn hitdef_parses_guard_velocity_hittime_and_airguard() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
     assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0, "-8/2 mirrored");
 }
+
+#[test]
+fn round_timer_clamps_at_zero_and_stays_frozen_after_over() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 1;
+    sim.fighters[0].life = 800;
+    sim.fighters[1].life = 300;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.timer, 0, "timer clamps at zero on time over");
+    assert!(sim.round.time_over);
+    assert_eq!(sim.round.winner, Some(0), "higher life wins the timeout");
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RoundTime"), 0);
+
+    // Stays at zero through the KO phase.
+    for _ in 0..100 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.timer, 0);
+
+    // Match end reaches Over without the timer going negative.
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Over {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert!(sim.finished);
+    let over_timer = sim.round.timer;
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.timer, over_timer, "Over never ticks the timer");
+    assert!(sim.round.timer >= 0);
+
+    // Rounding boundaries for the seconds display.
+    let mut round = sim.round.clone();
+    round.timer = 0;
+    assert_eq!(round.seconds(), 0);
+    round.timer = 1;
+    assert_eq!(round.seconds(), 1);
+    round.timer = 59;
+    assert_eq!(round.seconds(), 1);
+    round.timer = 60;
+    assert_eq!(round.seconds(), 1);
+    round.timer = 61;
+    assert_eq!(round.seconds(), 2);
+}
