@@ -80,7 +80,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Mirror/normalize/translate box test + KFM 200 hit flow |
-| K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flag matrix + unguardable + zero guard damage; KFM guard oracle |
+| K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flag matrix + F fall gate + unguardable/zero guard damage; KFM guard oracle |
 | K-03 | Hit pause/super pause | Required | Required | Partial | Freeze semantics + effect move-time + single-activation continuity; KFM 200 oracle |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle/trip/launch + fall set/vel/damage interaction and landing damage; O-20 negative |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw/bind/drop + Ordan slam end-to-end (190 damage, state 820) |

@@ -751,6 +751,61 @@ fn round_not_over_delays_the_next_phase() {
 }
 
 #[test]
+fn falling_hitflag_requires_f() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -1.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+
+    // Falling defender: the bundled fall action has no hurt boxes, so use the
+    // idle animation with the fall flag set.
+    let mark_falling = |sim: &mut SimState| {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].set_anim(0, &assets.characters[1], None);
+        sim.fighters[1].state_no = 5030;
+        sim.fighters[1].hit.vars.fall = true;
+    };
+
+    let mut hit = hitdef();
+    hit.hitflag = "MA".into();
+    hit.damage = 10;
+    hit.pausetime = (0, 0);
+    sim.fighters[0].hitdef = Some(hit.clone());
+    let life = sim.fighters[1].life;
+    mark_falling(&mut sim);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life, life,
+        "F is required to hit a falling opponent"
+    );
+
+    // With F the same attack connects.
+    hit.hitflag = "MAF".into();
+    sim.fighters[0].hitdef = Some(hit);
+    sim.fighters[0].hit.hit_counts.clear();
+    sim.fighters[0].hit.hit_targets.clear();
+    mark_falling(&mut sim);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 10);
+
+    // A grounded, non-falling opponent is not gated by F.
+    sim.fighters[0].hit.hit_counts.clear();
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.fighters[1].enter_state(0, &assets.characters[1], false);
+    sim.fighters[1].set_anim(0, &assets.characters[1], None);
+    sim.fighters[1].hit.vars.fall = false;
+    sim.fighters[1].state_no = 0;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 20);
+}
+
+#[test]
 fn numhits_limits_persistent_hitdef_in_resolve() {
     let Some(mut sim) = fight_phase() else {
         return;

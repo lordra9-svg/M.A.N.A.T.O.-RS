@@ -169,6 +169,12 @@ fn hit_allowed(hit: &crate::hitdef::HitState, defender: usize, hitdef: &HitDef) 
 
 fn hitflag_allows(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
     let f = &sim.fighters[defender];
+    // `F`: a falling opponent may only be hit when the flag is present
+    // (`src/char.go` HF_F check).
+    let falling = f.hit.vars.fall || matches!(f.state_no, 5030 | 5040 | 5050);
+    if falling && !hitdef.hitflag.contains('F') {
+        return false;
+    }
     let airborne = f.state_type == StateType::Air || f.pos.y < -1.0;
     if airborne {
         return hitdef.hitflag.contains('A');
