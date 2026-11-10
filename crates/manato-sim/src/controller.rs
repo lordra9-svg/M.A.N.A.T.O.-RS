@@ -979,6 +979,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         _ => owner,
     };
     let pos = Vec2::new(base.x + px * facing as f32, base.y + py);
+    // `removetime = 0` expires before the projectile can move or hit.
+    if remove_time == 0 {
+        return;
+    }
     sim.projectiles.push(crate::projectile::Projectile {
         owner: who,
         id,

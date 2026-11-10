@@ -64,7 +64,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power clamps + Vel/Pos edges + EnvColor time/under |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + ChangeAnim2 anim bank + auto-turn + presentation |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + prio/numhits/hitonce + p2stateno/reversal/sounds/sparks/shake |
-| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + unique activation ids + timer timing + ModifyProjectile |
+| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + removetime 0/countdown + activation ids + ModifyProjectile |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/mul + round reset + Trans alpha; RemapPal deferred |

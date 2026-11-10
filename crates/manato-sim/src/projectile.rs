@@ -14,7 +14,8 @@ pub struct Projectile {
     pub accel: Vec2,
     pub facing: i32,
     pub time: i32,
-    /// Remove after this many ticks; negative means no time limit.
+    /// Remaining lifetime in ticks; `0` is expired, `-1`/`-2` have no
+    /// timeout (Ikemen treats `-2` as animation-loop expiry).
     pub remove_time: i32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
@@ -23,7 +24,7 @@ pub struct Projectile {
 
 impl Projectile {
     pub fn is_expired(&self) -> bool {
-        self.hits <= 0 || (self.remove_time >= 0 && self.time > self.remove_time)
+        self.hits <= 0 || self.remove_time == 0
     }
 
     pub fn advance(&mut self) {
@@ -32,5 +33,9 @@ impl Projectile {
         self.pos.y += self.vel.y;
         self.vel.x += self.accel.x;
         self.vel.y += self.accel.y;
+        // Ikemen decrements the countdown after the frame's contact checks.
+        if self.remove_time > 0 {
+            self.remove_time -= 1;
+        }
     }
 }

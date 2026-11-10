@@ -10930,3 +10930,46 @@ fn get_hitvar_velocities_and_hitover_threshold() {
         );
     }
 }
+
+#[test]
+fn projectile_removetime_zero_and_countdown() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let spawn = |sim: &mut SimState, remove_time: i32, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "1500".into()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), remove_time.to_string()),
+                ("id".into(), id.to_string()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // removetime = 0 never spawns.
+    spawn(&mut sim, 0, 1);
+    assert!(sim.projectiles.is_empty());
+
+    // removetime = 2 lives for two ticks, decrementing each frame.
+    spawn(&mut sim, 2, 2);
+    assert_eq!(sim.projectiles[0].remove_time, 2);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles.len(), 1);
+    assert_eq!(sim.projectiles[0].remove_time, 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "countdown reaches zero");
+
+    // Negative values never time out.
+    spawn(&mut sim, -1, 3);
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.projectiles.len(), 1);
+    assert_eq!(sim.projectiles[0].remove_time, -1);
+}
