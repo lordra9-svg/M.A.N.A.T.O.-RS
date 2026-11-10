@@ -86,7 +86,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-05 | Throws/target bind | Required | Required | Partial | Throw/bind/drop + Ordan slam end-to-end (190 damage, state 820) |
 | K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28; state 3000 upper blast needs a 1px head-box margin (integer boxes miss) |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
-| K-08 | Corner push/pushboxes | Required | Required | Partial | Corner-push + PlayerPush tests |
+| K-08 | Corner push/pushboxes | Required | Required | Partial | World-space corner-push velocity + PlayerPush separation tests |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
 
 ## 6. Rounds and game flow

@@ -14,22 +14,35 @@ fn mugen_root() -> PathBuf {
 
 fn load(p1: &str, p2: &str) -> Option<SimState> {
     let root = mugen_root();
-    let config = MatchConfig {
-        mugen_root: root.clone(),
-        p1: PathBuf::from(p1),
-        p2: PathBuf::from(p2),
-        stage: PathBuf::from("content/stages/training/stage1.def"),
-        screenpack: None,
-        rounds_to_win: 2,
-        round_time: 99,
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    // Bundled fixtures live in the repository. Always prefer them so a stock
+    // `MANATO_MUGEN_ROOT` neither skips these tests nor runs them against a
+    // stale copy of the bundled content under the stock root.
+    let locate = |path: &str| {
+        let bundled = project.join(path);
+        if bundled.exists() {
+            bundled
+        } else {
+            root.join(path)
+        }
     };
-    let p1_path = root.join(p1);
-    let p2_path = root.join(p2);
-    let stage_path = root.join("content/stages/training/stage1.def");
+    let p1_path = locate(p1);
+    let p2_path = locate(p2);
+    let stage_path = locate("content/stages/training/stage1.def");
     if !p1_path.exists() || !p2_path.exists() || !stage_path.exists() {
         eprintln!("skipping: content not present at {}", root.display());
         return None;
     }
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: p1_path,
+        p2: p2_path,
+        stage: stage_path,
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
     let mut options = MatchOptions::default();
     options.ai_level = 0;
     Some(SimState::new(
@@ -573,10 +586,13 @@ fn corner_push_adds_velocity_near_the_stage_edge() {
     let right = sim.assets.stage.right_bound;
     sim.fighters[1].pos.x = right;
     let mut push = hitdef();
+    // Standard content uses a negative ground velocity, which pushes the
+    // defender away from a right-facing attacker (screen +X).
+    push.ground_velocity = manato_core::Vec2::new(-4.0, 0.0);
     push.ground_cornerpush = -8.0;
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &push, false, origin, 1, true);
-    // Base velocity 4 plus the -8 corner push.
+    // Corner push is world-space, so it cancels the +4 pushback.
     assert_eq!(sim.fighters[1].hit.vars.x_vel, -4.0);
 
     // Away from the corner the push does not apply.
@@ -872,6 +888,9 @@ fn explod_parses_transparency_binding_and_projection() {
         return;
     };
     let assets = sim.assets.clone();
+    // Clear the round-start state-change marker so `removeonchangestate`
+    // does not remove the explod on its first tick.
+    sim.tick([PlayerInput::default(); 2]);
     let explod = manato_formats::Controller {
         kind: "explod".into(),
         params: vec![

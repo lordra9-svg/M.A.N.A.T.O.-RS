@@ -397,7 +397,7 @@ pub fn apply_hit_at(
         * sim.fighters[defender].defence_mul
         / sim.fighters[defender].fall_defence_mul.max(0.01)) as i32;
 
-    let mut velocity_tuple = if guarding {
+    let velocity_tuple = if guarding {
         let mut v = if defender_airborne {
             hitdef.airguard_velocity
         } else {
@@ -418,21 +418,20 @@ pub fn apply_hit_at(
             hitdef.ground_slidetime,
         )
     };
-    {
+    let corner_push = {
         let stage = &sim.assets.stage;
         let f = &sim.fighters[defender];
         let near_corner = f.pos.x <= stage.left_bound + 24.0 || f.pos.x >= stage.right_bound - 24.0;
         if near_corner {
-            let push = if defender_airborne {
+            if defender_airborne {
                 hitdef.air_cornerpush
             } else {
                 hitdef.ground_cornerpush
-            };
-            if push != 0.0 {
-                velocity_tuple.0.x += push * attacker_facing as f32;
             }
+        } else {
+            0.0
         }
-    }
+    };
     let (velocity, hittime, slidetime) = velocity_tuple;
 
     {
@@ -440,7 +439,9 @@ pub fn apply_hit_at(
         f.hit.vars.anim_type = hitdef.anim_type.code();
         f.hit.vars.ground_type = hitdef.ground_type.code();
         f.hit.vars.air_type = hitdef.air_type.code();
-        f.hit.vars.x_vel = velocity.x * -(attacker_facing as f32);
+        // Corner push is a world-space position offset in Ikemen, so it is
+        // applied to the stored (screen-space) velocity directly.
+        f.hit.vars.x_vel = velocity.x * -(attacker_facing as f32) + corner_push;
         f.hit.vars.y_vel = velocity.y;
         f.hit.vars.y_accel = 0.0;
         f.hit.vars.hittime = hittime;
