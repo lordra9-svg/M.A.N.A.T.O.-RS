@@ -2648,6 +2648,15 @@ fn modify_and_remove_explod_target_the_newest_matching_id() {
             ("accel".into(), "0.5, 0.25".into()),
             ("trans".into(), "addalpha".into()),
             ("alpha".into(), "128, 64".into()),
+            ("angle".into(), "15".into()),
+            ("xangle".into(), "5".into()),
+            ("yangle".into(), "6".into()),
+            ("xshear".into(), "0.125".into()),
+            ("projection".into(), "perspective".into()),
+            ("focallength".into(), "512".into()),
+            ("removetime".into(), "9".into()),
+            ("sprpriority".into(), "7".into()),
+            ("ontop".into(), "0".into()),
         ],
         line: 0,
     };
@@ -2664,6 +2673,16 @@ fn modify_and_remove_explod_target_the_newest_matching_id() {
     assert_eq!(effect.blend, manato_sim::EffectBlend::Add);
     assert!(effect.transparent);
     assert!((effect.alpha - 0.25).abs() < 0.001, "alpha[1]/256");
+    assert_eq!(effect.angle, 15.0);
+    assert_eq!(effect.x_angle, 5.0);
+    assert_eq!(effect.y_angle, 6.0);
+    assert_eq!(effect.x_shear, 0.125);
+    assert_eq!(effect.projection, manato_sim::ProjectionMode::Perspective);
+    assert_eq!(effect.focal_length, 512.0);
+    assert_eq!(effect.duration, 9);
+    assert!(!effect.remove_on_anim_end);
+    assert_eq!(effect.sprite_priority, 7);
+    assert!(effect.behind, "ontop = 0 renders behind");
 
     // A different id leaves the effect alone.
     let unrelated = manato_formats::Controller {
