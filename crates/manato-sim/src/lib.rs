@@ -1047,8 +1047,11 @@ impl SimState {
     fn update_after_image(&mut self, who: usize) {
         let fighter = &mut self.fighters[who];
         if let Some(state) = fighter.after_image.as_mut() {
-            if state.time > 0 {
-                state.time -= 1;
+            // Negative timers run forever; zero disables the emitter.
+            if state.time != 0 {
+                if state.time > 0 {
+                    state.time -= 1;
+                }
                 state.tick += 1;
                 if state.tick >= state.interval {
                     state.tick = 0;
@@ -1062,9 +1065,9 @@ impl SimState {
                         add: state.add,
                     });
                 }
-            } else {
-                fighter.after_image = None;
             }
+            // A zero timer keeps the (inactive) state so a later
+            // AfterImageTime can revive it.
         }
         for frame in &mut fighter.after_images {
             frame.life -= 1;

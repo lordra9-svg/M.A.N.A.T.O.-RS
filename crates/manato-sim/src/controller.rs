@@ -164,8 +164,17 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "afterimage" => after_image(sim, who, control),
         "afterimagetime" => {
             let time = int_param(sim, who, control, "time");
-            if let (Some(state), Some(time)) = (sim.fighters[who].after_image.as_mut(), time) {
-                state.time = time;
+            if let Some(time) = time {
+                // Ikemen maps `time = 1` to 0, and a zero timer disables the
+                // emitter. Negative values keep it running forever.
+                let time = if time == 1 { 0 } else { time };
+                if let Some(state) = sim.fighters[who].after_image.as_mut() {
+                    // Zero disables emission but keeps the state so a later
+                    // AfterImageTime can revive it, like Ikemen's persistent
+                    // `aimg` object.
+                    state.time = time;
+                    state.tick = 0;
+                }
             }
         }
         "palfx" => pal_fx(sim, who, control),

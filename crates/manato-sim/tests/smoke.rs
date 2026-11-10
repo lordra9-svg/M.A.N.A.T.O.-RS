@@ -3203,17 +3203,23 @@ fn after_image_time_and_pal_fx_and_trans_controllers() {
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 0, &shorten, &assets);
+    // `time = 1` normalizes to 0, which disables emission but keeps the
+    // state object so it can be revived.
     assert_eq!(
         sim.fighters[0]
             .after_image
             .as_ref()
-            .expect("still active")
+            .expect("still present")
             .time,
-        1
+        0
     );
+    let ghosts = sim.fighters[0].after_images.len();
     sim.tick([PlayerInput::default(); 2]);
     sim.tick([PlayerInput::default(); 2]);
-    assert!(sim.fighters[0].after_image.is_none());
+    assert!(
+        sim.fighters[0].after_images.len() <= ghosts,
+        "disabled emitter adds no ghosts"
+    );
 
     // Ghost frames decay independently of the emitter.
     for _ in 0..4 {
@@ -4337,7 +4343,9 @@ fn afterimage_frames_sample_and_decay() {
     for _ in 0..40 {
         sim.tick([PlayerInput::default(); 2]);
     }
-    assert!(sim.fighters[0].after_image.is_none());
+    // The emitter stops (timer 0) but the state object persists, matching
+    // Ikemen's reusable `aimg`.
+    assert_eq!(sim.fighters[0].after_image.as_ref().expect("state").time, 0);
     assert!(sim.fighters[0].after_images.is_empty());
 }
 
@@ -7886,4 +7894,73 @@ fn trans_variants_only_use_alpha_for_alpha_blends() {
     assert!((apply(&mut sim, "addalpha", Some("64")) - 64.0 / 255.0).abs() < 0.001);
     assert!((apply(&mut sim, "alpha", Some("128")) - 128.0 / 255.0).abs() < 0.001);
     assert_eq!(apply(&mut sim, "addalpha", None), 1.0, "no alpha = opaque");
+}
+
+#[test]
+fn afterimage_time_zero_disables_and_negative_is_infinite() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let after = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![
+            ("time".into(), "10".into()),
+            ("timegap".into(), "2".into()),
+            ("length".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+
+    // AfterImageTime 1 is normalized to 0 and disables the emitter.
+    let stop = manato_formats::Controller {
+        kind: "afterimagetime".into(),
+        params: vec![("time".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &stop, &assets);
+    assert_eq!(sim.fighters[0].after_image.as_ref().expect("state").time, 0);
+
+    // Re-enable, then time = 0 also disables emission.
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+    let zero = manato_formats::Controller {
+        kind: "afterimagetime".into(),
+        params: vec![("time".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &zero, &assets);
+    assert_eq!(sim.fighters[0].after_image.as_ref().expect("state").time, 0);
+
+    // A longer timer resets the sampling counter.
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].after_images.len(), 1);
+    let extend = manato_formats::Controller {
+        kind: "afterimagetime".into(),
+        params: vec![("time".into(), "10".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &extend, &assets);
+    let state = sim.fighters[0].after_image.as_ref().expect("active");
+    assert_eq!(state.time, 10);
+    assert_eq!(state.tick, 0, "counter resets");
+
+    // Negative time keeps emitting without expiring.
+    let infinite = manato_formats::Controller {
+        kind: "afterimagetime".into(),
+        params: vec![("time".into(), "-1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &infinite, &assets);
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let state = sim.fighters[0]
+        .after_image
+        .as_ref()
+        .expect("still emitting");
+    assert_eq!(state.time, -1);
+    assert!(!sim.fighters[0].after_images.is_empty());
 }
