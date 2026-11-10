@@ -8679,3 +8679,98 @@ fn nojugglecheck_skips_melee_juggle_consumption() {
     assert_eq!(sim.fighters[1].life, life - 20, "NoJuggleCheck lets it hit");
     assert_eq!(sim.fighters[1].juggle_points, 0, "and skips consumption");
 }
+
+#[test]
+fn envcolor_zero_and_negative_time_edges() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let apply = |sim: &mut SimState, time: &str| {
+        let control = manato_formats::Controller {
+            kind: "envcolor".into(),
+            params: vec![
+                ("value".into(), "255, 128, 0".into()),
+                ("time".into(), time.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // time = 0 disables the tint entirely.
+    apply(&mut sim, "0");
+    assert!(sim.env_color.is_none());
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.env_color.is_none());
+
+    // Negative time persists until replaced.
+    apply(&mut sim, "-1");
+    let color = sim.env_color.expect("permanent tint");
+    assert_eq!(color.time, -1);
+    assert_eq!(color.color[0], 1.0);
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.env_color.expect("still active").time, -1);
+
+    // Replacing with a positive time expires normally.
+    apply(&mut sim, "2");
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.env_color.is_none());
+}
+
+#[test]
+fn explod_and_gamemakeanim_p2_anchor_and_binding() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(60.0, -10.0);
+    sim.fighters[1].facing = -1;
+    let spawn = |sim: &mut SimState, kind: &str, bindtime: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), "41".into()),
+                ("pos".into(), "5, -3".into()),
+                ("postype".into(), "p2".into()),
+                ("bindtime".into(), bindtime.into()),
+                ("removeonchangestate".into(), "0".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.effects.last().expect("effect").clone()
+    };
+
+    // Unbound p2 explod lands at the opponent plus the offset.
+    let free = spawn(&mut sim, "explod", "0");
+    assert_eq!(free.pos, manato_core::Vec2::new(65.0, -13.0));
+    assert!(!free.bound);
+
+    // bindtime > 0 follows the opponent.
+    let bound = spawn(&mut sim, "explod", "3");
+    assert!(bound.bound);
+    assert_eq!(bound.bind_target, Some(1));
+    assert_eq!(bound.pos, manato_core::Vec2::new(65.0, -13.0));
+    sim.fighters[1].pos.x = 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    let effect = sim
+        .effects
+        .iter()
+        .find(|effect| effect.id == 41 && effect.bound)
+        .expect("bound p2 explod");
+    assert_eq!(effect.pos.x, 105.0);
+
+    // GameMakeAnim honors the same p2 anchor without binding.
+    let anim = spawn(&mut sim, "gamemakeanim", "0");
+    assert_eq!(anim.pos, manato_core::Vec2::new(105.0, -13.0));
+    assert!(!anim.bound);
+}

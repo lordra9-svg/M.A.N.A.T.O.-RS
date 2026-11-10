@@ -133,10 +133,15 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 .and_then(|value| trigger::num(sim, who, value).into())
                 .unwrap_or(0.0);
             let time = int_param(sim, who, control, "time").unwrap_or(1);
-            sim.env_color = Some(crate::EnvColor {
-                color: [r / 255.0, g / 255.0, b / 255.0, 1.0],
-                time,
-            });
+            // `time = 0` leaves no tint; a negative time stays until replaced.
+            sim.env_color = if time == 0 {
+                None
+            } else {
+                Some(crate::EnvColor {
+                    color: [r / 255.0, g / 255.0, b / 255.0, 1.0],
+                    time,
+                })
+            };
         }
         "fallenvshake" => env_shake(sim, who, control),
         "envshake" => env_shake(sim, who, control),
