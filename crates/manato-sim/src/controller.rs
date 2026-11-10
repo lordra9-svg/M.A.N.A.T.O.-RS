@@ -188,7 +188,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "trans" => trans(sim, who, control),
         "remappal" | "forcefeedback" => {}
         "projectile" => projectile(sim, who, control, assets),
-        "modifyprojectile" => modify_projectile(sim, who, control),
+        "modifyprojectile" => modify_projectile(sim, who, control, assets),
         "playerpush" => {
             let value = int_param(sim, who, control, "value").unwrap_or(1) != 0;
             sim.fighters[who].player_push = value;
@@ -983,6 +983,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     if remove_time == 0 {
         return;
     }
+    let anim_loop_time = char.animation(anim).map(|a| a.total_time()).unwrap_or(0);
     sim.projectiles.push(crate::projectile::Projectile {
         owner: who,
         id,
@@ -993,6 +994,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         facing,
         time: 0,
         remove_time,
+        anim_loop_time,
         hits,
         hitdef,
     });
@@ -1026,7 +1028,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
 ///
 /// With an explicit `id`, every matching projectile is updated; otherwise the
 /// most recently spawned projectile is. Only supplied parameters change.
-fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller) {
+fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
+    let character = char_of(assets, sim, who);
     let explicit_id = int_param(sim, who, control, "id");
     let last = sim
         .projectiles
@@ -1063,6 +1066,10 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller) {
         let projectile = &mut sim.projectiles[index];
         if let Some(anim) = anim {
             projectile.anim = anim;
+            projectile.anim_loop_time = character
+                .animation(anim)
+                .map(|animation| animation.total_time())
+                .unwrap_or(0);
         }
         if let Some((x, y)) = velocity {
             projectile.vel = Vec2::new(x * facing as f32, y);

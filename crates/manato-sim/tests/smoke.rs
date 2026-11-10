@@ -2353,6 +2353,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         facing: 1,
         time: 0,
         remove_time: 5,
+        anim_loop_time: 4,
         hits: 2,
         hitdef,
     });
@@ -10972,4 +10973,65 @@ fn projectile_removetime_zero_and_countdown() {
     }
     assert_eq!(sim.projectiles.len(), 1);
     assert_eq!(sim.projectiles[0].remove_time, -1);
+}
+
+#[test]
+fn projectile_removetime_minus_two_expires_at_animation_loop_end() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, anim: i32, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), anim.to_string()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), "-2".into()),
+                ("id".into(), id.to_string()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Animation 1500 is a single 4-tick frame.
+    spawn(&mut sim, 1500, 1);
+    assert_eq!(sim.projectiles[0].anim_loop_time, 4);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.projectiles.len(), 1, "alive within the first loop");
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "expires at loop end");
+
+    // A 34-tick animation survives much longer.
+    spawn(&mut sim, 3000, 2);
+    assert_eq!(sim.projectiles[0].anim_loop_time, 34);
+    for _ in 0..33 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.projectiles.len(), 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty());
+
+    // Other negative values still never expire.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    spawn(&mut sim, 1500, 3);
+    let assets = sim.assets.clone();
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("id".into(), "3".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.projectiles.len(), 1);
 }
