@@ -751,6 +751,68 @@ fn round_not_over_delays_the_next_phase() {
 }
 
 #[test]
+fn stage_autoturn_faces_opponent_when_idle() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // Cross the fighters so each faces away from the other.
+    sim.fighters[0].pos.x = 30.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = -30.0;
+    sim.fighters[1].facing = -1;
+    for fighter in &mut sim.fighters {
+        fighter.ctrl = true;
+        fighter.move_type = manato_sim::fighter::MoveType::Idle;
+        fighter.state_type = manato_sim::fighter::StateType::Stand;
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].facing, -1, "P1 turns toward P2");
+    assert_eq!(sim.fighters[1].facing, 1, "P2 turns toward P1");
+
+    // An attacking fighter does not auto-turn.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos.x = 30.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = -30.0;
+    sim.fighters[0].ctrl = false;
+    sim.fighters[0].move_type = manato_sim::fighter::MoveType::Attack;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].facing, 1, "attacking fighters keep facing");
+
+    // AssertSpecial(noautoturn) suppresses the turn.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let state = assets.characters[0]
+            .states
+            .get_mut(&-1)
+            .expect("statedef -1");
+        state.controllers.push(manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![
+                ("type".into(), "AssertSpecial".into()),
+                ("noautoturn".into(), "1".into()),
+            ],
+            line: 0,
+        });
+    }
+    sim.fighters[0].pos.x = 30.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = -30.0;
+    sim.fighters[0].ctrl = true;
+    sim.fighters[0].move_type = manato_sim::fighter::MoveType::Idle;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[0].facing, 1,
+        "noautoturn keeps the original facing"
+    );
+}
+
+#[test]
 fn noko_flag_prevents_ko_classification() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -2245,7 +2307,9 @@ fn target_bind_expires_and_can_be_rebound() {
         "expired binding must not follow the attacker"
     );
 
-    // Re-binding restarts the duration.
+    // Re-binding restarts the duration. Face the target again because stage
+    // autoturn flipped the idle attacker while unbound.
+    sim.fighters[0].facing = 1;
     manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
     assert!(sim.fighters[0].target_bind.is_some());
     sim.fighters[0].pos.x = 120.0;
@@ -4070,6 +4134,9 @@ fn afterimage_frames_sample_and_decay() {
     };
     manato_sim::controller::execute(&mut sim, 0, &after, &assets);
     sim.fighters[0].pos = manato_core::Vec2::new(-30.0, 0.0);
+    // Keep the opponent on the side the fighter faces so stage autoturn does
+    // not override the synthetic facing used here.
+    sim.fighters[1].pos = manato_core::Vec2::new(-140.0, 0.0);
     sim.fighters[0].anim_no = 20;
     sim.fighters[0].anim_frame = 1;
     sim.fighters[0].facing = -1;

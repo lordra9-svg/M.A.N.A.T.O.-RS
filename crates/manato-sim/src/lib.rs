@@ -1008,6 +1008,7 @@ impl SimState {
             self.fighters[who].facing = facing;
             self.fighters[who].face_p2_pending = false;
         }
+        self.auto_turn(who);
         self.fighters[who].state_changed = false;
 
         // Advance animation last so triggers observe this tick's frame.
@@ -1017,6 +1018,30 @@ impl SimState {
         self.fighters[who].refresh_widths(char);
         self.update_after_image(who);
         self.update_pal_fx(who);
+    }
+
+    /// Stage `autoturn`: idle fighters face each other unless
+    /// `AssertSpecial(noautoturn)` is active (`docs/spec/stage.md` §6).
+    fn auto_turn(&mut self, who: usize) {
+        if !self.assets.stage.autoturn {
+            return;
+        }
+        let fighter = &self.fighters[who];
+        if !fighter.ctrl
+            || fighter.move_type != fighter::MoveType::Idle
+            || fighter.state_type == fighter::StateType::Air
+            || fighter.target_bind.is_some()
+            || fighter.assert_flags & fighter::ASSERT_NOAUTOTURN != 0
+        {
+            return;
+        }
+        let other = self.other(who);
+        let dx = self.fighters[other].pos.x - fighter.pos.x;
+        if dx.abs() < 0.001 {
+            return;
+        }
+        let facing = if dx > 0.0 { 1 } else { -1 };
+        self.fighters[who].facing = facing;
     }
 
     fn update_after_image(&mut self, who: usize) {
