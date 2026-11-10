@@ -7739,3 +7739,52 @@ fn gamemakeanim_left_right_follow_camera_edges() {
     assert_eq!(spawn(&mut sim, "left", "10, 0").x, -120.0);
     assert_eq!(spawn(&mut sim, "right", "10, 0").x, 200.0);
 }
+
+#[test]
+fn projectile_hits_limit_removes_after_final_contact() {
+    let setup = |hits: i32| -> Option<SimState> {
+        let mut sim = fight_phase()?;
+        let assets = sim.assets.clone();
+        sim.fighters[0].pos.x = -5.0;
+        sim.fighters[0].facing = 1;
+        sim.fighters[1].pos.x = 5.0;
+        sim.fighters[1].facing = -1;
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "1500".into()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), "-1".into()),
+                ("damage".into(), "10".into()),
+                ("hits".into(), hits.to_string()),
+                ("postype".into(), "p1".into()),
+                ("pos".into(), "0, 0".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+        assert_eq!(sim.projectiles.len(), 1);
+        Some(sim)
+    };
+
+    let mut sim = setup(1).expect("content");
+    let life = sim.fighters[1].life;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, life - 10, "projectile hits once");
+    assert!(
+        sim.projectiles.is_empty(),
+        "projectile is removed after its last hit"
+    );
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].life, life - 10, "no repeat damage");
+
+    // hits = 2 survives the first contact with one hit remaining.
+    let mut sim = setup(2).expect("content");
+    let life = sim.fighters[1].life;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, life - 10);
+    assert_eq!(sim.projectiles.len(), 1);
+    assert_eq!(sim.projectiles[0].hits, 1, "one hit left");
+}

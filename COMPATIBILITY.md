@@ -64,7 +64,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power/VarRange/RootVar + Pos/Vel edges + multipliers |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + auto-turn (stage autoturn/noautoturn) + presentation tests |
 | C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + numhits activation limit + p2stateno/reversal/sounds/shake |
-| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime + edge-based postype + dual spawn + ModifyProjectile id targeting |
+| C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits removal + edge postype + ModifyProjectile id targeting |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | Bindtime release + unbound edge postype + projection/lifetime + Modify/Remove id |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/AfterImageTime/PalFX/Trans tests; RemapPal deferred by the SFF spec |
@@ -84,7 +84,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-03 | Hit pause/super pause | Required | Required | Partial | Freeze semantics + effect move-time + single-activation continuity; KFM 200 oracle |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | Juggle/trip/launch + 5030/5040/5050 landing and one-shot fall damage; O-20 negative |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw/bind/drop + Ordan slam end-to-end (190 damage, state 820) |
-| K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28; state 3000 upper blast needs a 1px head-box margin (integer boxes miss) |
+| K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28 + hits-limit removal; state 3000 upper blast 1px box margin |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Ground/air corner-push offsets, threshold, guard + PlayerPush separation |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Missing | TBD |
