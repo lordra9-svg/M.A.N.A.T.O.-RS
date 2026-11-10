@@ -1609,8 +1609,9 @@ fn super_pause(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
     let movetime = int_param(sim, who, control, "movetime").unwrap_or(0);
     sim.super_pause = time;
     sim.super_pause_move_time = movetime;
-    sim.pause_mover = None;
-    sim.pause_movetime = 0;
+    // Like `Pause`, the superpausing fighter may act for `movetime` ticks.
+    sim.pause_mover = Some(who);
+    sim.pause_movetime = if movetime > time { 0 } else { movetime.max(0) };
     if let Some(raw) = param(control, "sound") {
         let mut parts = raw.split(',');
         let group = parts

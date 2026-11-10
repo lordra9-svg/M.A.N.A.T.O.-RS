@@ -68,7 +68,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |
 | C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time edges + sinadd + Trans alpha; RemapPal deferred |
-| C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause movetime + SuperPause/EnvShake lifecycle + Nival pause oracle |
+| C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause movetime exemptions + env shake + Nival pause oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width value/player/edge forms, ScreenBound axes, PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full flag mapping + per-tick NoBG/NoFG/NoBarDisplay/invisible/intro test |
