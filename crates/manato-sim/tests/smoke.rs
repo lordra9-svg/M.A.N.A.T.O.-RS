@@ -9760,3 +9760,91 @@ fn stateno_prevstateno_and_time_triggers_after_transition() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Time"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "StateTime"), 1);
 }
+
+#[test]
+fn width_accepts_value_player_and_edge_forms() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let apply = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "width".into(),
+            params: params
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].width_override
+    };
+
+    assert_eq!(
+        apply(&mut sim, vec![("value", "-20, 30")]),
+        Some((-20.0, 30.0))
+    );
+    assert_eq!(
+        apply(&mut sim, vec![("player", "-5, 8")]),
+        Some((-5.0, 8.0))
+    );
+    assert_eq!(
+        apply(
+            &mut sim,
+            vec![("edge", "1, 2"), ("player", "3, 4"), ("value", "5, 6")]
+        ),
+        Some((1.0, 2.0)),
+        "edge takes precedence"
+    );
+    // No width parameter leaves the previous override untouched.
+    assert_eq!(apply(&mut sim, vec![]), Some((1.0, 2.0)));
+}
+
+#[test]
+fn changestate_ctrl_and_anim_overrides() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let switch = |sim: &mut SimState, value: i32, extra: Vec<(&str, &str)>| {
+        let mut params = vec![("value".to_string(), value.to_string())];
+        params.extend(
+            extra
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
+        let control = manato_formats::Controller {
+            kind: "changestate".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // State 200 declares ctrl = 0 and anim 200.
+    switch(&mut sim, 200, vec![]);
+    assert_eq!(sim.fighters[0].state_no, 200);
+    assert!(!sim.fighters[0].ctrl);
+    assert_eq!(sim.fighters[0].anim_no, 200);
+
+    // Explicit ctrl/anim parameters override the statedef.
+    switch(&mut sim, 200, vec![("ctrl", "1"), ("anim", "210")]);
+    assert_eq!(sim.fighters[0].state_no, 200);
+    assert!(sim.fighters[0].ctrl);
+    assert_eq!(sim.fighters[0].anim_no, 210);
+
+    // SelfState honors the same overrides.
+    let self_state = manato_formats::Controller {
+        kind: "selfstate".into(),
+        params: vec![
+            ("value".into(), "210".into()),
+            ("ctrl".into(), "0".into()),
+            ("anim".into(), "220".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &self_state, &assets);
+    assert_eq!(sim.fighters[0].state_no, 210);
+    assert!(!sim.fighters[0].ctrl);
+    assert_eq!(sim.fighters[0].anim_no, 220);
+}

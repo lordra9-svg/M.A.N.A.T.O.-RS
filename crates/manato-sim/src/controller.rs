@@ -1224,7 +1224,12 @@ fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
 }
 
 fn width(sim: &mut SimState, who: usize, control: &Controller) {
-    let Some((back, front)) = control.get_pair("edge") else {
+    // `edge` wins, then `player`, then the older single `value` form.
+    let Some((back, front)) = control
+        .get_pair("edge")
+        .or_else(|| control.get_pair("player"))
+        .or_else(|| control.get_pair("value"))
+    else {
         return;
     };
     sim.fighters[who].width_override = Some((back, front));
