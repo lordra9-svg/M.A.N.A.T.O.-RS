@@ -365,8 +365,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         }
         "animelemtime" => {
             let elem = arg_i32(sim, who, args, 0);
-            let char = sim.character(who);
-            Value::Int(sim.fighters[who].anim_elem_time(char, elem))
+            Value::Int(sim.fighters[who].anim_elem_time(sim.anim_character(who), elem))
         }
         "animexist" | "selfanimexist" => {
             let n = arg_i32(sim, who, args, 0);
@@ -847,10 +846,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "power" => Value::Float(f.power),
         "anim" => Value::Int(f.anim_no),
         "animelem" => Value::Int(f.anim_elem()),
-        "animtime" => {
-            let char = sim.character(who);
-            Value::Int(f.anim_time_remaining(char))
-        }
+        "animtime" => Value::Int(f.anim_time_remaining(sim.anim_character(who))),
         "facing" => Value::Int(f.facing),
         "pos" => Value::Float(f.pos.x),
         "vel" => Value::Float(f.vel.x),

@@ -347,16 +347,17 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
         return;
     }
     let alpha = (reflection.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.45;
-    for fighter in sim
+    for (who, fighter) in sim
         .fighters
         .iter()
-        .filter(|fighter| fighter.owner.is_none())
+        .enumerate()
+        .filter(|(_, fighter)| fighter.owner.is_none())
     {
         if !fighter.active {
             continue;
         }
         let character = &sim.assets.characters[fighter.char_id];
-        let Some(frame) = fighter.current_frame(character) else {
+        let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
             continue;
         };
         let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
@@ -527,7 +528,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         return;
     }
     let character: &Character = &sim.assets.characters[fighter.char_id];
-    let Some(frame) = fighter.current_frame(character) else {
+    let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
         return;
     };
     let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
@@ -547,8 +548,9 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         base_scale.y * pose.scale.y * zoom,
     );
 
+    let anim_character = sim.anim_character(who);
     for ghost in &fighter.after_images {
-        let Some(anim) = character.animation(ghost.anim_no) else {
+        let Some(anim) = anim_character.animation(ghost.anim_no) else {
             continue;
         };
         let Some(frame) = anim

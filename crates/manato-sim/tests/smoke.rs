@@ -8098,3 +8098,52 @@ fn root_parent_self_redirects_from_helper() {
     assert_eq!(manato_sim::trigger::int(&sim, index, "Root, PlayerID"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, index, "P2, PlayerID"), 1);
 }
+
+#[test]
+fn changeanim2_reads_another_players_animation_bank() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let p2_name = assets.characters[1].name().to_string();
+    let change = |sim: &mut SimState, kind: &str, read: Option<&str>| {
+        let mut params = vec![("value".to_string(), "0".to_string())];
+        if let Some(read) = read {
+            params.push(("readplayerid".to_string(), read.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // readplayerid 1 selects the opponent's animation bank.
+    change(&mut sim, "changeanim2", Some("1"));
+    assert_eq!(sim.fighters[0].anim_char_id, Some(1));
+    assert_eq!(sim.anim_character(0).name(), p2_name);
+    let frame0 = assets.characters[1]
+        .animation(0)
+        .and_then(|anim| anim.frames.first())
+        .map(|frame| frame.effective_duration())
+        .expect("P2 anim 0");
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "AnimElemTime(2)"),
+        -frame0,
+        "frame timing comes from the opponent's bank"
+    );
+
+    // Out-of-range ids clamp like a player slot.
+    change(&mut sim, "changeanim2", Some("9"));
+    assert_eq!(sim.fighters[0].anim_char_id, Some(1));
+
+    // Without readplayerid the state owner's bank is used.
+    change(&mut sim, "changeanim2", None);
+    assert_eq!(sim.fighters[0].anim_char_id, Some(0));
+
+    // Plain ChangeAnim restores the own bank.
+    change(&mut sim, "changeanim", None);
+    assert_eq!(sim.fighters[0].anim_char_id, None);
+    assert_eq!(sim.anim_character(0).name(), assets.characters[0].name());
+}

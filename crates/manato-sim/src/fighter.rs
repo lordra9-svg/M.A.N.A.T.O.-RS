@@ -166,6 +166,8 @@ pub struct Fighter {
     pub state_time: i32,
 
     pub anim_no: i32,
+    /// Character whose animation bank supplies `anim_no`; `None` = own bank.
+    pub anim_char_id: Option<usize>,
     pub anim_clock: i32,
     pub anim_frame: usize,
     pub anim_time: i32,
@@ -276,6 +278,7 @@ impl Fighter {
             prev_state_no: 0,
             state_time: 0,
             anim_no: 0,
+            anim_char_id: None,
             anim_clock: 0,
             anim_frame: 0,
             anim_time: 0,
@@ -483,6 +486,7 @@ impl Fighter {
     }
 
     pub fn set_anim(&mut self, number: i32, char: &Character, elem: Option<i32>) {
+        self.anim_char_id = None;
         self.anim_no = number;
         self.anim_clock = 0;
         self.anim_frame = 0;
@@ -543,6 +547,18 @@ impl Fighter {
             .iter()
             .fold(0i32, |acc, f| acc.saturating_add(f.effective_duration()));
         self.anim_time - start
+    }
+
+    /// `ChangeAnim2`: use another character's animation bank for `number`.
+    pub fn set_anim_from(
+        &mut self,
+        number: i32,
+        anim_char: &Character,
+        elem: Option<i32>,
+        anim_char_id: usize,
+    ) {
+        self.set_anim(number, anim_char, elem);
+        self.anim_char_id = Some(anim_char_id);
     }
 
     pub fn advance_anim(&mut self, char: &Character) {

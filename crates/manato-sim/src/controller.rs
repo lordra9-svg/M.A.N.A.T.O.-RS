@@ -36,7 +36,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
     match kind.as_str() {
         "null" => {}
         "changestate" | "selfstate" => change_state(sim, who, control, assets),
-        "changeanim" | "changeanim2" => change_anim(sim, who, control, assets),
+        "changeanim" => change_anim(sim, who, control, assets),
+        "changeanim2" => change_anim2(sim, who, control, assets),
         "velset" => vel_set(sim, who, control),
         "veladd" => vel_add(sim, who, control),
         "velmul" => vel_mul(sim, who, control),
@@ -229,6 +230,21 @@ fn change_anim(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
     let elem = int_param(sim, who, control, "elem");
     let char = char_of(assets, sim, who);
     sim.fighters[who].set_anim(value, char, elem);
+}
+
+/// `ChangeAnim2`: like `ChangeAnim`, but the animation is read from another
+/// player's bank (`readplayerid`, defaulting to the state owner).
+fn change_anim2(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
+    let Some(value) = int_param(sim, who, control, "value") else {
+        return;
+    };
+    let elem = int_param(sim, who, control, "elem");
+    let player = int_param(sim, who, control, "readplayerid")
+        .map(|id| id.clamp(0, 1) as usize)
+        .unwrap_or_else(|| sim.root_of(who));
+    let anim_char_id = sim.fighters[player].char_id;
+    let anim_char = &assets.characters[anim_char_id];
+    sim.fighters[who].set_anim_from(value, anim_char, elem, anim_char_id);
 }
 
 fn vel_set(sim: &mut SimState, who: usize, control: &Controller) {

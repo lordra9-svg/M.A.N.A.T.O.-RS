@@ -124,8 +124,7 @@ fn juggle_allows(
 
 fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
     let fighter = &sim.fighters[who];
-    let char = &sim.assets.characters[fighter.char_id];
-    let Some(frame) = fighter.current_frame(char) else {
+    let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
         return Vec::new();
     };
     let boxes = if attack { &frame.clsn1 } else { &frame.clsn2 };

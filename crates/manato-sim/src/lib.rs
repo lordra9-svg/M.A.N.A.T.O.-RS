@@ -1013,9 +1013,13 @@ impl SimState {
 
         // Advance animation last so triggers observe this tick's frame.
         let assets = self.assets.clone();
-        let char = &assets.characters[self.fighters[who].char_id];
-        self.fighters[who].advance_anim(char);
-        self.fighters[who].refresh_widths(char);
+        let own_char = &assets.characters[self.fighters[who].char_id];
+        let anim_char_id = self.fighters[who]
+            .anim_char_id
+            .unwrap_or(self.fighters[who].char_id);
+        let anim_char = &assets.characters[anim_char_id];
+        self.fighters[who].advance_anim(anim_char);
+        self.fighters[who].refresh_widths(own_char);
         self.update_after_image(who);
         self.update_pal_fx(who);
     }
@@ -1042,6 +1046,12 @@ impl SimState {
         }
         let facing = if dx > 0.0 { 1 } else { -1 };
         self.fighters[who].facing = facing;
+    }
+
+    /// Character whose animation bank drives `anim_no` (`ChangeAnim2`).
+    pub fn anim_character(&self, who: usize) -> &manato_formats::Character {
+        let fighter = &self.fighters[who];
+        &self.assets.characters[fighter.anim_char_id.unwrap_or(fighter.char_id)]
     }
 
     fn update_after_image(&mut self, who: usize) {
@@ -2176,6 +2186,7 @@ impl SimState {
             h.write_i32(f.prev_state_no);
             h.write_i32(f.state_time);
             h.write_i32(f.anim_no);
+            h.write_u8(f.anim_char_id.map(|id| id as u8 + 1).unwrap_or(0));
             h.write_i32(f.anim_clock);
             h.write_i32(f.anim_frame as i32);
             h.write_i32(f.anim_time);
