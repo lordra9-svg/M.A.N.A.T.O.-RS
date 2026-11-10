@@ -5498,18 +5498,27 @@ fn projectile_postype_controls_spawn_anchor() {
     assert!((p2.x - 65.0).abs() < 0.001);
     assert!((p2.y - -13.0).abs() < 0.001);
 
-    // `front` and `back` use 100px from the owner along facing.
+    // `front`/`back` anchor to the screen edges (Ikemen helperPos semantics).
+    sim.camera.x = 0.0;
     let front = spawn(&mut sim, Some("front"), "0, 0");
-    assert!((front.x - 60.0).abs() < 0.001);
+    assert!((front.x - 160.0).abs() < 0.001);
     let back = spawn(&mut sim, Some("back"), "0, 0");
-    assert!((back.x - -140.0).abs() < 0.001);
+    assert!((back.x - -160.0).abs() < 0.001);
+
+    // Facing flips which edge is "front" vs "back".
+    sim.fighters[0].facing = -1;
+    let front_left = spawn(&mut sim, Some("front"), "0, 0");
+    assert!((front_left.x - -160.0).abs() < 0.001);
+    let back_right = spawn(&mut sim, Some("back"), "0, 0");
+    assert!((back_right.x - 160.0).abs() < 0.001);
+    sim.fighters[0].facing = 1;
 
     // Screen-edge anchors follow the camera.
-    sim.camera.x = 0.0;
+    sim.camera.x = 50.0;
     let left = spawn(&mut sim, Some("left"), "0, 0");
-    assert!((left.x - -160.0).abs() < 0.001);
+    assert!((left.x - -110.0).abs() < 0.001);
     let right = spawn(&mut sim, Some("right"), "0, 0");
-    assert!((right.x - 160.0).abs() < 0.001);
+    assert!((right.x - 210.0).abs() < 0.001);
 }
 
 #[test]
@@ -7570,9 +7579,9 @@ fn helper_postype_anchors() {
     assert_eq!(p2, manato_core::Vec2::new(65.0, -13.0));
 
     let front = spawn(&mut sim, Some("front"), "0, 0");
-    assert_eq!(front.x, 60.0);
+    assert_eq!(front.x, manato_core::GAME_WIDTH * 0.5);
     let back = spawn(&mut sim, Some("back"), "0, 0");
-    assert_eq!(back.x, -140.0);
+    assert_eq!(back.x, -manato_core::GAME_WIDTH * 0.5);
 
     let left = spawn(&mut sim, Some("left"), "0, 0");
     assert_eq!(left.x, -manato_core::GAME_WIDTH * 0.5);

@@ -493,12 +493,14 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     let facing = int_param(sim, who, control, "facing").unwrap_or(sim.fighters[who].facing);
     let owner_pos = sim.fighters[who].pos;
     let opponent = sim.opponent_of(who);
+    let left_edge = sim.camera.x - manato_core::GAME_WIDTH * 0.5;
+    let right_edge = sim.camera.x + manato_core::GAME_WIDTH * 0.5;
     let base = match postype.as_str() {
         "p2" => sim.fighters[opponent].pos,
-        "front" => Vec2::new(owner_pos.x + facing as f32 * 100.0, owner_pos.y),
-        "back" => Vec2::new(owner_pos.x - facing as f32 * 100.0, owner_pos.y),
-        "left" => Vec2::new(sim.camera.x - manato_core::GAME_WIDTH * 0.5, owner_pos.y),
-        "right" => Vec2::new(sim.camera.x + manato_core::GAME_WIDTH * 0.5, owner_pos.y),
+        "front" => Vec2::new(if facing > 0 { right_edge } else { left_edge }, owner_pos.y),
+        "back" => Vec2::new(if facing > 0 { left_edge } else { right_edge }, owner_pos.y),
+        "left" => Vec2::new(left_edge, owner_pos.y),
+        "right" => Vec2::new(right_edge, owner_pos.y),
         _ => owner_pos,
     };
     let pos = Vec2::new(base.x + px * facing as f32, base.y + py);
@@ -784,12 +786,14 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         .unwrap_or("p1")
         .to_ascii_lowercase();
     let owner = sim.fighters[who].pos;
+    let left_edge = sim.camera.x - manato_core::GAME_WIDTH * 0.5;
+    let right_edge = sim.camera.x + manato_core::GAME_WIDTH * 0.5;
     let base = match postype.as_str() {
         "p2" => sim.fighters[sim.other(who)].pos,
-        "front" => Vec2::new(owner.x + facing as f32 * 100.0, owner.y),
-        "back" => Vec2::new(owner.x - facing as f32 * 100.0, owner.y),
-        "left" => Vec2::new(sim.camera.x - manato_core::GAME_WIDTH * 0.5, owner.y),
-        "right" => Vec2::new(sim.camera.x + manato_core::GAME_WIDTH * 0.5, owner.y),
+        "front" => Vec2::new(if facing > 0 { right_edge } else { left_edge }, owner.y),
+        "back" => Vec2::new(if facing > 0 { left_edge } else { right_edge }, owner.y),
+        "left" => Vec2::new(left_edge, owner.y),
+        "right" => Vec2::new(right_edge, owner.y),
         _ => owner,
     };
     let pos = Vec2::new(base.x + px * facing as f32, base.y + py);
