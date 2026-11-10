@@ -7370,3 +7370,50 @@ fn air_guard_uses_airguard_velocity_and_guard_hittime() {
     assert_eq!(sim.fighters[1].hit.vars.ctrltime, 9);
     assert_eq!(sim.fighters[1].state_no, 154);
 }
+
+#[test]
+fn move_contact_hit_guarded_triggers_reflect_attacks() {
+    let setup = |guarding: bool| -> Option<SimState> {
+        let mut sim = fight_phase()?;
+        let assets = sim.assets.clone();
+        if guarding {
+            sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0), 0);
+        }
+        sim.fighters[1].pos = manato_core::Vec2::new(5.0, 0.0);
+        sim.fighters[1].facing = -1;
+        sim.fighters[0].pos = manato_core::Vec2::new(-1.0, 0.0);
+        sim.fighters[0].facing = 1;
+        sim.fighters[0].enter_state(200, &assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+        let mut hit = hitdef();
+        hit.pausetime = (0, 0);
+        sim.fighters[0].hitdef = Some(hit);
+        manato_sim::collision::resolve(&mut sim);
+        Some(sim)
+    };
+
+    let sim = setup(false).expect("content");
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveContact"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveHit"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveGuarded"), 0);
+    // A normal hit does not establish a target link; only throws do.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumTarget"), 0);
+
+    let sim = setup(true).expect("content");
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveContact"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveHit"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveGuarded"), 1);
+
+    // MoveHitReset clears the contact/hit/guard flags.
+    let mut sim = setup(false).expect("content");
+    let assets = sim.assets.clone();
+    let reset = manato_formats::Controller {
+        kind: "movehitreset".into(),
+        params: vec![],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveContact"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveHit"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveGuarded"), 0);
+}
