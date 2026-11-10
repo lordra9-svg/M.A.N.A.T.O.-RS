@@ -484,6 +484,8 @@ pub enum SoundCommand {
 pub struct EnvColor {
     pub color: [f32; 4],
     pub time: i32,
+    /// Draw the tint beneath fighters (`under = 1`) instead of over them.
+    pub under: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -9979,3 +9979,31 @@ fn get_hit_var_priority_reflects_hitdef() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &guarded, true, origin, 1, true);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(priority)"), 2);
 }
+
+#[test]
+fn envcolor_under_flag_and_default() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let apply = |sim: &mut SimState, under: Option<&str>| {
+        let mut params = vec![
+            ("value".to_string(), "10, 20, 30".to_string()),
+            ("time".to_string(), "5".to_string()),
+        ];
+        if let Some(under) = under {
+            params.push(("under".to_string(), under.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "envcolor".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.env_color.expect("env color")
+    };
+
+    assert!(apply(&mut sim, Some("1")).under);
+    assert!(!apply(&mut sim, Some("0")).under);
+    assert!(!apply(&mut sim, None).under, "under defaults to false");
+}

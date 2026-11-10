@@ -86,6 +86,10 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     }
     draw_shadows(painter, sim);
 
+    if let Some(env_color) = sim.env_color.filter(|color| color.under) {
+        draw_env_color(painter, env_color);
+    }
+
     // Effects that are explicitly behind characters.
     let mut behind: Vec<&Effect> = sim.effects.iter().filter(|e| e.behind).collect();
     behind.sort_by_key(|e| e.sprite_priority);
@@ -130,20 +134,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         crate::fightscreen::draw_background(painter, sim, &fight_deps, screenpack);
     }
 
-    if let Some(env_color) = sim.env_color {
-        painter.rect(
-            Blend::Normal,
-            0.0,
-            0.0,
-            GAME_WIDTH,
-            GAME_HEIGHT,
-            [
-                env_color.color[0].clamp(0.0, 1.0),
-                env_color.color[1].clamp(0.0, 1.0),
-                env_color.color[2].clamp(0.0, 1.0),
-                0.35,
-            ],
-        );
+    if let Some(env_color) = sim.env_color.filter(|color| !color.under) {
+        draw_env_color(painter, env_color);
     }
 
     if let Some(screenpack) = &sim.assets.screenpack {
@@ -156,6 +148,22 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     } else {
         draw_hud(painter, deps.font, sim);
     }
+}
+
+fn draw_env_color(painter: &mut Painter, env_color: manato_sim::EnvColor) {
+    painter.rect(
+        Blend::Normal,
+        0.0,
+        0.0,
+        GAME_WIDTH,
+        GAME_HEIGHT,
+        [
+            env_color.color[0].clamp(0.0, 1.0),
+            env_color.color[1].clamp(0.0, 1.0),
+            env_color.color[2].clamp(0.0, 1.0),
+            0.35,
+        ],
+    );
 }
 
 fn layer_scissor(layer: &manato_formats::stage::BgLayer) -> Option<[u32; 4]> {

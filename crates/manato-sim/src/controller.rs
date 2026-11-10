@@ -140,6 +140,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 Some(crate::EnvColor {
                     color: [r / 255.0, g / 255.0, b / 255.0, 1.0],
                     time,
+                    under: int_param(sim, who, control, "under").unwrap_or(0) != 0,
                 })
             };
         }
