@@ -1172,6 +1172,11 @@ fn explod_parses_transparency_binding_and_projection() {
             ("focallength".into(), "1024".into()),
             ("space".into(), "screen".into()),
             ("window".into(), "1, 2, 300, 200".into()),
+            ("shadow".into(), "1".into()),
+            ("ownpal".into(), "1".into()),
+            ("ontop".into(), "0".into()),
+            ("sprpriority".into(), "7".into()),
+            ("vfacing".into(), "-1".into()),
         ],
         line: 0,
     };
@@ -1192,6 +1197,11 @@ fn explod_parses_transparency_binding_and_projection() {
     assert!(effect.bound);
     assert!(effect.remove_on_get_hit);
     assert_eq!(effect.bind_time, 2);
+    assert!(effect.shadow);
+    assert!(effect.own_pal);
+    assert!(effect.behind, "ontop = 0 draws behind");
+    assert_eq!(effect.sprite_priority, 7);
+    assert!(effect.flip_v, "vfacing = -1 flips vertically");
 
     // Binding follows the anchor until `bindtime` expires.
     let facing = sim.fighters[0].facing as f32;
