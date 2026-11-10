@@ -50,6 +50,11 @@ pub struct Projectile {
     pub layer_no: i32,
     /// `projsprpriority` draw order.
     pub sprite_priority: i32,
+    /// `projedgebound` / `projstagebound` / `projheightbound` / `projdepthbound`.
+    pub edge_bound: f32,
+    pub stage_bound: f32,
+    pub height_bound: (f32, f32),
+    pub depth_bound: f32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,

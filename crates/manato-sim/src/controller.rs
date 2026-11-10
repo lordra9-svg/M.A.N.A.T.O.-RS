@@ -993,6 +993,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let cancel_anim = int_param(sim, who, control, "projcancelanim").unwrap_or(-1);
     let layer_no = int_param(sim, who, control, "projlayerno").unwrap_or(0);
     let sprite_priority = int_param(sim, who, control, "projsprpriority").unwrap_or(3);
+    let edge_bound = num_param(sim, who, control, "projedgebound").unwrap_or(40.0);
+    let stage_bound = num_param(sim, who, control, "projstagebound").unwrap_or(40.0);
+    let height_bound = control.get_pair("projheightbound").unwrap_or((-240.0, 1.0));
+    let depth_bound = num_param(sim, who, control, "projdepthbound").unwrap_or(f32::MAX);
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1040,6 +1044,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         cancel_anim,
         layer_no,
         sprite_priority,
+        edge_bound,
+        stage_bound,
+        height_bound: (height_bound.0, height_bound.1),
+        depth_bound,
         hits,
         hitdef,
     });
@@ -1138,6 +1146,10 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let cancel_anim = int_param(sim, who, control, "projcancelanim");
     let layer_no = int_param(sim, who, control, "projlayerno");
     let sprite_priority = int_param(sim, who, control, "projsprpriority");
+    let edge_bound = num_param(sim, who, control, "projedgebound");
+    let stage_bound = num_param(sim, who, control, "projstagebound");
+    let height_bound = control.get_pair("projheightbound");
+    let depth_bound = num_param(sim, who, control, "projdepthbound");
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1210,6 +1222,18 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(sprite_priority) = sprite_priority {
             projectile.sprite_priority = sprite_priority;
+        }
+        if let Some(edge_bound) = edge_bound {
+            projectile.edge_bound = edge_bound;
+        }
+        if let Some(stage_bound) = stage_bound {
+            projectile.stage_bound = stage_bound;
+        }
+        if let Some((low, high)) = height_bound {
+            projectile.height_bound = (low, high);
+        }
+        if let Some(depth_bound) = depth_bound {
+            projectile.depth_bound = depth_bound;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

@@ -2370,6 +2370,10 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         cancel_anim: -1,
         layer_no: 0,
         sprite_priority: 3,
+        edge_bound: 40.0,
+        stage_bound: 40.0,
+        height_bound: (-240.0, 1.0),
+        depth_bound: f32::MAX,
         hits: 2,
         hitdef,
     });
@@ -11597,4 +11601,79 @@ fn projectile_cancelanim_layerno_and_sprpriority() {
     assert_eq!(sim.projectiles[0].cancel_anim, -1);
     assert_eq!(sim.projectiles[0].layer_no, 0);
     assert_eq!(sim.projectiles[0].sprite_priority, 3);
+}
+
+#[test]
+fn projectile_bounds_parameters_storage_and_defaults() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "-1".into()),
+            ("projid".into(), "16".into()),
+            ("projedgebound".into(), "80".into()),
+            ("projstagebound".into(), "60".into()),
+            ("projheightbound".into(), "-300, 5".into()),
+            ("projdepthbound".into(), "120".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles[0].edge_bound, 80.0);
+    assert_eq!(sim.projectiles[0].stage_bound, 60.0);
+    assert_eq!(sim.projectiles[0].height_bound, (-300.0, 5.0));
+    assert_eq!(sim.projectiles[0].depth_bound, 120.0);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "16".into()),
+            ("projedgebound".into(), "20".into()),
+            ("projstagebound".into(), "10".into()),
+            ("projheightbound".into(), "-100, 2".into()),
+            ("projdepthbound".into(), "7".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(sim.projectiles[0].edge_bound, 20.0);
+    assert_eq!(sim.projectiles[0].stage_bound, 10.0);
+    assert_eq!(sim.projectiles[0].height_bound, (-100.0, 2.0));
+    assert_eq!(sim.projectiles[0].depth_bound, 7.0);
+
+    // Omitting the parameters preserves them.
+    let velocity = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "16".into()),
+            ("velocity".into(), "1, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &velocity, &assets);
+    assert_eq!(sim.projectiles[0].edge_bound, 20.0);
+    assert_eq!(sim.projectiles[0].height_bound, (-100.0, 2.0));
+
+    // Defaults: 40 / 40 / (-240, 1) / infinite depth.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let plain = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    assert_eq!(sim.projectiles[0].edge_bound, 40.0);
+    assert_eq!(sim.projectiles[0].stage_bound, 40.0);
+    assert_eq!(sim.projectiles[0].height_bound, (-240.0, 1.0));
+    assert_eq!(sim.projectiles[0].depth_bound, f32::MAX);
 }
