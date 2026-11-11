@@ -53,7 +53,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/hitid/priority/fall + HitVel + HitShakeOver/HitOver threshold |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/Explod/ProjID + NumTarget + SysVar persistence |
-| T-06 | Const/expressions/random | Required | Required | Partial | Const scalars/pairs + Const240/480/720p + math/random tests |
+| T-06 | Const/expressions/random | Required | Required | Partial | Const/math/random + ScreenWidth/Height, TicksPerSecond, GameTime |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
 | T-08 | Ikemen-only triggers | N/A | Ikemen | Missing | TBD |
 
@@ -94,7 +94,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
-| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw/cap + DrawGame trigger + timer freeze/clamp/seconds |
+| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw + DrawGame/MatchOver/RoundsExisted + timer freeze/clamp |
 | R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay tests; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
 | R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |

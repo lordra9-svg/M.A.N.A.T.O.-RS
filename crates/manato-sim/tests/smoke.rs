@@ -11828,3 +11828,66 @@ fn camera_screen_and_drawgame_triggers() {
     sim.round.winner = None;
     assert_eq!(manato_sim::trigger::int(&sim, 0, "DrawGame"), 0);
 }
+
+#[test]
+fn screen_misc_and_match_progress_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "ScreenWidth"),
+        manato_core::GAME_WIDTH
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "ScreenHeight"),
+        manato_core::GAME_HEIGHT
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TicksPerSecond"), 60);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "GameTime"),
+        sim.frame as i32
+    );
+    let before = sim.frame;
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "GameTime"),
+        (before + 2) as i32
+    );
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RoundsExisted"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RoundNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MatchOver"), 0);
+
+    // A round transition increments RoundsExisted.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RoundNo"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RoundsExisted"), 1);
+
+    // MatchOver only flips once the match reaches the Over phase.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 1;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MatchOver"), 0);
+    for _ in 0..250 {
+        if sim.round.phase == manato_sim::RoundPhase::Over {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MatchOver"), 1);
+    assert!(sim.finished);
+}
