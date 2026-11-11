@@ -177,13 +177,13 @@ missing redirect targets make the trigger false.
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`
 - Utility: `Const`, `Const240p`, `Const480p`, `Const720p`, `Random`, `IfElse`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,
-  `Sqrt`, `Pow`
+  `Sqrt`, `Pow`, `AILevel`
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,
   `BackEdge`, `FrontEdge`, `BackEdgeBodyDist`, `FrontEdgeBodyDist`,
   `BackEdgeDist`, `FrontEdgeDist`
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
-  `ParentDist`, `RootDist`
+  `ParentDist`, `RootDist`, `ParentExist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`
 
 ### 5.4 Constants
@@ -226,6 +226,22 @@ Public M.U.G.E.N trigger documentation defines the team family as follows:
   The engine applies the versus rule in every match and documents the
   limitation rather than guessing.
 - Unknown team-mode strings compare false.
+
+### 5.7 AI difficulty and parent presence
+
+- `AILevel` returns the difficulty of the AI driving the evaluating
+  character's slot, and 0 when AI is disabled for that slot. The level is
+  stored per fighter: a versus or arcade match can have one human slot at 0
+  and one CPU slot in the 1..8 range. Helpers inherit their owner's level.
+- `ParentExist` returns 1 when the evaluating character is a helper with a
+  parent, and 0 for root players or when no parent relation is recorded.
+  M.U.G.E.N 1.1's trigger reference does not list `ParentExist`; this engine
+  defines it consistently with the helper relation family and its helper
+  model.
+- Opponent lookup uses the fighter's team side rather than the raw owner
+  index, so a nested helper (a helper owned by another helper) still resolves
+  the opposing player. Using the owner index directly underflows for nested
+  helpers.
 
 ## 6. Commands
 

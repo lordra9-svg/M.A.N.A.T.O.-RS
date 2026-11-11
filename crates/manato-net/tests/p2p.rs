@@ -35,6 +35,7 @@ fn load() -> Option<SimState> {
             rounds_to_win: 2,
             round_time: 99,
             ai_level: 0,
+            ai_sides: [false, false],
         },
     ))
 }

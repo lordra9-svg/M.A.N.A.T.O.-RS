@@ -159,6 +159,9 @@ pub struct Fighter {
     pub side: usize,
     pub slot: usize,
     pub active: bool,
+    /// Difficulty of the AI driving this slot; 0 when AI is off. Helpers
+    /// inherit their owner's level.
+    pub ai_level: i32,
 
     pub pos: Vec2,
     pub vel: Vec2,
@@ -289,6 +292,7 @@ impl Fighter {
             side,
             slot,
             active: true,
+            ai_level: 0,
             pos,
             vel: Vec2::ZERO,
             facing,

@@ -497,6 +497,7 @@ fn load_match(opts: &Options) -> anyhow::Result<SimState> {
             rounds_to_win: opts.rounds,
             round_time: opts.round_time,
             ai_level: opts.ai_level,
+            ai_sides: [opts.ai_level > 0; 2],
         },
     ))
 }
@@ -1150,6 +1151,7 @@ impl App {
                 rounds_to_win: rounds,
                 round_time,
                 ai_level: if mode == Mode::Versus { 0 } else { ai.max(1) },
+                ai_sides: [false, mode != Mode::Versus],
             },
         );
         self.play_stage_music(&sim);

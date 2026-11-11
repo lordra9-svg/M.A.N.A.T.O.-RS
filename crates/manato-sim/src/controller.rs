@@ -591,6 +591,7 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     entity.owner = Some(who);
     entity.parent = Some(who);
     entity.root = Some(sim.root_of(who));
+    entity.ai_level = sim.fighters[who].ai_level;
     entity.helper_id = id;
     if let Some((vx, vy)) = control.get_pair("velocity") {
         entity.vel = Vec2::new(vx * facing as f32, vy);

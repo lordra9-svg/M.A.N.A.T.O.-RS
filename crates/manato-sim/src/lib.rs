@@ -176,6 +176,8 @@ pub struct MatchOptions {
     pub round_time: i32,
     /// Difficulty for CPU-controlled slots, 0 disables AI.
     pub ai_level: i32,
+    /// Slots whose AI is enabled. `AILevel` reports 0 for every other slot.
+    pub ai_sides: [bool; 2],
 }
 
 impl Default for MatchOptions {
@@ -184,6 +186,7 @@ impl Default for MatchOptions {
             rounds_to_win: DEFAULT_ROUNDS_TO_WIN,
             round_time: DEFAULT_ROUND_TIME,
             ai_level: 4,
+            ai_sides: [true, true],
         }
     }
 }
@@ -654,6 +657,7 @@ impl SimState {
                 rounds_to_win: config.rounds_to_win,
                 round_time: config.round_time,
                 ai_level: 0,
+                ai_sides: [false, false],
             },
         ))
     }
@@ -667,14 +671,20 @@ impl SimState {
         for slot in 0..2 {
             let start = if slot == 0 { start0 } else { start1 };
             let facing = if slot == 0 { face0 } else { face1 };
-            fighters.push(Fighter::new(
+            let mut fighter = Fighter::new(
                 &assets.characters[slot],
                 slot,
                 slot,
                 slot,
                 start,
                 if facing == 0 { 1 } else { facing },
-            ));
+            );
+            fighter.ai_level = if options.ai_sides[slot] {
+                options.ai_level.max(0)
+            } else {
+                0
+            };
+            fighters.push(fighter);
         }
         let stage_layers = assets
             .stage
@@ -728,11 +738,16 @@ impl SimState {
     }
 
     pub fn opponent_of(&self, who: usize) -> usize {
-        if let Some(owner) = self.fighters.get(who).and_then(|fighter| fighter.owner) {
-            1 - owner
-        } else {
-            1 - who
-        }
+        // Helpers (including nested helpers owned by another helper) inherit
+        // their owner's side, so the side is the only stable way to find the
+        // opposing player. Using the owner index directly underflows once an
+        // owner is itself a helper.
+        let side = self
+            .fighters
+            .get(who)
+            .map(|fighter| fighter.side)
+            .unwrap_or(who);
+        1 - side.min(1)
     }
 
     pub fn root_of(&self, who: usize) -> usize {

@@ -1523,6 +1523,7 @@ fn oracle_round_timer_is_sixty_ticks_per_second() {
             rounds_to_win: 1,
             round_time: 5,
             ai_level: 0,
+            ai_sides: [false, false],
         },
     );
     assert_eq!(sim.round.timer, 5 * 60);
@@ -3264,6 +3265,98 @@ fn team_mode_and_home_team_follow_side() {
     assert_eq!(sim.fighters[p2_helper].side, 1);
     assert_eq!(manato_sim::trigger::int(&sim, p1_helper, "IsHomeTeam"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, p2_helper, "IsHomeTeam"), 0);
+}
+
+#[test]
+fn ai_level_reports_per_slot_and_helpers_inherit() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let base_assets = sim.assets.clone();
+
+    // Only P2 is AI-driven at level 6; P1 is human and reports 0.
+    let mut options = MatchOptions::default();
+    options.ai_level = 6;
+    options.ai_sides = [false, true];
+    sim = SimState::new(base_assets.clone(), options);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AILevel"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "AILevel"), 6);
+
+    let controller = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &controller, &base_assets);
+    let human_helper = sim.fighters.len() - 1;
+    manato_sim::controller::execute(&mut sim, 1, &controller, &base_assets);
+    let cpu_helper = sim.fighters.len() - 1;
+    assert_eq!(manato_sim::trigger::int(&sim, human_helper, "AILevel"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, cpu_helper, "AILevel"), 6);
+
+    // Disabling AI at a nonzero level still reports 0 for every slot.
+    let mut options = MatchOptions::default();
+    options.ai_level = 8;
+    options.ai_sides = [false, false];
+    let sim = SimState::new(base_assets, options);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AILevel"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "AILevel"), 0);
+}
+
+#[test]
+fn parent_exist_tracks_helper_ancestry() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, assets: &manato_sim::Assets, owner: usize| {
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params: vec![
+                ("stateno".into(), "0".into()),
+                ("removetime".into(), "-1".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, owner, &control, assets);
+        sim.fighters.len() - 1
+    };
+
+    // Root players have no parent.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ParentExist"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ParentExist"), 0);
+
+    let helper = spawn(&mut sim, &assets, 0);
+    let nested = spawn(&mut sim, &assets, helper);
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "ParentExist"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, nested, "ParentExist"), 1);
+
+    // Redirects follow the parent/root chain.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper, "Parent, ParentExist"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, nested, "Parent, ParentExist"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, nested, "Root, ParentExist"),
+        0
+    );
+    // The nested helper still resolves the opposing player, not its owner.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, nested, "Enemy, ParentExist"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, nested, "Enemy, StateNo"),
+        sim.fighters[1].state_no
+    );
 }
 
 #[test]

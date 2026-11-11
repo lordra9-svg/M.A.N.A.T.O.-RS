@@ -957,7 +957,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "frontedgedist" => Value::Float(edge_distance(sim, who, true, false)),
         "backedgebodydist" => Value::Float(edge_distance(sim, who, false, true)),
         "frontedgebodydist" => Value::Float(edge_distance(sim, who, true, true)),
-        "ailevel" => Value::Int(sim.options.ai_level),
+        "ailevel" => Value::Int(f.ai_level),
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
         "hitpausetime" => Value::Int(f.hit.hit_pause_time),

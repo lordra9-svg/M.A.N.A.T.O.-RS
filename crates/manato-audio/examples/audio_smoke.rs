@@ -31,6 +31,7 @@ fn main() -> anyhow::Result<()> {
             rounds_to_win: 2,
             round_time: 99,
             ai_level: 6,
+            ai_sides: [true, true],
         },
     );
 
