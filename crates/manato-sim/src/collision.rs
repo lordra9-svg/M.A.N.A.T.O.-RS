@@ -329,6 +329,33 @@ pub fn apply_hit_at(
     if !guarding && blocks_by_filter(sim, defender, hitdef) {
         return;
     }
+    // `ground.type`/`air.type = None` is documented as a pause-only contact:
+    // it applies both pausetime values but no damage, velocity, spark, or
+    // state change.
+    let defender_airborne_at_contact = {
+        let f = &sim.fighters[defender];
+        f.state_type == StateType::Air || f.pos.y < -1.0
+    };
+    let selected_type = if defender_airborne_at_contact {
+        hitdef.air_type
+    } else {
+        hitdef.ground_type
+    };
+    if selected_type == GroundType::None {
+        record_hit(sim, attacker, defender);
+        {
+            let f = &mut sim.fighters[attacker];
+            f.hit.hit_pause = hitdef.pausetime.0.max(0);
+            f.hit.hit_pause_time = hitdef.pausetime.0.max(0);
+        }
+        {
+            let f = &mut sim.fighters[defender];
+            f.hit.hit_pause = hitdef.pausetime.1.max(0);
+            f.hit.hit_pause_time = 0;
+            f.hit.hit_shake_timer = hitdef.pausetime.1.max(0);
+        }
+        return;
+    }
     // `HitOverride` wins over any hit application path, including projectiles
     // and direct callers (`docs/spec/cns-cmd.md` §4.2).
     if !guarding {

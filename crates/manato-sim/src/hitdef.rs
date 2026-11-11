@@ -40,6 +40,7 @@ impl AnimType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum GroundType {
+    None,
     #[default]
     High,
     Low,
@@ -52,6 +53,7 @@ impl GroundType {
         // first letter for CNS content. Unknown values fall back to High.
         let value = s.trim().to_ascii_lowercase();
         match value.as_str() {
+            "none" | "n" => Self::None,
             "low" | "l" => Self::Low,
             "trip" | "t" => Self::Trip,
             _ => Self::High,
@@ -59,11 +61,9 @@ impl GroundType {
     }
 
     /// Values reported by `GetHitVar(type|groundtype|airtype)`.
-    ///
-    /// M.U.G.E.N and Ikemen-GO reserve 0 for `None`; High/Low/Trip are
-    /// 1/2/3. `None` itself is not modeled yet (see `docs/spec/combat.md`).
     pub fn code(self) -> i32 {
         match self {
+            Self::None => 0,
             Self::High => 1,
             Self::Low => 2,
             Self::Trip => 3,
@@ -231,6 +231,8 @@ impl HitDef {
         let mut air_type_set = false;
         let mut guard_hittime_set = false;
         let mut guard_slidetime_set = false;
+        let mut ground_cornerpush_set = false;
+        let mut air_cornerpush_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
@@ -309,8 +311,14 @@ impl HitDef {
                     h.p2sprpriority = parse_i32(value);
                     h.p2sprpriority_set = true;
                 }
-                "ground.cornerpush.veloff" => h.ground_cornerpush = parse_f32(value),
-                "air.cornerpush.veloff" => h.air_cornerpush = parse_f32(value),
+                "ground.cornerpush.veloff" => {
+                    h.ground_cornerpush = parse_f32(value);
+                    ground_cornerpush_set = true;
+                }
+                "air.cornerpush.veloff" => {
+                    h.air_cornerpush = parse_f32(value);
+                    air_cornerpush_set = true;
+                }
                 _ => {}
             }
         }
@@ -324,6 +332,19 @@ impl HitDef {
         }
         if !guard_slidetime_set {
             h.guard_slidetime = h.guard_hittime;
+        }
+        // Documented legacy corner-push defaults: air attacks do not push,
+        // otherwise 1.3x the effective guard velocity; air corner push
+        // inherits the ground value.
+        if !ground_cornerpush_set {
+            h.ground_cornerpush = if h.attr.state_types.contains('A') {
+                0.0
+            } else {
+                h.guard_velocity.unwrap_or(h.ground_velocity).x * 1.3
+            };
+        }
+        if !air_cornerpush_set {
+            h.air_cornerpush = h.ground_cornerpush;
         }
         h
     }

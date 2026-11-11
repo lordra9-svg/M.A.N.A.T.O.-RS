@@ -8005,6 +8005,170 @@ fn hitdef_defaults_match_documented_ground_air_and_guard_times() {
 }
 
 #[test]
+fn hitdef_none_type_pauses_without_damage_or_state_change() {
+    use manato_sim::hitdef::GroundType;
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20, 4".into()),
+            ("guardflag".into(), "MA".into()),
+            ("ground.type".into(), "None".into()),
+            ("ground.velocity".into(), "-4".into()),
+            ("pausetime".into(), "6, 9".into()),
+            ("sparkno".into(), "0".into()),
+            ("hitsound".into(), "5, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(parsed.ground_type, GroundType::None);
+    assert_eq!(parsed.air_type, GroundType::None, "air.type inherits None");
+
+    let origin = sim.fighters[0].pos;
+    let life = sim.fighters[1].life;
+    let state = sim.fighters[1].state_no;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+
+    // Pause both sides, but do not damage, move, spark, or change state.
+    assert_eq!(sim.fighters[1].life, life);
+    assert_eq!(sim.fighters[1].state_no, state);
+    assert_eq!(sim.fighters[1].hit.vars.damage, 0);
+    assert_eq!(sim.fighters[0].hit.hit_pause, 6);
+    assert_eq!(sim.fighters[0].hit.hit_pause_time, 6);
+    assert_eq!(sim.fighters[1].hit.hit_pause, 9);
+    assert_eq!(sim.fighters[1].hit.hit_shake_timer, 9);
+    assert_eq!(sim.fighters[1].hit.hit_pause_time, 0);
+    assert!(!sim.fighters[0].attack.move_hit);
+    assert!(!sim.fighters[0].attack.move_contact);
+    assert!(sim.effects.is_empty(), "no spark for a pause-only hit");
+    // The contact is consumed so the same activation does not pause twice.
+    assert_eq!(sim.fighters[0].hit.hit_targets, vec![1]);
+
+    // An airborne defender uses air.type; None pauses without a hit state.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20".into()),
+            ("ground.type".into(), "High".into()),
+            ("air.type".into(), "None".into()),
+            ("air.velocity".into(), "-5, -6".into()),
+            ("pausetime".into(), "3, 4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let state = sim.fighters[1].state_no;
+    let life = sim.fighters[1].life;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life);
+    assert_eq!(sim.fighters[1].state_no, state);
+    assert_eq!(sim.fighters[0].hit.hit_pause, 3);
+    assert_eq!(sim.fighters[1].hit.hit_pause, 4);
+}
+
+#[test]
+fn hitdef_cornerpush_defaults_follow_guard_velocity_and_attr() {
+    use manato_sim::hitdef::GroundType;
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
+
+    // Ground attacks default to 1.3x the effective guard velocity.
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.velocity".into(), "-4".into()),
+        ],
+    );
+    assert!(close(hit.ground_cornerpush, -5.2));
+    assert_eq!(hit.air_cornerpush, hit.ground_cornerpush);
+
+    // An explicit guard.velocity wins over ground.velocity.
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.velocity".into(), "-4".into()),
+            ("guard.velocity".into(), "-10, 0".into()),
+        ],
+    );
+    assert!(close(hit.ground_cornerpush, -13.0));
+
+    // Air attacks default to no corner push.
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "A, NA".into()),
+            ("ground.velocity".into(), "-4".into()),
+        ],
+    );
+    assert_eq!(hit.ground_cornerpush, 0.0);
+    assert_eq!(hit.air_cornerpush, 0.0);
+
+    // Explicit values override, and air inherits ground when omitted.
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.cornerpush.veloff".into(), "-2.5".into()),
+        ],
+    );
+    assert_eq!(hit.ground_cornerpush, -2.5);
+    assert_eq!(hit.air_cornerpush, -2.5);
+
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.cornerpush.veloff".into(), "-2.5".into()),
+            ("air.cornerpush.veloff".into(), "-3.5".into()),
+        ],
+    );
+    assert_eq!(hit.ground_cornerpush, -2.5);
+    assert_eq!(hit.air_cornerpush, -3.5);
+
+    // `None` parses with the documented code instead of falling back to High.
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.type".into(), "None".into()),
+        ],
+    );
+    assert_eq!(hit.ground_type, GroundType::None);
+    assert_eq!(hit.ground_type.code(), 0);
+}
+
+#[test]
 fn round_timer_clamps_at_zero_and_stays_frozen_after_over() {
     let Some(mut sim) = fight_phase() else {
         return;

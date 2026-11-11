@@ -110,9 +110,20 @@ codes: `0` None, `1` High, `2` Low, `3` Trip. `GetHitVar(type)` returns the
 air type when the defender was airborne at contact and the ground type
 otherwise.
 
-`ground.type = None` (pause-only hit) and the documented corner-push
-fallback values are not modeled yet; an explicit
-`ground.cornerpush.veloff`/`air.cornerpush.veloff` is applied as before.
+`ground.type = None`/`air.type = None` is a pause-only contact. It applies the
+HitDef `pausetime` to both players (attacker self-pause and defender hit
+shake), consumes the contact for the current activation, and performs no
+damage, velocity, spark, sound, or state change. `air.type` still inherits
+`ground.type`, so a ground `None` also makes air contact pause-only.
+
+Corner-push defaults follow the documented legacy rule: when
+`ground.cornerpush.veloff` is omitted, an air attack (`attr` state types
+contain `A`) gets `0`, otherwise it gets `1.3 * guard.velocity.x`, where
+`guard.velocity` falls back to `ground.velocity` before the multiplication.
+`air.cornerpush.veloff` inherits the resulting ground value when omitted.
+Explicit values always win. `guard.cornerpush.veloff` and
+`airguard.cornerpush.veloff` are not separately modeled; guarded contacts use
+the ground/air corner-push value selected by the defender's state.
 
 ## 5. Hit resolution order
 
