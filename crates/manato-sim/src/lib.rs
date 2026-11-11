@@ -1436,8 +1436,36 @@ impl SimState {
             fighter.pos.y = 0.0;
             fighter.vel.y = 0.0;
             if fighter.hit.vars.fall_damage > 0 {
-                fighter.life = (fighter.life - fighter.hit.vars.fall_damage).max(0);
+                let damage = fighter.hit.vars.fall_damage;
+                let next = fighter.life - damage;
+                fighter.life = if fighter.hit.vars.fall_kill {
+                    next.max(0)
+                } else {
+                    next.max(1)
+                };
                 fighter.hit.vars.fall_damage = 0;
+            }
+            if fighter.hit.vars.fall_envshake_time > 0 {
+                let time = fighter.hit.vars.fall_envshake_time;
+                let freq = fighter.hit.vars.fall_envshake_freq;
+                let ampl = fighter.hit.vars.fall_envshake_ampl as f32;
+                let mut phase = fighter.hit.vars.fall_envshake_phase;
+                if phase.is_nan() {
+                    phase = if freq >= 90.0 { 90.0 } else { 0.0 };
+                }
+                phase = phase.clamp(-180.0, 180.0);
+                fighter.hit.vars.fall_envshake_time = 0;
+                self.env_shake = crate::EnvShake {
+                    time,
+                    initial_time: time,
+                    freq,
+                    ampl,
+                    phase,
+                    mul: 1.0,
+                    dir: 0.0,
+                    diradd: 0.0,
+                    decay: 0.0,
+                };
             }
         }
     }

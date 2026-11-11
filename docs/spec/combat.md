@@ -78,6 +78,11 @@ fall = 0|1
 fall.recover = 0|1
 fall.time = N
 fall.recovertime = N
+fall.kill = 0|1
+fall.envshake.time = N
+fall.envshake.freq = F
+fall.envshake.ampl = N
+fall.envshake.phase = F
 fall.damage = N
 fall.xvelocity = x
 fall.yvelocity = y
@@ -102,6 +107,11 @@ applied when a `HitDef` controller omits the parameter:
 - `ground.hittime` is `0`, `ground.slidetime` is `0`, and `air.hittime` is
   `20`.
 - `fall.recovertime` is `4`.
+- `fall.kill` is `1`; when `0`, fall damage clamps life at `1` instead of
+  KO'ing.
+- `fall.envshake.time` is `0` (disabled), `fall.envshake.freq` is `60`, and
+  `fall.envshake.ampl` is `-4`. `fall.envshake.phase` defaults to the EnvShake
+  rule: `90` when the frequency is at least `90`, otherwise `0`.
 - `guard.hittime` inherits `ground.hittime` when omitted.
   `guard.slidetime` inherits `guard.hittime` when omitted.
   `guard.ctrltime` inherits `guard.slidetime`, and `airguard.ctrltime`
@@ -204,6 +214,11 @@ Guard damage:
   (`60` by default); it counts down once per tick while the defender is in
   state `5110`. Guarded contacts leave an existing value unchanged.
   Button-accelerated fast recovery is not modeled yet.
+- `GetHitVar(fall.kill)` reports whether fall damage may KO (`1`/`0`).
+- `GetHitVar(fall.envshake.time|freq|ampl|phase)` reports the stored
+  fall-impact shake. On landing, the engine applies that shake, and a
+  `FallEnvShake` controller consumes the same values and clears the time so it
+  cannot retrigger.
 - Enter guard states 150/152/154 or hit states 5000/5010/5020 when present.
 - Without common states, apply velocity and leave the fighter in place.
 - Hit pause freezes the affected fighter; super pause freezes all.

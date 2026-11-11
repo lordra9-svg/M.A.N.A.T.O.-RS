@@ -2277,6 +2277,111 @@ fn get_hitvar_fall_and_liedown_recovertimes() {
 }
 
 #[test]
+fn hitdef_fall_kill_and_envshake_fields_apply_on_landing() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("fall".into(), "1".into()),
+            ("fall.damage".into(), "100".into()),
+            ("fall.kill".into(), "0".into()),
+            ("fall.envshake.time".into(), "10".into()),
+            ("fall.envshake.freq".into(), "120".into()),
+            ("fall.envshake.ampl".into(), "-6".into()),
+            ("fall.envshake.phase".into(), "20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert!(!parsed.fall_kill);
+    assert_eq!(parsed.fall_envshake_time, 10);
+    assert_eq!(parsed.fall_envshake_freq, 120.0);
+    assert_eq!(parsed.fall_envshake_ampl, -6);
+    assert_eq!(parsed.fall_envshake_phase, 20.0);
+
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.kill)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.envshake.time)"),
+        10
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.envshake.freq)"),
+        120.0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.envshake.ampl)"),
+        -6
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.envshake.phase)"),
+        20.0
+    );
+
+    // Landing applies fall.damage without KO when fall.kill = 0, and starts
+    // the stored fall envshake.
+    sim.fighters[1].state_no = 5040;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 24.0);
+    sim.fighters[1].vel = manato_core::Vec2::new(0.0, 10.0);
+    sim.fighters[1].life = 50;
+    sim.fighters[1].hit.vars.fall_damage = 100;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, 1, "fall.kill = 0 prevents a KO");
+    assert_eq!(sim.env_shake.initial_time, 10);
+    assert_eq!(sim.env_shake.time, 9, "one tick was consumed on landing");
+    assert_eq!(sim.env_shake.freq, 120.0);
+    assert_eq!(sim.env_shake.ampl, -6.0);
+    assert_eq!(sim.env_shake.phase, 20.0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.envshake.time)"),
+        0
+    );
+
+    // Defaults: kill enabled, time 0, freq 60, ampl -4, phase derived.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let defaults = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![("attr".into(), "S, NA".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &defaults, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert!(parsed.fall_kill);
+    assert_eq!(parsed.fall_envshake_time, 0);
+    assert_eq!(parsed.fall_envshake_freq, 60.0);
+    assert_eq!(parsed.fall_envshake_ampl, -4);
+    assert!(parsed.fall_envshake_phase.is_nan());
+
+    // Landing with fall.kill = 1 can KO.
+    let mut kill = parsed;
+    kill.fall = true;
+    kill.fall_damage = 100;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &kill, false, origin, 1, true);
+    sim.fighters[1].state_no = 5040;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::None;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 24.0);
+    sim.fighters[1].vel = manato_core::Vec2::new(0.0, 10.0);
+    sim.fighters[1].life = 50;
+    sim.fighters[1].hit.vars.fall_damage = 100;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, 0, "fall.kill = 1 allows a KO");
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -5876,14 +5981,14 @@ fn fall_env_shake_alias_sets_shake() {
         return;
     };
     let assets = sim.assets.clone();
+    // FallEnvShake consumes the values stored by the last unguarded hit.
+    sim.fighters[0].hit.vars.fall_envshake_time = 12;
+    sim.fighters[0].hit.vars.fall_envshake_freq = 120.0;
+    sim.fighters[0].hit.vars.fall_envshake_ampl = -6;
+    sim.fighters[0].hit.vars.fall_envshake_phase = 0.5;
     let shake = manato_formats::Controller {
         kind: "fallenvshake".into(),
-        params: vec![
-            ("time".into(), "12".into()),
-            ("freq".into(), "120".into()),
-            ("ampl".into(), "-6".into()),
-            ("phase".into(), "0.5".into()),
-        ],
+        params: Vec::new(),
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
@@ -5891,6 +5996,12 @@ fn fall_env_shake_alias_sets_shake() {
     assert!((sim.env_shake.freq - 120.0).abs() < 0.001);
     assert!((sim.env_shake.ampl - -6.0).abs() < 0.001);
     assert!((sim.env_shake.phase - 0.5).abs() < 0.001);
+    assert_eq!(sim.fighters[0].hit.vars.fall_envshake_time, 0);
+
+    // With no stored time the controller is a no-op.
+    let before = sim.env_shake;
+    manato_sim::controller::execute(&mut sim, 0, &shake, &assets);
+    assert_eq!(sim.env_shake, before);
 }
 
 #[test]

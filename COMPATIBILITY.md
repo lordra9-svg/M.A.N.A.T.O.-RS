@@ -51,7 +51,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + loop boundary and invalid AnimElemTime sentinel tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/Physics + StateNo/PrevStateNo/Time + P2/distances |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.* + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + SysVar + IsHelper(id)/ParentDist/RootDist axis-facing + ParentExist ancestry tests |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const/math/random + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Partial | `TeamMode` single/simul/turns + `IsHomeTeam` versus side semantics; tag/partner/simul teams out of scope |
@@ -63,7 +63,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | C-01 | Vel/Pos/Power/Life/Ctrl | Required | Required | Partial | Life/Power clamps + Vel/Pos edges + EnvColor time/under |
 | C-02 | ChangeState/ChangeAnim/Turn | Required | Required | Partial | State/anim/Turn + ChangeAnim2 anim bank + auto-turn + presentation |
-| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + prio/numhits/hitonce + HitCount/Uniq + MoveReversed/reversal/sounds/sparks + ground/air type inheritance and timing defaults + yaccel parse/localcoord default/physics + None pause-only path + guard.damage/hittime/slidetime/ctrltime + airguard.velocity default + airguard.ctrltime + fall.recovertime default + direct guard velocity + ground/air/guard/airguard cornerpush parsing/defaults |
+| C-03 | HitDef/ReversalDef | Required | Required | Partial | HitDef + prio/numhits/hitonce + HitCount/Uniq + MoveReversed/reversal/sounds/sparks + ground/air type inheritance and timing defaults + yaccel parse/localcoord default/physics + None pause-only path + guard.damage/hittime/slidetime/ctrltime + airguard.velocity default + airguard.ctrltime + fall.recovertime/fall.kill/fall.envshake + direct guard velocity + ground/air/guard/airguard cornerpush parsing/defaults |
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + proj* aliases + bound removal + hit/removal animations + remvelocity |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + BindTo* + Target* + ownership/DestroySelf |

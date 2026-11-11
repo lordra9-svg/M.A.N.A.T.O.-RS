@@ -146,7 +146,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 })
             };
         }
-        "fallenvshake" => env_shake(sim, who, control),
+        "fallenvshake" => fall_env_shake(sim, who),
         "envshake" => env_shake(sim, who, control),
         "zoom" => zoom(sim, who, control),
         "lifebaraction" => life_bar_action(sim, who, control),
@@ -1458,6 +1458,35 @@ fn width(sim: &mut SimState, who: usize, control: &Controller) {
     sim.fighters[who].width_override = Some((back, front));
     sim.fighters[who].width_back = back;
     sim.fighters[who].width_front = front;
+}
+
+/// `FallEnvShake` consumes the `fall.envshake.*` values stored by the last
+/// unguarded hit and clears the time so it cannot retrigger.
+fn fall_env_shake(sim: &mut SimState, who: usize) {
+    let f = &sim.fighters[who];
+    let time = f.hit.vars.fall_envshake_time;
+    if time <= 0 {
+        return;
+    }
+    let freq = f.hit.vars.fall_envshake_freq;
+    let ampl = f.hit.vars.fall_envshake_ampl as f32;
+    let mut phase = f.hit.vars.fall_envshake_phase;
+    if phase.is_nan() {
+        phase = if freq >= 90.0 { 90.0 } else { 0.0 };
+    }
+    phase = phase.clamp(-180.0, 180.0);
+    sim.fighters[who].hit.vars.fall_envshake_time = 0;
+    sim.env_shake = crate::EnvShake {
+        time,
+        initial_time: time,
+        freq,
+        ampl,
+        phase,
+        mul: 1.0,
+        dir: 0.0,
+        diradd: 0.0,
+        decay: 0.0,
+    };
 }
 
 fn env_shake(sim: &mut SimState, who: usize, control: &Controller) {

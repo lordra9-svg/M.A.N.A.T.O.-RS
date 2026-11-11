@@ -159,6 +159,14 @@ pub struct HitDef {
     pub fall_time: i32,
     /// Time before a fall can be recovered (`fall.recovertime`).
     pub fall_recovertime: i32,
+    /// Whether fall damage may KO (`fall.kill`).
+    pub fall_kill: bool,
+    /// Fall-impact screen shake (`fall.envshake.*`).
+    pub fall_envshake_time: i32,
+    pub fall_envshake_freq: f32,
+    pub fall_envshake_ampl: i32,
+    /// `NaN` means "derive the phase from the frequency".
+    pub fall_envshake_phase: f32,
     pub fall_damage: i32,
     pub fall_xvel: f32,
     pub fall_yvel: f32,
@@ -218,6 +226,11 @@ impl Default for HitDef {
             fall_recover: false,
             fall_time: 0,
             fall_recovertime: 4,
+            fall_kill: true,
+            fall_envshake_time: 0,
+            fall_envshake_freq: 60.0,
+            fall_envshake_ampl: -4,
+            fall_envshake_phase: f32::NAN,
             fall_damage: 0,
             fall_xvel: 0.0,
             fall_yvel: 0.0,
@@ -332,6 +345,11 @@ impl HitDef {
                 "fall.recover" => h.fall_recover = parse_i32(value) != 0,
                 "fall.time" => h.fall_time = parse_i32(value),
                 "fall.recovertime" => h.fall_recovertime = parse_i32(value),
+                "fall.kill" => h.fall_kill = parse_i32(value) != 0,
+                "fall.envshake.time" => h.fall_envshake_time = parse_i32(value),
+                "fall.envshake.freq" => h.fall_envshake_freq = parse_f32(value),
+                "fall.envshake.ampl" => h.fall_envshake_ampl = parse_i32(value),
+                "fall.envshake.phase" => h.fall_envshake_phase = parse_f32(value),
                 "fall.damage" => h.fall_damage = parse_i32(value),
                 "fall.xvelocity" => h.fall_xvel = parse_f32(value),
                 "fall.yvelocity" => h.fall_yvel = parse_f32(value),
@@ -438,7 +456,7 @@ impl HitDef {
 }
 
 /// Values exposed through `GetHitVar(...)`.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GetHitVars {
     pub anim_type: i32,
     pub ground_type: i32,
@@ -459,6 +477,13 @@ pub struct GetHitVars {
     pub fall_recovertime: i32,
     /// Remaining liedown recovery time (`GetHitVar(recovertime)`).
     pub down_recovertime: i32,
+    /// Whether fall damage may KO (`GetHitVar(fall.kill)`).
+    pub fall_kill: bool,
+    /// Fall-impact screen shake (`GetHitVar(fall.envshake.*)`).
+    pub fall_envshake_time: i32,
+    pub fall_envshake_freq: f32,
+    pub fall_envshake_ampl: i32,
+    pub fall_envshake_phase: f32,
     pub fall_damage: i32,
     /// `fall.xvelocity`/`fall.yvelocity`; `None` when unset.
     pub fall_x_vel: Option<f32>,
@@ -473,6 +498,44 @@ pub struct GetHitVars {
     pub chain_id: i32,
     pub is_bound: bool,
     pub damage: i32,
+}
+
+impl Default for GetHitVars {
+    fn default() -> Self {
+        Self {
+            anim_type: 0,
+            ground_type: 0,
+            air_type: 0,
+            hit_type: 0,
+            x_vel: 0.0,
+            y_vel: 0.0,
+            y_accel: 0.0,
+            hittime: 0,
+            slidetime: 0,
+            ctrltime: 0,
+            fall: false,
+            fall_recover: false,
+            fall_time: 0,
+            fall_recovertime: 4,
+            down_recovertime: 0,
+            fall_kill: true,
+            fall_envshake_time: 0,
+            fall_envshake_freq: 60.0,
+            fall_envshake_ampl: -4,
+            fall_envshake_phase: f32::NAN,
+            fall_damage: 0,
+            fall_x_vel: None,
+            fall_y_vel: None,
+            hitcount: 0,
+            fallcount: 0,
+            priority: 0,
+            guarded: false,
+            hit_id: 0,
+            chain_id: 0,
+            is_bound: false,
+            damage: 0,
+        }
+    }
 }
 
 impl GetHitVars {
@@ -493,6 +556,11 @@ impl GetHitVars {
             "fall.time" => Value::Int(self.fall_time),
             "fall.recovertime" => Value::Int(self.fall_recovertime),
             "recovertime" => Value::Int(self.down_recovertime),
+            "fall.kill" => Value::Int(self.fall_kill as i32),
+            "fall.envshake.time" => Value::Int(self.fall_envshake_time),
+            "fall.envshake.freq" => Value::Float(self.fall_envshake_freq),
+            "fall.envshake.ampl" => Value::Int(self.fall_envshake_ampl),
+            "fall.envshake.phase" => Value::Float(self.fall_envshake_phase),
             "fall.damage" => Value::Int(self.fall_damage),
             "fall.xvelocity" => Value::Float(self.fall_x_vel.unwrap_or(0.0)),
             "fall.yvelocity" => Value::Float(self.fall_y_vel.unwrap_or(0.0)),

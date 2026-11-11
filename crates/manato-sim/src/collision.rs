@@ -516,6 +516,11 @@ pub fn apply_hit_at(
         f.hit.vars.fall_recovertime = hitdef.fall_recovertime;
         if !guarding {
             f.hit.vars.down_recovertime = liedown_time;
+            f.hit.vars.fall_kill = hitdef.fall_kill;
+            f.hit.vars.fall_envshake_time = hitdef.fall_envshake_time;
+            f.hit.vars.fall_envshake_freq = hitdef.fall_envshake_freq;
+            f.hit.vars.fall_envshake_ampl = hitdef.fall_envshake_ampl;
+            f.hit.vars.fall_envshake_phase = hitdef.fall_envshake_phase;
         }
         f.hit.vars.fall_damage = hitdef.fall_damage;
         f.hit.vars.fall_x_vel = Some(hitdef.fall_xvel * -(attacker_facing as f32));
