@@ -7579,7 +7579,7 @@ fn air_corner_push_uses_air_offset_and_threshold() {
     sim.fighters[1].state_type = manato_sim::fighter::StateType::Stand;
     sim.fighters[1].pos = manato_core::Vec2::new(right - 10.0, 0.0);
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
-    assert_eq!(sim.fighters[1].hit.vars.x_vel, -6.0, "guard velocity/2 - 8");
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -4.0, "4 - 8 guard push");
 
     // Air guards select airguard.cornerpush.
     sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
@@ -7734,8 +7734,8 @@ fn air_guard_uses_airguard_velocity_and_guard_hittime() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
     assert_eq!(sim.fighters[1].life, life - 5, "guard damage");
     assert_eq!(
-        sim.fighters[1].hit.vars.x_vel, 3.0,
-        "airguard velocity halved and mirrored"
+        sim.fighters[1].hit.vars.x_vel, 6.0,
+        "airguard velocity mirrored"
     );
     assert_eq!(sim.fighters[1].hit.vars.y_vel, -2.0);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 6);
@@ -7820,17 +7820,17 @@ fn hitdef_parses_guard_velocity_hittime_and_airguard() {
     // Guard flag defaults to MA when omitted.
     assert_eq!(parsed.guardflag, "MA");
 
-    // Supplying guard.velocity drives the guarded reaction (halved).
+    // Supplying guard.velocity drives the guarded reaction directly.
     let origin = sim.fighters[0].pos;
     sim.fighters[1].facing = -1;
     let life = sim.fighters[1].life;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
     assert_eq!(sim.fighters[1].life, life - 6);
-    assert_eq!(sim.fighters[1].hit.vars.x_vel, 5.0, "-10/2 mirrored");
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 10.0, "-10 mirrored");
     assert_eq!(sim.fighters[1].hit.vars.y_vel, 1.0);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 7);
 
-    // Without guard.velocity the ground velocity is halved instead.
+    // Without guard.velocity the ground velocity is used instead.
     let Some(mut sim) = fight_phase() else {
         return;
     };
@@ -7850,7 +7850,58 @@ fn hitdef_parses_guard_velocity_hittime_and_airguard() {
     let origin = sim.fighters[0].pos;
     sim.fighters[1].facing = -1;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
-    assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0, "-8/2 mirrored");
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 8.0, "-8 mirrored");
+}
+
+#[test]
+fn hitdef_airguard_velocity_defaults_from_air_velocity() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10, 2".into()),
+            ("air.velocity".into(), "-4, -6".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(
+        parsed.airguard_velocity,
+        manato_core::Vec2::new(-6.0, -3.0),
+        "default is air.velocity.x * 1.5, air.velocity.y * 0.5"
+    );
+
+    // The default is applied directly to an air guard (no extra halving).
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 6.0);
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, -3.0);
+
+    // An explicit airguard.velocity overrides the derived value.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let explicit = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.velocity".into(), "-4, -6".into()),
+            ("airguard.velocity".into(), "-8, -1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &explicit, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(parsed.airguard_velocity, manato_core::Vec2::new(-8.0, -1.0));
 }
 
 #[test]
@@ -8257,13 +8308,13 @@ fn guard_cornerpush_uses_guard_specific_veloff() {
     let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
 
     // Guarded ground hit near the right corner uses guard.cornerpush rather
-    // than ground.cornerpush. Guard velocity -10 is halved and mirrored to +5.
+    // than ground.cornerpush. Guard velocity -10 is mirrored to +10.
     let right = sim.assets.stage.right_bound;
     sim.fighters[1].pos.x = right;
     sim.fighters[1].facing = -1;
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
-    assert_eq!(sim.fighters[1].hit.vars.x_vel, 3.5);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 8.5);
 
     // Air guard uses airguard.cornerpush.
     let Some(mut sim) = fight_phase() else {

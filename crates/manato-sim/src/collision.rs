@@ -437,12 +437,11 @@ pub fn apply_hit_at(
         / sim.fighters[defender].fall_defence_mul.max(0.01)) as i32;
 
     let velocity_tuple = if guarding {
-        let mut v = if defender_airborne {
+        let v = if defender_airborne {
             hitdef.airguard_velocity
         } else {
             hitdef.guard_velocity.unwrap_or(hitdef.ground_velocity)
         };
-        v.x *= 0.5;
         let ctrltime = if defender_airborne {
             hitdef.airguard_ctrltime
         } else {

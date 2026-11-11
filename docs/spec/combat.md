@@ -104,6 +104,9 @@ applied when a `HitDef` controller omits the parameter:
   `guard.slidetime` inherits `guard.hittime` when omitted.
   `guard.ctrltime` inherits `guard.slidetime`, and `airguard.ctrltime`
   inherits `guard.ctrltime`.
+- `airguard.velocity` defaults to
+  `(air.velocity.x * 1.5, air.velocity.y * 0.5)` when omitted. Guard
+  velocities are applied directly; the engine does not halve them.
 - Guard hits use `guard.hittime`/`guard.slidetime`; unguarded ground hits use
   `ground.hittime`/`ground.slidetime`; air hits use `air.hittime`.
 - Ikemen-GO preserves a reported M.U.G.E.N implementation quirk where
@@ -181,7 +184,9 @@ Guard damage:
 - Unguarded air hit states apply the HitDef `yaccel` as their vertical
   acceleration and expose it through `GetHitVar(yaccel)`. Ordinary air
   movement and air guard continue to use the character’s `movement.yaccel`.
-- Guard velocity is half of the ground/air guard velocity.
+- Guard velocity is applied directly: `guard.velocity` (or its
+  `ground.velocity` fallback) for a grounded guard, and
+  `airguard.velocity` for an air guard.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
 - Enter guard states 150/152/154 or hit states 5000/5010/5020 when present.

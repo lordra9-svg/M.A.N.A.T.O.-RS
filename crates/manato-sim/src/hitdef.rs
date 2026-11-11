@@ -258,6 +258,7 @@ impl HitDef {
             ..Self::default()
         };
         let mut air_type_set = false;
+        let mut airguard_velocity_set = false;
         let mut guard_hittime_set = false;
         let mut guard_slidetime_set = false;
         let mut guard_ctrltime_set = false;
@@ -291,7 +292,10 @@ impl HitDef {
                 "air.velocity" => h.air_velocity = parse_vec(value),
                 "yaccel" => h.yaccel = parse_f32(value),
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
-                "airguard.velocity" => h.airguard_velocity = parse_vec(value),
+                "airguard.velocity" => {
+                    h.airguard_velocity = parse_vec(value);
+                    airguard_velocity_set = true;
+                }
                 "ground.hittime" => h.ground_hittime = parse_i32(value),
                 "air.hittime" => h.air_hittime = parse_i32(value),
                 "ground.slidetime" => h.ground_slidetime = parse_i32(value),
@@ -376,6 +380,11 @@ impl HitDef {
         // follows ground.hittime, and guard.slidetime follows guard.hittime.
         if !air_type_set {
             h.air_type = h.ground_type;
+        }
+        // Documented default: air guard velocity is 1.5x the air X velocity
+        // and half the air Y velocity.
+        if !airguard_velocity_set {
+            h.airguard_velocity = Vec2::new(h.air_velocity.x * 1.5, h.air_velocity.y * 0.5);
         }
         if !guard_hittime_set {
             h.guard_hittime = h.ground_hittime;
