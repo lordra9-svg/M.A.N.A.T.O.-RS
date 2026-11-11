@@ -68,9 +68,10 @@ space.
 | 3 | Fighter shadows | Skipped for helpers, `invisible`, `noshadow` |
 | 4 | Effects with `ontop = 0` | Stable sort by `sprpriority`, then insertion order |
 | 5 | Fighters and helpers | Stable sort by `sprpriority`, then entity index |
-| 6 | Projectiles | Current implementation order |
+| 6 | Projectiles with `projlayerno <= 0` | Stable sort by `projsprpriority`, then insertion order |
 | 7 | Stage layers with `layerno == 0` | Declared order |
 | 8 | Stage layers with `layerno > 0` | Declared order |
+| 8b | Projectiles with `projlayerno > 0` | Same ordering as pass 6 |
 | 9 | Effects with `ontop = 1` | Same ordering as pass 4 |
 | 10 | Fight screen background elements | `bg*`, `top`, `mid`, `red`, `front`, bar `shift` |
 | 11 | `envcolor` overlay | Full viewport, after the scene, before fight-screen text |

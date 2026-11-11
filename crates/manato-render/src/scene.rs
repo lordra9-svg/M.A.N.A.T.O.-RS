@@ -103,7 +103,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_fighter(painter, deps.atlas, sim, who);
     }
 
-    draw_projectiles(painter, deps.atlas, sim);
+    draw_projectiles(painter, deps.atlas, sim, false);
 
     for (index, layer) in stage
         .render_layers()
@@ -118,6 +118,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
             painter.set_scissor(None);
         }
     }
+
+    // Projectiles with `projlayerno > 0` draw over the stage foreground.
+    draw_projectiles(painter, deps.atlas, sim, true);
 
     let mut front: Vec<&Effect> = sim.effects.iter().filter(|e| !e.behind).collect();
     front.sort_by_key(|e| e.sprite_priority);
@@ -314,8 +317,25 @@ fn draw_bg_layer(
     }
 }
 
-fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
-    for projectile in &sim.projectiles {
+/// Indices of projectiles drawn in the background (`foreground = false`) or
+/// foreground layer, stable-sorted by `projsprpriority` then insertion order.
+pub fn projectile_draw_order(
+    projectiles: &[manato_sim::projectile::Projectile],
+    foreground: bool,
+) -> Vec<usize> {
+    let mut order: Vec<usize> = projectiles
+        .iter()
+        .enumerate()
+        .filter(|(_, projectile)| (projectile.layer_no > 0) == foreground)
+        .map(|(index, _)| index)
+        .collect();
+    order.sort_by_key(|&index| (projectiles[index].sprite_priority, index));
+    order
+}
+
+fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, foreground: bool) {
+    for index in projectile_draw_order(&sim.projectiles, foreground) {
+        let projectile = &sim.projectiles[index];
         let char = &sim.assets.characters[sim.fighters[projectile.owner].char_id];
         let Some(anim) = char.animation(projectile.anim) else {
             continue;
@@ -1147,5 +1167,61 @@ mod tests {
         assert!(corners[3][0] < corners[0][0]);
         let centre_x = (corners[0][0] + corners[2][0]) * 0.5;
         assert!((centre_x - 5.0).abs() < 0.001);
+    }
+    fn test_projectile(layer_no: i32, sprite_priority: i32) -> manato_sim::projectile::Projectile {
+        manato_sim::projectile::Projectile {
+            owner: 0,
+            id: 0,
+            anim: 0,
+            pos: Vec2::ZERO,
+            vel: Vec2::ZERO,
+            accel: Vec2::ZERO,
+            facing: 1,
+            scale: Vec2::new(1.0, 1.0),
+            angle: 0.0,
+            x_shear: 0.0,
+            projection: ProjectionMode::Orthographic,
+            focal_length: 1024.0,
+            time: 0,
+            remove_time: -1,
+            anim_loop_time: 0,
+            remove_on_hits_exhausted: true,
+            priority: 0,
+            priority_points: 0,
+            shadow: [0; 3],
+            reflection: 0,
+            miss_time: 0,
+            hit_anim: -1,
+            rem_anim: -1,
+            cancel_anim: -1,
+            layer_no,
+            sprite_priority,
+            edge_bound: 40.0,
+            stage_bound: 40.0,
+            height_bound: (-240.0, 1.0),
+            depth_bound: f32::MAX,
+            out_of_bounds: false,
+            hits: 1,
+            hitdef: manato_sim::hitdef::HitDef::default(),
+        }
+    }
+
+    #[test]
+    fn projectile_draw_order_splits_layers_and_sorts_by_priority() {
+        let projectiles = [
+            test_projectile(0, 5),
+            test_projectile(1, 1),
+            test_projectile(0, 2),
+            test_projectile(1, 9),
+        ];
+        assert_eq!(projectile_draw_order(&projectiles, false), vec![2, 0]);
+        assert_eq!(projectile_draw_order(&projectiles, true), vec![1, 3]);
+        // Equal priorities keep insertion order.
+        let equal = [
+            test_projectile(0, 3),
+            test_projectile(0, 3),
+            test_projectile(0, 1),
+        ];
+        assert_eq!(projectile_draw_order(&equal, false), vec![2, 0, 1]);
     }
 }
