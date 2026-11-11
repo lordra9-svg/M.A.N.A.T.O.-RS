@@ -8210,6 +8210,80 @@ fn root_parent_self_redirects_from_helper() {
 }
 
 #[test]
+fn helper_relation_triggers_follow_axis_facing_and_ids() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, assets: &manato_sim::Assets, owner: usize, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params: vec![
+                ("stateno".into(), "0".into()),
+                ("id".into(), id.to_string()),
+                ("removetime".into(), "-1".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, owner, &control, assets);
+        sim.fighters.len() - 1
+    };
+    let helper = spawn(&mut sim, &assets, 0, 31);
+
+    // The root is at (40,-5) facing right; the helper at (30,15) facing left.
+    sim.fighters[0].pos = manato_core::Vec2::new(40.0, -5.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[helper].pos = manato_core::Vec2::new(30.0, 15.0);
+    sim.fighters[helper].facing = -1;
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IsHelper"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "IsHelper"), 1);
+    assert_eq!(sim.fighters[helper].helper_id, 31);
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "IsHelper(31)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "IsHelper(7)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IsHelper(31)"), 0);
+
+    // X distance is positive when the relation is in front of the child.
+    assert_eq!(
+        manato_sim::trigger::num(&sim, helper, "ParentDist X"),
+        -10.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, helper, "ParentDist Y"),
+        -20.0
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, helper, "RootDist X"), -10.0);
+    assert_eq!(manato_sim::trigger::num(&sim, helper, "RootDist Y"), -20.0);
+
+    // Facing flips the sign of the X component.
+    sim.fighters[helper].facing = 1;
+    assert_eq!(manato_sim::trigger::num(&sim, helper, "ParentDist X"), 10.0);
+    assert_eq!(manato_sim::trigger::num(&sim, helper, "RootDist X"), 10.0);
+
+    // A KO'd relation reports no position instead of a stale distance.
+    sim.fighters[0].life = 0;
+    assert_eq!(manato_sim::trigger::num(&sim, helper, "ParentDist X"), 0.0);
+    sim.fighters[0].life = sim.fighters[0].life_max;
+
+    // A nested helper measures its parent and its root separately.
+    let nested = spawn(&mut sim, &assets, helper, 5);
+    sim.fighters[nested].pos = manato_core::Vec2::new(50.0, 30.0);
+    sim.fighters[nested].facing = 1;
+    assert_eq!(manato_sim::trigger::int(&sim, nested, "IsHelper(5)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, nested, "IsHelper(31)"), 0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, nested, "ParentDist X"),
+        -20.0
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, nested, "RootDist X"), -10.0);
+
+    // No relation and a missing component both yield zero.
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "ParentDist X"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "RootDist Y"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, helper, "ParentDist"), 0.0);
+}
+
+#[test]
 fn changeanim2_reads_another_players_animation_bank() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -546,6 +546,16 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Float(b.y - a.y)
             }
         }
+        "parentdist" => {
+            let axis = axis_arg(sim, who, args);
+            let parent = sim.parent_of(who);
+            Value::Float(relation_axis_distance(sim, who, parent, &axis))
+        }
+        "rootdist" => {
+            let axis = axis_arg(sim, who, args);
+            let root = sim.root_of(who);
+            Value::Float(relation_axis_distance(sim, who, root, &axis))
+        }
         "p2screendist" => {
             let axis = axis_arg(sim, who, args);
             let other = sim.other(who);
@@ -596,7 +606,15 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Float(f.vel.y)
             }
         }
-        "ishelper" => Value::Int(sim.is_helper(who) as i32),
+        "ishelper" => {
+            let helper = sim.is_helper(who);
+            if args.is_empty() {
+                Value::Int(helper as i32)
+            } else {
+                let id = arg_i32(sim, who, args, 0);
+                Value::Int((helper && sim.fighters[who].helper_id == id) as i32)
+            }
+        }
         "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
         "helperindex" => Value::Int(who.saturating_sub(2) as i32),
         "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause_time),
@@ -649,6 +667,25 @@ fn axis_arg(sim: &SimState, who: usize, args: &[Expr]) -> String {
     args.first()
         .map(|e| eval(sim, who, e).as_str().to_ascii_lowercase())
         .unwrap_or_default()
+}
+
+/// Axis-relative distance from `who` to `other`, as used by `ParentDist` and
+/// `RootDist`. A missing or unknown component (including no relation) is 0.
+fn relation_axis_distance(sim: &SimState, who: usize, other: usize, axis: &str) -> f32 {
+    if other == who
+        || axis.is_empty()
+        || !sim.fighters[other].active
+        || !sim.fighters[other].alive()
+    {
+        return 0.0;
+    }
+    let a = sim.fighters[who].pos;
+    let b = sim.fighters[other].pos;
+    if axis.starts_with('x') {
+        (b.x - a.x) * sim.fighters[who].facing as f32
+    } else {
+        b.y - a.y
+    }
 }
 
 fn is_trigger_name(name: &str) -> bool {
@@ -809,7 +846,7 @@ fn hitbyattr_value(sim: &SimState, who: usize, wanted: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value {
+fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
     let f = &sim.fighters[who];
     let other = sim.other(who);
     let o = &sim.fighters[other];
@@ -877,6 +914,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "roundtime" => Value::Int(sim.round.seconds()),
         "teamside" => Value::Int(f.side as i32 + 1),
         "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
+        "ishelper" => Value::Int(sim.is_helper(who) as i32),
         "numenemy" => Value::Int(1),
         "numexplod" => Value::Int(
             sim.effects
@@ -952,24 +990,14 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "ishometeam" => Value::Int(1),
         "parentexist" => Value::Int((sim.parent_of(who) != who) as i32),
         "rootdist" => {
+            let axis = axis_arg(sim, who, args);
             let root = sim.root_of(who);
-            if root == who {
-                Value::Float(0.0)
-            } else {
-                let a = sim.fighters[who].pos;
-                let b = sim.fighters[root].pos;
-                Value::Float(((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt())
-            }
+            Value::Float(relation_axis_distance(sim, who, root, &axis))
         }
         "parentdist" => {
+            let axis = axis_arg(sim, who, args);
             let parent = sim.parent_of(who);
-            if parent == who {
-                Value::Float(0.0)
-            } else {
-                let a = sim.fighters[who].pos;
-                let b = sim.fighters[parent].pos;
-                Value::Float(((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt())
-            }
+            Value::Float(relation_axis_distance(sim, who, parent, &axis))
         }
         "camerazoom" => Value::Float(sim.camera.scale),
         "camerapos" => Value::Float(sim.camera.x),

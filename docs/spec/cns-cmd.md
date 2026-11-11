@@ -182,7 +182,8 @@ missing redirect targets make the trigger false.
   `BackEdge`, `FrontEdge`, `BackEdgeBodyDist`, `FrontEdgeBodyDist`,
   `BackEdgeDist`, `FrontEdgeDist`
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjHit`,
-  `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`
+  `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
+  `ParentDist`, `RootDist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`
 
 ### 5.4 Constants
@@ -190,6 +191,24 @@ missing redirect targets make the trigger false.
 `Const(name)` resolves the `[Data]`, `[Size]`, `[Velocity]`, and `[Movement]`
 constants. Comma-separated values expand to `.x`/`.y`; scalar velocity values
 also expand. Unknown constants evaluate to 0 and log once.
+
+### 5.5 Helper relation triggers
+
+Public M.U.G.E.N trigger documentation defines the helper relation family as
+follows; Ikemen-GO content uses the same forms.
+
+- `IsHelper` is 1 for a helper and 0 otherwise. `IsHelper(n)` additionally
+  requires the helper's `id` to equal `n`.
+- `ParentDist X|Y` is the distance from a helper to its parent. `X` is
+  `(parent.x - self.x) * self.facing`, so a parent in front of the helper is
+  positive; `Y` is `parent.y - self.y`, so a parent above the helper is
+  negative.
+- `RootDist X|Y` has the same axes relative to the helper's root (the owning
+  player, possibly several helper generations up).
+- A player with no parent/root, a destroyed or KO'd relation, or a missing
+  component evaluates to 0. (M.U.G.E.N specifies "bottom" for the missing
+  relation case; 0 keeps the common `!= 0` comparisons inert and matches the
+  existing engine scalar model.)
 
 ## 6. Commands
 

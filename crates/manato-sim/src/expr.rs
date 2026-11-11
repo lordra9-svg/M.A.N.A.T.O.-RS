@@ -496,6 +496,8 @@ fn needs_axis_arg(name: &str) -> bool {
             | "p2dist"
             | "p2bodydist"
             | "p2screendist"
+            | "parentdist"
+            | "rootdist"
             | "screenpos"
             | "screenvel"
             | "camerapos"
