@@ -166,6 +166,10 @@ pub struct HitDef {
     pub p2sprpriority_set: bool,
     pub ground_cornerpush: f32,
     pub air_cornerpush: f32,
+    /// Corner push applied when the hit is guarded.
+    pub guard_cornerpush: f32,
+    /// Corner push applied when an air hit is guarded.
+    pub airguard_cornerpush: f32,
     pub activation: u32,
 }
 
@@ -217,6 +221,8 @@ impl Default for HitDef {
             p2sprpriority_set: false,
             ground_cornerpush: 0.0,
             air_cornerpush: 0.0,
+            guard_cornerpush: 0.0,
+            airguard_cornerpush: 0.0,
             activation: 0,
         }
     }
@@ -233,6 +239,8 @@ impl HitDef {
         let mut guard_slidetime_set = false;
         let mut ground_cornerpush_set = false;
         let mut air_cornerpush_set = false;
+        let mut guard_cornerpush_set = false;
+        let mut airguard_cornerpush_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
@@ -319,6 +327,14 @@ impl HitDef {
                     h.air_cornerpush = parse_f32(value);
                     air_cornerpush_set = true;
                 }
+                "guard.cornerpush.veloff" => {
+                    h.guard_cornerpush = parse_f32(value);
+                    guard_cornerpush_set = true;
+                }
+                "airguard.cornerpush.veloff" => {
+                    h.airguard_cornerpush = parse_f32(value);
+                    airguard_cornerpush_set = true;
+                }
                 _ => {}
             }
         }
@@ -345,6 +361,12 @@ impl HitDef {
         }
         if !air_cornerpush_set {
             h.air_cornerpush = h.ground_cornerpush;
+        }
+        if !guard_cornerpush_set {
+            h.guard_cornerpush = h.ground_cornerpush;
+        }
+        if !airguard_cornerpush_set {
+            h.airguard_cornerpush = h.guard_cornerpush;
         }
         h
     }

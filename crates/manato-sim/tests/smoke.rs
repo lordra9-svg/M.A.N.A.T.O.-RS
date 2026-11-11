@@ -7550,6 +7550,8 @@ fn air_corner_push_uses_air_offset_and_threshold() {
     hit.air_velocity = manato_core::Vec2::new(-4.0, -6.0);
     hit.ground_cornerpush = -8.0;
     hit.air_cornerpush = -6.0;
+    hit.guard_cornerpush = -8.0;
+    hit.airguard_cornerpush = -6.0;
     let origin = sim.fighters[0].pos;
 
     // Airborne defender inside the 24px threshold uses air.cornerpush.
@@ -7578,6 +7580,12 @@ fn air_corner_push_uses_air_offset_and_threshold() {
     sim.fighters[1].pos = manato_core::Vec2::new(right - 10.0, 0.0);
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
     assert_eq!(sim.fighters[1].hit.vars.x_vel, -6.0, "guard velocity/2 - 8");
+
+    // Air guards select airguard.cornerpush.
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos = manato_core::Vec2::new(right - 10.0, -20.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -6.0, "airguard corner push");
 }
 
 #[test]
@@ -8111,6 +8119,8 @@ fn hitdef_cornerpush_defaults_follow_guard_velocity_and_attr() {
     );
     assert!(close(hit.ground_cornerpush, -5.2));
     assert_eq!(hit.air_cornerpush, hit.ground_cornerpush);
+    assert_eq!(hit.guard_cornerpush, hit.ground_cornerpush);
+    assert_eq!(hit.airguard_cornerpush, hit.guard_cornerpush);
 
     // An explicit guard.velocity wins over ground.velocity.
     let hit = parse(
@@ -8133,6 +8143,8 @@ fn hitdef_cornerpush_defaults_follow_guard_velocity_and_attr() {
     );
     assert_eq!(hit.ground_cornerpush, 0.0);
     assert_eq!(hit.air_cornerpush, 0.0);
+    assert_eq!(hit.guard_cornerpush, 0.0);
+    assert_eq!(hit.airguard_cornerpush, 0.0);
 
     // Explicit values override, and air inherits ground when omitted.
     let hit = parse(
@@ -8144,6 +8156,8 @@ fn hitdef_cornerpush_defaults_follow_guard_velocity_and_attr() {
     );
     assert_eq!(hit.ground_cornerpush, -2.5);
     assert_eq!(hit.air_cornerpush, -2.5);
+    assert_eq!(hit.guard_cornerpush, -2.5);
+    assert_eq!(hit.airguard_cornerpush, -2.5);
 
     let hit = parse(
         &mut sim,
@@ -8151,10 +8165,24 @@ fn hitdef_cornerpush_defaults_follow_guard_velocity_and_attr() {
             ("attr".into(), "S, NA".into()),
             ("ground.cornerpush.veloff".into(), "-2.5".into()),
             ("air.cornerpush.veloff".into(), "-3.5".into()),
+            ("guard.cornerpush.veloff".into(), "-1.25".into()),
         ],
     );
     assert_eq!(hit.ground_cornerpush, -2.5);
     assert_eq!(hit.air_cornerpush, -3.5);
+    assert_eq!(hit.guard_cornerpush, -1.25);
+    assert_eq!(hit.airguard_cornerpush, -1.25);
+
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("guard.cornerpush.veloff".into(), "-1.25".into()),
+            ("airguard.cornerpush.veloff".into(), "-4.0".into()),
+        ],
+    );
+    assert_eq!(hit.guard_cornerpush, -1.25);
+    assert_eq!(hit.airguard_cornerpush, -4.0);
 
     // `None` parses with the documented code instead of falling back to High.
     let hit = parse(
@@ -8166,6 +8194,54 @@ fn hitdef_cornerpush_defaults_follow_guard_velocity_and_attr() {
     );
     assert_eq!(hit.ground_type, GroundType::None);
     assert_eq!(hit.ground_type.code(), 0);
+}
+
+#[test]
+fn guard_cornerpush_uses_guard_specific_veloff() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10, 2".into()),
+            ("guardflag".into(), "MA".into()),
+            ("ground.velocity".into(), "-4".into()),
+            ("guard.velocity".into(), "-10, 0".into()),
+            ("ground.cornerpush.veloff".into(), "-8".into()),
+            ("air.cornerpush.veloff".into(), "-6".into()),
+            ("guard.cornerpush.veloff".into(), "-1.5".into()),
+            ("airguard.cornerpush.veloff".into(), "-2.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+
+    // Guarded ground hit near the right corner uses guard.cornerpush rather
+    // than ground.cornerpush. Guard velocity -10 is halved and mirrored to +5.
+    let right = sim.assets.stage.right_bound;
+    sim.fighters[1].pos.x = right;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 3.5);
+
+    // Air guard uses airguard.cornerpush.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos = manato_core::Vec2::new(right, -20.0);
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -2.5);
 }
 
 #[test]

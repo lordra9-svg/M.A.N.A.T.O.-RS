@@ -121,9 +121,11 @@ Corner-push defaults follow the documented legacy rule: when
 contain `A`) gets `0`, otherwise it gets `1.3 * guard.velocity.x`, where
 `guard.velocity` falls back to `ground.velocity` before the multiplication.
 `air.cornerpush.veloff` inherits the resulting ground value when omitted.
-Explicit values always win. `guard.cornerpush.veloff` and
-`airguard.cornerpush.veloff` are not separately modeled; guarded contacts use
-the ground/air corner-push value selected by the defender's state.
+Explicit values always win. `guard.cornerpush.veloff` inherits
+`ground.cornerpush.veloff`, and `airguard.cornerpush.veloff` inherits
+`guard.cornerpush.veloff`; guarded ground and air contacts select those
+values instead of the unguarded ones. `down.cornerpush.veloff` is not
+modeled because the engine does not distinguish a downed hit reaction.
 
 ## 5. Hit resolution order
 

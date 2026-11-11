@@ -462,10 +462,11 @@ pub fn apply_hit_at(
         let f = &sim.fighters[defender];
         let near_corner = f.pos.x <= stage.left_bound + 24.0 || f.pos.x >= stage.right_bound - 24.0;
         if near_corner {
-            if defender_airborne {
-                hitdef.air_cornerpush
-            } else {
-                hitdef.ground_cornerpush
+            match (guarding, defender_airborne) {
+                (true, true) => hitdef.airguard_cornerpush,
+                (true, false) => hitdef.guard_cornerpush,
+                (false, true) => hitdef.air_cornerpush,
+                (false, false) => hitdef.ground_cornerpush,
             }
         } else {
             0.0
