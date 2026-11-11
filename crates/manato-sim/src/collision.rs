@@ -72,7 +72,8 @@ pub fn resolve(sim: &mut SimState) {
             }
         }
 
-        let guarding = forced_guard || can_guard(sim, attacker, defender, &hitdef);
+        let guarding =
+            forced_guard || can_guard(sim, defender, &hitdef, sim.fighters[attacker].pos);
         let defender_airborne = {
             let f = &sim.fighters[defender];
             f.state_type == StateType::Air || f.pos.y < -1.0
@@ -193,9 +194,13 @@ fn hitflag_allows(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
     true
 }
 
-fn can_guard(sim: &SimState, _attacker: usize, defender: usize, hitdef: &HitDef) -> bool {
+fn can_guard(sim: &SimState, defender: usize, hitdef: &HitDef, origin: Vec2) -> bool {
     let f = &sim.fighters[defender];
     if f.move_type == MoveType::Hit || f.state_no >= 5000 {
+        return false;
+    }
+    let dx = (origin.x - f.pos.x).abs();
+    if dx >= hitdef.guard_dist as f32 {
         return false;
     }
     let input = f.held_input();
@@ -744,7 +749,7 @@ pub fn resolve_projectiles(sim: &mut SimState) {
             continue;
         }
 
-        let guarding = can_guard(sim, owner, defender, &hitdef);
+        let guarding = can_guard(sim, defender, &hitdef, pos);
         apply_hit_at(sim, owner, defender, &hitdef, guarding, pos, facing, false);
         sim.fighters[owner].proj_contact_time = 0;
         if guarding {

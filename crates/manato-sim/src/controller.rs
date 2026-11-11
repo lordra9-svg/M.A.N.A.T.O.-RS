@@ -31,6 +31,22 @@ fn char_of<'a>(assets: &'a crate::Assets, sim: &SimState, who: usize) -> &'a Cha
     &assets.characters[sim.fighters[who].char_id]
 }
 
+/// Default `guard.dist` from `[Size] attack.dist` (melee) or
+/// `proj.attack.dist` (projectile), both of which default to 160/90.
+fn character_guard_dist(char: &Character, projectile: bool) -> i32 {
+    let (specific, base, default) = if projectile {
+        ("size.proj.attack.dist.x", "size.proj.attack.dist", 90.0)
+    } else {
+        ("size.attack.dist.x", "size.attack.dist", 160.0)
+    };
+    char.constants
+        .get(specific)
+        .or_else(|| char.constants.get(base))
+        .unwrap_or(default)
+        .max(0.0)
+        .round() as i32
+}
+
 pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let kind = control.kind.trim().to_ascii_lowercase();
     match kind.as_str() {
@@ -422,8 +438,13 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
 }
 
 fn reversal_def(sim: &mut SimState, who: usize, control: &Controller) {
-    let localcoord = sim.assets.characters[sim.fighters[who].char_id].localcoord();
-    let hitdef = HitDef::from_controller_for(control, sim.hit_activation, localcoord);
+    let character = &sim.assets.characters[sim.fighters[who].char_id];
+    let hitdef = HitDef::from_controller_for(
+        control,
+        sim.hit_activation,
+        character.localcoord(),
+        character_guard_dist(character, false),
+    );
     let time = int_param(sim, who, control, "time").unwrap_or(1).max(1);
     sim.fighters[who].reversal = Some(hitdef);
     sim.fighters[who].reversal_time = time;
@@ -960,7 +981,12 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let (vx, vy) = control.get_pair("velocity").unwrap_or((0.0, 0.0));
     let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
     let facing = sim.fighters[who].facing;
-    let mut hitdef = HitDef::from_controller_for(control, sim.hit_activation, char.localcoord());
+    let mut hitdef = HitDef::from_controller_for(
+        control,
+        sim.hit_activation,
+        char.localcoord(),
+        character_guard_dist(char, true),
+    );
     // Each projectile spawn is its own hit activation.
     sim.hit_activation = sim.hit_activation.wrapping_add(1);
     // Projectile sparks sit at the impact point, not at a body offset.
@@ -1350,8 +1376,13 @@ fn hit_def(sim: &mut SimState, who: usize, control: &Controller) {
         sim.fighters[who].hit.hit_counts.clear();
     }
     sim.fighters[who].hit.last_activation_frame = sim.frame as i64;
-    let localcoord = sim.assets.characters[sim.fighters[who].char_id].localcoord();
-    let hitdef = HitDef::from_controller_for(control, sim.hit_activation, localcoord);
+    let character = &sim.assets.characters[sim.fighters[who].char_id];
+    let hitdef = HitDef::from_controller_for(
+        control,
+        sim.hit_activation,
+        character.localcoord(),
+        character_guard_dist(character, false),
+    );
     if hitdef.air_juggle > 0 {
         sim.fighters[who].juggle = hitdef.air_juggle;
     }

@@ -66,6 +66,7 @@ ground.slidetime = N
 guard.hittime = N
 guard.slidetime = N
 guard.ctrltime = N
+guard.dist = N
 airguard.ctrltime = N
 pausetime = attacker, defender
 sparkno = N
@@ -120,6 +121,9 @@ applied when a `HitDef` controller omits the parameter:
   `guard.slidetime` inherits `guard.hittime` when omitted.
   `guard.ctrltime` inherits `guard.slidetime`, and `airguard.ctrltime`
   inherits `guard.ctrltime`.
+- `guard.dist` defaults from the character’s `[Size] attack.dist`
+  (`160` if absent) for melee HitDefs and `proj.attack.dist` (`90` if absent)
+  for projectiles. An explicit `guard.dist`/`guard.dist.width` overrides it.
 - `airguard.velocity` defaults to
   `(air.velocity.x * 1.5, air.velocity.y * 0.5)` when omitted. Guard
   velocities are applied directly; the engine does not halve them.
@@ -182,6 +186,7 @@ For each attacker and defender pair:
 A defender guards when:
 
 - they are holding back or the `blocking` command is active,
+- the defender is within the attack’s `guard.dist` X distance,
 - they are in a guard-capable state,
 - the attack’s `guardflag` matches their state type (high/low/air),
 - `AssertSpecial` does not disable that guard type,
@@ -192,6 +197,11 @@ Guard damage:
 - use `guard.damage` if positive, else `damage / 4`,
 - apply attack/defence multipliers,
 - never reduce life below zero through guard alone unless the content says so.
+
+`InGuardDist` is true when the opponent has an active HitDef (or is attacking)
+within that HitDef’s `guard.dist`, or when one of the opponent’s active
+projectiles is within its own projectile `guard.dist`. The comparison is
+strict: distance must be less than `guard.dist`.
 
 ## 7. Hit reaction
 

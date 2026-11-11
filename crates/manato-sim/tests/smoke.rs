@@ -6323,6 +6323,102 @@ fn hitdefattr_inguarddist_and_canrecover_triggers() {
 }
 
 #[test]
+fn hitdef_guard_dist_defaults_and_limits_guarding() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // Melee HitDefs default guard.dist from [Size] attack.dist.
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let hit = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert_eq!(hit.guard_dist, 160);
+
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("guard.dist".into(), "0".into()),
+        ],
+    );
+    assert_eq!(hit.guard_dist, 0);
+
+    let hit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("guard.dist".into(), "50, 10".into()),
+        ],
+    );
+    assert_eq!(hit.guard_dist, 50);
+
+    // InGuardDist uses the opponent HitDef's guard.dist.
+    sim.fighters[0].pos.x = 0.0;
+    sim.fighters[1].pos.x = 60.0;
+    let mut threat = hit;
+    threat.guard_dist = 50;
+    sim.fighters[1].hitdef = Some(threat);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 0);
+    if let Some(threat) = sim.fighters[1].hitdef.as_mut() {
+        threat.guard_dist = 61;
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 1);
+
+    // Projectile HitDefs default from [Size] proj.attack.dist and also
+    // participate in InGuardDist.
+    sim.fighters[1].hitdef = None;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Idle;
+    let projectile = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0, 0".into()),
+            ("removetime".into(), "60".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &projectile, &assets);
+    let shot = sim.projectiles.last().expect("projectile");
+    assert_eq!(shot.hitdef.guard_dist, 90);
+    let shot_x = sim.projectiles.last_mut().expect("projectile");
+    shot_x.pos.x = 50.0;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 1);
+    sim.projectiles.last_mut().expect("projectile").pos.x = 100.0;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InGuardDist"), 0);
+
+    // A zero guard distance prevents a held-back guard at contact range.
+    let attempt = |sim: &mut SimState, guard_dist: i32| -> bool {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0), 0);
+        sim.fighters[1].pos = manato_core::Vec2::new(10.0, 0.0);
+        sim.fighters[1].facing = -1;
+        sim.fighters[0].hitdef = None;
+        sim.fighters[0].hit.hit_targets.clear();
+        sim.fighters[0].hit.hit_counts.clear();
+        sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+        sim.fighters[0].facing = 1;
+        sim.fighters[0].enter_state(200, &assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+        let mut hit = hitdef();
+        hit.guard_dist = guard_dist;
+        sim.fighters[0].hitdef = Some(hit);
+        manato_sim::collision::resolve(sim);
+        sim.fighters[1].hit.guarding
+    };
+    assert!(!attempt(&mut sim, 0), "guard.dist = 0 rejects contact");
+    assert!(!attempt(&mut sim, 20), "strict distance is not inclusive");
+    assert!(attempt(&mut sim, 21), "distance beyond dx allows guard");
+}
+
+#[test]
 fn round_reset_carries_power_and_removes_helpers() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -8675,7 +8771,7 @@ fn hitdef_parses_yaccel_defaults_and_overrides() {
         params: vec![("attr".into(), "S, NA".into())],
         line: 0,
     };
-    let at = |localcoord| HitDef::from_controller_for(&control, 1, localcoord);
+    let at = |localcoord| HitDef::from_controller_for(&control, 1, localcoord, 160);
     // The documented defaults are .35 at 240p, .7 at 480p, and 1.4 at 720p.
     assert!((at((320.0, 240.0)).yaccel - 0.35).abs() < 1e-6);
     assert!((at((640.0, 480.0)).yaccel - 0.7).abs() < 1e-6);
@@ -8689,7 +8785,9 @@ fn hitdef_parses_yaccel_defaults_and_overrides() {
         ],
         line: 0,
     };
-    assert!((HitDef::from_controller_for(&explicit, 1, (640.0, 480.0)).yaccel - 0.85).abs() < 1e-6);
+    assert!(
+        (HitDef::from_controller_for(&explicit, 1, (640.0, 480.0), 160).yaccel - 0.85).abs() < 1e-6
+    );
 }
 
 #[test]

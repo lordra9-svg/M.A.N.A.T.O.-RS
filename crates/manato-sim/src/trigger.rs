@@ -1035,9 +1035,26 @@ fn hit_shake_over(sim: &SimState, who: usize) -> bool {
 
 fn inguard_dist(sim: &SimState, who: usize) -> bool {
     let f = &sim.fighters[who];
-    let o = &sim.fighters[sim.other(who)];
+    let other = sim.other(who);
+    let o = &sim.fighters[other];
     let dx = (o.pos.x - f.pos.x).abs();
-    dx < 110.0 && (o.move_type == crate::fighter::MoveType::Attack || o.hitdef.is_some())
+    let attacking = o.move_type == crate::fighter::MoveType::Attack || o.hitdef.is_some();
+    if attacking {
+        let guard_dist = o
+            .hitdef
+            .as_ref()
+            .map(|hitdef| hitdef.guard_dist)
+            .unwrap_or(160) as f32;
+        if dx < guard_dist {
+            return true;
+        }
+    }
+    sim.projectiles.iter().any(|projectile| {
+        projectile.owner == other
+            && projectile.status == crate::projectile::ProjectileStatus::Active
+            && projectile.hits > 0
+            && (projectile.pos.x - f.pos.x).abs() < projectile.hitdef.guard_dist as f32
+    })
 }
 
 fn edge_distance(sim: &SimState, who: usize, front: bool, body: bool) -> f32 {

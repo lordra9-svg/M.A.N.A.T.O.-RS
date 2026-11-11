@@ -139,6 +139,8 @@ pub struct HitDef {
     pub air_hittime: i32,
     pub ground_slidetime: i32,
     pub guard_hittime: i32,
+    /// X distance within which the defender enters guard (`guard.dist`).
+    pub guard_dist: i32,
     /// Guard slide time; defaults to `guard_hittime` when omitted.
     pub guard_slidetime: i32,
     /// Time before control returns after a ground guard; defaults to
@@ -216,6 +218,7 @@ impl Default for HitDef {
             air_hittime: 20,
             ground_slidetime: 0,
             guard_hittime: 0,
+            guard_dist: 160,
             guard_slidetime: 0,
             guard_ctrltime: 0,
             airguard_ctrltime: 0,
@@ -263,12 +266,18 @@ impl Default for HitDef {
 
 impl HitDef {
     pub fn from_controller(c: &Controller, activation: u32) -> Self {
-        Self::from_controller_for(c, activation, (320.0, 240.0))
+        Self::from_controller_for(c, activation, (320.0, 240.0), 160)
     }
 
     /// Parses a HitDef with the owning character's local coordinate space so
-    /// omitted `yaccel` follows the documented 240p/480p/720p defaults.
-    pub fn from_controller_for(c: &Controller, activation: u32, localcoord: (f32, f32)) -> Self {
+    /// omitted `yaccel` follows the documented 240p/480p/720p defaults and
+    /// `guard.dist` uses the character's `attack.dist`/`proj.attack.dist`.
+    pub fn from_controller_for(
+        c: &Controller,
+        activation: u32,
+        localcoord: (f32, f32),
+        default_guard_dist: i32,
+    ) -> Self {
         let default_yaccel = if localcoord.0 > 0.0 {
             0.35 * localcoord.0 / 320.0
         } else {
@@ -277,6 +286,7 @@ impl HitDef {
         let mut h = Self {
             activation,
             yaccel: default_yaccel,
+            guard_dist: default_guard_dist.max(0),
             ..Self::default()
         };
         let mut air_type_set = false;
@@ -324,6 +334,9 @@ impl HitDef {
                 "guard.hittime" => {
                     h.guard_hittime = parse_i32(value);
                     guard_hittime_set = true;
+                }
+                "guard.dist" | "guard.dist.width" => {
+                    h.guard_dist = parse_pair(value).0 as i32;
                 }
                 "guard.slidetime" => {
                     h.guard_slidetime = parse_i32(value);
