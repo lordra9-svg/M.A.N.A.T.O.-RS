@@ -11891,3 +11891,49 @@ fn screen_misc_and_match_progress_triggers() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "MatchOver"), 1);
     assert!(sim.finished);
 }
+
+#[test]
+fn roundswon_and_loseko_losetime_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let trigger = |sim: &SimState, who: usize, name: &str| manato_sim::trigger::int(sim, who, name);
+    assert_eq!(trigger(&sim, 0, "RoundsWon"), 0);
+    assert_eq!(trigger(&sim, 1, "RoundsWon"), 0);
+
+    // KO win: winner's RoundsWon rises and the loser reports LoseKO.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(trigger(&sim, 0, "RoundsWon"), 1);
+    assert_eq!(trigger(&sim, 1, "RoundsWon"), 0);
+    assert_eq!(trigger(&sim, 1, "LoseKO"), 1);
+    assert_eq!(trigger(&sim, 0, "LoseKO"), 0);
+    assert_eq!(trigger(&sim, 1, "LoseTime"), 0);
+
+    // Advance to round 2, then win on time instead of KO.
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Intro {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    for _ in 0..120 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    sim.fighters[0].life = 800;
+    sim.fighters[1].life = 300;
+    sim.round.timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert!(sim.round.time_over);
+    assert_eq!(trigger(&sim, 0, "RoundsWon"), 2);
+    assert_eq!(trigger(&sim, 1, "RoundsWon"), 0);
+    assert_eq!(trigger(&sim, 1, "LoseTime"), 1);
+    assert_eq!(trigger(&sim, 1, "LoseKO"), 0, "time-over is not a KO loss");
+}
