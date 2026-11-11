@@ -421,6 +421,9 @@ pub fn apply_hit_at(
         f.state_type == StateType::Air || f.pos.y < -1.0
     };
     let defender_state_type = sim.fighters[defender].state_type;
+    let liedown_time = sim.assets.characters[sim.fighters[defender].char_id]
+        .constants
+        .get_or("data.liedown.time", 60.0) as i32;
 
     let base_damage = if guarding {
         if hitdef.guard_damage_set {
@@ -510,6 +513,10 @@ pub fn apply_hit_at(
         f.hit.vars.fall = hitdef.fall;
         f.hit.vars.fall_recover = hitdef.fall_recover;
         f.hit.vars.fall_time = hitdef.fall_time;
+        f.hit.vars.fall_recovertime = hitdef.fall_recovertime;
+        if !guarding {
+            f.hit.vars.down_recovertime = liedown_time;
+        }
         f.hit.vars.fall_damage = hitdef.fall_damage;
         f.hit.vars.fall_x_vel = Some(hitdef.fall_xvel * -(attacker_facing as f32));
         f.hit.vars.fall_y_vel = Some(hitdef.fall_yvel);

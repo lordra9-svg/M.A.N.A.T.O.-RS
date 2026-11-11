@@ -999,6 +999,9 @@ impl SimState {
                 fighter.state_time = fighter.state_time.saturating_add(1);
             }
             fighter.hit.hit_over_timer = (fighter.hit.hit_over_timer - 1).max(0);
+            if fighter.state_no == 5110 && fighter.hit.vars.down_recovertime > 0 {
+                fighter.hit.vars.down_recovertime -= 1;
+            }
             // Leaving hitstun ends the combo the attacker was building
             // (`docs/spec/render.md` §6.8).
             if fighter.move_type != fighter::MoveType::Hit {

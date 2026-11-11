@@ -2212,6 +2212,71 @@ fn get_hitvar_fallcount_counts_and_resets_per_combo() {
 }
 
 #[test]
+fn get_hitvar_fall_and_liedown_recovertimes() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let mut hit = hitdef();
+    hit.fall = true;
+    hit.fall_recovertime = 7;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.recovertime)"),
+        7
+    );
+    // Unguarded hits seed the liedown recovery time from data.liedown.time.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(recovertime)"),
+        60
+    );
+
+    // The liedown counter ticks down once per tick in state 5110.
+    sim.fighters[1].state_no = 5110;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Hit;
+    for expected in [59, 58] {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(
+            manato_sim::trigger::int(&sim, 1, "GetHitVar(recovertime)"),
+            expected
+        );
+    }
+
+    // A guarded contact does not reset the existing liedown recovery time.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].hit.vars.down_recovertime = 12;
+    let mut guarded = hitdef();
+    guarded.guard_damage = 1;
+    guarded.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &guarded, true, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(recovertime)"),
+        12
+    );
+
+    // `fall.recovertime` defaults to 4 when the HitDef omits it.
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![("attr".into(), "S, NA".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(
+        sim.fighters[0]
+            .hitdef
+            .as_ref()
+            .expect("hitdef")
+            .fall_recovertime,
+        4
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -77,6 +77,7 @@ hitonce = 0|1
 fall = 0|1
 fall.recover = 0|1
 fall.time = N
+fall.recovertime = N
 fall.damage = N
 fall.xvelocity = x
 fall.yvelocity = y
@@ -100,6 +101,7 @@ applied when a `HitDef` controller omits the parameter:
   640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
 - `ground.hittime` is `0`, `ground.slidetime` is `0`, and `air.hittime` is
   `20`.
+- `fall.recovertime` is `4`.
 - `guard.hittime` inherits `ground.hittime` when omitted.
   `guard.slidetime` inherits `guard.hittime` when omitted.
   `guard.ctrltime` inherits `guard.slidetime`, and `airguard.ctrltime`
@@ -195,6 +197,13 @@ Guard damage:
 - `GetHitVar(fallcount)` counts entries into the trip-shake state `5070` and
   the downed state `5100` during the current combo. The count persists while
   the defender remains in hitstun and resets when hitstun ends.
+- `GetHitVar(fall.recovertime)` returns the HitDef’s
+  `fall.recovertime` value (`4` by default).
+- `GetHitVar(recovertime)` returns the remaining liedown recovery time. An
+  unguarded hit seeds it from the defender’s `data.liedown.time` constant
+  (`60` by default); it counts down once per tick while the defender is in
+  state `5110`. Guarded contacts leave an existing value unchanged.
+  Button-accelerated fast recovery is not modeled yet.
 - Enter guard states 150/152/154 or hit states 5000/5010/5020 when present.
 - Without common states, apply velocity and leave the fighter in place.
 - Hit pause freezes the affected fighter; super pause freezes all.

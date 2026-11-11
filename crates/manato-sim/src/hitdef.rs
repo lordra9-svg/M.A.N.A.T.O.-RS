@@ -157,6 +157,8 @@ pub struct HitDef {
     pub fall: bool,
     pub fall_recover: bool,
     pub fall_time: i32,
+    /// Time before a fall can be recovered (`fall.recovertime`).
+    pub fall_recovertime: i32,
     pub fall_damage: i32,
     pub fall_xvel: f32,
     pub fall_yvel: f32,
@@ -215,6 +217,7 @@ impl Default for HitDef {
             fall: false,
             fall_recover: false,
             fall_time: 0,
+            fall_recovertime: 4,
             fall_damage: 0,
             fall_xvel: 0.0,
             fall_yvel: 0.0,
@@ -328,6 +331,7 @@ impl HitDef {
                 "fall" => h.fall = parse_i32(value) != 0,
                 "fall.recover" => h.fall_recover = parse_i32(value) != 0,
                 "fall.time" => h.fall_time = parse_i32(value),
+                "fall.recovertime" => h.fall_recovertime = parse_i32(value),
                 "fall.damage" => h.fall_damage = parse_i32(value),
                 "fall.xvelocity" => h.fall_xvel = parse_f32(value),
                 "fall.yvelocity" => h.fall_yvel = parse_f32(value),
@@ -451,6 +455,10 @@ pub struct GetHitVars {
     pub fall: bool,
     pub fall_recover: bool,
     pub fall_time: i32,
+    /// HitDef `fall.recovertime`.
+    pub fall_recovertime: i32,
+    /// Remaining liedown recovery time (`GetHitVar(recovertime)`).
+    pub down_recovertime: i32,
     pub fall_damage: i32,
     /// `fall.xvelocity`/`fall.yvelocity`; `None` when unset.
     pub fall_x_vel: Option<f32>,
@@ -483,6 +491,8 @@ impl GetHitVars {
             "fall" => Value::Int(self.fall as i32),
             "fall.recover" => Value::Int(self.fall_recover as i32),
             "fall.time" => Value::Int(self.fall_time),
+            "fall.recovertime" => Value::Int(self.fall_recovertime),
+            "recovertime" => Value::Int(self.down_recovertime),
             "fall.damage" => Value::Int(self.fall_damage),
             "fall.xvelocity" => Value::Float(self.fall_x_vel.unwrap_or(0.0)),
             "fall.yvelocity" => Value::Float(self.fall_y_vel.unwrap_or(0.0)),
