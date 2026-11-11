@@ -634,7 +634,7 @@ pub fn resolve_projectiles(sim: &mut SimState) {
                 p.hitdef.clone(),
             )
         };
-        if hits <= 0 {
+        if hits <= 0 || sim.projectiles[i].status != crate::projectile::ProjectileStatus::Active {
             continue;
         }
         let defender = sim.opponent_of(owner);

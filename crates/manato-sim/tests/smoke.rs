@@ -2375,6 +2375,8 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         height_bound: (-240.0, 1.0),
         depth_bound: f32::MAX,
         out_of_bounds: false,
+        status: manato_sim::projectile::ProjectileStatus::Active,
+        removal_ticks: 0,
         hits: 2,
         hitdef,
     });
@@ -4546,7 +4548,19 @@ fn fall_damage_applies_once_on_ground_impact() {
     sim.fighters[1].hit.vars.y_accel = 0.0;
     sim.fighters[1].hit.vars.fall_damage = 40;
     let life = sim.fighters[1].life;
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    eprintln!(
+        "DBG direct life {} status {:?} hits {}",
+        sim.fighters[1].life,
+        sim.projectiles.first().map(|p| p.status),
+        sim.projectiles.first().map(|p| p.hits).unwrap_or(-1)
+    );
     sim.tick([PlayerInput::default(); 2]);
+    eprintln!(
+        "DBG tick life {} status {:?}",
+        sim.fighters[1].life,
+        sim.projectiles.first().map(|p| p.status)
+    );
     eprintln!(
         "DBG state={} pos={:?} vel={:?} fall={} fd={}",
         sim.fighters[1].state_no,
@@ -11936,4 +11950,82 @@ fn roundswon_and_loseko_losetime_triggers() {
     assert_eq!(trigger(&sim, 1, "RoundsWon"), 0);
     assert_eq!(trigger(&sim, 1, "LoseTime"), 1);
     assert_eq!(trigger(&sim, 1, "LoseKO"), 0, "time-over is not a KO loss");
+}
+
+#[test]
+fn projectile_hit_and_removal_animations_play_before_removal() {
+    // Hit animation: a one-hit projectile plays projhitanim, then vanishes.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 5.0;
+    sim.fighters[1].facing = -1;
+    let spawn = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let mut all = vec![
+            ("projanim".to_string(), "1500".to_string()),
+            ("velocity".to_string(), "0, 0".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+            ("hits".to_string(), "1".to_string()),
+            ("damage".to_string(), "20".to_string()),
+        ];
+        all.extend(
+            params
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: all,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    spawn(&mut sim, vec![("projhitanim", "5000")]);
+    let life = sim.fighters[1].life;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].life, life - 20, "projectile connects once");
+    {
+        let projectile = sim.projectiles.first().expect("hit animation playing");
+        assert_eq!(
+            projectile.status,
+            manato_sim::projectile::ProjectileStatus::Hit
+        );
+        assert_eq!(projectile.anim, 5000);
+    }
+    for _ in 0..14 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].life, life - 20, "no further damage");
+    assert_eq!(sim.projectiles.len(), 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "hit animation finished");
+
+    // Removal animation: expired lifetime plays projremanim first.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 200.0;
+    spawn(&mut sim, vec![("projremanim", "1500")]);
+    sim.projectiles[0].remove_time = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    {
+        let projectile = sim.projectiles.first().expect("removal animation playing");
+        assert_eq!(
+            projectile.status,
+            manato_sim::projectile::ProjectileStatus::Rem
+        );
+        assert_eq!(projectile.anim, 1500);
+        assert_eq!(projectile.removal_ticks, 4);
+    }
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.projectiles.len(), 1, "within the removal animation");
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "removal animation finished");
 }

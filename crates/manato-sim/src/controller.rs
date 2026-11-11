@@ -1049,6 +1049,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         height_bound: (height_bound.0, height_bound.1),
         depth_bound,
         out_of_bounds: false,
+        status: crate::projectile::ProjectileStatus::Active,
+        removal_ticks: 0,
         hits,
         hitdef,
     });

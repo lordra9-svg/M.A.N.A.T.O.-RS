@@ -904,6 +904,21 @@ impl SimState {
             }
         }
         collision::resolve_projectiles(self);
+        {
+            let characters = &self.assets.characters;
+            let fighters = &self.fighters;
+            for projectile in &mut self.projectiles {
+                if projectile.status == crate::projectile::ProjectileStatus::Active {
+                    let char_id = fighters
+                        .get(projectile.owner)
+                        .map(|fighter| fighter.char_id)
+                        .unwrap_or(0);
+                    if let Some(character) = characters.get(char_id) {
+                        projectile.begin_removal(character);
+                    }
+                }
+            }
+        }
         self.projectiles.retain(|p| !p.is_expired());
     }
 

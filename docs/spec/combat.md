@@ -149,6 +149,10 @@ Guard damage:
 
 - Projectiles carry their own HitDef and hit target list.
 - Projectile hits use the projectile position for spark placement.
+- When a projectile exhausts its hits it plays `projhitanim`; when its
+  `removetime`/bounds end it plays `projremanim`. `-1` removes it immediately.
+  The projectile stays inactive (no further hits) until that animation ends,
+  then is removed.
 - Helpers use their owner’s attack multipliers and sound banks.
 - Helpers are not valid defenders in the first pass.
 

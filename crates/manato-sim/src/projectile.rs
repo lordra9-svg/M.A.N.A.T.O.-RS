@@ -4,6 +4,16 @@ use manato_core::Vec2;
 
 use crate::hitdef::HitDef;
 
+/// Lifecycle state of a projectile after it stops being active.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProjectileStatus {
+    #[default]
+    Active,
+    Hit,
+    Rem,
+    Cancel,
+}
+
 #[derive(Debug, Clone)]
 pub struct Projectile {
     pub owner: usize,
@@ -57,6 +67,9 @@ pub struct Projectile {
     pub depth_bound: f32,
     /// Set when the projectile leaves its bounds and should be removed.
     pub out_of_bounds: bool,
+    pub status: ProjectileStatus,
+    /// Ticks left in the hit/removal animation; `0` means remove now.
+    pub removal_ticks: i32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,
@@ -64,12 +77,53 @@ pub struct Projectile {
 
 impl Projectile {
     pub fn is_expired(&self) -> bool {
+        if self.status != ProjectileStatus::Active {
+            return self.removal_ticks <= 0 || self.time >= self.removal_ticks;
+        }
         let loop_expired =
             self.remove_time <= -2 && self.anim_loop_time > 0 && self.time >= self.anim_loop_time;
         (self.hits <= 0 && self.remove_on_hits_exhausted)
             || self.remove_time == 0
             || loop_expired
             || self.out_of_bounds
+    }
+
+    /// Switches an active projectile to its hit/removal animation once its
+    /// lifetime, hits or bounds end (`projhitanim`/`projremanim`). A `-1`
+    /// animation removes it immediately.
+    pub fn begin_removal(&mut self, character: &manato_formats::Character) {
+        if self.status != ProjectileStatus::Active {
+            return;
+        }
+        let loop_expired =
+            self.remove_time <= -2 && self.anim_loop_time > 0 && self.time >= self.anim_loop_time;
+        let status = if self.hits <= 0 && self.remove_on_hits_exhausted {
+            ProjectileStatus::Hit
+        } else if self.remove_time == 0 || loop_expired || self.out_of_bounds {
+            ProjectileStatus::Rem
+        } else {
+            return;
+        };
+        self.status = status;
+        let anim = match status {
+            ProjectileStatus::Hit => self.hit_anim,
+            ProjectileStatus::Rem => self.rem_anim,
+            ProjectileStatus::Cancel => self.cancel_anim,
+            ProjectileStatus::Active => return,
+        };
+        if anim < 0 {
+            self.removal_ticks = 0;
+            return;
+        }
+        match character.animation(anim) {
+            Some(animation) => {
+                self.anim = anim;
+                self.anim_loop_time = animation.total_time();
+                self.removal_ticks = animation.total_time().max(0);
+                self.time = 0;
+            }
+            None => self.removal_ticks = 0,
+        }
     }
 
     /// Marks the projectile for removal once it passes the screen edge or
