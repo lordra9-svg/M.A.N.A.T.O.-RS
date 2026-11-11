@@ -11785,3 +11785,46 @@ fn projectile_bounds_remove_out_of_range_projectiles() {
     sim.tick([PlayerInput::default(); 2]);
     assert!(sim.projectiles.is_empty());
 }
+
+#[test]
+fn camera_screen_and_drawgame_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 42.0;
+    sim.camera.y = -17.0;
+    sim.camera.scale = 1.25;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "CameraPos X"), 42.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "CameraPos Y"), -17.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "CameraPos"),
+        42.0,
+        "default axis is X"
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "CameraZoom"), 1.25);
+
+    sim.fighters[0].vel = manato_core::Vec2::new(-1.5, 2.5);
+    sim.fighters[0].facing = -1;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "ScreenVel X"), -1.5);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "ScreenVel Y"), 2.5);
+
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "GameWidth"),
+        manato_core::GAME_WIDTH
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "GameHeight"),
+        manato_core::GAME_HEIGHT
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "DrawGame"), 0);
+
+    // A double KO is a draw game; a decisive winner is not.
+    sim.round.phase = manato_sim::RoundPhase::Ko;
+    sim.round.winner = None;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "DrawGame"), 1);
+    sim.round.winner = Some(0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "DrawGame"), 0);
+    sim.round.phase = manato_sim::RoundPhase::Fight;
+    sim.round.winner = None;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "DrawGame"), 0);
+}

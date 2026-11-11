@@ -94,7 +94,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
-| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw/cap + timer freeze/clamp/seconds boundaries + display strings |
+| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw/cap + DrawGame trigger + timer freeze/clamp/seconds |
 | R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay tests; quotes pending |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
 | R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |
@@ -111,7 +111,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards pending |
-| V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor mapping + tension/bounds/verticalfollow |
+| V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds |
 | V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
 
 ## 8. Audio

@@ -498,6 +498,7 @@ fn needs_axis_arg(name: &str) -> bool {
             | "p2screendist"
             | "screenpos"
             | "screenvel"
+            | "camerapos"
     )
 }
 
@@ -516,6 +517,8 @@ mod tests {
             "hitdefattr = SC, NA, SA, HA",
             "p2bodydist X < 3",
             "vel x > 0",
+            "camerapos x = 0",
+            "camerapos y < 10",
             "GetHitVar(animtype) = [3,5]",
             "command != \"holddown\"",
             "(stateno = 200) && time > 5",
