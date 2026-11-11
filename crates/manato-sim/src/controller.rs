@@ -422,7 +422,8 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
 }
 
 fn reversal_def(sim: &mut SimState, who: usize, control: &Controller) {
-    let hitdef = HitDef::from_controller(control, sim.hit_activation);
+    let localcoord = sim.assets.characters[sim.fighters[who].char_id].localcoord();
+    let hitdef = HitDef::from_controller_for(control, sim.hit_activation, localcoord);
     let time = int_param(sim, who, control, "time").unwrap_or(1).max(1);
     sim.fighters[who].reversal = Some(hitdef);
     sim.fighters[who].reversal_time = time;
@@ -959,7 +960,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let (vx, vy) = control.get_pair("velocity").unwrap_or((0.0, 0.0));
     let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
     let facing = sim.fighters[who].facing;
-    let mut hitdef = HitDef::from_controller(control, sim.hit_activation);
+    let mut hitdef = HitDef::from_controller_for(control, sim.hit_activation, char.localcoord());
     // Each projectile spawn is its own hit activation.
     sim.hit_activation = sim.hit_activation.wrapping_add(1);
     // Projectile sparks sit at the impact point, not at a body offset.
@@ -1349,7 +1350,8 @@ fn hit_def(sim: &mut SimState, who: usize, control: &Controller) {
         sim.fighters[who].hit.hit_counts.clear();
     }
     sim.fighters[who].hit.last_activation_frame = sim.frame as i64;
-    let hitdef = HitDef::from_controller(control, sim.hit_activation);
+    let localcoord = sim.assets.characters[sim.fighters[who].char_id].localcoord();
+    let hitdef = HitDef::from_controller_for(control, sim.hit_activation, localcoord);
     if hitdef.air_juggle > 0 {
         sim.fighters[who].juggle = hitdef.air_juggle;
     }

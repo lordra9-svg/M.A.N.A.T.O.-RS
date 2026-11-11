@@ -58,6 +58,7 @@ ground.type = High|Low|Trip
 air.type = High|Low|Trip
 ground.velocity = x, y
 air.velocity = x, y
+yaccel = accel
 airguard.velocity = x, y
 ground.hittime = N
 air.hittime = N
@@ -92,6 +93,9 @@ applied when a `HitDef` controller omits the parameter:
   Type names are case-insensitive; the single-letter forms `L` and `T` used
   by Ikemen-GO content are also accepted.
 - `ground.velocity` and `air.velocity` are `0, 0`.
+- `yaccel` defaults to the documented localcoord-dependent value:
+  `0.35 * localcoord.width / 320`, which is `.35` at 320x240, `.7` at
+  640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
 - `ground.hittime` is `0`, `ground.slidetime` is `0`, and `air.hittime` is
   `20`.
 - `guard.hittime` inherits `ground.hittime` when omitted.
@@ -163,6 +167,9 @@ Guard damage:
 
 - Damage = base damage × attacker `attack_mul` × defender `defence_mul`.
 - Choose ground/air velocity and hit time from the defender’s state.
+- Unguarded air hit states apply the HitDef `yaccel` as their vertical
+  acceleration and expose it through `GetHitVar(yaccel)`. Ordinary air
+  movement and air guard continue to use the character’s `movement.yaccel`.
 - Guard velocity is half of the ground/air guard velocity.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.

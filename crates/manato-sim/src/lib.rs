@@ -1372,7 +1372,13 @@ impl SimState {
         let fall_state = matches!(fighter.state_no, 5030 | 5040 | 5050);
         match fighter.physics {
             fighter::Physics::Air => {
-                let accel = if fall_state && fighter.hit.vars.y_accel > 0.0 {
+                // An unguarded hit uses the HitDef's `yaccel` (reported by
+                // GetHitVar(yaccel)); ordinary air movement and air guard keep
+                // the character's movement.yaccel.
+                let hit_air =
+                    fighter.move_type == fighter::MoveType::Hit && !fighter.hit.vars.guarded;
+                let use_hit_yaccel = hit_air || (fall_state && fighter.hit.vars.y_accel > 0.0);
+                let accel = if use_hit_yaccel {
                     fighter.hit.vars.y_accel
                 } else if let Some(gravity) = fighter.gravity {
                     gravity

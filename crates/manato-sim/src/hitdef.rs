@@ -130,6 +130,8 @@ pub struct HitDef {
     pub air_type: GroundType,
     pub ground_velocity: Vec2,
     pub air_velocity: Vec2,
+    /// Vertical acceleration imparted to the defender (`yaccel`).
+    pub yaccel: f32,
     /// `guard.velocity`; falls back to `ground.velocity` when absent.
     pub guard_velocity: Option<Vec2>,
     pub airguard_velocity: Vec2,
@@ -187,6 +189,7 @@ impl Default for HitDef {
             air_type: GroundType::High,
             ground_velocity: Vec2::ZERO,
             air_velocity: Vec2::ZERO,
+            yaccel: 0.35,
             guard_velocity: None,
             airguard_velocity: Vec2::ZERO,
             ground_hittime: 0,
@@ -230,8 +233,20 @@ impl Default for HitDef {
 
 impl HitDef {
     pub fn from_controller(c: &Controller, activation: u32) -> Self {
+        Self::from_controller_for(c, activation, (320.0, 240.0))
+    }
+
+    /// Parses a HitDef with the owning character's local coordinate space so
+    /// omitted `yaccel` follows the documented 240p/480p/720p defaults.
+    pub fn from_controller_for(c: &Controller, activation: u32, localcoord: (f32, f32)) -> Self {
+        let default_yaccel = if localcoord.0 > 0.0 {
+            0.35 * localcoord.0 / 320.0
+        } else {
+            0.35
+        };
         let mut h = Self {
             activation,
+            yaccel: default_yaccel,
             ..Self::default()
         };
         let mut air_type_set = false;
@@ -264,6 +279,7 @@ impl HitDef {
                 }
                 "ground.velocity" => h.ground_velocity = parse_vec(value),
                 "air.velocity" => h.air_velocity = parse_vec(value),
+                "yaccel" => h.yaccel = parse_f32(value),
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
                 "airguard.velocity" => h.airguard_velocity = parse_vec(value),
                 "ground.hittime" => h.ground_hittime = parse_i32(value),

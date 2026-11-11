@@ -492,7 +492,7 @@ pub fn apply_hit_at(
         // applied to the stored (screen-space) velocity directly.
         f.hit.vars.x_vel = velocity.x * -(attacker_facing as f32) + corner_push;
         f.hit.vars.y_vel = velocity.y;
-        f.hit.vars.y_accel = 0.0;
+        f.hit.vars.y_accel = hitdef.yaccel;
         f.hit.vars.hittime = hittime;
         f.hit.vars.slidetime = slidetime;
         f.hit.vars.ctrltime = hittime + slidetime;

@@ -8245,6 +8245,90 @@ fn guard_cornerpush_uses_guard_specific_veloff() {
 }
 
 #[test]
+fn hitdef_parses_yaccel_defaults_and_overrides() {
+    use manato_sim::hitdef::HitDef;
+
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![("attr".into(), "S, NA".into())],
+        line: 0,
+    };
+    let at = |localcoord| HitDef::from_controller_for(&control, 1, localcoord);
+    // The documented defaults are .35 at 240p, .7 at 480p, and 1.4 at 720p.
+    assert!((at((320.0, 240.0)).yaccel - 0.35).abs() < 1e-6);
+    assert!((at((640.0, 480.0)).yaccel - 0.7).abs() < 1e-6);
+    assert!((at((1280.0, 720.0)).yaccel - 1.4).abs() < 1e-6);
+
+    let explicit = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("yaccel".into(), "0.85".into()),
+        ],
+        line: 0,
+    };
+    assert!((HitDef::from_controller_for(&explicit, 1, (640.0, 480.0)).yaccel - 0.85).abs() < 1e-6);
+}
+
+#[test]
+fn hitdef_yaccel_reports_and_drives_air_hit_physics() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("yaccel".into(), "1.5".into()),
+            ("air.velocity".into(), "0, 0".into()),
+            ("pausetime".into(), "0, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(parsed.yaccel, 1.5);
+
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -40.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yaccel)"), 1.5);
+
+    // The hit reaction uses the HitDef yaccel instead of movement.yaccel.
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Hit;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::Air;
+    sim.fighters[1].vel = manato_core::Vec2::ZERO;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(
+        (sim.fighters[1].vel.y - 1.5).abs() < 1e-4,
+        "expected one 1.5 yaccel step, got {}",
+        sim.fighters[1].vel.y
+    );
+}
+
+#[test]
+fn hitdef_yaccel_defaults_from_the_character_localcoord() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![("attr".into(), "S, NA".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    // Bundled characters use localcoord 320,240.
+    assert!((parsed.yaccel - 0.35).abs() < 1e-6);
+}
+
+#[test]
 fn round_timer_clamps_at_zero_and_stays_frozen_after_over() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -11662,7 +11746,7 @@ fn get_hitvar_velocities_and_hitover_threshold() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
     assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(xvel)"), -4.0);
     assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yvel)"), -2.0);
-    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yaccel)"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yaccel)"), 0.35);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"), 4);
 
     // HitOver flips once the hit state has lasted `hittime` ticks.
