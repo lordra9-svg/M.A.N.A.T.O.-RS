@@ -379,7 +379,12 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                     other => eval(sim, who, other).as_str(),
                 })
                 .unwrap_or_default();
-            sim.fighters[who].hit.vars.get(&key)
+            let lower = key.trim().to_ascii_lowercase();
+            if lower == "hitshaketime" {
+                Value::Int(sim.fighters[who].hit.hit_shake_timer)
+            } else {
+                sim.fighters[who].hit.vars.get(&lower)
+            }
         }
         "numexplod" => Value::Int(
             sim.effects

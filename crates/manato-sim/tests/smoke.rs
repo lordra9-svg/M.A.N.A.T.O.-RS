@@ -2126,6 +2126,48 @@ fn get_hitvar_and_hit_shake_triggers() {
 }
 
 #[test]
+fn get_hitvar_hitshaketime_tracks_the_defender_freeze() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.pausetime = (3, 5);
+    let origin = sim.fighters[0].pos;
+    let facing = sim.fighters[0].facing;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, facing, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(hitshaketime)"),
+        5
+    );
+    // The value is case-insensitive and counts down once per tick, stopping
+    // at zero instead of going negative.
+    for expected in [4, 3, 2, 1, 0] {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(
+            manato_sim::trigger::int(&sim, 1, "GetHitVar(HitShakeTime)"),
+            expected
+        );
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitShakeOver"), 1);
+
+    // A guarded contact observes the same defender shake timer.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.pausetime = (2, 6);
+    hit.guard_damage = 1;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    let facing = sim.fighters[0].facing;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, facing, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(hitshaketime)"),
+        6
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

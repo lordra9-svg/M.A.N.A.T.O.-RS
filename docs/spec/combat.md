@@ -189,6 +189,9 @@ Guard damage:
   `airguard.velocity` for an air guard.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
+- `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,
+  including on guarded contacts. It counts down once per game tick and stops
+  at zero; `HitShakeOver` becomes true at that point.
 - Enter guard states 150/152/154 or hit states 5000/5010/5020 when present.
 - Without common states, apply velocity and leave the fighter in place.
 - Hit pause freezes the affected fighter; super pause freezes all.
