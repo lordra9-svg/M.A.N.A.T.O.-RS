@@ -447,6 +447,8 @@ impl Fighter {
         if number == 5070 || number == 5100 {
             let up = char.constants.get_or("data.fall.defence_up", 50.0);
             self.fall_defence_mul *= (up + 100.0) / 100.0;
+            // One fall per entry into the trip shake or the downed state.
+            self.hit.vars.fallcount += 1;
         }
         if let Some(state) = char.state(number) {
             self.apply_state_def(state, char);

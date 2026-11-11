@@ -2168,6 +2168,50 @@ fn get_hitvar_hitshaketime_tracks_the_defender_freeze() {
 }
 
 #[test]
+fn get_hitvar_fallcount_counts_and_resets_per_combo() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[1];
+        for number in [5070, 5100] {
+            character.states.insert(
+                number,
+                manato_formats::StateDef {
+                    number,
+                    params: vec![
+                        ("type".into(), "A".into()),
+                        ("movetype".into(), "H".into()),
+                        ("physics".into(), "N".into()),
+                        ("anim".into(), "0".into()),
+                    ],
+                    controllers: Vec::new(),
+                    line: 0,
+                    source: String::new(),
+                },
+            );
+        }
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fallcount)"), 0);
+
+    let character = &sim.assets.characters[1];
+    sim.fighters[1].enter_state(5070, character, false);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fallcount)"), 1);
+    sim.fighters[1].enter_state(5100, character, false);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fallcount)"), 2);
+
+    // The count persists while the defender remains in hitstun.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fallcount)"), 2);
+
+    // Leaving hitstun ends the combo and clears the counter.
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Idle;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fallcount)"), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

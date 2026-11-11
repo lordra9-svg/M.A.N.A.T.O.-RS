@@ -456,6 +456,8 @@ pub struct GetHitVars {
     pub fall_x_vel: Option<f32>,
     pub fall_y_vel: Option<f32>,
     pub hitcount: i32,
+    /// Number of fall/ground impacts in the current combo.
+    pub fallcount: i32,
     /// Clash priority points of the HitDef that connected.
     pub priority: i32,
     pub guarded: bool,
@@ -485,6 +487,7 @@ impl GetHitVars {
             "fall.xvelocity" => Value::Float(self.fall_x_vel.unwrap_or(0.0)),
             "fall.yvelocity" => Value::Float(self.fall_y_vel.unwrap_or(0.0)),
             "hitcount" => Value::Int(self.hitcount),
+            "fallcount" => Value::Int(self.fallcount),
             "priority" => Value::Int(self.priority),
             "guarded" => Value::Int(self.guarded as i32),
             "hitid" => Value::Int(self.hit_id),

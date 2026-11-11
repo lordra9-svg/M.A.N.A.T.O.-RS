@@ -192,6 +192,9 @@ Guard damage:
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,
   including on guarded contacts. It counts down once per game tick and stops
   at zero; `HitShakeOver` becomes true at that point.
+- `GetHitVar(fallcount)` counts entries into the trip-shake state `5070` and
+  the downed state `5100` during the current combo. The count persists while
+  the defender remains in hitstun and resets when hitstun ends.
 - Enter guard states 150/152/154 or hit states 5000/5010/5020 when present.
 - Without common states, apply velocity and leave the fighter in place.
 - Hit pause freezes the affected fighter; super pause freezes all.
