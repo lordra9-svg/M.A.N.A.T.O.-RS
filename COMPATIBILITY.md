@@ -40,7 +40,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/MoveType/Physics controller and trigger test |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + ignorehitpause |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick + KO lock + helper keyctrl/helpertype gating |
-| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer tests |
+| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer + hold pseudo-commands (diagonals/facing) tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
 | S-08 | Intro/KO control locks | Required | Required | Verified | Smoke tests |
 

@@ -3166,6 +3166,63 @@ fn command_matching_handles_motion_and_button_windows() {
 }
 
 #[test]
+fn hold_pseudo_commands_follow_facing_and_diagonals() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let holds = |sim: &SimState| {
+        (
+            manato_sim::trigger::int(sim, 0, "Command = \"holdfwd\""),
+            manato_sim::trigger::int(sim, 0, "Command = \"holdback\""),
+            manato_sim::trigger::int(sim, 0, "Command = \"holdup\""),
+            manato_sim::trigger::int(sim, 0, "Command = \"holddown\""),
+        )
+    };
+    let hold = |sim: &mut SimState, facing: i32, dir: u8| {
+        sim.fighters[0].facing = facing;
+        sim.fighters[0].append_input(PlayerInput::new(dir, 0), 0);
+    };
+
+    hold(&mut sim, 1, manato_core::DIR_RIGHT);
+    assert_eq!(holds(&sim), (1, 0, 0, 0));
+    hold(&mut sim, 1, manato_core::DIR_LEFT);
+    assert_eq!(holds(&sim), (0, 1, 0, 0));
+    hold(&mut sim, 1, manato_core::DIR_UP);
+    assert_eq!(holds(&sim), (0, 0, 1, 0));
+    hold(&mut sim, 1, manato_core::DIR_DOWN);
+    assert_eq!(holds(&sim), (0, 0, 0, 1));
+
+    // Diagonals satisfy both component holds.
+    hold(&mut sim, 1, manato_core::DIR_UP | manato_core::DIR_RIGHT);
+    assert_eq!(holds(&sim), (1, 0, 1, 0));
+    hold(&mut sim, 1, manato_core::DIR_DOWN | manato_core::DIR_RIGHT);
+    assert_eq!(holds(&sim), (1, 0, 0, 1));
+    hold(&mut sim, 1, manato_core::DIR_DOWN | manato_core::DIR_LEFT);
+    assert_eq!(holds(&sim), (0, 1, 0, 1));
+
+    // Facing -1 swaps forward/back but not up/down.
+    hold(&mut sim, -1, manato_core::DIR_LEFT);
+    assert_eq!(holds(&sim), (1, 0, 0, 0));
+    hold(&mut sim, -1, manato_core::DIR_RIGHT);
+    assert_eq!(holds(&sim), (0, 1, 0, 0));
+    hold(&mut sim, -1, manato_core::DIR_UP | manato_core::DIR_LEFT);
+    assert_eq!(holds(&sim), (1, 0, 1, 0));
+
+    // Neutral releases every hold, and the negated command form follows.
+    hold(&mut sim, 1, 0);
+    assert_eq!(holds(&sim), (0, 0, 0, 0));
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command != \"holdfwd\""),
+        1
+    );
+    hold(&mut sim, 1, manato_core::DIR_RIGHT);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command != \"holdfwd\""),
+        0
+    );
+}
+
+#[test]
 fn animation_and_position_triggers_track_state() {
     let Some(mut sim) = fight_phase() else {
         return;

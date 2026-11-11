@@ -255,6 +255,22 @@ to forward/back using the character's facing.
 - `Command = "name"` is true while the buffer timer is active.
 - AI input uses the same matcher; no special-case command table.
 
+### 6.4 Built-in hold commands
+
+`holdfwd`, `holdback`, `holdup`, and `holddown` are built-in pseudo-commands
+used by the stock common state file. They never require a matching `[Command]`
+definition:
+
+- `Command = "holdfwd"` is true while the latest held direction includes the
+  facing-relative forward component.
+- `Command = "holdback"` uses the facing-relative back component.
+- `Command = "holdup"`/`"holddown"` use the vertical component.
+- Diagonals satisfy both component holds (`UF` sets forward and up; `DB` sets
+  back and down).
+- Facing -1 swaps forward and back; up and down are unchanged.
+- A neutral direction makes all four false; the negated form
+  `Command != "holdfwd"` is true whenever forward is not held.
+
 ## 7. State execution
 
 Each tick, for each fighter:
