@@ -447,7 +447,10 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "numproj" => Value::Int(
             sim.projectiles
                 .iter()
-                .filter(|projectile| projectile.owner == who)
+                .filter(|projectile| {
+                    projectile.owner == who
+                        && projectile.status == crate::projectile::ProjectileStatus::Active
+                })
                 .count() as i32,
         ),
         "numprojid" => {
@@ -455,7 +458,11 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             Value::Int(
                 sim.projectiles
                     .iter()
-                    .filter(|projectile| projectile.owner == who && projectile.id == id)
+                    .filter(|projectile| {
+                        projectile.owner == who
+                            && projectile.id == id
+                            && projectile.status == crate::projectile::ProjectileStatus::Active
+                    })
                     .count() as i32,
             )
         }
@@ -890,7 +897,10 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "numproj" => Value::Int(
             sim.projectiles
                 .iter()
-                .filter(|projectile| projectile.owner == who)
+                .filter(|projectile| {
+                    projectile.owner == who
+                        && projectile.status == crate::projectile::ProjectileStatus::Active
+                })
                 .count() as i32,
         ),
         "numtarget" => Value::Int(f.target.is_some() as i32),

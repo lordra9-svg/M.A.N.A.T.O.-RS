@@ -12096,3 +12096,44 @@ fn projectile_remvelocity_replaces_velocity_on_removal() {
         manato_core::Vec2::ZERO
     );
 }
+
+#[test]
+fn numproj_counts_only_active_projectiles() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 200.0;
+    let spawn = |sim: &mut SimState, id: i32| {
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "1500".into()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), "-1".into()),
+                ("projid".into(), id.to_string()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    spawn(&mut sim, 3);
+    spawn(&mut sim, 4);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(3)"), 1);
+
+    // Put one projectile into its removal animation; it still exists but is no
+    // longer active, so it is not counted.
+    sim.projectiles[0].remove_time = 1;
+    sim.projectiles[0].rem_anim = 1500;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.projectiles[0].status,
+        manato_sim::projectile::ProjectileStatus::Rem
+    );
+    assert_eq!(sim.projectiles.len(), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProj"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(3)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(4)"), 1);
+}
