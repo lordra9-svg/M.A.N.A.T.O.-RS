@@ -2542,6 +2542,109 @@ fn hitdef_air_fall_defaults_and_applies_to_air_hits() {
 }
 
 #[test]
+fn hitdef_forcestand_defaults_and_forces_standing_reaction() {
+    let parse = |sim: &mut SimState, assets: &manato_sim::Assets, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let rising = parse(
+        &mut sim,
+        &assets,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.velocity".into(), "-4, -6".into()),
+        ],
+    );
+    assert!(
+        rising.forcestand,
+        "non-zero ground Y velocity defaults to 1"
+    );
+
+    let flat = parse(
+        &mut sim,
+        &assets,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.velocity".into(), "-4, 0".into()),
+        ],
+    );
+    assert!(!flat.forcestand);
+
+    let explicit_off = parse(
+        &mut sim,
+        &assets,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.velocity".into(), "-4, -6".into()),
+            ("forcestand".into(), "0".into()),
+        ],
+    );
+    assert!(!explicit_off.forcestand);
+
+    let explicit_on = parse(
+        &mut sim,
+        &assets,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.velocity".into(), "-4, 0".into()),
+            ("forcestand".into(), "1".into()),
+        ],
+    );
+    assert!(explicit_on.forcestand);
+
+    // A crouching defender uses the standing hit state when forced.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.forcestand = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Crouch;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5000);
+    assert_eq!(
+        sim.fighters[1].state_type,
+        manato_sim::fighter::StateType::Stand
+    );
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.forcestand = false;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Crouch;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5010);
+
+    // Airborne defenders ignore forcestand.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.forcestand = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5020);
+    assert_eq!(
+        sim.fighters[1].state_type,
+        manato_sim::fighter::StateType::Air
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

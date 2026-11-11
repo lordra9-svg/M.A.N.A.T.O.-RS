@@ -163,6 +163,8 @@ pub struct HitDef {
     pub fall: bool,
     /// Whether an airborne hit enters the fall reaction (`air.fall`).
     pub air_fall: bool,
+    /// Forces a crouching grounded defender into the standing hit reaction.
+    pub forcestand: bool,
     pub fall_recover: bool,
     pub fall_time: i32,
     /// Time before a fall can be recovered (`fall.recovertime`).
@@ -235,6 +237,7 @@ impl Default for HitDef {
             guard_kill: true,
             fall: false,
             air_fall: false,
+            forcestand: false,
             fall_recover: false,
             fall_time: 0,
             fall_recovertime: 4,
@@ -295,6 +298,7 @@ impl HitDef {
         let mut air_type_set = false;
         let mut airguard_velocity_set = false;
         let mut air_fall_set = false;
+        let mut forcestand_set = false;
         let mut guard_hittime_set = false;
         let mut guard_slidetime_set = false;
         let mut guard_ctrltime_set = false;
@@ -371,6 +375,10 @@ impl HitDef {
                     h.air_fall = parse_i32(value) != 0;
                     air_fall_set = true;
                 }
+                "forcestand" => {
+                    h.forcestand = parse_i32(value) != 0;
+                    forcestand_set = true;
+                }
                 "fall.recover" => h.fall_recover = parse_i32(value) != 0,
                 "fall.time" => h.fall_time = parse_i32(value),
                 "fall.recovertime" => h.fall_recovertime = parse_i32(value),
@@ -434,6 +442,11 @@ impl HitDef {
         }
         if !air_fall_set {
             h.air_fall = h.fall;
+        }
+        // A non-zero ground Y velocity knocks the defender into the air, so
+        // it defaults forcestand to on.
+        if !forcestand_set {
+            h.forcestand = h.ground_velocity.y != 0.0;
         }
         // Documented default: air guard velocity is 1.5x the air X velocity
         // and half the air Y velocity.

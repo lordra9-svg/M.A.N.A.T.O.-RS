@@ -425,7 +425,7 @@ pub fn apply_hit_at(
         let f = &sim.fighters[defender];
         f.state_type == StateType::Air || f.pos.y < -1.0
     };
-    let defender_state_type = sim.fighters[defender].state_type;
+    let mut defender_state_type = sim.fighters[defender].state_type;
     let liedown_time = sim.assets.characters[sim.fighters[defender].char_id]
         .constants
         .get_or("data.liedown.time", 60.0) as i32;
@@ -561,6 +561,15 @@ pub fn apply_hit_at(
         f.ctrl = false;
         f.attack = Default::default();
         f.hitdef = None;
+    }
+
+    if !guarding
+        && !defender_airborne
+        && hitdef.forcestand
+        && defender_state_type == StateType::Crouch
+    {
+        defender_state_type = StateType::Stand;
+        sim.fighters[defender].state_type = StateType::Stand;
     }
 
     let char = &sim.assets.characters[sim.fighters[defender].char_id];
