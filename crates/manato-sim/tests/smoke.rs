@@ -6208,9 +6208,9 @@ fn hit_counts_and_get_hit_var_fields() {
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hitcount)"), 3);
     assert_eq!(
         manato_sim::trigger::int(&sim, 1, "GetHitVar(groundtype)"),
-        1
+        2
     );
-    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(airtype)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(airtype)"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(animtype)"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(damage)"), 10);
     assert_eq!(
@@ -7713,6 +7713,7 @@ fn air_guard_uses_airguard_velocity_and_guard_hittime() {
     hit.airguard_velocity = manato_core::Vec2::new(-6.0, -2.0);
     hit.guard_hittime = 6;
     hit.ground_slidetime = 3;
+    hit.guard_slidetime = 3;
     hit.guard_damage = 5;
     hit.guard_damage_set = true;
     sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
@@ -7840,6 +7841,167 @@ fn hitdef_parses_guard_velocity_hittime_and_airguard() {
     sim.fighters[1].facing = -1;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
     assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0, "-8/2 mirrored");
+}
+
+#[test]
+fn hitdef_parses_ground_air_types_times_and_cornerpush() {
+    use manato_sim::hitdef::{AnimType, GroundType};
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20, 4".into()),
+            ("guard.damage".into(), "2".into()),
+            ("animtype".into(), "DiagUp".into()),
+            ("ground.type".into(), "Low".into()),
+            ("air.type".into(), "Trip".into()),
+            ("ground.velocity".into(), "-3, 0".into()),
+            ("air.velocity".into(), "-5, -6".into()),
+            ("ground.hittime".into(), "9".into()),
+            ("air.hittime".into(), "21".into()),
+            ("ground.slidetime".into(), "6".into()),
+            ("guard.hittime".into(), "7".into()),
+            ("guard.slidetime".into(), "4".into()),
+            ("ground.cornerpush.veloff".into(), "-2.5".into()),
+            ("air.cornerpush.veloff".into(), "-3.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+
+    assert_eq!(parsed.anim_type, AnimType::DiagUp);
+    assert_eq!(parsed.ground_type, GroundType::Low);
+    assert_eq!(parsed.air_type, GroundType::Trip);
+    assert_eq!(parsed.damage, 20);
+    assert_eq!(parsed.guard_damage, 2);
+    assert!(parsed.guard_damage_set);
+    assert_eq!(parsed.ground_velocity, manato_core::Vec2::new(-3.0, 0.0));
+    assert_eq!(parsed.air_velocity, manato_core::Vec2::new(-5.0, -6.0));
+    assert_eq!(parsed.ground_hittime, 9);
+    assert_eq!(parsed.air_hittime, 21);
+    assert_eq!(parsed.ground_slidetime, 6);
+    assert_eq!(parsed.guard_hittime, 7);
+    assert_eq!(parsed.guard_slidetime, 4);
+    assert_eq!(parsed.ground_cornerpush, -2.5);
+    assert_eq!(parsed.air_cornerpush, -3.5);
+
+    // Ground hit: type codes follow M.U.G.E.N (High/Low/Trip = 1/2/3) and
+    // GetHitVar(type) selects the ground type.
+    let origin = sim.fighters[0].pos;
+    sim.fighters[1].facing = -1;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 20);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 3.0);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 9);
+    assert_eq!(sim.fighters[1].hit.vars.slidetime, 6);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 15);
+    assert_eq!(sim.fighters[1].hit.vars.anim_type, 5);
+    assert_eq!(sim.fighters[1].hit.vars.ground_type, 2);
+    assert_eq!(sim.fighters[1].hit.vars.air_type, 3);
+    assert_eq!(sim.fighters[1].hit.vars.hit_type, 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(type)"), 2);
+
+    // Guarded ground hit uses guard.damage, guard.hittime and guard.slidetime.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    let origin = sim.fighters[0].pos;
+    sim.fighters[1].facing = -1;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, life - 2);
+    assert!(sim.fighters[1].hit.vars.guarded);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 7);
+    assert_eq!(sim.fighters[1].hit.vars.slidetime, 4);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 11);
+    assert_eq!(sim.fighters[1].state_no, 150);
+
+    // Air hit: air velocity and air.hittime apply, and GetHitVar(type)
+    // selects the air type.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 5.0);
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, -6.0);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 21);
+    assert_eq!(sim.fighters[1].hit.vars.hit_type, 3);
+    assert_eq!(sim.fighters[1].state_no, 5020);
+}
+
+#[test]
+fn hitdef_defaults_match_documented_ground_air_and_guard_times() {
+    use manato_sim::hitdef::GroundType;
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let base = vec![("attr".to_string(), "S, NA".to_string())];
+
+    // air.type inherits ground.type; times use the documented defaults.
+    let mut params = base.clone();
+    params.push(("ground.type".into(), "Low".into()));
+    let hit = parse(&mut sim, params);
+    assert_eq!(hit.ground_type, GroundType::Low);
+    assert_eq!(
+        hit.air_type,
+        GroundType::Low,
+        "air.type inherits ground.type"
+    );
+    assert_eq!(hit.ground_hittime, 0);
+    assert_eq!(hit.ground_slidetime, 0);
+    assert_eq!(hit.air_hittime, 20);
+    assert_eq!(
+        hit.guard_hittime, 0,
+        "guard.hittime inherits ground.hittime"
+    );
+    assert_eq!(
+        hit.guard_slidetime, 0,
+        "guard.slidetime inherits guard.hittime"
+    );
+
+    // An explicit guard.hittime feeds guard.slidetime when the latter is
+    // omitted.
+    let mut params = base.clone();
+    params.push(("guard.hittime".into(), "7".into()));
+    let hit = parse(&mut sim, params);
+    assert_eq!(hit.guard_hittime, 7);
+    assert_eq!(hit.guard_slidetime, 7);
+
+    // An explicit guard.slidetime wins over the inherited value.
+    let mut params = base;
+    params.push(("guard.hittime".into(), "7".into()));
+    params.push(("guard.slidetime".into(), "3".into()));
+    let hit = parse(&mut sim, params);
+    assert_eq!(hit.guard_hittime, 7);
+    assert_eq!(hit.guard_slidetime, 3);
 }
 
 #[test]

@@ -48,18 +48,25 @@ pub enum GroundType {
 
 impl GroundType {
     pub fn parse(s: &str) -> Self {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "low" => Self::Low,
-            "trip" => Self::Trip,
+        // M.U.G.E.N documents the full words; Ikemen-GO also accepts the
+        // first letter for CNS content. Unknown values fall back to High.
+        let value = s.trim().to_ascii_lowercase();
+        match value.as_str() {
+            "low" | "l" => Self::Low,
+            "trip" | "t" => Self::Trip,
             _ => Self::High,
         }
     }
 
+    /// Values reported by `GetHitVar(type|groundtype|airtype)`.
+    ///
+    /// M.U.G.E.N and Ikemen-GO reserve 0 for `None`; High/Low/Trip are
+    /// 1/2/3. `None` itself is not modeled yet (see `docs/spec/combat.md`).
     pub fn code(self) -> i32 {
         match self {
-            Self::High => 0,
-            Self::Low => 1,
-            Self::Trip => 2,
+            Self::High => 1,
+            Self::Low => 2,
+            Self::Trip => 3,
         }
     }
 }
@@ -130,6 +137,8 @@ pub struct HitDef {
     pub air_hittime: i32,
     pub ground_slidetime: i32,
     pub guard_hittime: i32,
+    /// Guard slide time; defaults to `guard_hittime` when omitted.
+    pub guard_slidetime: i32,
     pub pausetime: (i32, i32),
     pub sparkno: i32,
     pub guard_sparkno: i32,
@@ -176,10 +185,11 @@ impl Default for HitDef {
             air_velocity: Vec2::ZERO,
             guard_velocity: None,
             airguard_velocity: Vec2::ZERO,
-            ground_hittime: 10,
-            air_hittime: 10,
-            ground_slidetime: 5,
-            guard_hittime: 10,
+            ground_hittime: 0,
+            air_hittime: 20,
+            ground_slidetime: 0,
+            guard_hittime: 0,
+            guard_slidetime: 0,
             pausetime: (0, 0),
             sparkno: -1,
             guard_sparkno: 40,
@@ -218,6 +228,9 @@ impl HitDef {
             activation,
             ..Self::default()
         };
+        let mut air_type_set = false;
+        let mut guard_hittime_set = false;
+        let mut guard_slidetime_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
@@ -235,7 +248,10 @@ impl HitDef {
                 "hitflag" => h.hitflag = value.to_ascii_uppercase(),
                 "guardflag" => h.guardflag = value.to_ascii_uppercase(),
                 "ground.type" => h.ground_type = GroundType::parse(value),
-                "air.type" => h.air_type = GroundType::parse(value),
+                "air.type" => {
+                    h.air_type = GroundType::parse(value);
+                    air_type_set = true;
+                }
                 "ground.velocity" => h.ground_velocity = parse_vec(value),
                 "air.velocity" => h.air_velocity = parse_vec(value),
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
@@ -243,7 +259,14 @@ impl HitDef {
                 "ground.hittime" => h.ground_hittime = parse_i32(value),
                 "air.hittime" => h.air_hittime = parse_i32(value),
                 "ground.slidetime" => h.ground_slidetime = parse_i32(value),
-                "guard.hittime" => h.guard_hittime = parse_i32(value),
+                "guard.hittime" => {
+                    h.guard_hittime = parse_i32(value);
+                    guard_hittime_set = true;
+                }
+                "guard.slidetime" => {
+                    h.guard_slidetime = parse_i32(value);
+                    guard_slidetime_set = true;
+                }
                 "pausetime" => {
                     let (a, b) = parse_pair(value);
                     h.pausetime = (a as i32, b as i32);
@@ -291,6 +314,17 @@ impl HitDef {
                 _ => {}
             }
         }
+        // Documented inheritance: air.type follows ground.type, guard.hittime
+        // follows ground.hittime, and guard.slidetime follows guard.hittime.
+        if !air_type_set {
+            h.air_type = h.ground_type;
+        }
+        if !guard_hittime_set {
+            h.guard_hittime = h.ground_hittime;
+        }
+        if !guard_slidetime_set {
+            h.guard_slidetime = h.guard_hittime;
+        }
         h
     }
 
@@ -313,6 +347,9 @@ pub struct GetHitVars {
     pub anim_type: i32,
     pub ground_type: i32,
     pub air_type: i32,
+    /// Selected hit type for this contact: air type when the defender was
+    /// airborne, otherwise the ground type.
+    pub hit_type: i32,
     pub x_vel: f32,
     pub y_vel: f32,
     pub y_accel: f32,
@@ -342,6 +379,7 @@ impl GetHitVars {
             "animtype" => Value::Int(self.anim_type),
             "groundtype" => Value::Int(self.ground_type),
             "airtype" => Value::Int(self.air_type),
+            "type" => Value::Int(self.hit_type),
             "xvel" => Value::Float(self.x_vel),
             "yvel" => Value::Float(self.y_vel),
             "yaccel" => Value::Float(self.y_accel),

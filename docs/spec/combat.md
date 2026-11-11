@@ -63,6 +63,7 @@ ground.hittime = N
 air.hittime = N
 ground.slidetime = N
 guard.hittime = N
+guard.slidetime = N
 pausetime = attacker, defender
 sparkno = N
 guard.sparkno = N
@@ -81,6 +82,37 @@ priority = N[, Hit|Miss|Dodge]
 ```
 
 Unknown parameters are preserved and ignored with a warning.
+
+### 4.1 Documented defaults and value codes
+
+The public M.U.G.E.N 1.1 HitDef reference defines these defaults. They are
+applied when a `HitDef` controller omits the parameter:
+
+- `ground.type` is `High`. `air.type` inherits `ground.type` when omitted.
+  Type names are case-insensitive; the single-letter forms `L` and `T` used
+  by Ikemen-GO content are also accepted.
+- `ground.velocity` and `air.velocity` are `0, 0`.
+- `ground.hittime` is `0`, `ground.slidetime` is `0`, and `air.hittime` is
+  `20`.
+- `guard.hittime` inherits `ground.hittime` when omitted.
+  `guard.slidetime` inherits `guard.hittime` when omitted.
+- Guard hits use `guard.hittime`/`guard.slidetime`; unguarded ground hits use
+  `ground.hittime`/`ground.slidetime`; air hits use `air.hittime`.
+- Ikemen-GO preserves a reported M.U.G.E.N implementation quirk where
+  M.U.G.E.N-version characters default `guard.hittime` to
+  `ground.slidetime` instead. This engine follows the published M.U.G.E.N
+  reference (`ground.hittime`) because the clean-room rules forbid verifying
+  the binary quirk. This is an explicit compatibility decision, not an
+  oversight.
+
+`GetHitVar(type|groundtype|airtype)` reports the M.U.G.E.N/Ikemen-GO type
+codes: `0` None, `1` High, `2` Low, `3` Trip. `GetHitVar(type)` returns the
+air type when the defender was airborne at contact and the ground type
+otherwise.
+
+`ground.type = None` (pause-only hit) and the documented corner-push
+fallback values are not modeled yet; an explicit
+`ground.cornerpush.veloff`/`air.cornerpush.veloff` is applied as before.
 
 ## 5. Hit resolution order
 

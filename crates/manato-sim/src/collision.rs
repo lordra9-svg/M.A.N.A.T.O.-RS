@@ -416,7 +416,7 @@ pub fn apply_hit_at(
             hitdef.guard_velocity.unwrap_or(hitdef.ground_velocity)
         };
         v.x *= 0.5;
-        (v, hitdef.guard_hittime.max(1), hitdef.ground_slidetime)
+        (v, hitdef.guard_hittime.max(1), hitdef.guard_slidetime)
     } else if defender_airborne {
         (
             hitdef.air_velocity,
@@ -455,6 +455,11 @@ pub fn apply_hit_at(
         f.hit.vars.anim_type = hitdef.anim_type.code();
         f.hit.vars.ground_type = hitdef.ground_type.code();
         f.hit.vars.air_type = hitdef.air_type.code();
+        f.hit.vars.hit_type = if defender_airborne {
+            hitdef.air_type.code()
+        } else {
+            hitdef.ground_type.code()
+        };
         // Corner push is a world-space position offset in Ikemen, so it is
         // applied to the stored (screen-space) velocity directly.
         f.hit.vars.x_vel = velocity.x * -(attacker_facing as f32) + corner_push;
