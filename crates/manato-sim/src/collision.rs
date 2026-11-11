@@ -32,6 +32,7 @@ pub fn resolve(sim: &mut SimState) {
                 apply_hit_at(
                     sim, defender, attacker, &reversal, false, origin, facing, true,
                 );
+                sim.fighters[attacker].attack.move_reversed = true;
                 record_hit(sim, defender, attacker);
                 continue;
             }

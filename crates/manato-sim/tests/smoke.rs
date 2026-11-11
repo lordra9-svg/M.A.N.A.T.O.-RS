@@ -12137,3 +12137,40 @@ fn numproj_counts_only_active_projectiles() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(3)"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumProjID(4)"), 1);
 }
+
+#[test]
+fn move_reversed_trigger_after_reversal_def() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    let reversal = manato_formats::Controller {
+        kind: "reversaldef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "5".into()),
+            ("time".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &reversal, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveReversed"), 0);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveReversed"), 1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "MoveReversed"),
+        0,
+        "the reversing fighter is not marked"
+    );
+
+    // Entering a new state clears the flag alongside the rest of the swing.
+    sim.fighters[0].enter_state(0, &assets.characters[0], false);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveReversed"), 0);
+}

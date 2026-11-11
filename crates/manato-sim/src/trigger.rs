@@ -600,6 +600,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
         "helperindex" => Value::Int(who.saturating_sub(2) as i32),
         "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause),
+        "movereversed" => Value::Bool(sim.fighters[who].attack.move_reversed),
         "camerazoom" => Value::Float(sim.camera.scale),
         "camerapos" => {
             if axis_arg(sim, who, args).starts_with('y') {
@@ -717,6 +718,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "movecontact"
             | "moveguarded"
             | "movehit"
+            | "movereversed"
             | "movetype"
             | "numenemy"
             | "numexplod"
@@ -920,6 +922,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
         "hitpausetime" => Value::Int(f.hit.hit_pause),
+        "movereversed" => Value::Int(f.attack.move_reversed as i32),
         "screenwidth" | "gamewidth" => Value::Float(manato_core::GAME_WIDTH),
         "screenheight" | "gameheight" => Value::Float(manato_core::GAME_HEIGHT),
         "tickspersecond" => Value::Int(60),
