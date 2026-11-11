@@ -534,7 +534,17 @@ pub fn apply_hit_at(
         f.hit.hit_pause = hitdef.pausetime.1.max(0);
         f.hit.hit_pause_time = 0;
         f.hit.hit_shake_timer = hitdef.pausetime.1.max(0);
-        f.life = (f.life - damage).max(0);
+        let can_ko = if guarding {
+            hitdef.guard_kill
+        } else {
+            hitdef.kill
+        };
+        let next_life = f.life - damage;
+        f.life = if can_ko || f.life <= 0 {
+            next_life.max(0)
+        } else {
+            next_life.max(1)
+        };
         if !guarding {
             f.received_hits = f.received_hits.saturating_add(hitdef.numhits.max(1));
             f.received_damage = f.received_damage.saturating_add(damage);

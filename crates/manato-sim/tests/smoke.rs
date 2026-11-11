@@ -2382,6 +2382,79 @@ fn hitdef_fall_kill_and_envshake_fields_apply_on_landing() {
 }
 
 #[test]
+fn hitdef_kill_and_guard_kill_control_ko() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "100, 100".into()),
+            ("kill".into(), "0".into()),
+            ("guard.kill".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert!(!parsed.kill);
+    assert!(!parsed.guard_kill);
+
+    // A lethal unguarded hit is clamped at 1 life when kill = 0.
+    sim.fighters[1].life = 20;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, 1);
+
+    // A lethal guarded hit is clamped at 1 life when guard.kill = 0.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].life = 20;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, 1);
+
+    // Enabling the corresponding kill flag allows the same hit to KO.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let lethal = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "100, 100".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &lethal, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert!(parsed.kill);
+    assert!(parsed.guard_kill);
+    sim.fighters[1].life = 20;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, 0);
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &lethal, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].life = 20;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

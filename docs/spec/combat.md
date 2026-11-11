@@ -74,6 +74,8 @@ sparkxy = x, y
 hitsound = group, index
 guardsound = group, index
 hitonce = 0|1
+kill = 0|1
+guard.kill = 0|1
 fall = 0|1
 fall.recover = 0|1
 fall.time = N
@@ -109,6 +111,8 @@ applied when a `HitDef` controller omits the parameter:
 - `fall.recovertime` is `4`.
 - `fall.kill` is `1`; when `0`, fall damage clamps life at `1` instead of
   KO'ing.
+- `kill` and `guard.kill` are `1`; when `0`, a normal or guarded hit
+  respectively clamps life at `1` instead of KO'ing.
 - `fall.envshake.time` is `0` (disabled), `fall.envshake.freq` is `60`, and
   `fall.envshake.ampl` is `-4`. `fall.envshake.phase` defaults to the EnvShake
   rule: `90` when the frequency is at least `90`, otherwise `0`.
@@ -192,6 +196,9 @@ Guard damage:
 ## 7. Hit reaction
 
 - Damage = base damage × attacker `attack_mul` × defender `defence_mul`.
+- A hit may KO only when the applicable `kill` flag is set: `kill` for a
+  normal hit and `guard.kill` for a guarded hit. When disabled, life clamps
+  at `1`.
 - Choose ground/air velocity and hit time from the defender’s state.
 - Unguarded air hit states apply the HitDef `yaccel` as their vertical
   acceleration and expose it through `GetHitVar(yaccel)`. Ordinary air

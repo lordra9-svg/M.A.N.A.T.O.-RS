@@ -154,6 +154,10 @@ pub struct HitDef {
     pub hitsound: (i32, i32),
     pub guardsound: (i32, i32),
     pub hitonce: bool,
+    /// Whether a successful hit may KO (`kill`).
+    pub kill: bool,
+    /// Whether a guarded hit may KO (`guard.kill`).
+    pub guard_kill: bool,
     pub fall: bool,
     pub fall_recover: bool,
     pub fall_time: i32,
@@ -222,6 +226,8 @@ impl Default for HitDef {
             hitsound: (-1, -1),
             guardsound: (-1, -1),
             hitonce: false,
+            kill: true,
+            guard_kill: true,
             fall: false,
             fall_recover: false,
             fall_time: 0,
@@ -341,6 +347,8 @@ impl HitDef {
                 "hitsound" => h.hitsound = parse_sound_pair(value),
                 "guardsound" => h.guardsound = parse_sound_pair(value),
                 "hitonce" => h.hitonce = parse_i32(value) != 0,
+                "kill" => h.kill = parse_i32(value) != 0,
+                "guard.kill" => h.guard_kill = parse_i32(value) != 0,
                 "fall" => h.fall = parse_i32(value) != 0,
                 "fall.recover" => h.fall_recover = parse_i32(value) != 0,
                 "fall.time" => h.fall_time = parse_i32(value),
