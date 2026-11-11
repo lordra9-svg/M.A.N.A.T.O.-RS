@@ -515,7 +515,11 @@ pub fn apply_hit_at(
         f.hit.vars.hittime = hittime;
         f.hit.vars.slidetime = slidetime;
         f.hit.vars.ctrltime = ctrltime;
-        f.hit.vars.fall = hitdef.fall;
+        f.hit.vars.fall = if defender_airborne {
+            hitdef.air_fall
+        } else {
+            hitdef.fall
+        };
         f.hit.vars.fall_recover = hitdef.fall_recover;
         f.hit.vars.fall_time = hitdef.fall_time;
         f.hit.vars.fall_recovertime = hitdef.fall_recovertime;

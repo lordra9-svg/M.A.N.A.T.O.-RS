@@ -2455,6 +2455,93 @@ fn hitdef_kill_and_guard_kill_control_ko() {
 }
 
 #[test]
+fn hitdef_air_fall_defaults_and_applies_to_air_hits() {
+    let parse = |sim: &mut SimState, assets: &manato_sim::Assets, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+
+    // air.fall inherits fall when omitted.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let hit = parse(
+        &mut sim,
+        &assets,
+        vec![("attr".into(), "S, NA".into()), ("fall".into(), "1".into())],
+    );
+    assert!(hit.fall);
+    assert!(hit.air_fall);
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 1);
+    assert_eq!(sim.fighters[1].state_no, 5020);
+
+    // An explicit air.fall overrides fall for airborne hits only.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let hit = parse(
+        &mut sim,
+        &assets,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("fall".into(), "1".into()),
+            ("air.fall".into(), "0".into()),
+        ],
+    );
+    assert!(hit.fall);
+    assert!(!hit.air_fall);
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 0);
+
+    // air.fall alone does not make a grounded hit fall.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let hit = parse(
+        &mut sim,
+        &assets,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.fall".into(), "1".into()),
+        ],
+    );
+    assert!(!hit.fall);
+    assert!(hit.air_fall);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 0);
+
+    // A grounded hit still uses fall.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let hit = parse(
+        &mut sim,
+        &assets,
+        vec![("attr".into(), "S, NA".into()), ("fall".into(), "1".into())],
+    );
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 1);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
