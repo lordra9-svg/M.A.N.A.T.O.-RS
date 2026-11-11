@@ -443,18 +443,30 @@ pub fn apply_hit_at(
             hitdef.guard_velocity.unwrap_or(hitdef.ground_velocity)
         };
         v.x *= 0.5;
-        (v, hitdef.guard_hittime.max(1), hitdef.guard_slidetime)
+        let ctrltime = if defender_airborne {
+            hitdef.airguard_ctrltime
+        } else {
+            hitdef.guard_ctrltime
+        };
+        (
+            v,
+            hitdef.guard_hittime.max(1),
+            hitdef.guard_slidetime,
+            ctrltime,
+        )
     } else if defender_airborne {
         (
             hitdef.air_velocity,
             hitdef.air_hittime.max(1),
             hitdef.ground_slidetime,
+            hitdef.air_hittime,
         )
     } else {
         (
             hitdef.ground_velocity,
             hitdef.ground_hittime.max(1),
             hitdef.ground_slidetime,
+            hitdef.ground_hittime,
         )
     };
     let corner_push = {
@@ -472,7 +484,7 @@ pub fn apply_hit_at(
             0.0
         }
     };
-    let (velocity, hittime, slidetime) = velocity_tuple;
+    let (velocity, hittime, slidetime, ctrltime) = velocity_tuple;
 
     if from_fighter && hitdef.p1sprpriority_set {
         sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
@@ -495,7 +507,7 @@ pub fn apply_hit_at(
         f.hit.vars.y_accel = hitdef.yaccel;
         f.hit.vars.hittime = hittime;
         f.hit.vars.slidetime = slidetime;
-        f.hit.vars.ctrltime = hittime + slidetime;
+        f.hit.vars.ctrltime = ctrltime;
         f.hit.vars.fall = hitdef.fall;
         f.hit.vars.fall_recover = hitdef.fall_recover;
         f.hit.vars.fall_time = hitdef.fall_time;

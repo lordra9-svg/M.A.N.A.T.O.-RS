@@ -141,6 +141,12 @@ pub struct HitDef {
     pub guard_hittime: i32,
     /// Guard slide time; defaults to `guard_hittime` when omitted.
     pub guard_slidetime: i32,
+    /// Time before control returns after a ground guard; defaults to
+    /// `guard_slidetime`.
+    pub guard_ctrltime: i32,
+    /// Time before control returns after an air guard; defaults to
+    /// `guard_ctrltime`.
+    pub airguard_ctrltime: i32,
     pub pausetime: (i32, i32),
     pub sparkno: i32,
     pub guard_sparkno: i32,
@@ -197,6 +203,8 @@ impl Default for HitDef {
             ground_slidetime: 0,
             guard_hittime: 0,
             guard_slidetime: 0,
+            guard_ctrltime: 0,
+            airguard_ctrltime: 0,
             pausetime: (0, 0),
             sparkno: -1,
             guard_sparkno: 40,
@@ -252,6 +260,8 @@ impl HitDef {
         let mut air_type_set = false;
         let mut guard_hittime_set = false;
         let mut guard_slidetime_set = false;
+        let mut guard_ctrltime_set = false;
+        let mut airguard_ctrltime_set = false;
         let mut ground_cornerpush_set = false;
         let mut air_cornerpush_set = false;
         let mut guard_cornerpush_set = false;
@@ -292,6 +302,14 @@ impl HitDef {
                 "guard.slidetime" => {
                     h.guard_slidetime = parse_i32(value);
                     guard_slidetime_set = true;
+                }
+                "guard.ctrltime" => {
+                    h.guard_ctrltime = parse_i32(value);
+                    guard_ctrltime_set = true;
+                }
+                "airguard.ctrltime" => {
+                    h.airguard_ctrltime = parse_i32(value);
+                    airguard_ctrltime_set = true;
                 }
                 "pausetime" => {
                     let (a, b) = parse_pair(value);
@@ -364,6 +382,12 @@ impl HitDef {
         }
         if !guard_slidetime_set {
             h.guard_slidetime = h.guard_hittime;
+        }
+        if !guard_ctrltime_set {
+            h.guard_ctrltime = h.guard_slidetime;
+        }
+        if !airguard_ctrltime_set {
+            h.airguard_ctrltime = h.guard_ctrltime;
         }
         // Documented legacy corner-push defaults: air attacks do not push,
         // otherwise 1.3x the effective guard velocity; air corner push

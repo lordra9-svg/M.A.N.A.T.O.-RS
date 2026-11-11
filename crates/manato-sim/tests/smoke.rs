@@ -7229,7 +7229,7 @@ fn get_hit_var_times_and_target_rebind_after_drop() {
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(slidetime)"), 5);
-    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(ctrltime)"), 13);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(ctrltime)"), 8);
     assert_eq!(
         manato_sim::trigger::int(&sim, 1, "GetHitVar(fall.time)"),
         30
@@ -7722,6 +7722,8 @@ fn air_guard_uses_airguard_velocity_and_guard_hittime() {
     hit.guard_hittime = 6;
     hit.ground_slidetime = 3;
     hit.guard_slidetime = 3;
+    hit.guard_ctrltime = 5;
+    hit.airguard_ctrltime = 3;
     hit.guard_damage = 5;
     hit.guard_damage_set = true;
     sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
@@ -7737,7 +7739,7 @@ fn air_guard_uses_airguard_velocity_and_guard_hittime() {
     );
     assert_eq!(sim.fighters[1].hit.vars.y_vel, -2.0);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 6);
-    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 9);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 3);
     assert_eq!(sim.fighters[1].state_no, 154);
 }
 
@@ -7875,6 +7877,8 @@ fn hitdef_parses_ground_air_types_times_and_cornerpush() {
             ("ground.slidetime".into(), "6".into()),
             ("guard.hittime".into(), "7".into()),
             ("guard.slidetime".into(), "4".into()),
+            ("guard.ctrltime".into(), "5".into()),
+            ("airguard.ctrltime".into(), "3".into()),
             ("ground.cornerpush.veloff".into(), "-2.5".into()),
             ("air.cornerpush.veloff".into(), "-3.5".into()),
         ],
@@ -7896,6 +7900,8 @@ fn hitdef_parses_ground_air_types_times_and_cornerpush() {
     assert_eq!(parsed.ground_slidetime, 6);
     assert_eq!(parsed.guard_hittime, 7);
     assert_eq!(parsed.guard_slidetime, 4);
+    assert_eq!(parsed.guard_ctrltime, 5);
+    assert_eq!(parsed.airguard_ctrltime, 3);
     assert_eq!(parsed.ground_cornerpush, -2.5);
     assert_eq!(parsed.air_cornerpush, -3.5);
 
@@ -7909,7 +7915,7 @@ fn hitdef_parses_ground_air_types_times_and_cornerpush() {
     assert_eq!(sim.fighters[1].hit.vars.x_vel, 3.0);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 9);
     assert_eq!(sim.fighters[1].hit.vars.slidetime, 6);
-    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 15);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 9);
     assert_eq!(sim.fighters[1].hit.vars.anim_type, 5);
     assert_eq!(sim.fighters[1].hit.vars.ground_type, 2);
     assert_eq!(sim.fighters[1].hit.vars.air_type, 3);
@@ -7931,7 +7937,7 @@ fn hitdef_parses_ground_air_types_times_and_cornerpush() {
     assert!(sim.fighters[1].hit.vars.guarded);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 7);
     assert_eq!(sim.fighters[1].hit.vars.slidetime, 4);
-    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 11);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 5);
     assert_eq!(sim.fighters[1].state_no, 150);
 
     // Air hit: air velocity and air.hittime apply, and GetHitVar(type)
@@ -7950,6 +7956,7 @@ fn hitdef_parses_ground_air_types_times_and_cornerpush() {
     assert_eq!(sim.fighters[1].hit.vars.x_vel, 5.0);
     assert_eq!(sim.fighters[1].hit.vars.y_vel, -6.0);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 21);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 21);
     assert_eq!(sim.fighters[1].hit.vars.hit_type, 3);
     assert_eq!(sim.fighters[1].state_no, 5020);
 }
@@ -7994,6 +8001,14 @@ fn hitdef_defaults_match_documented_ground_air_and_guard_times() {
         hit.guard_slidetime, 0,
         "guard.slidetime inherits guard.hittime"
     );
+    assert_eq!(
+        hit.guard_ctrltime, 0,
+        "guard.ctrltime inherits guard.slidetime"
+    );
+    assert_eq!(
+        hit.airguard_ctrltime, 0,
+        "airguard.ctrltime inherits guard.ctrltime"
+    );
 
     // An explicit guard.hittime feeds guard.slidetime when the latter is
     // omitted.
@@ -8002,14 +8017,35 @@ fn hitdef_defaults_match_documented_ground_air_and_guard_times() {
     let hit = parse(&mut sim, params);
     assert_eq!(hit.guard_hittime, 7);
     assert_eq!(hit.guard_slidetime, 7);
+    assert_eq!(hit.guard_ctrltime, 7);
+    assert_eq!(hit.airguard_ctrltime, 7);
 
     // An explicit guard.slidetime wins over the inherited value.
-    let mut params = base;
+    let mut params = base.clone();
     params.push(("guard.hittime".into(), "7".into()));
     params.push(("guard.slidetime".into(), "3".into()));
     let hit = parse(&mut sim, params);
     assert_eq!(hit.guard_hittime, 7);
     assert_eq!(hit.guard_slidetime, 3);
+    assert_eq!(hit.guard_ctrltime, 3);
+    assert_eq!(hit.airguard_ctrltime, 3);
+
+    // Explicit guard.ctrltime feeds airguard.ctrltime.
+    let mut params = base.clone();
+    params.push(("guard.hittime".into(), "7".into()));
+    params.push(("guard.slidetime".into(), "3".into()));
+    params.push(("guard.ctrltime".into(), "2".into()));
+    let hit = parse(&mut sim, params);
+    assert_eq!(hit.guard_ctrltime, 2);
+    assert_eq!(hit.airguard_ctrltime, 2);
+
+    // Explicit airguard.ctrltime wins.
+    let mut params = base;
+    params.push(("guard.ctrltime".into(), "2".into()));
+    params.push(("airguard.ctrltime".into(), "1".into()));
+    let hit = parse(&mut sim, params);
+    assert_eq!(hit.guard_ctrltime, 2);
+    assert_eq!(hit.airguard_ctrltime, 1);
 }
 
 #[test]
@@ -9365,7 +9401,7 @@ fn airborne_hit_uses_air_velocity_and_air_hittime() {
     assert_eq!(sim.fighters[1].hit.vars.y_vel, -6.0);
     assert_eq!(sim.fighters[1].hit.vars.hittime, 5);
     assert_eq!(sim.fighters[1].hit.vars.slidetime, 2);
-    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 7);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 5);
     assert_eq!(sim.fighters[1].state_no, 5020);
 }
 

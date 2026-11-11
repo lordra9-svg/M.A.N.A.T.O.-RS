@@ -65,6 +65,8 @@ air.hittime = N
 ground.slidetime = N
 guard.hittime = N
 guard.slidetime = N
+guard.ctrltime = N
+airguard.ctrltime = N
 pausetime = attacker, defender
 sparkno = N
 guard.sparkno = N
@@ -100,6 +102,8 @@ applied when a `HitDef` controller omits the parameter:
   `20`.
 - `guard.hittime` inherits `ground.hittime` when omitted.
   `guard.slidetime` inherits `guard.hittime` when omitted.
+  `guard.ctrltime` inherits `guard.slidetime`, and `airguard.ctrltime`
+  inherits `guard.ctrltime`.
 - Guard hits use `guard.hittime`/`guard.slidetime`; unguarded ground hits use
   `ground.hittime`/`ground.slidetime`; air hits use `air.hittime`.
 - Ikemen-GO preserves a reported M.U.G.E.N implementation quirk where
@@ -113,6 +117,13 @@ applied when a `HitDef` controller omits the parameter:
 codes: `0` None, `1` High, `2` Low, `3` Trip. `GetHitVar(type)` returns the
 air type when the defender was airborne at contact and the ground type
 otherwise.
+
+`GetHitVar(ctrltime)` follows the observable Ikemen-GO value: guarded ground
+contacts report `guard.ctrltime`, guarded air contacts report
+`airguard.ctrltime`, and unguarded contacts report the selected hit time
+(`ground.hittime` or `air.hittime`). The public M.U.G.E.N trigger text
+describes `ctrltime` only as the post-guard control time; the unguarded value
+is kept because it is what content observes under the oracle runtime.
 
 `ground.type = None`/`air.type = None` is a pause-only contact. It applies the
 HitDef `pausetime` to both players (attacker self-pause and defender hit
