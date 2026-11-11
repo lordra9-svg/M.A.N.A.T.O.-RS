@@ -986,8 +986,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
                     crate::RoundPhase::Ko | crate::RoundPhase::Over
                 ),
         ),
-        "teammode" => Value::Int(1),
-        "ishometeam" => Value::Int(1),
+        "teammode" => Value::Str("single".into()),
+        // The simulator only models versus-style 1v1 play, where P1's side
+        // (team side 1) is the home team. Arcade's CPU-home rule is not
+        // representable because the engine does not track the CPU slot.
+        "ishometeam" => Value::Int((f.side == 0) as i32),
         "parentexist" => Value::Int((sim.parent_of(who) != who) as i32),
         "rootdist" => {
             let axis = axis_arg(sim, who, args);

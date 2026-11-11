@@ -174,7 +174,7 @@ missing redirect targets make the trigger false.
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
-  `Loser`, `TeamSide`
+  `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`
 - Utility: `Const`, `Const240p`, `Const480p`, `Const720p`, `Random`, `IfElse`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,
   `Sqrt`, `Pow`
@@ -209,6 +209,23 @@ follows; Ikemen-GO content uses the same forms.
   component evaluates to 0. (M.U.G.E.N specifies "bottom" for the missing
   relation case; 0 keeps the common `!= 0` comparisons inert and matches the
   existing engine scalar model.)
+
+### 5.6 Team triggers
+
+Public M.U.G.E.N trigger documentation defines the team family as follows:
+
+- `TeamMode = single|simul|turns` compares the player's team mode. The engine
+  simulates single play only, so `single` is true and `simul`/`turns` are
+  false for both sides. `TeamMode` without a comparison yields the string
+  `"single"`; `!=` inverts the comparison.
+- `IsHomeTeam` is 1 for the home team. In versus, P1's side (left) is home and
+  P2's side is not. Helpers inherit their owner's side and therefore its
+  home-team status.
+- Arcade mode's rule that the CPU is always the home team is not
+  representable: the simulator does not track which slot is CPU-controlled.
+  The engine applies the versus rule in every match and documents the
+  limitation rather than guessing.
+- Unknown team-mode strings compare false.
 
 ## 6. Commands
 

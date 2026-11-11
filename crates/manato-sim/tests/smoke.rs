@@ -3223,6 +3223,50 @@ fn hold_pseudo_commands_follow_facing_and_diagonals() {
 }
 
 #[test]
+fn team_mode_and_home_team_follow_side() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, assets: &manato_sim::Assets, owner: usize| {
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params: vec![
+                ("stateno".into(), "0".into()),
+                ("removetime".into(), "-1".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, owner, &control, assets);
+        sim.fighters.len() - 1
+    };
+
+    // The engine models single play for both sides: no simul/turns teams.
+    for who in [0, 1] {
+        assert_eq!(manato_sim::trigger::int(&sim, who, "TeamMode = single"), 1);
+        assert_eq!(manato_sim::trigger::int(&sim, who, "TeamMode = Single"), 1);
+        assert_eq!(manato_sim::trigger::int(&sim, who, "TeamMode = simul"), 0);
+        assert_eq!(manato_sim::trigger::int(&sim, who, "TeamMode = turns"), 0);
+        assert_eq!(manato_sim::trigger::int(&sim, who, "TeamMode != turns"), 1);
+        assert_eq!(
+            manato_sim::trigger::eval_str(&sim, who, "TeamMode").as_str(),
+            "single"
+        );
+    }
+
+    // Versus: P1's side is the home team; P2's is not. Helpers inherit the
+    // side of their owner.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IsHomeTeam"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "IsHomeTeam"), 0);
+    let p1_helper = spawn(&mut sim, &assets, 0);
+    let p2_helper = spawn(&mut sim, &assets, 1);
+    assert_eq!(sim.fighters[p1_helper].side, 0);
+    assert_eq!(sim.fighters[p2_helper].side, 1);
+    assert_eq!(manato_sim::trigger::int(&sim, p1_helper, "IsHomeTeam"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, p2_helper, "IsHomeTeam"), 0);
+}
+
+#[test]
 fn animation_and_position_triggers_track_state() {
     let Some(mut sim) = fight_phase() else {
         return;
