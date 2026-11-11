@@ -47,6 +47,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-26 | Guarding state 3000's blasts costs 15 guard damage; the defender remains in guard state 150 and reports the projectile guard timer with no hit timer. The upper blast passes above the guard hurt box. | `kaen_super_guard` capture: contact frame 246, `p2_life` 1000 -> 985, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-27 | Nival state 3000 opens with a 30-tick SuperPause and then its single blast hits for 90 damage (state 5000). Contact lands 38 ticks after entry, versus ~6 for the plain projectile. | `nival_super` capture: contact frame 247, `p2_life` 1000 -> 910, `p2_state` 5000, `p1_projHit` 0. |
 | O-28 | Guarding Nival's super blast costs 20 guard damage and leaves the defender in guard state 150 with the projectile guard timer set. | `nival_super_guard` capture: contact frame 247, `p2_life` 1000 -> 980, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
+| O-29 | `HitPauseTime` reports the attacker's remaining self-pause. KFM state 400 (`pausetime = 10, 11`) reports 10 on the contact frame, then 9, 8, ... 0 on successive frozen ticks. The defender, frozen by its hit shake for the second value, reports 0 throughout. | `kfm_crouch_attack` capture: injection frame 209, contact frame 213, `p1_hitPause` 10 at contact and one lower each frame through 0 at frame 223; `p2_hitPause` 0 for the whole hit. State 200 (`pausetime = 8, 8`) shows the same pattern starting at 8. |
 | O-20 | **Negative result:** a persistent `numhits = 2` HitDef does **not** stop repeat hits after the juggle budget reaches 0. The first fall hit consumes all 15 points, then repeat contacts continue until KO (100 hits in the capture). The expected same-activation rejection was not observed with this construct. | `kfm_multihit` capture: `p2_juggle` 15 -> 0 on the first fall hit, then life continues dropping from 990 to 0 with `hits = 100`. Fixture: `tools/oracle/oracle-char/oracle.cns`. |
 
 ## Mapping to M.A.N.A.T.O.-RS
@@ -64,6 +65,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-17..O-18 | KFM juggle consumption is encoded by `oracle_kfm_juggle_flow`; run `IKEMEN_ORACLE_SCENARIO=kfm_juggle`. |
 | O-19 | Fresh-activation bypass and the same-activation gate are encoded in `juggle_allows`; unit test `juggle_points_gate_air_hits`. |
 | O-21..O-28 | Encoded by `bundled_projectile_hits`/`bundled_projectile_can_be_guarded`, `nival_projectile_hit_and_guard`, `ordan_projectile_hit_and_guard`, `state_3000_low_blast_hits_for_65`, `state_3000_blasts_are_guarded_for_15`, `nival_super_pauses_then_hits_for_90`, and `nival_super_guard_takes_20`. |
+| O-29 | Encoded by `hit_pause_time_reports_self_pause_only`; run `IKEMEN_ORACLE_SCENARIO=kfm_crouch_attack`. |
 | O-20 | Kept as a documented negative oracle finding; the engine gate remains unit-tested and is not changed to match this anomalous persistent-HitDef construct. |
 
 These assertions remain subject to revision if a later oracle run contradicts

@@ -475,7 +475,8 @@ pub fn apply_hit_at(
         f.hit.vars.priority = hitdef.priority;
         f.hit.vars.hit_id = hitdef.activation as i32;
         f.hit.guarding = guarding;
-        f.hit.hit_pause = hitdef.pausetime.0.max(0);
+        f.hit.hit_pause = hitdef.pausetime.1.max(0);
+        f.hit.hit_pause_time = 0;
         f.hit.hit_shake_timer = hitdef.pausetime.1.max(0);
         f.life = (f.life - damage).max(0);
         if !guarding {
@@ -542,7 +543,8 @@ pub fn apply_hit_at(
             }
         }
         f.hit.hit_targets.push(defender);
-        f.hit.hit_pause = hitdef.pausetime.1.max(0);
+        f.hit.hit_pause = hitdef.pausetime.0.max(0);
+        f.hit.hit_pause_time = hitdef.pausetime.0.max(0);
     }
 
     // Hit spark and sound.

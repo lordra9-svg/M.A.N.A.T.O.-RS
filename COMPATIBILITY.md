@@ -51,7 +51,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + loop boundary and invalid AnimElemTime sentinel tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/Physics + StateNo/PrevStateNo/Time + P2/distances |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/hitid/priority/fall + HitVel + HitShakeOver/HitOver threshold |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/hitid/priority/fall + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + SysVar |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const/math/random + ScreenWidth/Height, TicksPerSecond, GameTime |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Missing | TBD |
@@ -81,7 +81,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | --- | --- | --- | --- | --- | --- |
 | K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Mirror/normalize/translate box test + KFM 200 hit flow |
 | K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flags/M + p1/p2 sprpriority + guard.velocity + F gate; KFM guard oracle |
-| K-03 | Hit pause/super pause | Required | Required | Partial | Freeze + air hit + reaction-state selection (5010/5020/5030/5070); KFM oracle |
+| K-03 | Hit pause/super pause | Required | Required | Partial | Freeze + air hit + reaction-state selection (5010/5020/5030/5070); attacker/defender pausetime split (O-29); KFM oracle |
 | K-04 | Juggle/air hit/fall states | Required | Required | Partial | air.juggle gate + HitFallSet semantics + fall velocity/landing + lethal fall KO |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw/bind/drop + Ordan slam + p1/p2 facing/sprpriority application |
 | K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28 + hits-limit removal; state 3000 upper blast 1px box margin |

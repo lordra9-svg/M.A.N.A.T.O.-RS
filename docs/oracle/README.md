@@ -102,6 +102,9 @@ idle or guarding KFM. `kaen_super[_guard]` fires Kaen state 3000's dual blast; `
 covers Nival's paused super blast. Ordan state 3000 is a command grab rather
 than a projectile. Assertions O-21..O-28 cover damage, guard damage, get-hit vs guard state, dual-blast
 combined damage, and the owner's projectile contact/hit/guard timers.
+`kfm_crouch_attack` injects KFM state 400 (`pausetime = 10, 11`) to capture
+`HitPauseTime` for an asymmetric pause; O-29 covers the attacker/defender
+distinction.
 
 ## O-20 negative finding
 

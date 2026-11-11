@@ -2125,6 +2125,36 @@ fn get_hitvar_and_hit_shake_triggers() {
 }
 
 #[test]
+fn hit_pause_time_reports_self_pause_only() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.pausetime = (10, 11);
+    let origin = sim.fighters[0].pos;
+    let facing = sim.fighters[0].facing;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, facing, true);
+
+    // Oracle `kfm_crouch_attack`: the attacker's state-400 HitDef has
+    // pausetime 10,11 and reports HitPauseTime 10 on contact, counting down
+    // to 0. The defender stays frozen by its own hit shake but reports 0.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitPauseTime"), 10);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitPauseTime"), 0);
+    assert_eq!(sim.fighters[0].hit.hit_pause, 10);
+    assert_eq!(sim.fighters[1].hit.hit_pause, 11);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitPauseTime"), 9);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitPauseTime"), 0);
+
+    for _ in 0..9 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitPauseTime"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitPauseTime"), 0);
+}
+
+#[test]
 fn common_trigger_expressions() {
     let Some(mut sim) = fight_phase() else {
         return;

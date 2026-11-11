@@ -599,7 +599,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "ishelper" => Value::Int(sim.is_helper(who) as i32),
         "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
         "helperindex" => Value::Int(who.saturating_sub(2) as i32),
-        "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause),
+        "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause_time),
         "movereversed" => Value::Bool(sim.fighters[who].attack.move_reversed),
         "camerazoom" => Value::Float(sim.camera.scale),
         "camerapos" => {
@@ -709,6 +709,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "hitfall"
             | "hitvel"
             | "hitover"
+            | "hitpausetime"
             | "hitshakeover"
             | "inguarddist"
             | "ishelper"
@@ -921,7 +922,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, _args: &[Expr]) -> Value
         "ailevel" => Value::Int(sim.options.ai_level),
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
-        "hitpausetime" => Value::Int(f.hit.hit_pause),
+        "hitpausetime" => Value::Int(f.hit.hit_pause_time),
         "movereversed" => Value::Int(f.attack.move_reversed as i32),
         "screenwidth" | "gamewidth" => Value::Float(manato_core::GAME_WIDTH),
         "screenheight" | "gameheight" => Value::Float(manato_core::GAME_HEIGHT),

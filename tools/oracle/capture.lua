@@ -53,6 +53,7 @@ local function snap()
         num(safe(guardPoints)), num(safe(dizzyPoints)),
         num(safe(getHitVar, "damage")), num(safe(getHitVar, "hittime")),
         num(safe(moveContact)), num(safe(moveHit)), num(safe(moveGuarded)),
+        num(safe(hitPauseTime)),
         num(safe(numProj)), num(safe(projContactTime, -1)),
         num(safe(projHitTime, -1)), num(safe(projGuardedTime, -1)),
     }, ",")
@@ -62,12 +63,12 @@ local HEADER = "frame,gameTime,roundState,roundTime,"
     .. "p1_life,p1_lifeMax,p1_power,p1_redLife,p1_state,p1_anim,p1_animTime,"
     .. "p1_x,p1_y,p1_vx,p1_vy,p1_facing,p1_ctrl,p1_stateType,p1_moveType,"
     .. "p1_hitCount,p1_uniqHitCount,p1_guardPoints,p1_dizzyPoints,"
-    .. "p1_hitDamage,p1_hitTime,p1_moveContact,p1_moveHit,p1_moveGuarded,"
+    .. "p1_hitDamage,p1_hitTime,p1_moveContact,p1_moveHit,p1_moveGuarded,p1_hitPause,"
     .. "p1_numProj,p1_projContact,p1_projHit,p1_projGuarded,"
     .. "p2_life,p2_lifeMax,p2_power,p2_redLife,p2_state,p2_anim,p2_animTime,"
     .. "p2_x,p2_y,p2_vx,p2_vy,p2_facing,p2_ctrl,p2_stateType,p2_moveType,"
     .. "p2_hitCount,p2_uniqHitCount,p2_guardPoints,p2_dizzyPoints,"
-    .. "p2_hitDamage,p2_hitTime,p2_moveContact,p2_moveHit,p2_moveGuarded,"
+    .. "p2_hitDamage,p2_hitTime,p2_moveContact,p2_moveHit,p2_moveGuarded,p2_hitPause,"
     .. "p2_numProj,p2_projContact,p2_projHit,p2_projGuarded,p2_juggle"
 
 local function write_line(line)
@@ -130,6 +131,10 @@ function oracle_capture()
     elseif scenario == "kfm_attack" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(200)
+        injected = true
+    elseif scenario == "kfm_crouch_attack" and not injected and num(safe(roundState)) == 2 then
+        player(1)
+        changeState(400)
         injected = true
     elseif scenario == "kfm_launch" and not injected and num(safe(roundState)) == 2 then
         player(1)

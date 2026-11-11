@@ -873,6 +873,9 @@ impl SimState {
         for who in 0..self.fighters.len() {
             if self.fighters[who].hit.hit_pause > 0 {
                 self.fighters[who].hit.hit_pause -= 1;
+                if self.fighters[who].hit.hit_pause_time > 0 {
+                    self.fighters[who].hit.hit_pause_time -= 1;
+                }
                 self.fighters[who].hit.pause_gap += 1;
                 self.fighters[who].state_changed = false;
                 self.run_paused_controllers(who);
@@ -2388,6 +2391,7 @@ impl SimState {
             h.write_u8(f.move_type as u8);
             h.write_u8(f.physics as u8);
             h.write_i32(f.hit.hit_pause);
+            h.write_i32(f.hit.hit_pause_time);
             h.write_i32(f.hit.hit_shake_timer);
             h.write_bool(f.state_changed_tick);
             h.write_i32(f.hit.pause_gap);

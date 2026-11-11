@@ -375,6 +375,10 @@ impl GetHitVars {
 pub struct HitState {
     pub vars: GetHitVars,
     pub hit_pause: i32,
+    /// Remaining self-hitpause reported by `HitPauseTime`. The defender's
+    /// engine hit-shake freeze is tracked by `hit_pause` but does not count
+    /// here.
+    pub hit_pause_time: i32,
     pub super_pause: i32,
     pub hit_shake_timer: i32,
     pub hit_over_timer: i32,

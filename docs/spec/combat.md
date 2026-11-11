@@ -124,6 +124,10 @@ Guard damage:
 - Enter guard states 150/152/154 or hit states 5000/5010/5020 when present.
 - Without common states, apply velocity and leave the fighter in place.
 - Hit pause freezes the affected fighter; super pause freezes all.
+- `pausetime`'s first value is the attacker's self-pause and its second value
+  is the defender's hit shake. `HitPauseTime` returns the attacker's remaining
+  self-pause, counting down one per frozen tick; a defender frozen by hit shake
+  reports 0 (oracle O-29).
 
 ## 8. HitOnce, multi-hit, and juggle
 
