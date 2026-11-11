@@ -152,7 +152,8 @@ Guard damage:
 - When a projectile exhausts its hits it plays `projhitanim`; when its
   `removetime`/bounds end it plays `projremanim`. `-1` removes it immediately.
   The projectile stays inactive (no further hits) until that animation ends,
-  then is removed.
+  then is removed. Entering either state replaces the velocity with
+  `remvelocity` and clears acceleration.
 - Helpers use their owner’s attack multipliers and sound banks.
 - Helpers are not valid defenders in the first pass.
 

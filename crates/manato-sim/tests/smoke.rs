@@ -2377,6 +2377,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         out_of_bounds: false,
         status: manato_sim::projectile::ProjectileStatus::Active,
         removal_ticks: 0,
+        rem_velocity: manato_core::Vec2::ZERO,
         hits: 2,
         hitdef,
     });
@@ -12028,4 +12029,70 @@ fn projectile_hit_and_removal_animations_play_before_removal() {
     }
     sim.tick([PlayerInput::default(); 2]);
     assert!(sim.projectiles.is_empty(), "removal animation finished");
+}
+
+#[test]
+fn projectile_remvelocity_replaces_velocity_on_removal() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -5.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 200.0;
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "5, 0".into()),
+            ("remvelocity".into(), "3, -1".into()),
+            ("removetime".into(), "1".into()),
+            ("projremanim".into(), "1500".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    {
+        let projectile = sim.projectiles.first().expect("removal animation");
+        assert_eq!(
+            projectile.status,
+            manato_sim::projectile::ProjectileStatus::Rem
+        );
+        assert_eq!(projectile.vel, manato_core::Vec2::new(3.0, -1.0));
+    }
+
+    // ModifyProjectile can change the removal velocity; `projremvelocity` alias
+    // is accepted too.
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![("projremvelocity".into(), "-2, 4".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(
+        sim.projectiles[0].rem_velocity,
+        manato_core::Vec2::new(-2.0, 4.0)
+    );
+
+    // Default removal velocity is zero.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let plain = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "5, 0".into()),
+            ("removetime".into(), "1".into()),
+            ("projremanim".into(), "1500".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.projectiles.first().expect("removal").vel,
+        manato_core::Vec2::ZERO
+    );
 }

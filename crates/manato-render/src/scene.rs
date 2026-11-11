@@ -1203,6 +1203,7 @@ mod tests {
             out_of_bounds: false,
             status: manato_sim::projectile::ProjectileStatus::Active,
             removal_ticks: 0,
+            rem_velocity: Vec2::ZERO,
             hits: 1,
             hitdef: manato_sim::hitdef::HitDef::default(),
         }

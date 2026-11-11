@@ -997,6 +997,10 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let stage_bound = num_param(sim, who, control, "projstagebound").unwrap_or(40.0);
     let height_bound = control.get_pair("projheightbound").unwrap_or((-240.0, 1.0));
     let depth_bound = num_param(sim, who, control, "projdepthbound").unwrap_or(f32::MAX);
+    let rem_velocity = control
+        .get_pair("remvelocity")
+        .or_else(|| control.get_pair("projremvelocity"))
+        .unwrap_or((0.0, 0.0));
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -1051,6 +1055,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         out_of_bounds: false,
         status: crate::projectile::ProjectileStatus::Active,
         removal_ticks: 0,
+        rem_velocity: Vec2::new(rem_velocity.0, rem_velocity.1),
         hits,
         hitdef,
     });
@@ -1153,6 +1158,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let stage_bound = num_param(sim, who, control, "projstagebound");
     let height_bound = control.get_pair("projheightbound");
     let depth_bound = num_param(sim, who, control, "projdepthbound");
+    let rem_velocity = control
+        .get_pair("remvelocity")
+        .or_else(|| control.get_pair("projremvelocity"));
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -1237,6 +1245,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(depth_bound) = depth_bound {
             projectile.depth_bound = depth_bound;
+        }
+        if let Some((x, y)) = rem_velocity {
+            projectile.rem_velocity = Vec2::new(x, y);
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

@@ -70,6 +70,8 @@ pub struct Projectile {
     pub status: ProjectileStatus,
     /// Ticks left in the hit/removal animation; `0` means remove now.
     pub removal_ticks: i32,
+    /// `remvelocity` applied when entering the hit/removal state.
+    pub rem_velocity: Vec2,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,
@@ -105,6 +107,9 @@ impl Projectile {
             return;
         };
         self.status = status;
+        // Entering the removal state replaces the velocity.
+        self.vel = self.rem_velocity;
+        self.accel = Vec2::ZERO;
         let anim = match status {
             ProjectileStatus::Hit => self.hit_anim,
             ProjectileStatus::Rem => self.rem_anim,
