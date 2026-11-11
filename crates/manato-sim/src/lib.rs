@@ -893,8 +893,15 @@ impl SimState {
         self.fighters.retain(|fighter| {
             fighter.owner.is_none() || (!fighter.helper_destroy && fighter.helper_remove_time != 0)
         });
-        for projectile in &mut self.projectiles {
-            projectile.advance();
+        {
+            let camera_x = self.camera.x;
+            let scale = self.camera.scale;
+            let stage = &self.assets.stage;
+            let (stage_left, stage_right) = (stage.camera.bound_left, stage.camera.bound_right);
+            for projectile in &mut self.projectiles {
+                projectile.advance();
+                projectile.apply_bounds(camera_x, scale, stage_left, stage_right);
+            }
         }
         collision::resolve_projectiles(self);
         self.projectiles.retain(|p| !p.is_expired());

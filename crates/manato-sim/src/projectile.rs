@@ -55,6 +55,8 @@ pub struct Projectile {
     pub stage_bound: f32,
     pub height_bound: (f32, f32),
     pub depth_bound: f32,
+    /// Set when the projectile leaves its bounds and should be removed.
+    pub out_of_bounds: bool,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     pub hitdef: HitDef,
@@ -64,7 +66,31 @@ impl Projectile {
     pub fn is_expired(&self) -> bool {
         let loop_expired =
             self.remove_time <= -2 && self.anim_loop_time > 0 && self.time >= self.anim_loop_time;
-        (self.hits <= 0 && self.remove_on_hits_exhausted) || self.remove_time == 0 || loop_expired
+        (self.hits <= 0 && self.remove_on_hits_exhausted)
+            || self.remove_time == 0
+            || loop_expired
+            || self.out_of_bounds
+    }
+
+    /// Marks the projectile for removal once it passes the screen edge or
+    /// stage/height bounds (`projedgebound`, `projstagebound`,
+    /// `projheightbound`; depth is not modeled).
+    pub fn apply_bounds(&mut self, camera_x: f32, scale: f32, stage_left: f32, stage_right: f32) {
+        // `projedgebound` extends the visible camera edges; `projstagebound`
+        // extends the camera's movement limits.
+        let half = manato_core::GAME_WIDTH / (2.0 * scale.max(0.0001));
+        let view_left = camera_x - half;
+        let view_right = camera_x + half;
+        let vel_x = self.vel.x * self.facing as f32;
+        if self.pos.x < view_left - self.edge_bound
+            || self.pos.x > view_right + self.edge_bound
+            || (vel_x < 0.0 && self.pos.x < stage_left - half - self.stage_bound)
+            || (vel_x > 0.0 && self.pos.x > stage_right + half + self.stage_bound)
+            || (self.vel.y > 0.0 && self.pos.y > self.height_bound.1)
+            || (self.vel.y < 0.0 && self.pos.y < self.height_bound.0)
+        {
+            self.out_of_bounds = true;
+        }
     }
 
     pub fn advance(&mut self) {

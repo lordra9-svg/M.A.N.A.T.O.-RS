@@ -1048,6 +1048,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         stage_bound,
         height_bound: (height_bound.0, height_bound.1),
         depth_bound,
+        out_of_bounds: false,
         hits,
         hitdef,
     });

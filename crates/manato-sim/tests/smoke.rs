@@ -2374,6 +2374,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         stage_bound: 40.0,
         height_bound: (-240.0, 1.0),
         depth_bound: f32::MAX,
+        out_of_bounds: false,
         hits: 2,
         hitdef,
     });
@@ -11676,4 +11677,111 @@ fn projectile_bounds_parameters_storage_and_defaults() {
     assert_eq!(sim.projectiles[0].stage_bound, 40.0);
     assert_eq!(sim.projectiles[0].height_bound, (-240.0, 1.0));
     assert_eq!(sim.projectiles[0].depth_bound, f32::MAX);
+}
+
+#[test]
+fn projectile_bounds_remove_out_of_range_projectiles() {
+    let spawn = |sim: &mut SimState, extra: Vec<(&str, &str)>| {
+        let assets = sim.assets.clone();
+        let mut params = vec![
+            ("projanim".to_string(), "1500".to_string()),
+            ("velocity".to_string(), "0, 0".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+            ("projid".to_string(), "17".to_string()),
+        ];
+        params.extend(
+            extra
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Screen edge.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 0.0;
+    spawn(&mut sim, vec![]);
+    sim.projectiles[0].pos.x = 500.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "far past the screen edge");
+
+    // A large edge bound keeps it alive.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 0.0;
+    spawn(&mut sim, vec![("projedgebound", "10000")]);
+    sim.projectiles[0].pos.x = 500.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles.len(), 1);
+
+    // Stage bound when moving outward, with a large edge bound.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 0.0;
+    spawn(
+        &mut sim,
+        vec![
+            ("projedgebound", "10000"),
+            ("projstagebound", "10"),
+            ("velocity", "1, 0"),
+        ],
+    );
+    sim.projectiles[0].pos.x = 400.0;
+    sim.projectiles[0].facing = 1;
+    sim.projectiles[0].vel = manato_core::Vec2::new(1.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "past the stage camera bound");
+
+    // Height bound (downward and upward).
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    spawn(&mut sim, vec![("velocity", "0, 1")]);
+    sim.projectiles[0].pos.y = 100.0;
+    sim.projectiles[0].vel = manato_core::Vec2::new(0.0, 1.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "below the height bound");
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    spawn(
+        &mut sim,
+        vec![("velocity", "0, -1"), ("projheightbound", "-50, 1")],
+    );
+    sim.projectiles[0].pos.y = -100.0;
+    sim.projectiles[0].vel = manato_core::Vec2::new(0.0, -1.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty(), "above the height bound");
+
+    // ModifyProjectile tightening the edge bound removes it next tick.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.camera.x = 0.0;
+    spawn(&mut sim, vec![("projedgebound", "10000")]);
+    sim.projectiles[0].pos.x = 500.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles.len(), 1);
+    let assets = sim.assets.clone();
+    let modify = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("projid".into(), "17".into()),
+            ("projedgebound".into(), "10".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty());
 }
