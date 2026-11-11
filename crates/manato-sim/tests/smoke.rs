@@ -2645,6 +2645,72 @@ fn hitdef_forcestand_defaults_and_forces_standing_reaction() {
 }
 
 #[test]
+fn hitdef_forcenofall_clears_existing_fall() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert!(!default.forcenofall);
+    let explicit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("forcenofall".into(), "1".into()),
+        ],
+    );
+    assert!(explicit.forcenofall);
+
+    // A non-fall hit preserves an existing fall state.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].hit.vars.fall = true;
+    let mut hit = hitdef();
+    hit.forcenofall = false;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 1);
+
+    // forcenofall clears it when this hit is not itself a fall.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].hit.vars.fall = true;
+    let mut hit = hitdef();
+    hit.forcenofall = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 0);
+
+    // A fall hit ignores forcenofall.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].hit.vars.fall = true;
+    let mut hit = hitdef();
+    hit.fall = true;
+    hit.forcenofall = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 1);
+
+    // Ending hitstun clears the persistent fall state for the next combo.
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Idle;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(fall)"), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

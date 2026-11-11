@@ -80,6 +80,7 @@ guard.kill = 0|1
 fall = 0|1
 air.fall = 0|1
 forcestand = 0|1
+forcenofall = 0|1
 fall.recover = 0|1
 fall.time = N
 fall.recovertime = N
@@ -117,6 +118,9 @@ applied when a `HitDef` controller omits the parameter:
 - `forcestand` defaults to `1` when `ground.velocity.y` is non-zero, otherwise
   `0`. When active, a crouching grounded defender is moved to the standing hit
   reaction; airborne defenders ignore it.
+- `forcenofall` defaults to `0`. When set and the hit itself is not a fall,
+  it clears the defender’s existing fall flag. It has no effect when the
+  selected fall parameter is set.
 - `fall.kill` is `1`; when `0`, fall damage clamps life at `1` instead of
   KO'ing.
 - `kill` and `guard.kill` are `1`; when `0`, a normal or guarded hit
@@ -223,6 +227,9 @@ strict: distance must be less than `guard.dist`.
 - `forcestand` changes a crouching grounded defender to the standing state
   type before the hit reaction state is selected, so state `5000` is used
   instead of `5010`.
+- A non-fall hit preserves the defender’s existing fall flag;
+  `forcenofall` clears it. A hit that itself sets `fall`/`air.fall` ignores
+  `forcenofall`. Ending hitstun clears the persistent fall flag.
 - Unguarded air hit states apply the HitDef `yaccel` as their vertical
   acceleration and expose it through `GetHitVar(yaccel)`. Ordinary air
   movement and air guard continue to use the character’s `movement.yaccel`.

@@ -1009,6 +1009,7 @@ impl SimState {
                 fighter.received_damage = 0;
                 fighter.fall_defence_mul = 1.0;
                 fighter.hit.vars.fallcount = 0;
+                fighter.hit.vars.fall = false;
             }
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.make_dust_spacing = fighter.make_dust_spacing.saturating_add(1);
