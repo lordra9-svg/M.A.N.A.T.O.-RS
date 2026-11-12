@@ -175,7 +175,8 @@ missing redirect targets make the trigger false.
   `AnimExist`, `SelfAnimExist`, `AnimLength`, `AnimLoopCount`
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`
-- State: `StateNo`, `PrevStateNo`, `StateType`, `MoveType`, `Ctrl`, `Physics`
+- State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
+  `PrevMoveType`, `Ctrl`, `Physics`
 - Combat: `Alive`, `Life`, `LifeMax`, `Power`, `GetHitVar`, `HitOver`,
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
   `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,

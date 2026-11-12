@@ -459,9 +459,11 @@ fn var_random(sim: &mut SimState, who: usize, control: &Controller) {
 fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     use crate::fighter::{MoveType, Physics, StateType};
     if let Some(v) = param(control, "statetype").and_then(StateType::parse) {
+        sim.fighters[who].prev_state_type = sim.fighters[who].state_type;
         sim.fighters[who].state_type = v;
     }
     if let Some(v) = param(control, "movetype").and_then(MoveType::parse) {
+        sim.fighters[who].prev_move_type = sim.fighters[who].move_type;
         sim.fighters[who].move_type = v;
     }
     if let Some(v) = param(control, "physics").and_then(Physics::parse) {

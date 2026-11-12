@@ -172,6 +172,10 @@ pub struct Fighter {
 
     pub state_no: i32,
     pub prev_state_no: i32,
+    /// State/move type before the most recent type change (`PrevStateType`,
+    /// `PrevMoveType`).
+    pub prev_state_type: StateType,
+    pub prev_move_type: MoveType,
     pub state_time: i32,
 
     pub anim_no: i32,
@@ -329,6 +333,8 @@ impl Fighter {
             facing,
             state_no: 0,
             prev_state_no: 0,
+            prev_state_type: StateType::Stand,
+            prev_move_type: MoveType::Idle,
             state_time: 0,
             anim_no: 0,
             anim_char_id: None,
@@ -529,6 +535,8 @@ impl Fighter {
         // Statedef defaults per the CNS docs: type = S, movetype = I,
         // physics = N. An explicit "U" means "unchanged", so only absent keys
         // get the default and a present-but-unparsable key keeps the old value.
+        self.prev_state_type = self.state_type;
+        self.prev_move_type = self.move_type;
         self.state_type = match state.get("type") {
             Some(v) => StateType::parse(v).unwrap_or(self.state_type),
             None => StateType::Stand,

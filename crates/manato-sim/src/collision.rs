@@ -773,6 +773,7 @@ pub fn apply_hit_at(
         && defender_state_type == StateType::Crouch
     {
         defender_state_type = StateType::Stand;
+        sim.fighters[defender].prev_state_type = sim.fighters[defender].state_type;
         sim.fighters[defender].state_type = StateType::Stand;
     } else if !guarding
         && !defender_airborne
@@ -780,6 +781,7 @@ pub fn apply_hit_at(
         && defender_state_type == StateType::Stand
     {
         defender_state_type = StateType::Crouch;
+        sim.fighters[defender].prev_state_type = sim.fighters[defender].state_type;
         sim.fighters[defender].state_type = StateType::Crouch;
     }
 

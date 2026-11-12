@@ -5117,6 +5117,51 @@ fn round_time_controllers_set_and_clamp_ticks() {
 }
 
 #[test]
+fn prev_state_and_move_type_triggers_track_last_change() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let set = |sim: &mut SimState, control: &manato_formats::Controller| {
+        manato_sim::controller::execute(sim, 0, control, &assets);
+    };
+    let crouch = manato_formats::Controller {
+        kind: "statetypeset".into(),
+        params: vec![
+            ("statetype".into(), "C".into()),
+            ("movetype".into(), "A".into()),
+        ],
+        line: 0,
+    };
+    set(&mut sim, &crouch);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateType = C"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateType = S"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveType = A"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevMoveType = I"), 1);
+
+    let air = manato_formats::Controller {
+        kind: "statetypeset".into(),
+        params: vec![
+            ("statetype".into(), "A".into()),
+            ("movetype".into(), "H".into()),
+        ],
+        line: 0,
+    };
+    set(&mut sim, &air);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateType = A"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateType = C"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveType = H"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevMoveType = A"), 1);
+
+    // Entering a state records the type that was active beforehand.
+    sim.fighters[0].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[0].move_type = manato_sim::fighter::MoveType::Idle;
+    sim.fighters[0].enter_state(0, &assets.characters[0], false);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateType = L"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StateType = S"), 1);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

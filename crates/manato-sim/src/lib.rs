@@ -1962,6 +1962,8 @@ impl SimState {
             fighter.ctrl = true;
             fighter.state_type = StateType::Stand;
             fighter.move_type = fighter::MoveType::Idle;
+            fighter.prev_state_type = StateType::Stand;
+            fighter.prev_move_type = fighter::MoveType::Idle;
             fighter.physics = fighter::Physics::Stand;
             fighter.hit = HitState::default();
             fighter.attack = fighter::AttackState::default();
@@ -2479,6 +2481,8 @@ impl SimState {
             h.write_i32(f.facing);
             h.write_i32(f.state_no);
             h.write_i32(f.prev_state_no);
+            h.write_u8(f.prev_state_type as u8);
+            h.write_u8(f.prev_move_type as u8);
             h.write_i32(f.state_time);
             h.write_i32(f.anim_no);
             h.write_u8(f.anim_char_id.map(|id| id as u8 + 1).unwrap_or(0));

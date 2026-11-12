@@ -806,6 +806,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "pos"
             | "power"
             | "prevstateno"
+            | "prevstatetype"
+            | "prevmovetype"
             | "random"
             | "roundno"
             | "roundsexisted"
@@ -896,6 +898,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "time" | "statetime" => Value::Int(f.state_time),
         "stateno" => Value::Int(f.state_no),
         "prevstateno" => Value::Int(f.prev_state_no),
+        "prevstatetype" => Value::Str(f.prev_state_type.code().to_string()),
+        "prevmovetype" => Value::Str(f.prev_move_type.code().to_string()),
         "statetype" => Value::Str(f.state_type.code().to_string()),
         "movetype" => Value::Str(f.move_type.code().to_string()),
         "physics" => Value::Str(
