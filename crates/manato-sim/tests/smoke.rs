@@ -3049,6 +3049,95 @@ fn hitdef_palfx_applies_to_target() {
 }
 
 #[test]
+fn hitdef_mindist_maxdist_clamp_post_hit_position() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert!(default.mindist.x.is_nan());
+    assert!(default.mindist.y.is_nan());
+    assert!(default.maxdist.x.is_nan());
+    assert!(default.maxdist.y.is_nan());
+
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("mindist".into(), "100".into()),
+            ("maxdist".into(), "200, 10".into()),
+        ],
+    );
+    assert_eq!(parsed.mindist.x, 100.0);
+    assert!(parsed.mindist.y.is_nan());
+    assert_eq!(parsed.maxdist, manato_core::Vec2::new(200.0, 10.0));
+
+    // Min X and min Y pull the defender into range.
+    let mut hit = hitdef();
+    hit.mindist = manato_core::Vec2::new(100.0, -20.0);
+    hit.maxdist = manato_core::Vec2::new(200.0, 10.0);
+    sim.fighters[1].pos = manato_core::Vec2::new(50.0, -50.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(100.0, -20.0));
+
+    // Max X and max Y constrain the far side.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.mindist = manato_core::Vec2::new(f32::NAN, f32::NAN);
+    hit.maxdist = manato_core::Vec2::new(200.0, 10.0);
+    sim.fighters[1].pos = manato_core::Vec2::new(300.0, 50.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(200.0, 10.0));
+
+    // Facing left mirrors the X bounds.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.mindist = manato_core::Vec2::new(30.0, f32::NAN);
+    hit.maxdist = manato_core::Vec2::new(f32::NAN, f32::NAN);
+    sim.fighters[1].pos = manato_core::Vec2::new(90.0, 0.0);
+    let origin = manato_core::Vec2::new(100.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, -1, true);
+    assert_eq!(sim.fighters[1].pos.x, 70.0);
+
+    // Guarded grounded hits apply X but not the Y bounds.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.mindist = manato_core::Vec2::new(100.0, -20.0);
+    hit.maxdist = manato_core::Vec2::new(f32::NAN, f32::NAN);
+    sim.fighters[1].pos = manato_core::Vec2::new(50.0, 0.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(100.0, 0.0));
+
+    // Omitted bounds leave the position unchanged.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let hit = hitdef();
+    sim.fighters[1].pos = manato_core::Vec2::new(37.0, -12.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(37.0, -12.0));
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

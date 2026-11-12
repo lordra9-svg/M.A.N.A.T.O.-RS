@@ -590,6 +590,36 @@ pub fn apply_hit_at(
         }
     }
 
+    {
+        let f = &mut sim.fighters[defender];
+        if !hitdef.mindist.x.is_nan() {
+            let bound = origin.x + hitdef.mindist.x * facing as f32;
+            if (facing >= 0 && f.pos.x < bound) || (facing < 0 && f.pos.x > bound) {
+                f.pos.x = bound;
+            }
+        }
+        if !hitdef.maxdist.x.is_nan() {
+            let bound = origin.x + hitdef.maxdist.x * facing as f32;
+            if (facing >= 0 && f.pos.x > bound) || (facing < 0 && f.pos.x < bound) {
+                f.pos.x = bound;
+            }
+        }
+        if !guarding || defender_airborne {
+            if !hitdef.mindist.y.is_nan() {
+                let bound = origin.y + hitdef.mindist.y;
+                if f.pos.y < bound {
+                    f.pos.y = bound;
+                }
+            }
+            if !hitdef.maxdist.y.is_nan() {
+                let bound = origin.y + hitdef.maxdist.y;
+                if f.pos.y > bound {
+                    f.pos.y = bound;
+                }
+            }
+        }
+    }
+
     if !guarding
         && !defender_airborne
         && hitdef.forcestand

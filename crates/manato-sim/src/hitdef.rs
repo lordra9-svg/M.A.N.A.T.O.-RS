@@ -203,6 +203,12 @@ pub struct HitDef {
     pub p2stateno: i32,
     pub p1facing: i32,
     pub p2facing: i32,
+    /// Post-hit minimum distance from the attacker (`mindist`), axis NaN
+    /// when unset.
+    pub mindist: Vec2,
+    /// Post-hit maximum distance from the attacker (`maxdist`), axis NaN
+    /// when unset.
+    pub maxdist: Vec2,
     pub p1sprpriority: i32,
     pub p1sprpriority_set: bool,
     pub p2sprpriority: i32,
@@ -285,6 +291,8 @@ impl Default for HitDef {
             p2facing: 0,
             p1sprpriority: 0,
             p1sprpriority_set: false,
+            mindist: Vec2::new(f32::NAN, f32::NAN),
+            maxdist: Vec2::new(f32::NAN, f32::NAN),
             p2sprpriority: 0,
             p2sprpriority_set: false,
             ground_cornerpush: 0.0,
@@ -457,6 +465,8 @@ impl HitDef {
                     h.p2sprpriority = parse_i32(value);
                     h.p2sprpriority_set = true;
                 }
+                "mindist" => h.mindist = parse_distance(value),
+                "maxdist" => h.maxdist = parse_distance(value),
                 "ground.cornerpush.veloff" => {
                     h.ground_cornerpush = parse_f32(value);
                     ground_cornerpush_set = true;
@@ -745,6 +755,19 @@ fn parse_pair(s: &str) -> (f32, f32) {
 
 fn parse_vec(s: &str) -> Vec2 {
     let (x, y) = parse_pair(s);
+    Vec2::new(x, y)
+}
+
+fn parse_distance(s: &str) -> Vec2 {
+    let mut it = s.split(',');
+    let x = it
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(f32::NAN);
+    let y = it
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(f32::NAN);
     Vec2::new(x, y)
 }
 

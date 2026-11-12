@@ -69,6 +69,8 @@ guard.hittime = N
 guard.slidetime = N
 guard.ctrltime = N
 guard.dist = N
+mindist = x, y
+maxdist = x, y
 airguard.ctrltime = N
 pausetime = attacker, defender
 sparkno = N
@@ -150,6 +152,8 @@ applied when a `HitDef` controller omits the parameter:
 - `guard.dist` defaults from the character’s `[Size] attack.dist`
   (`160` if absent) for melee HitDefs and `proj.attack.dist` (`90` if absent)
   for projectiles. An explicit `guard.dist`/`guard.dist.width` overrides it.
+- `mindist` and `maxdist` default to no change (unset per axis). A missing Y
+  component leaves that axis unconstrained.
 - `airguard.velocity` defaults to
   `(air.velocity.x * 1.5, air.velocity.y * 0.5)` when omitted. Guard
   velocities are applied directly; the engine does not halve them.
@@ -254,6 +258,9 @@ strict: distance must be less than `guard.dist`.
 - Hitting a grounded lying-down defender requires the `D` hitflag. It uses
   `down.velocity`, enters state `5080`, and otherwise follows the normal
   damage/hitpause rules.
+- `mindist`/`maxdist` clamp the defender’s post-hit position relative to the
+  attack origin and attacker facing. X bounds apply to every successful
+  contact; Y bounds apply to unguarded hits and airborne defenders.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,
