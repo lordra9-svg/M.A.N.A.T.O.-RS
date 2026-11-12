@@ -49,6 +49,7 @@ Required/used parameters:
 
 ```
 attr = S, NA
+affectteam = B|E|F
 damage = 23, 0
 guard.damage = 5
 hitflag = MAF
@@ -122,6 +123,8 @@ applied when a `HitDef` controller omits the parameter:
 - `ground.type` is `High`. `air.type` inherits `ground.type` when omitted.
   Type names are case-insensitive; the single-letter forms `L` and `T` used
   by Ikemen-GO content are also accepted.
+- `affectteam` defaults to `E` (enemy team). `B` allows both teams and `F`
+  allows only the same team.
 - `ground.velocity` and `air.velocity` are `0, 0`.
 - `down.velocity` inherits `air.velocity` when omitted.
 - `yaccel` defaults to the documented localcoord-dependent value:
@@ -211,7 +214,8 @@ values instead of the unguarded ones. `down.cornerpush.veloff` inherits
 
 For each attacker and defender pair:
 
-1. Skip if either is inactive, or the defender is not a valid target.
+1. Skip if either is inactive, the defender is not a valid target, or
+   `affectteam` excludes the defender’s team.
 2. Skip if the attack activation already hit the defender.
 3. Check `NotHitBy`/`HitBy` filters.
 4. Check `hitflag` against the defender’s state type.

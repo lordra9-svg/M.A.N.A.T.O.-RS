@@ -4,7 +4,7 @@ use manato_core::{Dir8, Rect, Vec2};
 use manato_formats::Character;
 
 use crate::fighter::{MoveType, StateType};
-use crate::hitdef::{GroundType, HitAttr, HitDef};
+use crate::hitdef::{GroundType, HitAttr, HitDef, TeamFilter};
 use crate::trigger::command_active;
 use crate::{SimState, SoundEvent, SoundSource};
 
@@ -20,6 +20,9 @@ pub fn resolve(sim: &mut SimState) {
         let Some(hitdef) = sim.fighters[attacker].hitdef.clone() else {
             continue;
         };
+        if !affect_team_allows(sim, attacker, defender, &hitdef) {
+            continue;
+        }
         if !hit_allowed(&sim.fighters[attacker].hit, defender, &hitdef) {
             continue;
         }
@@ -243,6 +246,17 @@ fn can_guard(sim: &SimState, defender: usize, hitdef: &HitDef, origin: Vec2) -> 
             return false;
         }
         flag.contains('H') || flag.contains('M')
+    }
+}
+
+/// Whether `affectteam` lets this attacker hit this defender.
+fn affect_team_allows(sim: &SimState, attacker: usize, defender: usize, hitdef: &HitDef) -> bool {
+    let attacker_side = sim.fighters[attacker].side;
+    let defender_side = sim.fighters[defender].side;
+    match hitdef.affect_team {
+        TeamFilter::Both => true,
+        TeamFilter::Enemy => attacker_side != defender_side,
+        TeamFilter::Friendly => attacker_side == defender_side,
     }
 }
 
@@ -822,6 +836,9 @@ pub fn resolve_projectiles(sim: &mut SimState) {
         }
         let defender = sim.opponent_of(owner);
         if defender >= 2 || !sim.fighters[defender].active {
+            continue;
+        }
+        if !affect_team_allows(sim, owner, defender, &hitdef) {
             continue;
         }
         if blocks_by_filter(sim, defender, &hitdef) {

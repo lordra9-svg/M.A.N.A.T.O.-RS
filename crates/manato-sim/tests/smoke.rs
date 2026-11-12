@@ -3378,6 +3378,80 @@ fn hitdef_facing_params_apply_to_normal_hits() {
 }
 
 #[test]
+fn hitdef_affectteam_filters_melee_and_projectile_hits() {
+    use manato_sim::hitdef::TeamFilter;
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, value: &str| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params: vec![
+                ("attr".into(), "S, NA".into()),
+                ("affectteam".into(), value.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef").affect_team
+    };
+    assert_eq!(parse(&mut sim, "E"), TeamFilter::Enemy);
+    assert_eq!(parse(&mut sim, "b"), TeamFilter::Both);
+    assert_eq!(parse(&mut sim, "F"), TeamFilter::Friendly);
+
+    let melee = |sim: &mut SimState, team: TeamFilter| -> bool {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].life = sim.fighters[1].life_max;
+        sim.fighters[1].pos = manato_core::Vec2::new(10.0, 0.0);
+        sim.fighters[1].facing = -1;
+        sim.fighters[0].hitdef = None;
+        sim.fighters[0].hit.hit_targets.clear();
+        sim.fighters[0].hit.hit_counts.clear();
+        sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+        sim.fighters[0].facing = 1;
+        sim.fighters[0].enter_state(200, &assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+        let mut hit = hitdef();
+        hit.damage = 10;
+        hit.affect_team = team;
+        sim.fighters[0].hitdef = Some(hit);
+        manato_sim::collision::resolve(sim);
+        sim.fighters[1].life < sim.fighters[1].life_max
+    };
+    assert!(melee(&mut sim, TeamFilter::Enemy));
+    assert!(melee(&mut sim, TeamFilter::Both));
+    assert!(!melee(&mut sim, TeamFilter::Friendly));
+
+    let projectile = |sim: &mut SimState, team: &str| -> bool {
+        sim.projectiles.clear();
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].life = sim.fighters[1].life_max;
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "1500".into()),
+                ("velocity".into(), "0, 0".into()),
+                ("removetime".into(), "60".into()),
+                ("damage".into(), "10".into()),
+                ("affectteam".into(), team.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        if let Some(shot) = sim.projectiles.last_mut() {
+            shot.pos = sim.fighters[1].pos;
+        }
+        manato_sim::collision::resolve_projectiles(sim);
+        sim.fighters[1].life < sim.fighters[1].life_max
+    };
+    assert!(projectile(&mut sim, "E"));
+    assert!(projectile(&mut sim, "B"));
+    assert!(!projectile(&mut sim, "F"));
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

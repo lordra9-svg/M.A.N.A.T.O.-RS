@@ -71,6 +71,28 @@ impl GroundType {
     }
 }
 
+/// `affectteam` target-team filter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TeamFilter {
+    /// `E`: only the opposing team.
+    #[default]
+    Enemy,
+    /// `B`: either team.
+    Both,
+    /// `F`: only the same team.
+    Friendly,
+}
+
+impl TeamFilter {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "b" | "both" => Self::Both,
+            "f" | "friendly" => Self::Friendly,
+            _ => Self::Enemy,
+        }
+    }
+}
+
 /// `priority = N[, Hit|Miss|Dodge]` clash type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PriorityType {
@@ -119,6 +141,8 @@ impl HitAttr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HitDef {
     pub attr: HitAttr,
+    /// `affectteam` target-team filter (default Enemy).
+    pub affect_team: TeamFilter,
     pub damage: i32,
     pub guard_damage: i32,
     /// True when the content explicitly supplied a guard-damage value.
@@ -238,6 +262,7 @@ impl Default for HitDef {
     fn default() -> Self {
         Self {
             attr: HitAttr::default(),
+            affect_team: TeamFilter::Enemy,
             damage: 0,
             guard_damage: 0,
             guard_damage_set: false,
@@ -362,6 +387,7 @@ impl HitDef {
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
+                "affectteam" => h.affect_team = TeamFilter::parse(value),
                 "damage" => {
                     let (dmg, guard) = parse_pair(value);
                     h.damage = dmg as i32;
