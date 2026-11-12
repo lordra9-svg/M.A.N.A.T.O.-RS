@@ -2711,6 +2711,129 @@ fn hitdef_forcenofall_clears_existing_fall() {
 }
 
 #[test]
+fn hitdef_down_velocity_falls_back_to_air_and_hits_liedown() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let inherited = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.velocity".into(), "-3, -4".into()),
+        ],
+    );
+    assert_eq!(inherited.down_velocity, manato_core::Vec2::new(-3.0, -4.0));
+    let explicit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.velocity".into(), "-3, -4".into()),
+            ("down.velocity".into(), "-2, 0".into()),
+        ],
+    );
+    assert_eq!(explicit.down_velocity, manato_core::Vec2::new(-2.0, 0.0));
+    drop(assets);
+
+    // Inject the downed hit state so entry is observable in bundled content.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[1];
+        character.states.insert(
+            5080,
+            manato_formats::StateDef {
+                number: 5080,
+                params: vec![
+                    ("type".into(), "L".into()),
+                    ("movetype".into(), "H".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                ],
+                controllers: Vec::new(),
+                line: 0,
+                source: String::new(),
+            },
+        );
+    }
+
+    // A downed hit uses down.velocity and enters state 5080.
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(-5.0, 0.0);
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos.y = 0.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5080);
+    assert_eq!(
+        sim.fighters[1].hit.vars.x_vel, 5.0,
+        "down.velocity mirrored"
+    );
+    assert_eq!(sim.fighters[1].hit.vars.y_vel, 0.0);
+
+    // Hitting a downed opponent requires the D hitflag.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[1];
+        character.states.insert(
+            5080,
+            manato_formats::StateDef {
+                number: 5080,
+                params: vec![
+                    ("type".into(), "L".into()),
+                    ("movetype".into(), "H".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                ],
+                controllers: Vec::new(),
+                line: 0,
+                source: String::new(),
+            },
+        );
+    }
+    let assets = sim.assets.clone();
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(10.0, 0.0);
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    let mut hit = hitdef();
+    hit.hitflag = "MAF".into();
+    hit.down_velocity = manato_core::Vec2::new(-5.0, 0.0);
+    sim.fighters[0].hitdef = Some(hit);
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life, life,
+        "D flag is required for downed hits"
+    );
+
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.fighters[0].hit.hit_counts.clear();
+    if let Some(hit) = sim.fighters[0].hitdef.as_mut() {
+        hit.hitflag = "MAFD".into();
+    }
+    manato_sim::collision::resolve(&mut sim);
+    assert!(sim.fighters[1].life < life);
+    assert_eq!(sim.fighters[1].state_no, 5080);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

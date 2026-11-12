@@ -58,6 +58,7 @@ ground.type = High|Low|Trip
 air.type = High|Low|Trip
 ground.velocity = x, y
 air.velocity = x, y
+down.velocity = x, y
 yaccel = accel
 airguard.velocity = x, y
 ground.hittime = N
@@ -107,6 +108,7 @@ applied when a `HitDef` controller omits the parameter:
   Type names are case-insensitive; the single-letter forms `L` and `T` used
   by Ikemen-GO content are also accepted.
 - `ground.velocity` and `air.velocity` are `0, 0`.
+- `down.velocity` inherits `air.velocity` when omitted.
 - `yaccel` defaults to the documented localcoord-dependent value:
   `0.35 * localcoord.width / 320`, which is `.35` at 320x240, `.7` at
   640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
@@ -236,6 +238,9 @@ strict: distance must be less than `guard.dist`.
 - Guard velocity is applied directly: `guard.velocity` (or its
   `ground.velocity` fallback) for a grounded guard, and
   `airguard.velocity` for an air guard.
+- Hitting a grounded lying-down defender requires the `D` hitflag. It uses
+  `down.velocity`, enters state `5080`, and otherwise follows the normal
+  damage/hitpause rules.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,

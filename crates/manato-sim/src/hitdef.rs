@@ -130,6 +130,8 @@ pub struct HitDef {
     pub air_type: GroundType,
     pub ground_velocity: Vec2,
     pub air_velocity: Vec2,
+    /// Velocity applied when hitting a lying-down opponent (`down.velocity`).
+    pub down_velocity: Vec2,
     /// Vertical acceleration imparted to the defender (`yaccel`).
     pub yaccel: f32,
     /// `guard.velocity`; falls back to `ground.velocity` when absent.
@@ -218,6 +220,7 @@ impl Default for HitDef {
             air_type: GroundType::High,
             ground_velocity: Vec2::ZERO,
             air_velocity: Vec2::ZERO,
+            down_velocity: Vec2::ZERO,
             yaccel: 0.35,
             guard_velocity: None,
             airguard_velocity: Vec2::ZERO,
@@ -301,6 +304,7 @@ impl HitDef {
         };
         let mut air_type_set = false;
         let mut airguard_velocity_set = false;
+        let mut down_velocity_set = false;
         let mut air_fall_set = false;
         let mut forcestand_set = false;
         let mut guard_hittime_set = false;
@@ -334,6 +338,10 @@ impl HitDef {
                 }
                 "ground.velocity" => h.ground_velocity = parse_vec(value),
                 "air.velocity" => h.air_velocity = parse_vec(value),
+                "down.velocity" => {
+                    h.down_velocity = parse_vec(value);
+                    down_velocity_set = true;
+                }
                 "yaccel" => h.yaccel = parse_f32(value),
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
                 "airguard.velocity" => {
@@ -457,6 +465,9 @@ impl HitDef {
         // and half the air Y velocity.
         if !airguard_velocity_set {
             h.airguard_velocity = Vec2::new(h.air_velocity.x * 1.5, h.air_velocity.y * 0.5);
+        }
+        if !down_velocity_set {
+            h.down_velocity = h.air_velocity;
         }
         if !guard_hittime_set {
             h.guard_hittime = h.ground_hittime;

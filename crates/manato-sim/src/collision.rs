@@ -184,6 +184,9 @@ fn hitflag_allows(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
     if airborne {
         return hitdef.hitflag.contains('A');
     }
+    if f.state_type == StateType::Liedown {
+        return hitdef.hitflag.contains('D');
+    }
     let low = f.state_type == StateType::Crouch;
     if low && !(hitdef.hitflag.contains('L') || hitdef.hitflag.contains('M')) {
         return false;
@@ -468,6 +471,13 @@ pub fn apply_hit_at(
             hitdef.ground_slidetime,
             hitdef.air_hittime,
         )
+    } else if defender_state_type == StateType::Liedown {
+        (
+            hitdef.down_velocity,
+            hitdef.ground_hittime.max(1),
+            hitdef.ground_slidetime,
+            hitdef.ground_hittime,
+        )
     } else {
         (
             hitdef.ground_velocity,
@@ -586,6 +596,8 @@ pub fn apply_hit_at(
         }
     } else if defender_airborne {
         5020
+    } else if defender_state_type == StateType::Liedown && sim.fighters[defender].pos.y >= 0.0 {
+        5080
     } else if hitdef.fall {
         if hitdef.ground_type == GroundType::Trip {
             5070
