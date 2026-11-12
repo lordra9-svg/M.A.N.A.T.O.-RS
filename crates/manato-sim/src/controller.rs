@@ -197,6 +197,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "targetpoweradd" => target_power_add(sim, who, control),
         "targetguardpointsadd" => target_guard_points_add(sim, who, control),
         "targetdizzypointsadd" => target_dizzy_points_add(sim, who, control),
+        "targetguardpointsset" => target_guard_points_set(sim, who, control),
+        "targetdizzypointsset" => target_dizzy_points_set(sim, who, control),
         "targetvelset" => target_vel_set(sim, who, control),
         "targetveladd" => target_vel_add(sim, who, control),
         "afterimage" => after_image(sim, who, control),
@@ -824,6 +826,30 @@ fn target_dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller)
         value as f32 / fighter.defence_mul.max(0.01)
     };
     fighter.dizzy_points = (fighter.dizzy_points + add.round() as i32).clamp(0, fighter.dizzy_max);
+}
+
+fn target_guard_points_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let Some(target) = sim.fighters[who].target else {
+        return;
+    };
+    let fighter = &mut sim.fighters[target];
+    if fighter.guard_max <= 0 {
+        return;
+    }
+    fighter.guard_points = value.clamp(0, fighter.guard_max);
+}
+
+fn target_dizzy_points_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let Some(target) = sim.fighters[who].target else {
+        return;
+    };
+    let fighter = &mut sim.fighters[target];
+    if fighter.dizzy_max <= 0 {
+        return;
+    }
+    fighter.dizzy_points = value.clamp(0, fighter.dizzy_max);
 }
 
 fn target_vel_set(sim: &mut SimState, who: usize, control: &Controller) {

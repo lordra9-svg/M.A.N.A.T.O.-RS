@@ -4672,6 +4672,43 @@ fn target_guard_and_dizzy_point_add_controllers() {
 }
 
 #[test]
+fn target_meter_setters_clamp_values() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].dizzy_max = 100;
+    let run = |sim: &mut SimState, kind: &str, value: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: vec![("value".into(), value.into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(&mut sim, "targetguardpointsset", "75");
+    run(&mut sim, "targetdizzypointsset", "75");
+    assert_eq!(sim.fighters[1].guard_points, 75);
+    assert_eq!(sim.fighters[1].dizzy_points, 75);
+    run(&mut sim, "targetguardpointsset", "500");
+    run(&mut sim, "targetdizzypointsset", "500");
+    assert_eq!(sim.fighters[1].guard_points, 100);
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+    run(&mut sim, "targetguardpointsset", "-5");
+    run(&mut sim, "targetdizzypointsset", "-5");
+    assert_eq!(sim.fighters[1].guard_points, 0);
+    assert_eq!(sim.fighters[1].dizzy_points, 0);
+
+    sim.fighters[0].target = None;
+    run(&mut sim, "targetguardpointsset", "50");
+    run(&mut sim, "targetdizzypointsset", "50");
+    assert_eq!(sim.fighters[1].guard_points, 0);
+    assert_eq!(sim.fighters[1].dizzy_points, 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

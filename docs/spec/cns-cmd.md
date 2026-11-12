@@ -107,6 +107,7 @@ Required controller families for the approved matrix:
 - `DizzyPointsAdd`, `DizzyPointsSet`, `DizzySet`
 - `ModifyPlayer` (`lifemax`, `guardpointsmax`, `dizzypointsmax`)
 - `TargetGuardPointsAdd`, `TargetDizzyPointsAdd`
+- `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 
 ### 4.3 Presentation and audio
 
