@@ -5348,6 +5348,43 @@ fn statedef_persist_flags_control_state_entry_resets() {
 }
 
 #[test]
+fn victory_quote_controller_and_selection() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].quotes = vec![(0, "First quote.".into()), (2, "Third quote.".into())];
+    }
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "victoryquote".into(),
+        params: vec![("value".into(), "2".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    drop(assets);
+    assert_eq!(sim.fighters[0].win_quote, 2);
+
+    assert_eq!(sim.victory_quote_text(), None, "quotes only show at Over");
+    sim.round.phase = manato_sim::RoundPhase::Over;
+    sim.round.winner = Some(0);
+    assert_eq!(sim.victory_quote_text(), Some("Third quote."));
+
+    // An unknown index falls back to the first available quote.
+    sim.fighters[0].win_quote = 7;
+    assert_eq!(sim.victory_quote_text(), Some("First quote."));
+
+    // A character without quotes yields nothing.
+    sim.fighters[0].win_quote = 0;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].quotes.clear();
+    }
+    assert_eq!(sim.victory_quote_text(), None);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

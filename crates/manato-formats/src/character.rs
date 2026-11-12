@@ -15,6 +15,8 @@ use crate::snd::SoundBank;
 pub struct Character {
     pub def: CharacterDef,
     pub constants: Constants,
+    /// Default-language victory quotes (`[Quotes]`), sorted by index.
+    pub quotes: Vec<(i32, String)>,
     pub states: HashMap<i32, StateDef>,
     pub commands: Vec<CommandDef>,
     pub animations: HashMap<i32, Animation>,
@@ -113,10 +115,12 @@ impl Character {
         for state in merged.states {
             states.insert(state.number, state);
         }
+        let quotes = parse_quotes(&merged.constants);
 
         Ok(Self {
             def,
             constants: merged.constants,
+            quotes,
             states,
             commands: cmd.commands,
             animations,
@@ -145,6 +149,23 @@ impl Character {
     pub fn localcoord(&self) -> (f32, f32) {
         self.def.localcoord
     }
+}
+
+/// Extracts the default-language `[Quotes]` victory entries (`victory0` …
+/// `victory99`), ignoring alternate-language sections.
+fn parse_quotes(constants: &Constants) -> Vec<(i32, String)> {
+    let mut quotes: Vec<(i32, String)> = constants
+        .raw_entries()
+        .filter_map(|(key, value)| {
+            let index = key.strip_prefix("quotes.victory")?.parse::<i32>().ok()?;
+            if !(0..100).contains(&index) || value.trim().is_empty() {
+                return None;
+            }
+            Some((index, value.trim().to_string()))
+        })
+        .collect();
+    quotes.sort_by_key(|(index, _)| *index);
+    quotes
 }
 
 /// Shared effect sprites and animations (`data/fightfx.sff` + `fightfx.air`).
@@ -179,5 +200,38 @@ impl EffectsBank {
             }
         }
         Self::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_quotes;
+    use crate::cns::StateFile;
+    use crate::text::TextFile;
+
+    #[test]
+    fn extracts_default_language_victory_quotes() {
+        let text = TextFile::parse_str(
+            r#"
+[Quotes]
+victory0 = "First quote."
+victory2 = Second quote.
+victory99 = "Last quote."
+[ja.Quotes]
+victory1 = "Japanese quote."
+[Data]
+life = 1000
+"#,
+        );
+        let file = StateFile::from_text(&text, "quotes.cns");
+        let quotes = parse_quotes(&file.constants);
+        assert_eq!(
+            quotes,
+            vec![
+                (0, "First quote.".to_string()),
+                (2, "Second quote.".to_string()),
+                (99, "Last quote.".to_string()),
+            ]
+        );
     }
 }

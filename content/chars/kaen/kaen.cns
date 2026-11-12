@@ -1064,3 +1064,9 @@ y = 0
 type=ChangeState
 trigger1 = Time >= 26
 value = 5050
+
+;---------------------------------------------------------------------------
+; Victory quotes (original text, MIT)
+[Quotes]
+victory1 = "The ember remembers every duel."
+victory2 = "Warm up. The next one will burn brighter."

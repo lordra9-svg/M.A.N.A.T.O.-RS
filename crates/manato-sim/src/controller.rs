@@ -102,6 +102,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "gethitvarset" => get_hit_var_set(sim, who, control),
         "roundtimeadd" => round_time_add(sim, who, control),
         "roundtimeset" => round_time_set(sim, who, control),
+        "victoryquote" => victory_quote(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -876,6 +877,11 @@ fn round_time_set(sim: &mut SimState, who: usize, control: &Controller) {
     let value = int_param(sim, who, control, "value").unwrap_or(0);
     let max = (sim.round.round_time * manato_core::TICKS_PER_SECOND as i32).max(0);
     sim.round.timer = value.clamp(0, max);
+}
+
+fn victory_quote(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(-1);
+    sim.fighters[who].win_quote = value;
 }
 
 fn dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {

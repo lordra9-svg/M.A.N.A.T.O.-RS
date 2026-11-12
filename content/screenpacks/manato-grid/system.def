@@ -14,6 +14,12 @@ fight = fight.def
 select = select.def
 font0 = font.def
 
+[WinQuote]
+text = "Winner!"
+font = 0
+offset = 20, 192
+align = 0
+
 [Title Info]
 title.spr = 0, 8
 title.pos = 0, 24

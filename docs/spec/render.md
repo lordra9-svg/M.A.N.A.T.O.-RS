@@ -443,6 +443,15 @@ older messages are dropped.
 `255`. Paths resolve relative to the defining file, then `data/`, then the
 content root.
 
+### 6.12 `[WinQuote]` (`system.def`)
+
+The victory quote is declared in `system.def` (`text`, `offset`, `font`,
+`align`, `color`, `scale`). Once the match reaches `Over` with a winner, the
+renderer draws the winning character's quote, selected by the `VictoryQuote`
+controller index when that index exists, otherwise the first available
+`[Quotes]` entry. If the character has no quotes, the motif's `text` is used.
+Characters without quotes and an empty motif text draw nothing.
+
 ## 7. Title screen
 
 Driven by `[Title Info]`, drawn over `[TitleBGdef]`.

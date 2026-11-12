@@ -119,7 +119,7 @@ Required controller families for the approved matrix:
 - `TargetGuardPointsAdd`, `TargetDizzyPointsAdd`
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 - `GetHitVarSet` (modeled GetHitVar fields)
-- `RoundTimeAdd`, `RoundTimeSet`
+- `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`
 
 ### 4.3 Presentation and audio
 

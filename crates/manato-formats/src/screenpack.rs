@@ -381,6 +381,8 @@ pub struct Screenpack {
     pub select: SelectDef,
     pub select_bg: Option<ScreenBg>,
     pub fight: FightDef,
+    /// `[WinQuote]` text element from `system.def`.
+    pub win_quote: TextDef,
     pub fight_path: Option<PathBuf>,
     pub select_def_path: Option<PathBuf>,
 }
@@ -445,6 +447,12 @@ impl Screenpack {
             }
         }
 
+        let win_quote = text
+            .find("winquote")
+            .map(section_map)
+            .map(|map| parse_text(&map, ""))
+            .unwrap_or_default();
+
         Ok(Self {
             dir: dir.clone(),
             system_def: system_def.to_path_buf(),
@@ -462,6 +470,7 @@ impl Screenpack {
             select: SelectDef::from_text(&text),
             select_bg: ScreenBg::from_text(&text, &dir, "selectbgdef"),
             fight,
+            win_quote,
             fight_path,
             select_def_path,
         })

@@ -1044,3 +1044,9 @@ y = 0
 type=ChangeState
 trigger1 = Time >= 26
 value = 5050
+
+;---------------------------------------------------------------------------
+; Victory quotes (original text, MIT)
+[Quotes]
+victory1 = "Cold precision beats reckless speed."
+victory2 = "Stay still. I was aiming for the opening."

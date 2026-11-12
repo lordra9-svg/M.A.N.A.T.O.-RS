@@ -739,6 +739,26 @@ impl SimState {
         &self.assets.characters[char_id]
     }
 
+    /// Victory quote shown after the match: the winner's `VictoryQuote`
+    /// selection when valid, otherwise the first available quote.
+    pub fn victory_quote_text(&self) -> Option<&str> {
+        if self.round.phase != RoundPhase::Over {
+            return None;
+        }
+        let side = self.round.winner?;
+        let fighter = self.fighters.get(side)?;
+        let character = &self.assets.characters[fighter.char_id];
+        if character.quotes.is_empty() {
+            return None;
+        }
+        character
+            .quotes
+            .iter()
+            .find(|(index, _)| *index == fighter.win_quote)
+            .or_else(|| character.quotes.first())
+            .map(|(_, quote)| quote.as_str())
+    }
+
     pub fn other(&self, who: usize) -> usize {
         self.opponent_of(who)
     }
@@ -1988,6 +2008,7 @@ impl SimState {
             fighter.pal_alpha = 1.0;
             fighter.pal_time = 0;
             fighter.target = None;
+            fighter.win_quote = -1;
             fighter.target_bind = None;
             fighter.received_hits = 0;
             fighter.received_damage = 0;

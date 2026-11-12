@@ -877,6 +877,39 @@ pub fn draw_foreground(
         actions(painter, deps, fight, sim, side, &fight.action[side], &map);
     }
     round_announcement(painter, deps, fight, sim, &map);
+    win_quote(painter, deps, screenpack, sim, &map);
+}
+
+/// Draws the winner's victory quote (or the motif's default text) once the
+/// match is over.
+fn win_quote(
+    painter: &mut Painter,
+    deps: &FightDeps,
+    screenpack: &Screenpack,
+    sim: &SimState,
+    map: &ScreenMap,
+) {
+    let def = &screenpack.win_quote;
+    let text = sim.victory_quote_text().map(str::to_string).or_else(|| {
+        if def.text.is_empty() {
+            None
+        } else {
+            Some(def.text.clone())
+        }
+    });
+    let Some(text) = text else {
+        return;
+    };
+    draw_text(
+        painter,
+        deps,
+        def,
+        &text,
+        map,
+        Vec2::ZERO,
+        def.align,
+        [1.0; 4],
+    );
 }
 
 #[cfg(test)]

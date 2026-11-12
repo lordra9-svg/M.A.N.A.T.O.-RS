@@ -277,6 +277,8 @@ pub struct Fighter {
     /// `helpertype = player` lets states -3/-2 run like a player.
     pub helper_type_player: bool,
     pub target: Option<usize>,
+    /// `VictoryQuote` index; `-1` selects a default quote.
+    pub win_quote: i32,
     pub pal_remap: Option<(i32, i32)>,
     /// Ticks since the last projectile contact (`-1` = never).
     pub proj_contact_time: i32,
@@ -412,6 +414,7 @@ impl Fighter {
             keyctrl: 7,
             helper_type_player: false,
             target: None,
+            win_quote: -1,
             pal_remap: None,
             proj_contact_time: -1,
             proj_hit_time: -1,

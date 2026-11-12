@@ -15,6 +15,11 @@ pub struct Constants {
 }
 
 impl Constants {
+    /// Raw string entries (unquoted), keyed by their section-prefixed name.
+    pub fn raw_entries(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.raw.iter()
+    }
+
     pub fn get(&self, key: &str) -> Option<f32> {
         let k = key.trim().to_ascii_lowercase();
         self.values

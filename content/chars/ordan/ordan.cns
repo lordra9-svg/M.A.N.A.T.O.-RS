@@ -1049,3 +1049,9 @@ y = 0
 type=ChangeState
 trigger1 = Time >= 26
 value = 5050
+
+;---------------------------------------------------------------------------
+; Victory quotes (original text, MIT)
+[Quotes]
+victory1 = "The grid holds. You do not."
+victory2 = "Heavy hands, steady ground."
