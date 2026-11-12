@@ -344,7 +344,7 @@ impl Default for HitDef {
             palfx_add: [0.0; 3],
             fall_damage: 0,
             fall_xvel: 0.0,
-            fall_yvel: 0.0,
+            fall_yvel: -4.5,
             air_juggle: 0,
             priority: 4,
             priority_type: PriorityType::Hit,
@@ -383,8 +383,9 @@ impl HitDef {
     }
 
     /// Parses a HitDef with the owning character's local coordinate space so
-    /// omitted `yaccel` follows the documented 240p/480p/720p defaults and
-    /// `guard.dist` uses the character's `attack.dist`/`proj.attack.dist`.
+    /// omitted `yaccel`/`fall.yvelocity` follow the documented
+    /// 240p/480p/720p defaults and `guard.dist` uses the character's
+    /// `attack.dist`/`proj.attack.dist`.
     pub fn from_controller_for(
         c: &Controller,
         activation: u32,
@@ -396,9 +397,15 @@ impl HitDef {
         } else {
             0.35
         };
+        let default_fall_yvel = if localcoord.0 > 0.0 {
+            -4.5 * localcoord.0 / 320.0
+        } else {
+            -4.5
+        };
         let mut h = Self {
             activation,
             yaccel: default_yaccel,
+            fall_yvel: default_fall_yvel,
             guard_dist: default_guard_dist.max(0),
             ..Self::default()
         };

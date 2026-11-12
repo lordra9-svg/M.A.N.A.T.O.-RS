@@ -10590,18 +10590,22 @@ fn hitdef_parses_yaccel_defaults_and_overrides() {
     assert!((at((320.0, 240.0)).yaccel - 0.35).abs() < 1e-6);
     assert!((at((640.0, 480.0)).yaccel - 0.7).abs() < 1e-6);
     assert!((at((1280.0, 720.0)).yaccel - 1.4).abs() < 1e-6);
+    assert!((at((320.0, 240.0)).fall_yvel + 4.5).abs() < 1e-6);
+    assert!((at((640.0, 480.0)).fall_yvel + 9.0).abs() < 1e-6);
+    assert!((at((1280.0, 720.0)).fall_yvel + 18.0).abs() < 1e-6);
 
     let explicit = manato_formats::Controller {
         kind: "hitdef".into(),
         params: vec![
             ("attr".into(), "S, NA".into()),
             ("yaccel".into(), "0.85".into()),
+            ("fall.yvelocity".into(), "6".into()),
         ],
         line: 0,
     };
-    assert!(
-        (HitDef::from_controller_for(&explicit, 1, (640.0, 480.0), 160).yaccel - 0.85).abs() < 1e-6
-    );
+    let hit = HitDef::from_controller_for(&explicit, 1, (640.0, 480.0), 160);
+    assert!((hit.yaccel - 0.85).abs() < 1e-6);
+    assert!((hit.fall_yvel - 6.0).abs() < 1e-6);
 }
 
 #[test]

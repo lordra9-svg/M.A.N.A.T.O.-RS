@@ -155,6 +155,9 @@ applied when a `HitDef` controller omits the parameter:
 - `yaccel` defaults to the documented localcoord-dependent value:
   `0.35 * localcoord.width / 320`, which is `.35` at 320x240, `.7` at
   640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
+- `fall.yvelocity` defaults to the matching localcoord-dependent value:
+  `-4.5 * localcoord.width / 320`, i.e. `-4.5` at 320x240, `-9` at 640x480,
+  and `-18` at 1280x720. An explicit `fall.yvelocity` overrides it.
 - `ground.hittime` is `0`, `ground.slidetime` is `0`, and `air.hittime` is
   `20`.
 - `fall.recovertime` is `4`.
