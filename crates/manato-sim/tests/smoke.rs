@@ -3865,6 +3865,60 @@ fn p2getp1state_runs_attacker_state_controllers() {
 }
 
 #[test]
+fn p2_state_override_clears_on_selfstate_and_get_hit() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[1].states.insert(
+            5555,
+            manato_formats::StateDef {
+                number: 5555,
+                params: vec![
+                    ("type".into(), "C".into()),
+                    ("movetype".into(), "I".into()),
+                    ("physics".into(), "C".into()),
+                    ("anim".into(), "0".into()),
+                ],
+                controllers: Vec::new(),
+                line: 0,
+                source: String::new(),
+            },
+        );
+    }
+    let assets = sim.assets.clone();
+    sim.fighters[1].state_char_id = Some(0);
+    sim.fighters[1].anim_char_id = Some(0);
+    let self_state = manato_formats::Controller {
+        kind: "selfstate".into(),
+        params: vec![("value".into(), "5555".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &self_state, &assets);
+    assert_eq!(sim.fighters[1].state_no, 5555);
+    assert_eq!(sim.fighters[1].state_char_id, None);
+    assert_eq!(sim.fighters[1].anim_char_id, None);
+    assert_eq!(
+        sim.fighters[1].state_type,
+        manato_sim::fighter::StateType::Crouch
+    );
+
+    // A normal get-hit also returns the defender to its own state data.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_char_id = Some(0);
+    sim.fighters[1].anim_char_id = Some(0);
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_char_id, None);
+    assert_eq!(sim.fighters[1].anim_char_id, None);
+    assert!(sim.fighters[1].state_no >= 5000);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
