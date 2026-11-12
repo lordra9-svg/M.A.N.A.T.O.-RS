@@ -665,6 +665,7 @@ pub fn apply_hit_at(
             next_life.max(1)
         };
         if guarding && f.guard_max > 0 {
+            f.guard_cooldown = 60;
             let before = f.guard_points;
             f.guard_points = (f.guard_points - damage).max(0);
             if before > 0 && f.guard_points == 0 {

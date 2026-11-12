@@ -87,7 +87,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28 + hits-limit removal; state 3000 upper blast 1px box margin |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Ground/air corner-push offsets, threshold, guard + PlayerPush separation |
-| K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Partial | Guard points + 20-tick guard-crush no-guard window + GuardBreak/GuardPoints triggers; custom guard-break states/effects and dizzy pending |
+| K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Partial | Guard points + 60-tick regen cooldown/+2 regen + 20-tick guard-crush no-guard window + GuardBreak/GuardPoints triggers; custom guard-break states/effects and dizzy pending |
 
 ## 6. Rounds and game flow
 

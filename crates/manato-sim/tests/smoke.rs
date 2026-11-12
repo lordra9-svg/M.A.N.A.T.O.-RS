@@ -4286,6 +4286,47 @@ fn guard_crush_triggers_and_blocks_guarding() {
 }
 
 #[test]
+fn guard_points_regenerate_after_cooldown() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 90;
+    sim.fighters[1].guard_cooldown = 2;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].guard_cooldown, 1);
+    assert_eq!(sim.fighters[1].guard_points, 90);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].guard_cooldown, 0);
+    assert_eq!(sim.fighters[1].guard_points, 92);
+
+    // Regeneration caps at the maximum.
+    sim.fighters[1].guard_points = 99;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].guard_points, 100);
+
+    // A guard-crush window suppresses regeneration.
+    sim.fighters[1].guard_points = 50;
+    sim.fighters[1].guard_crush_timer = 5;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].guard_crush_timer, 4);
+    assert_eq!(sim.fighters[1].guard_points, 50);
+
+    // Guarded hits start the 60-tick cooldown.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 100;
+    let mut hit = hitdef();
+    hit.guard_damage = 5;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_cooldown, 60);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

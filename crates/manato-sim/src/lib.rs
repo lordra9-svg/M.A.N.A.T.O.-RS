@@ -1018,6 +1018,15 @@ impl SimState {
                     fighter.guard_points = fighter.guard_max;
                 }
             }
+            if fighter.guard_cooldown > 0 {
+                fighter.guard_cooldown -= 1;
+            }
+            if fighter.guard_crush_timer == 0
+                && fighter.guard_cooldown == 0
+                && fighter.guard_points < fighter.guard_max
+            {
+                fighter.guard_points = (fighter.guard_points + 2).min(fighter.guard_max);
+            }
             // Leaving hitstun ends the combo the attacker was building
             // (`docs/spec/render.md` §6.8).
             if fighter.move_type != fighter::MoveType::Hit {
@@ -1925,6 +1934,7 @@ impl SimState {
             fighter.life = fighter.life_max;
             fighter.guard_points = fighter.guard_max;
             fighter.guard_crush_timer = 0;
+            fighter.guard_cooldown = 0;
             fighter.power = power.min(MAX_POWER);
             fighter.state_no = 0;
             fighter.prev_state_no = 0;
@@ -2465,6 +2475,7 @@ impl SimState {
             h.write_i32(f.guard_points);
             h.write_i32(f.guard_max);
             h.write_i32(f.guard_crush_timer);
+            h.write_i32(f.guard_cooldown);
             h.write_f32(f.power);
             h.write_bool(f.ctrl);
             h.write_bool(f.face_p2_pending);

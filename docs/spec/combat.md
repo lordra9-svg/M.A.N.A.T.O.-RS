@@ -294,6 +294,10 @@ air hit reaction instead of a guard state, loses the current guard, and cannot
 guard again for 20 ticks. When that window expires, guard points reset to
 their maximum.
 
+Each guarded hit also starts a 60-tick regeneration cooldown. Once the
+cooldown expires and the crush window is over, guard points regenerate by `2`
+per tick up to the maximum.
+
 This is an explicit engine decision, not a full Ikemen guard-break port:
 custom guard-break animations, glass/shockwave effects, the dedicated
 guard-break state pair, and dizzy/guard-crush extensions are not modeled.
