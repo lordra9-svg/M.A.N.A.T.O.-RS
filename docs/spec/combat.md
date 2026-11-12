@@ -111,6 +111,8 @@ fall.xvelocity = x
 fall.yvelocity = y
 air.juggle = N
 priority = N[, Hit|Miss|Dodge]
+id = N
+chainid = N
 ```
 
 Unknown parameters are preserved and ignored with a warning.
@@ -169,6 +171,8 @@ applied when a `HitDef` controller omits the parameter:
 - `p1facing`, `p1getp2facing`, and `p2facing` default to `0` (no change).
   `p1getp2facing` overrides `p1facing` when non-zero. Facing changes apply
   only to unguarded successful hits.
+- `id` defaults to `0` and is reported as `GetHitVar(hitid)`. `chainid`
+  defaults to `-1` and is recorded as `GetHitVar(chainid)`.
 - `airguard.velocity` defaults to
   `(air.velocity.x * 1.5, air.velocity.y * 0.5)` when omitted. Guard
   velocities are applied directly; the engine does not halve them.
@@ -288,6 +292,9 @@ strict: distance must be less than `guard.dist`.
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,
   including on guarded contacts. It counts down once per game tick and stops
   at zero; `HitShakeOver` becomes true at that point.
+- `GetHitVar(hitid)` reports the connecting HitDef/projectile `id`, and
+  `GetHitVar(chainid)` records its `chainid`. These are identifiers only;
+  chain-gating on a previous hit id is not enforced yet.
 - `GetHitVar(fallcount)` counts entries into the trip-shake state `5070` and
   the downed state `5100` during the current combo. The count persists while
   the defender remains in hitstun and resets when hitstun ends.

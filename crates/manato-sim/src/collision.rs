@@ -583,7 +583,8 @@ pub fn apply_hit_at(
         f.hit.vars.guarded = guarding;
         f.hit.vars.hitcount += 1;
         f.hit.vars.priority = hitdef.priority;
-        f.hit.vars.hit_id = hitdef.activation as i32;
+        f.hit.vars.hit_id = hitdef.id;
+        f.hit.vars.chain_id = hitdef.chainid;
         f.hit.guarding = guarding;
         f.hit.hit_pause = hit_pause.1.max(0);
         f.hit.hit_pause_time = 0;

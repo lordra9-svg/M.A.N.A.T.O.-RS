@@ -226,6 +226,10 @@ pub struct HitDef {
     pub air_juggle: i32,
     pub priority: i32,
     pub priority_type: PriorityType,
+    /// Hit identifier reported through `GetHitVar(hitid)`.
+    pub id: i32,
+    /// Chain identifier recorded in `GetHitVar(chainid)`.
+    pub chainid: i32,
     pub numhits: i32,
     pub p1stateno: i32,
     pub p2stateno: i32,
@@ -321,6 +325,8 @@ impl Default for HitDef {
             air_juggle: 0,
             priority: 4,
             priority_type: PriorityType::Hit,
+            id: 0,
+            chainid: -1,
             numhits: 1,
             p1stateno: -1,
             p2stateno: -1,
@@ -500,6 +506,8 @@ impl HitDef {
                         .unwrap_or(PriorityType::Hit);
                 }
                 "numhits" | "hits" => h.numhits = parse_i32(value).max(1),
+                "id" => h.id = parse_i32(value).max(0),
+                "chainid" => h.chainid = parse_i32(value),
                 "p1stateno" => h.p1stateno = parse_i32(value),
                 "p2stateno" => h.p2stateno = parse_i32(value),
                 "p1facing" => h.p1facing = parse_i32(value),
@@ -698,7 +706,7 @@ impl Default for GetHitVars {
             priority: 0,
             guarded: false,
             hit_id: 0,
-            chain_id: 0,
+            chain_id: -1,
             is_bound: false,
             damage: 0,
         }

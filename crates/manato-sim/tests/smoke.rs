@@ -8200,6 +8200,8 @@ fn hit_vel_and_get_hit_var_ids_and_hit_over_transitions() {
     };
     let mut hit = hitdef();
     hit.activation = 42;
+    hit.id = 42;
+    hit.chainid = 7;
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
 
@@ -8214,11 +8216,11 @@ fn hit_vel_and_get_hit_var_ids_and_hit_over_transitions() {
     assert!((manato_sim::trigger::num(&sim, 1, "HitVel X") - vars.x_vel).abs() < 0.001);
     assert!((manato_sim::trigger::num(&sim, 1, "HitVel Y") - vars.y_vel).abs() < 0.001);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hitid)"), 42);
-    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(chainid)"), 0);
-    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(isbound)"), 0);
-    sim.fighters[1].hit.vars.chain_id = 7;
-    sim.fighters[1].hit.vars.is_bound = true;
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(chainid)"), 7);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(isbound)"), 0);
+    sim.fighters[1].hit.vars.chain_id = 9;
+    sim.fighters[1].hit.vars.is_bound = true;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(chainid)"), 9);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(isbound)"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(unknown)"), 0);
 
@@ -8237,6 +8239,42 @@ fn hit_vel_and_get_hit_var_ids_and_hit_over_transitions() {
     }
     assert!(shake_seen, "HitShakeOver should become true");
     assert!(hit_over_seen, "HitOver should become true after hitstun");
+}
+
+#[test]
+fn hitdef_id_and_chainid_parse_and_apply() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert_eq!(default.id, 0);
+    assert_eq!(default.chainid, -1);
+
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("id".into(), "12".into()),
+            ("chainid".into(), "7".into()),
+            ("damage".into(), "10".into()),
+        ],
+    );
+    assert_eq!(parsed.id, 12);
+    assert_eq!(parsed.chainid, 7);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hitid)"), 12);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(chainid)"), 7);
 }
 
 #[test]
@@ -12023,7 +12061,8 @@ fn projectile_spawns_get_unique_hit_activation_ids() {
                 ("projanim".into(), "1500".into()),
                 ("velocity".into(), "0, 0".into()),
                 ("removetime".into(), "30".into()),
-                ("id".into(), id.to_string()),
+                ("projid".into(), id.to_string()),
+                ("id".into(), "77".into()),
             ],
             line: 0,
         };
@@ -12037,27 +12076,9 @@ fn projectile_spawns_get_unique_hit_activation_ids() {
         "each projectile spawn is a distinct activation"
     );
 
-    // GetHitVar(hitid) reports the projectile's activation after contact.
-    let activation = sim.projectiles[0].hitdef.activation;
-    eprintln!(
-        "DBG activations {:?} pos {:?} defender {:?} anim {:?}",
-        sim.projectiles
-            .iter()
-            .map(|p| p.hitdef.activation)
-            .collect::<Vec<_>>(),
-        sim.projectiles[0].pos,
-        sim.fighters[1].pos,
-        sim.fighters[1].anim_no
-    );
+    // GetHitVar(hitid) reports the projectile HitDef's id after contact.
     manato_sim::collision::resolve_projectiles(&mut sim);
-    eprintln!(
-        "DBG after life {} hitid {}",
-        sim.fighters[1].life, sim.fighters[1].hit.vars.hit_id
-    );
-    assert_eq!(
-        manato_sim::trigger::int(&sim, 1, "GetHitVar(hitid)"),
-        activation as i32
-    );
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hitid)"), 77);
 }
 
 #[test]
