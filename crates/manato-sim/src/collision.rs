@@ -660,6 +660,9 @@ pub fn apply_hit_at(
         } else {
             next_life.max(1)
         };
+        if guarding && f.guard_max > 0 {
+            f.guard_points = (f.guard_points - damage).max(0);
+        }
         if !guarding {
             f.received_hits = f.received_hits.saturating_add(hitdef.numhits.max(1));
             f.received_damage = f.received_damage.saturating_add(damage);

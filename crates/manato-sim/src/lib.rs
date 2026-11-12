@@ -600,6 +600,8 @@ pub struct BarFill {
     pub mid_life: f32,
     /// Delayed power ratio in `0..=1`.
     pub mid_power: f32,
+    /// Delayed guard ratio in `0..=1`.
+    pub mid_guard: f32,
     /// Remaining delay ticks before the mid fill starts draining.
     pub delay: i32,
 }
@@ -609,6 +611,7 @@ impl Default for BarFill {
         Self {
             mid_life: 1.0,
             mid_power: 0.0,
+            mid_guard: 1.0,
             delay: 0,
         }
     }
@@ -1752,11 +1755,19 @@ impl SimState {
             let life_max = self.fighters[side].life_max.max(1);
             let life_ratio = (self.fighters[side].life as f32 / life_max as f32).clamp(0.0, 1.0);
             let power_ratio = (self.fighters[side].power / MAX_POWER).clamp(0.0, 1.0);
+            let guard_ratio = if self.fighters[side].guard_max > 0 {
+                (self.fighters[side].guard_points as f32 / self.fighters[side].guard_max as f32)
+                    .clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
             let life_def = fight.map(|fight| &fight.life[side]);
             let power_def = fight.map(|fight| &fight.power[side]);
+            let guard_def = fight.map(|fight| &fight.guard[side]);
             let life_delay = life_def.map(|bar| bar.mid_delay).unwrap_or(0);
             let life_range = life_def.map(|bar| bar.range.x).unwrap_or(0.0);
             let power_range = power_def.map(|bar| bar.range.x).unwrap_or(0.0);
+            let guard_range = guard_def.map(|bar| bar.range.x).unwrap_or(0.0);
             let life_drain = life_def
                 .map(|bar| {
                     let span = if life_range > 0.0 { life_range } else { 100.0 };
@@ -1767,6 +1778,16 @@ impl SimState {
                 .map(|bar| {
                     let span = if power_range > 0.0 {
                         power_range
+                    } else {
+                        100.0
+                    };
+                    (bar.mid_steps.max(0.0) * bar.mid_mult.max(0.0) / span).max(0.0)
+                })
+                .unwrap_or(0.0);
+            let guard_drain = guard_def
+                .map(|bar| {
+                    let span = if guard_range > 0.0 {
+                        guard_range
                     } else {
                         100.0
                     };
@@ -1791,6 +1812,13 @@ impl SimState {
                 // order; it drains only after the same pause.
             } else {
                 bar.mid_power = (bar.mid_power - power_drain).max(power_ratio);
+            }
+            if guard_ratio >= bar.mid_guard {
+                bar.mid_guard = guard_ratio;
+            } else if bar.delay > 0 {
+                // Guard shares the same delayed-fill window.
+            } else {
+                bar.mid_guard = (bar.mid_guard - guard_drain).max(guard_ratio);
             }
         }
     }
@@ -1889,6 +1917,7 @@ impl SimState {
             fighter.vel = Vec2::ZERO;
             fighter.facing = if facing == 0 { 1 } else { facing };
             fighter.life = fighter.life_max;
+            fighter.guard_points = fighter.guard_max;
             fighter.power = power.min(MAX_POWER);
             fighter.state_no = 0;
             fighter.prev_state_no = 0;
@@ -1952,11 +1981,13 @@ impl SimState {
             BarFill {
                 mid_life: 1.0,
                 mid_power: (self.fighters[0].power / MAX_POWER).clamp(0.0, 1.0),
+                mid_guard: 1.0,
                 delay: 0,
             },
             BarFill {
                 mid_life: 1.0,
                 mid_power: (self.fighters[1].power / MAX_POWER).clamp(0.0, 1.0),
+                mid_guard: 1.0,
                 delay: 0,
             },
         ];
@@ -2345,6 +2376,7 @@ impl SimState {
         for bar in &self.bars {
             h.write_f32(bar.mid_life);
             h.write_f32(bar.mid_power);
+            h.write_f32(bar.mid_guard);
             h.write_i32(bar.delay);
         }
         for side in &self.actions {
@@ -2423,6 +2455,8 @@ impl SimState {
             h.write_i32(f.anim_frame as i32);
             h.write_i32(f.anim_time);
             h.write_i32(f.life);
+            h.write_i32(f.guard_points);
+            h.write_i32(f.guard_max);
             h.write_f32(f.power);
             h.write_bool(f.ctrl);
             h.write_bool(f.face_p2_pending);

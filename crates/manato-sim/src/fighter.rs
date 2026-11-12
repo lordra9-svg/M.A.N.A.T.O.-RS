@@ -189,6 +189,9 @@ pub struct Fighter {
 
     pub life: i32,
     pub life_max: i32,
+    /// Guard points and their maximum; 0 means no guard bar.
+    pub guard_points: i32,
+    pub guard_max: i32,
     pub power: f32,
     pub defence_mul: f32,
     pub attack_mul: f32,
@@ -290,6 +293,12 @@ impl Fighter {
             .constants
             .get_or("data.life", char.constants.get_or("life", 1000.0)) as i32;
         let life = if life <= 0 { 1000 } else { life };
+        let guard_max = char
+            .constants
+            .get("guardpoints")
+            .or_else(|| char.constants.get("data.guardpoints"))
+            .unwrap_or(0.0)
+            .max(0.0) as i32;
         let mut f = Self {
             char_id,
             state_char_id: None,
@@ -315,6 +324,8 @@ impl Fighter {
             physics: Physics::Stand,
             life,
             life_max: life,
+            guard_points: guard_max,
+            guard_max,
             power: 0.0,
             defence_mul: 1.0,
             attack_mul: 1.0,

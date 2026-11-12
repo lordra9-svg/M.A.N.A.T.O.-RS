@@ -266,6 +266,12 @@ fn replace_value(text: &str, value: &str, percent: Option<i32>) -> String {
     out.replace("%%", "%")
 }
 
+/// Guard-bar ratio; `None` hides the bar when the character has no guard
+/// points.
+fn guard_ratio(points: i32, max: i32) -> Option<f32> {
+    (max > 0).then(|| (points as f32 / max as f32).clamp(0.0, 1.0))
+}
+
 fn life_bar(
     painter: &mut Painter,
     deps: &FightDeps,
@@ -833,6 +839,20 @@ pub fn draw_background(
                 bar.mid_power.clamp(0.0, 1.0),
                 fighter.power,
             );
+            if let Some(guard_ratio) = guard_ratio(fighter.guard_points, fighter.guard_max) {
+                life_bar(
+                    painter,
+                    deps,
+                    fight,
+                    sim,
+                    side,
+                    &fight.guard[side],
+                    &map,
+                    guard_ratio,
+                    bar.mid_guard.clamp(0.0, 1.0),
+                    fighter.guard_points.to_string(),
+                );
+            }
         }
         face(painter, deps, fight, sim, side, &fight.face[side], &map);
         name(painter, deps, fight, sim, side, &fight.name_def[side], &map);
@@ -894,6 +914,14 @@ mod tests {
         // Zero/invalid localcoord falls back to 320x240.
         let invalid = map((0.0, 0.0));
         assert!((invalid.scale - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn guard_ratio_hides_without_guard_points() {
+        assert_eq!(guard_ratio(500, 1000), Some(0.5));
+        assert_eq!(guard_ratio(0, 1000), Some(0.0));
+        assert_eq!(guard_ratio(2000, 1000), Some(1.0));
+        assert_eq!(guard_ratio(10, 0), None);
     }
 
     #[test]

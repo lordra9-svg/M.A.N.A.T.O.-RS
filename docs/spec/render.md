@@ -332,7 +332,10 @@ Power is rendered in `max_power / 1000` level units; `counter` shows
 
 Same layout keys as `[LifeBar]`, driven by `guard` points:
 `front` cropped to `guard / guard_max`, `mid` for the lagging fill, `value`
-for the numeric text. When a character has no guard points, the bar hides.
+for the numeric text. Guard points come from the character’s `guardpoints`
+data value; a missing or zero maximum hides the bar. Guarded hits reduce the
+points by the applied guard damage, and the bar resets to full each round.
+Guard crush is not modeled.
 
 ### 6.4 `[Face]`
 

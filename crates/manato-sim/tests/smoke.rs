@@ -4136,6 +4136,27 @@ fn hitdef_getpower_and_givepower_apply_on_hit_and_guard() {
 }
 
 #[test]
+fn guard_hits_drain_guard_points() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 100;
+    let mut hit = hitdef();
+    hit.guard_damage = 5;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_points, 95);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_points, 90);
+
+    // Unguarded hits do not consume guard points.
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_points, 90);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
