@@ -152,6 +152,10 @@ pub struct HitDef {
     /// `guard_ctrltime`.
     pub airguard_ctrltime: i32,
     pub pausetime: (i32, i32),
+    /// Guarded-contact pause; defaults to `pausetime`.
+    pub guard_pausetime: (i32, i32),
+    /// True when the content explicitly supplied `guard.pausetime`.
+    pub guard_pausetime_set: bool,
     pub sparkno: i32,
     pub guard_sparkno: i32,
     pub sparkxy: Vec2,
@@ -254,6 +258,8 @@ impl Default for HitDef {
             guard_ctrltime: 0,
             airguard_ctrltime: 0,
             pausetime: (0, 0),
+            guard_pausetime: (0, 0),
+            guard_pausetime_set: false,
             sparkno: -1,
             guard_sparkno: 40,
             sparkxy: Vec2::new(-10.0, -55.0),
@@ -348,6 +354,7 @@ impl HitDef {
         let mut guard_cornerpush_set = false;
         let mut airguard_cornerpush_set = false;
         let mut down_cornerpush_set = false;
+        let mut guard_pausetime_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
@@ -406,6 +413,12 @@ impl HitDef {
                 "pausetime" => {
                     let (a, b) = parse_pair(value);
                     h.pausetime = (a as i32, b as i32);
+                }
+                "guard.pausetime" => {
+                    let (a, b) = parse_pair(value);
+                    h.guard_pausetime = (a as i32, b as i32);
+                    h.guard_pausetime_set = true;
+                    guard_pausetime_set = true;
                 }
                 "sparkno" => h.sparkno = parse_i32(value),
                 "guard.sparkno" => h.guard_sparkno = parse_i32(value),
@@ -549,6 +562,9 @@ impl HitDef {
         }
         if !down_cornerpush_set {
             h.down_cornerpush = h.ground_cornerpush;
+        }
+        if !guard_pausetime_set {
+            h.guard_pausetime = h.pausetime;
         }
         // `snap` is implemented as an exact minimum/maximum on each set axis.
         if !h.snap.x.is_nan() {

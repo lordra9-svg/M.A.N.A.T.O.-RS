@@ -504,6 +504,15 @@ pub fn apply_hit_at(
         }
     };
     let (velocity, hittime, slidetime, ctrltime) = velocity_tuple;
+    let hit_pause = if guarding {
+        if hitdef.guard_pausetime_set {
+            hitdef.guard_pausetime
+        } else {
+            hitdef.pausetime
+        }
+    } else {
+        hitdef.pausetime
+    };
 
     if from_fighter && hitdef.p1sprpriority_set {
         sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
@@ -557,9 +566,9 @@ pub fn apply_hit_at(
         f.hit.vars.priority = hitdef.priority;
         f.hit.vars.hit_id = hitdef.activation as i32;
         f.hit.guarding = guarding;
-        f.hit.hit_pause = hitdef.pausetime.1.max(0);
+        f.hit.hit_pause = hit_pause.1.max(0);
         f.hit.hit_pause_time = 0;
-        f.hit.hit_shake_timer = hitdef.pausetime.1.max(0);
+        f.hit.hit_shake_timer = hit_pause.1.max(0);
         let can_ko = if guarding {
             hitdef.guard_kill
         } else {
@@ -686,8 +695,8 @@ pub fn apply_hit_at(
             }
         }
         f.hit.hit_targets.push(defender);
-        f.hit.hit_pause = hitdef.pausetime.0.max(0);
-        f.hit.hit_pause_time = hitdef.pausetime.0.max(0);
+        f.hit.hit_pause = hit_pause.0.max(0);
+        f.hit.hit_pause_time = hit_pause.0.max(0);
     }
 
     // Hit spark and sound.

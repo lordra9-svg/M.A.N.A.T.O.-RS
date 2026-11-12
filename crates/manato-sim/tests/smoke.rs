@@ -3224,6 +3224,72 @@ fn hitdef_snap_places_defender_relative_to_attacker() {
 }
 
 #[test]
+fn hitdef_guard_pausetime_defaults_and_applies() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let inherited = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("pausetime".into(), "3, 5".into()),
+        ],
+    );
+    assert_eq!(inherited.guard_pausetime, (3, 5));
+
+    let explicit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("pausetime".into(), "3, 5".into()),
+            ("guard.pausetime".into(), "7, 9".into()),
+        ],
+    );
+    assert_eq!(explicit.guard_pausetime, (7, 9));
+
+    // Unguarded contacts use pausetime.
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &explicit, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].hit.hit_pause, 3);
+    assert_eq!(sim.fighters[0].hit.hit_pause_time, 3);
+    assert_eq!(sim.fighters[1].hit.hit_pause, 5);
+    assert_eq!(sim.fighters[1].hit.hit_shake_timer, 5);
+
+    // Guarded contacts use guard.pausetime for both players.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("pausetime".into(), "3, 5".into()),
+            ("guard.pausetime".into(), "7, 9".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[0].hit.hit_pause, 7);
+    assert_eq!(sim.fighters[0].hit.hit_pause_time, 7);
+    assert_eq!(sim.fighters[1].hit.hit_pause, 9);
+    assert_eq!(sim.fighters[1].hit.hit_shake_timer, 9);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

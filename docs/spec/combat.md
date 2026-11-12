@@ -74,6 +74,7 @@ maxdist = x, y
 snap = x, y
 airguard.ctrltime = N
 pausetime = attacker, defender
+guard.pausetime = attacker, defender
 sparkno = N
 guard.sparkno = N
 sparkxy = x, y
@@ -150,6 +151,8 @@ applied when a `HitDef` controller omits the parameter:
   `guard.slidetime` inherits `guard.hittime` when omitted.
   `guard.ctrltime` inherits `guard.slidetime`, and `airguard.ctrltime`
   inherits `guard.ctrltime`.
+- `guard.pausetime` inherits `pausetime` when omitted and supplies both the
+  attacker self-pause and defender shake on guarded contacts.
 - `guard.dist` defaults from the character’s `[Size] attack.dist`
   (`160` if absent) for melee HitDefs and `proj.attack.dist` (`90` if absent)
   for projectiles. An explicit `guard.dist`/`guard.dist.width` overrides it.
@@ -300,6 +303,8 @@ strict: distance must be less than `guard.dist`.
   is the defender's hit shake. `HitPauseTime` returns the attacker's remaining
   self-pause, counting down one per frozen tick; a defender frozen by hit shake
   reports 0 (oracle O-29).
+- Guarded contacts use `guard.pausetime` (falling back to `pausetime`) for
+  both the attacker self-pause and defender shake.
 
 ## 8. HitOnce, multi-hit, and juggle
 
