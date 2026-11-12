@@ -105,6 +105,7 @@ Required controller families for the approved matrix:
 - `EnvShake`, `FallEnvShake`
 - `GuardPointsAdd`, `GuardPointsSet`, `GuardBreakSet`
 - `DizzyPointsAdd`, `DizzyPointsSet`, `DizzySet`
+- `ModifyPlayer` (`lifemax`, `guardpointsmax`, `dizzypointsmax`)
 
 ### 4.3 Presentation and audio
 

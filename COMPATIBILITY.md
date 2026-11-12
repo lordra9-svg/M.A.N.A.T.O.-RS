@@ -73,7 +73,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet implemented; other Ikemen-only controllers pending |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima implemented; other Ikemen-only controllers pending |
 
 ## 5. Collision and combat
 
@@ -87,7 +87,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28 + hits-limit removal; state 3000 upper blast 1px box margin |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Ground/air corner-push offsets, threshold, guard + PlayerPush separation |
-| K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Partial | Guard points + GuardPointsAdd/Set + GuardBreakSet + GetHitVar(guardpoints) + 60-tick regen cooldown/+2 regen + 20-tick guard-crush no-guard window + dizzy points/1.8x hit loss/60-tick stun + DizzyPointsAdd/Set + DizzySet + Dizzy triggers; custom guard-break/dizzy states and effects pending |
+| K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Partial | Guard points + GuardPointsAdd/Set + GuardBreakSet + GetHitVar(guardpoints) + 60-tick regen cooldown/+2 regen + 20-tick guard-crush no-guard window + dizzy points/1.8x hit loss/60-tick stun + DizzyPointsAdd/Set + DizzySet + ModifyPlayer maxima + Dizzy triggers; custom guard-break/dizzy states and effects pending |
 
 ## 6. Rounds and game flow
 

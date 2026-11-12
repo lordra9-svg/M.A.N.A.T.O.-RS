@@ -4545,6 +4545,50 @@ fn dizzy_set_controller_toggles_trigger() {
 }
 
 #[test]
+fn modify_player_adjusts_meter_maxima() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].life = 1000;
+    sim.fighters[1].life_max = 1000;
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 100;
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 100;
+    let control = manato_formats::Controller {
+        kind: "modifyplayer".into(),
+        params: vec![
+            ("lifemax".into(), "500".into()),
+            ("guardpointsmax".into(), "50".into()),
+            ("dizzypointsmax".into(), "25".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+    assert_eq!(sim.fighters[1].life, 500);
+    assert_eq!(sim.fighters[1].life_max, 500);
+    assert_eq!(sim.fighters[1].guard_max, 50);
+    assert_eq!(sim.fighters[1].guard_points, 50);
+    assert_eq!(sim.fighters[1].dizzy_max, 25);
+    assert_eq!(sim.fighters[1].dizzy_points, 25);
+
+    let zero = manato_formats::Controller {
+        kind: "modifyplayer".into(),
+        params: vec![
+            ("guardpointsmax".into(), "0".into()),
+            ("dizzypointsmax".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &zero, &assets);
+    assert_eq!(sim.fighters[1].guard_max, 0);
+    assert_eq!(sim.fighters[1].guard_points, 0);
+    assert_eq!(sim.fighters[1].dizzy_max, 0);
+    assert_eq!(sim.fighters[1].dizzy_points, 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
