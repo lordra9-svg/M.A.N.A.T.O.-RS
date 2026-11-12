@@ -196,6 +196,10 @@ pub struct Fighter {
     pub guard_crush_timer: i32,
     /// Persistent guard-break flag (`GuardBreakSet`).
     pub guard_break: bool,
+    /// Dizzy points/max and remaining stun duration.
+    pub dizzy_points: i32,
+    pub dizzy_max: i32,
+    pub dizzy_timer: i32,
     /// Remaining ticks before guard-point regeneration resumes.
     pub guard_cooldown: i32,
     pub power: f32,
@@ -305,6 +309,12 @@ impl Fighter {
             .or_else(|| char.constants.get("data.guardpoints"))
             .unwrap_or(0.0)
             .max(0.0) as i32;
+        let dizzy_max = char
+            .constants
+            .get("dizzypoints")
+            .or_else(|| char.constants.get("data.dizzypoints"))
+            .unwrap_or(0.0)
+            .max(0.0) as i32;
         let mut f = Self {
             char_id,
             state_char_id: None,
@@ -334,6 +344,9 @@ impl Fighter {
             guard_max,
             guard_crush_timer: 0,
             guard_break: false,
+            dizzy_points: dizzy_max,
+            dizzy_max,
+            dizzy_timer: 0,
             guard_cooldown: 0,
             power: 0.0,
             defence_mul: 1.0,

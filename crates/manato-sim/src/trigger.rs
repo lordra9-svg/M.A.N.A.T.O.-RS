@@ -716,6 +716,9 @@ fn is_trigger_name(name: &str) -> bool {
             | "camerazoom"
             | "zoomvar"
             | "drawgame"
+            | "dizzy"
+            | "dizzypoints"
+            | "dizzypointsmax"
             | "gameheight"
             | "gametime"
             | "gamewidth"
@@ -918,6 +921,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "canrecover" => Value::Bool(f.hit.vars.fall_recover && (5030..5050).contains(&f.state_no)),
         "inguarddist" => Value::Bool(inguard_dist(sim, who)),
         "guardbreak" => Value::Bool(f.guard_break || f.guard_crush_timer > 0),
+        "dizzy" => Value::Bool(f.dizzy_timer > 0),
+        "dizzypoints" => Value::Int(f.dizzy_points),
+        "dizzypointsmax" => Value::Int(f.dizzy_max),
         "guardpoints" => Value::Int(f.guard_points),
         "guardpointsmax" => Value::Int(f.guard_max),
         "matchover" => Value::Bool(sim.round.phase == crate::RoundPhase::Over),

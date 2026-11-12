@@ -310,10 +310,24 @@ guard-point damage for the current hit, while this engine exposes the meter
 that the bar and `GuardPoints` trigger use.
 
 This is an explicit engine decision, not a full Ikemen guard-break port:
-custom guard-break animations, glass/shockwave effects, the dedicated
-guard-break state pair, and dizzy/guard-crush extensions are not modeled.
-Content can observe the state through `GuardBreak`, `GuardPoints`, and
-`GuardPointsMax`.
+custom guard-break animations, glass/shockwave effects, and the dedicated
+guard-break state pair are not modeled. Content can observe the state through
+`GuardBreak`, `GuardPoints`, and `GuardPointsMax`.
+
+### 6.2 Dizzy points
+
+Dizzy points are enabled only when the character defines a positive
+`dizzypoints` data value; unlike Ikemen’s 1000 default, a missing value
+disables the meter so M.U.G.E.N-only content is unchanged.
+
+An unguarded hit reduces dizzy points by `round(damage × 1.8)`. When the meter
+falls from a positive value to zero, the defender enters a 60-tick dizzy stun:
+control is removed and guarding is disabled. When the stun ends, dizzy points
+reset to maximum and control returns. This is a bounded engine reaction; the
+custom dizzy state, birds, sounds, and palette/explod effects are not modeled.
+`DizzyPointsAdd`/`DizzyPointsSet` clamp to `0..dizzy_max`; additions scale by
+final defence unless `absolute = 1`. `Dizzy`, `DizzyPoints`, and
+`DizzyPointsMax` expose the state and meter.
 
 ## 7. Hit reaction
 

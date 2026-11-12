@@ -4443,6 +4443,82 @@ fn guard_break_set_controller_toggles_trigger() {
 }
 
 #[test]
+fn dizzy_points_deplete_and_trigger_stun() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 100;
+    let mut hit = hitdef();
+    hit.damage = 10;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].dizzy_points, 82);
+
+    sim.fighters[1].dizzy_points = 10;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].dizzy_points, 0);
+    assert_eq!(sim.fighters[1].dizzy_timer, 60);
+    assert!(!sim.fighters[1].ctrl);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Dizzy"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "DizzyPoints"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "DizzyPointsMax"), 100);
+
+    // Guarded contacts do not consume dizzy points.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 100;
+    let mut hit = hitdef();
+    hit.damage = 10;
+    hit.guard_damage = 2;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+
+    // The stun restores points and control after its bounded window.
+    sim.fighters[1].dizzy_timer = 1;
+    sim.fighters[1].dizzy_points = 0;
+    sim.fighters[0].hitdef = None;
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].dizzy_timer, 0);
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+    assert!(sim.fighters[1].ctrl);
+
+    // Controllers clamp the meter.
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 1, &control, &assets);
+    };
+    run(
+        &mut sim,
+        "dizzypointsset",
+        vec![("value".into(), "40".into())],
+    );
+    assert_eq!(sim.fighters[1].dizzy_points, 40);
+    run(
+        &mut sim,
+        "dizzypointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    assert_eq!(sim.fighters[1].dizzy_points, 50);
+    run(
+        &mut sim,
+        "dizzypointsset",
+        vec![("value".into(), "500".into())],
+    );
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

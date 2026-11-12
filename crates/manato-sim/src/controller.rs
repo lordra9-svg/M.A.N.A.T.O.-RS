@@ -99,6 +99,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "guardpointsadd" => guard_points_add(sim, who, control),
         "guardpointsset" => guard_points_set(sim, who, control),
         "guardbreakset" => guard_break_set(sim, who, control),
+        "dizzypointsadd" => dizzy_points_add(sim, who, control),
+        "dizzypointsset" => dizzy_points_set(sim, who, control),
         "lifeset" => life_set(sim, who, control),
         "hitadd" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
@@ -727,6 +729,30 @@ fn guard_points_set(sim: &mut SimState, who: usize, control: &Controller) {
 fn guard_break_set(sim: &mut SimState, who: usize, control: &Controller) {
     let value = int_param(sim, who, control, "value").unwrap_or(0) != 0;
     sim.fighters[who].guard_break = value;
+}
+
+fn dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
+    let fighter = &mut sim.fighters[who];
+    if fighter.dizzy_max <= 0 || value == 0 {
+        return;
+    }
+    let add = if absolute {
+        value as f32
+    } else {
+        value as f32 / fighter.defence_mul.max(0.01)
+    };
+    fighter.dizzy_points = (fighter.dizzy_points + add.round() as i32).clamp(0, fighter.dizzy_max);
+}
+
+fn dizzy_points_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let fighter = &mut sim.fighters[who];
+    if fighter.dizzy_max <= 0 {
+        return;
+    }
+    fighter.dizzy_points = value.clamp(0, fighter.dizzy_max);
 }
 
 fn target_power_add(sim: &mut SimState, who: usize, control: &Controller) {

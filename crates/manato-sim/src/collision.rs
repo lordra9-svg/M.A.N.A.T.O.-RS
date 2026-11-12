@@ -211,6 +211,9 @@ fn can_guard(sim: &SimState, defender: usize, hitdef: &HitDef, origin: Vec2) -> 
     if f.guard_crush_timer > 0 {
         return false;
     }
+    if f.dizzy_timer > 0 {
+        return false;
+    }
     let dx = (origin.x - f.pos.x).abs();
     if dx >= hitdef.guard_dist as f32 {
         return false;
@@ -675,6 +678,15 @@ pub fn apply_hit_at(
             }
         }
         if !guarding {
+            if f.dizzy_max > 0 && f.dizzy_timer == 0 {
+                let before = f.dizzy_points;
+                let loss = (damage as f32 * 1.8).round() as i32;
+                f.dizzy_points = (f.dizzy_points - loss).max(0);
+                if before > 0 && f.dizzy_points == 0 {
+                    f.dizzy_timer = 60;
+                    f.ctrl = false;
+                }
+            }
             f.received_hits = f.received_hits.saturating_add(hitdef.numhits.max(1));
             f.received_damage = f.received_damage.saturating_add(damage);
         }
