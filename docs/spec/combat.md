@@ -60,6 +60,7 @@ air.type = High|Low|Trip
 ground.velocity = x, y
 air.velocity = x, y
 down.velocity = x, y
+down.hittime = N
 down.bounce = 0|1
 down.cornerpush.veloff = F
 yaccel = accel
@@ -134,6 +135,9 @@ applied when a `HitDef` controller omits the parameter:
 - `down.bounce` defaults to `0`. When `1` and `down.velocity.y` is non-zero,
   the next fall ground impact rebounds once using `fall.xvelocity` and
   `fall.yvelocity`; when `0`, those rebound velocities are cleared.
+- `down.hittime` defaults to `20` (the engine’s oracle-compatible value; the
+  public reference does not state a default). It applies only when
+  `down.velocity.y` is zero.
 - `yaccel` defaults to the documented localcoord-dependent value:
   `0.35 * localcoord.width / 320`, which is `.35` at 320x240, `.7` at
   640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
@@ -283,7 +287,8 @@ strict: distance must be less than `guard.dist`.
   `airguard.velocity` for an air guard.
 - Hitting a grounded lying-down defender requires the `D` hitflag. It uses
   `down.velocity`, enters state `5080`, and otherwise follows the normal
-  damage/hitpause rules.
+  damage/hitpause rules. A grounded downed hit uses `down.hittime` for
+  `hittime`/`ctrltime`; a launched hit ignores it.
 - A launched downed hit with `down.bounce = 1` rebounds once on its next fall
   ground impact using the stored fall velocities, then the pending bounce is
   cleared. `down.bounce = 0` disables the rebound.

@@ -3654,6 +3654,63 @@ fn hitdef_down_bounce_rebounds_once_on_ground_impact() {
 }
 
 #[test]
+fn hitdef_down_hittime_applies_to_grounded_downed_hits() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert_eq!(default.down_hittime, 20);
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("down.hittime".into(), "12".into()),
+        ],
+    );
+    assert_eq!(parsed.down_hittime, 12);
+
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(0.0, 0.0);
+    hit.down_hittime = 12;
+    hit.ground_hittime = 4;
+    hit.ground_slidetime = 3;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 0.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 12);
+    assert_eq!(sim.fighters[1].hit.vars.slidetime, 3);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 12);
+
+    // Launched downed hits ignore down.hittime.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(0.0, -8.0);
+    hit.down_hittime = 12;
+    hit.ground_hittime = 4;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 0.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.hittime, 4);
+    assert_eq!(sim.fighters[1].hit.vars.ctrltime, 4);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

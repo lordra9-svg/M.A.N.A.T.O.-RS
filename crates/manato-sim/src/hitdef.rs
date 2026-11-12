@@ -158,6 +158,8 @@ pub struct HitDef {
     pub down_velocity: Vec2,
     /// Whether a launched downed hit bounces once (`down.bounce`).
     pub down_bounce: bool,
+    /// Slide time for a grounded downed hit (`down.hittime`).
+    pub down_hittime: i32,
     /// Vertical acceleration imparted to the defender (`yaccel`).
     pub yaccel: f32,
     /// `guard.velocity`; falls back to `ground.velocity` when absent.
@@ -283,6 +285,7 @@ impl Default for HitDef {
             air_velocity: Vec2::ZERO,
             down_velocity: Vec2::ZERO,
             down_bounce: false,
+            down_hittime: 20,
             yaccel: 0.35,
             guard_velocity: None,
             airguard_velocity: Vec2::ZERO,
@@ -425,6 +428,7 @@ impl HitDef {
                     down_velocity_set = true;
                 }
                 "down.bounce" => h.down_bounce = parse_i32(value) != 0,
+                "down.hittime" => h.down_hittime = parse_i32(value),
                 "yaccel" => h.yaccel = parse_f32(value),
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
                 "airguard.velocity" => {

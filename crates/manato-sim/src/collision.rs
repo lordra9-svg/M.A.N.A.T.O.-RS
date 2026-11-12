@@ -511,12 +511,21 @@ pub fn apply_hit_at(
             hitdef.air_hittime,
         )
     } else if defender_state_type == StateType::Liedown {
-        (
-            hitdef.down_velocity,
-            hitdef.ground_hittime.max(1),
-            hitdef.ground_slidetime,
-            hitdef.ground_hittime,
-        )
+        if hitdef.down_velocity.y == 0.0 {
+            (
+                hitdef.down_velocity,
+                hitdef.down_hittime.max(1),
+                hitdef.ground_slidetime,
+                hitdef.down_hittime,
+            )
+        } else {
+            (
+                hitdef.down_velocity,
+                hitdef.ground_hittime.max(1),
+                hitdef.ground_slidetime,
+                hitdef.ground_hittime,
+            )
+        }
     } else {
         (
             hitdef.ground_velocity,
