@@ -5432,6 +5432,42 @@ fn get_hitvar_hittime_counts_down_after_shake_to_minus_one() {
 }
 
 #[test]
+fn score_controllers_and_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].side = 0;
+    sim.fighters[1].side = 1;
+    let run = |sim: &mut SimState, who: usize, kind: &str, value: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: vec![("value".into(), value.into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, who, &control, &assets);
+    };
+    run(&mut sim, 0, "scoreadd", "25.5");
+    assert_eq!(sim.score[0], 25.5);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Score"), 25.5);
+    sim.score_rounds[0] = 100.0;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "ScoreTotal"), 125.5);
+
+    // TargetScoreAdd credits the bound target's side.
+    sim.fighters[0].target = Some(1);
+    run(&mut sim, 0, "targetscoreadd", "7");
+    assert_eq!(sim.score[1], 7.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "Score"), 7.0);
+
+    // Helpers do not hold score.
+    sim.fighters[0].owner = Some(1);
+    run(&mut sim, 0, "scoreadd", "10");
+    assert_eq!(sim.score[0], 25.5);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Score"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "ScoreTotal"), 0.0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

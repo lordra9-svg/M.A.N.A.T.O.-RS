@@ -119,7 +119,8 @@ Required controller families for the approved matrix:
 - `TargetGuardPointsAdd`, `TargetDizzyPointsAdd`
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 - `GetHitVarSet` (modeled GetHitVar fields)
-- `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`
+- `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,
+  `TargetScoreAdd`
 
 ### 4.3 Presentation and audio
 
@@ -196,7 +197,7 @@ missing redirect targets make the trigger false.
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
-  `TimeElapsed`, `TimeTotal`
+  `TimeElapsed`, `TimeTotal`, `Score`, `ScoreTotal`
 - Utility: `IsAsserted(flag)`, `Const`, `Const240p`, `Const480p`, `Const720p`,
   `Random`, `IfElse`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,

@@ -828,6 +828,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "timeremaining"
             | "timeelapsed"
             | "timetotal"
+            | "score"
+            | "scoretotal"
             | "screenpos"
             | "screenvel"
             | "stagebackedge"
@@ -966,6 +968,18 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
             0
         } else {
             sim.combo.get(f.side).map(|combo| combo.hits).unwrap_or(0)
+        }),
+        "score" => Value::Float(if f.owner.is_some() {
+            0.0
+        } else {
+            sim.score.get(f.side).copied().unwrap_or(0.0)
+        }),
+        "scoretotal" => Value::Float(if f.owner.is_some() {
+            0.0
+        } else {
+            let side = f.side.min(1);
+            sim.score_rounds.get(side).copied().unwrap_or(0.0)
+                + sim.score.get(side).copied().unwrap_or(0.0)
         }),
         "matchover" => Value::Bool(sim.round.phase == crate::RoundPhase::Over),
         "roundno" => Value::Int(sim.round.number as i32),

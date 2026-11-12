@@ -649,6 +649,10 @@ pub struct SimState {
     pub bars: [BarFill; 2],
     /// `[Action]` banners per team (`§6.10`).
     pub actions: [Vec<ActionMessage>; 2],
+    /// `Score` for the current round, per team side.
+    pub score: [f32; 2],
+    /// Score banked from completed rounds, per team side.
+    pub score_rounds: [f32; 2],
 }
 
 impl SimState {
@@ -727,6 +731,8 @@ impl SimState {
             win_history: [Vec::new(), Vec::new()],
             bars: [BarFill::default(); 2],
             actions: [Vec::new(), Vec::new()],
+            score: [0.0; 2],
+            score_rounds: [0.0; 2],
         };
         state.start_round();
         state
@@ -1941,6 +1947,8 @@ impl SimState {
         self.round.time_over = false;
         self.win_history = [Vec::new(), Vec::new()];
         self.finished = false;
+        self.score = [0.0; 2];
+        self.score_rounds = [0.0; 2];
         for fighter in &mut self.fighters {
             fighter.power = 0.0;
         }
@@ -1948,6 +1956,12 @@ impl SimState {
     }
 
     fn start_round(&mut self) {
+        if self.round.number > 1 {
+            for side in 0..2 {
+                self.score_rounds[side] += self.score[side];
+                self.score[side] = 0.0;
+            }
+        }
         self.fighters.truncate(2);
         let stage = &self.assets.stage;
         for slot in 0..2 {
@@ -2419,6 +2433,10 @@ impl SimState {
         h.write_i32(self.pause_movetime);
         h.write_u8(self.pause_mover.map(|i| i as u8 + 1).unwrap_or(0));
         h.write_u32(self.hit_activation);
+        for side in 0..2 {
+            h.write_f32(self.score[side]);
+            h.write_f32(self.score_rounds[side]);
+        }
         for combo in &self.combo {
             h.write_i32(combo.hits);
             h.write_i32(combo.shown_hits);

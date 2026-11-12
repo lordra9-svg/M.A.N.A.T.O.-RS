@@ -103,6 +103,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "roundtimeadd" => round_time_add(sim, who, control),
         "roundtimeset" => round_time_set(sim, who, control),
         "victoryquote" => victory_quote(sim, who, control),
+        "scoreadd" => score_add(sim, who, control),
+        "targetscoreadd" => target_score_add(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -882,6 +884,29 @@ fn round_time_set(sim: &mut SimState, who: usize, control: &Controller) {
 fn victory_quote(sim: &mut SimState, who: usize, control: &Controller) {
     let value = int_param(sim, who, control, "value").unwrap_or(-1);
     sim.fighters[who].win_quote = value;
+}
+
+fn score_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = num_param(sim, who, control, "value").unwrap_or(0.0);
+    let fighter = &sim.fighters[who];
+    if value == 0.0 || fighter.owner.is_some() {
+        return;
+    }
+    let side = fighter.side.min(1);
+    sim.score[side] += value;
+}
+
+fn target_score_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = num_param(sim, who, control, "value").unwrap_or(0.0);
+    let Some(target) = sim.fighters[who].target else {
+        return;
+    };
+    let fighter = &sim.fighters[target];
+    if value == 0.0 || fighter.owner.is_some() {
+        return;
+    }
+    let side = fighter.side.min(1);
+    sim.score[side] += value;
 }
 
 fn dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {
