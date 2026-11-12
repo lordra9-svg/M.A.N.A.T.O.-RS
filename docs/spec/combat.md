@@ -78,6 +78,9 @@ snap = x, y
 p1facing = -1|0|1
 p1getp2facing = -1|0|1
 p2facing = -1|0|1
+p1stateno = N
+p2stateno = N
+p2getp1state = 0|1
 airguard.ctrltime = N
 pausetime = attacker, defender
 guard.pausetime = attacker, defender
@@ -180,6 +183,9 @@ applied when a `HitDef` controller omits the parameter:
 - `p1facing`, `p1getp2facing`, and `p2facing` default to `0` (no change).
   `p1getp2facing` overrides `p1facing` when non-zero. Facing changes apply
   only to unguarded successful hits.
+- `p1stateno`/`p2stateno` default to `-1` (no state change).
+  `p2getp1state` defaults to `1` when `p2stateno` is used; `0` keeps the
+  defender's own state and animation data.
 - `id` defaults to `0` and is reported as `GetHitVar(hitid)`. `chainid`
   defaults to `-1` and is recorded as `GetHitVar(chainid)`.
 - `nochainid` defaults to `-1, -1` (no blocked chain IDs).
@@ -357,6 +363,10 @@ strict: distance must be less than `guard.dist`.
 - A throw HitDef uses `p1stateno` and `p2stateno`.
 - On hit, the attacker enters `p1stateno`; the defender enters `p2stateno` and
   is bound with `TargetBind`.
+- `p2getp1state` defaults to `1`: the defender enters P1’s `p2stateno`
+  definition and uses P1’s animation bank. With `0`, the defender enters the
+  same state number using its own state and animation data. Subsequent
+  controller lookup continues to use the defender’s own state map.
 - `TargetState`, `TargetLifeAdd`, `TargetVelSet/Add`, and `TargetFacing` operate
   on the bound target.
 - `TargetDrop` clears the binding.

@@ -447,11 +447,22 @@ pub fn apply_hit_at(
             sim.fighters[attacker].enter_state(state, &assets.characters[attacker_char], false);
         }
         if hitdef.p2stateno >= 0 {
+            let use_p1_state = hitdef.p2getp1state;
+            let state_char = if use_p1_state {
+                attacker_char
+            } else {
+                defender_char
+            };
             sim.fighters[defender].enter_state(
                 hitdef.p2stateno,
-                &assets.characters[defender_char],
+                &assets.characters[state_char],
                 false,
             );
+            sim.fighters[defender].anim_char_id = if use_p1_state {
+                Some(attacker_char)
+            } else {
+                None
+            };
         }
         if hitdef.p1sprpriority_set {
             sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;

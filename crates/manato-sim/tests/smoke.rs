@@ -3711,6 +3711,83 @@ fn hitdef_down_hittime_applies_to_grounded_downed_hits() {
 }
 
 #[test]
+fn hitdef_p2getp1state_controls_p2_state_bank() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        for (index, state_type) in [(0usize, "A"), (1usize, "L")] {
+            assets.characters[index].states.insert(
+                1234,
+                manato_formats::StateDef {
+                    number: 1234,
+                    params: vec![
+                        ("type".into(), state_type.into()),
+                        ("movetype".into(), "H".into()),
+                        ("physics".into(), "N".into()),
+                        ("anim".into(), "0".into()),
+                    ],
+                    controllers: Vec::new(),
+                    line: 0,
+                    source: String::new(),
+                },
+            );
+        }
+    }
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("p2stateno".into(), "1234".into()),
+        ],
+    );
+    assert!(default.p2getp1state);
+    let explicit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("p2stateno".into(), "1234".into()),
+            ("p2getp1state".into(), "0".into()),
+        ],
+    );
+    assert!(!explicit.p2getp1state);
+
+    // Default uses the attacker's state definition and animation bank.
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 1234;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 1234);
+    assert_eq!(
+        sim.fighters[1].state_type,
+        manato_sim::fighter::StateType::Air
+    );
+    assert_eq!(sim.fighters[1].anim_char_id, Some(0));
+
+    // p2getp1state = 0 keeps the defender's own state data.
+    throw.p2getp1state = false;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 1234);
+    assert_eq!(
+        sim.fighters[1].state_type,
+        manato_sim::fighter::StateType::Liedown
+    );
+    assert_eq!(sim.fighters[1].anim_char_id, None);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

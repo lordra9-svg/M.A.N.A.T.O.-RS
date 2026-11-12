@@ -239,6 +239,8 @@ pub struct HitDef {
     pub numhits: i32,
     pub p1stateno: i32,
     pub p2stateno: i32,
+    /// Whether `p2stateno` uses P1's state/animation data (default true).
+    pub p2getp1state: bool,
     pub p1facing: i32,
     pub p2facing: i32,
     /// `1`/`-1` makes P1 copy P2 facing or its opposite; overrides
@@ -339,6 +341,7 @@ impl Default for HitDef {
             numhits: 1,
             p1stateno: -1,
             p2stateno: -1,
+            p2getp1state: true,
             p1facing: 0,
             p2facing: 0,
             p1getp2facing: 0,
@@ -530,6 +533,7 @@ impl HitDef {
                 }
                 "p1stateno" => h.p1stateno = parse_i32(value),
                 "p2stateno" => h.p2stateno = parse_i32(value),
+                "p2getp1state" => h.p2getp1state = parse_i32(value) != 0,
                 "p1facing" => h.p1facing = parse_i32(value),
                 "p2facing" => h.p2facing = parse_i32(value),
                 "p1getp2facing" => h.p1getp2facing = parse_i32(value),
