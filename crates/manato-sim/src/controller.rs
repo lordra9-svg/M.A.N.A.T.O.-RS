@@ -28,7 +28,10 @@ fn str_param<'a>(control: &'a Controller, key: &str) -> Option<&'a str> {
 }
 
 fn char_of<'a>(assets: &'a crate::Assets, sim: &SimState, who: usize) -> &'a Character {
-    &assets.characters[sim.fighters[who].char_id]
+    let char_id = sim.fighters[who]
+        .state_char_id
+        .unwrap_or(sim.fighters[who].char_id);
+    &assets.characters[char_id]
 }
 
 /// Default `guard.dist` from `[Size] attack.dist` (melee) or
@@ -51,7 +54,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
     let kind = control.kind.trim().to_ascii_lowercase();
     match kind.as_str() {
         "null" => {}
-        "changestate" | "selfstate" => change_state(sim, who, control, assets),
+        "changestate" => change_state(sim, who, control, assets, false),
+        "selfstate" => change_state(sim, who, control, assets, true),
         "changeanim" => change_anim(sim, who, control, assets),
         "changeanim2" => change_anim2(sim, who, control, assets),
         "velset" => vel_set(sim, who, control),
@@ -230,7 +234,13 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
     }
 }
 
-fn change_state(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
+fn change_state(
+    sim: &mut SimState,
+    who: usize,
+    control: &Controller,
+    assets: &crate::Assets,
+    self_state: bool,
+) {
     let current = sim.fighters[who].state_no;
     let Some(value) = int_param(sim, who, control, "value") else {
         return;
@@ -240,7 +250,15 @@ fn change_state(sim: &mut SimState, who: usize, control: &Controller, assets: &c
     }
     let ctrl = int_param(sim, who, control, "ctrl").map(|v| v != 0);
     let anim = int_param(sim, who, control, "anim");
-    let char = char_of(assets, sim, who);
+    if self_state {
+        sim.fighters[who].state_char_id = None;
+        sim.fighters[who].anim_char_id = None;
+    }
+    let char = if self_state {
+        &assets.characters[sim.fighters[who].char_id]
+    } else {
+        char_of(assets, sim, who)
+    };
     sim.fighters[who].change_state_override(value, char, ctrl, anim, None, false);
     if value != current {
         // Reset per-state animation bookkeeping happens in enter_state.

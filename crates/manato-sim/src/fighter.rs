@@ -156,6 +156,9 @@ pub struct TargetBind {
 #[derive(Debug, Clone)]
 pub struct Fighter {
     pub char_id: usize,
+    /// Character whose state/controller bank is used when `p2getp1state`
+    /// borrows P1's state data.
+    pub state_char_id: Option<usize>,
     pub side: usize,
     pub slot: usize,
     pub active: bool,
@@ -289,6 +292,7 @@ impl Fighter {
         let life = if life <= 0 { 1000 } else { life };
         let mut f = Self {
             char_id,
+            state_char_id: None,
             side,
             slot,
             active: true,
@@ -454,6 +458,9 @@ impl Fighter {
             self.apply_state_def(state, char);
         } else if number >= 0 {
             log::warn!("character {} has no statedef {number}", char.name());
+        }
+        if let Some(state_char) = self.state_char_id {
+            self.anim_char_id = Some(state_char);
         }
         if number == 0 {
             self.ctrl = true;

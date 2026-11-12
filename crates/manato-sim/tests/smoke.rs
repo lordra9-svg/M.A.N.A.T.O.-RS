@@ -3788,6 +3788,83 @@ fn hitdef_p2getp1state_controls_p2_state_bank() {
 }
 
 #[test]
+fn p2getp1state_runs_attacker_state_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].states.insert(
+            4321,
+            manato_formats::StateDef {
+                number: 4321,
+                params: vec![
+                    ("type".into(), "S".into()),
+                    ("movetype".into(), "H".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                ],
+                controllers: vec![manato_formats::Controller {
+                    kind: "varset".into(),
+                    params: vec![("v".into(), "0".into()), ("value".into(), "7".into())],
+                    line: 0,
+                }],
+                line: 0,
+                source: String::new(),
+            },
+        );
+    }
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 4321;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_char_id, Some(0));
+    sim.fighters[0].hitdef = None;
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].vars[0], 7);
+
+    // With p2getp1state = 0 the attacker-only state has no controllers to run.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].states.insert(
+            4321,
+            manato_formats::StateDef {
+                number: 4321,
+                params: vec![
+                    ("type".into(), "S".into()),
+                    ("movetype".into(), "H".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                ],
+                controllers: vec![manato_formats::Controller {
+                    kind: "varset".into(),
+                    params: vec![("v".into(), "0".into()), ("value".into(), "7".into())],
+                    line: 0,
+                }],
+                line: 0,
+                source: String::new(),
+            },
+        );
+    }
+    let mut throw = hitdef();
+    throw.p1stateno = 800;
+    throw.p2stateno = 4321;
+    throw.p2getp1state = false;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &throw, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_char_id, None);
+    sim.fighters[0].hitdef = None;
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].vars[0], 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -364,9 +364,9 @@ strict: distance must be less than `guard.dist`.
 - On hit, the attacker enters `p1stateno`; the defender enters `p2stateno` and
   is bound with `TargetBind`.
 - `p2getp1state` defaults to `1`: the defender enters P1’s `p2stateno`
-  definition and uses P1’s animation bank. With `0`, the defender enters the
-  same state number using its own state and animation data. Subsequent
-  controller lookup continues to use the defender’s own state map.
+  definition, runs P1’s state controllers, and uses P1’s animation bank until
+  the defender is hit or uses `SelfState`. With `0`, the defender enters the
+  same state number using its own state and animation data.
 - `TargetState`, `TargetLifeAdd`, `TargetVelSet/Add`, and `TargetFacing` operate
   on the bound target.
 - `TargetDrop` clears the binding.

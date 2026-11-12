@@ -730,7 +730,10 @@ impl SimState {
     }
 
     pub fn character(&self, who: usize) -> &Character {
-        &self.assets.characters[self.fighters[who].char_id]
+        let char_id = self.fighters[who]
+            .state_char_id
+            .unwrap_or(self.fighters[who].char_id);
+        &self.assets.characters[char_id]
     }
 
     pub fn other(&self, who: usize) -> usize {
@@ -1236,7 +1239,10 @@ impl SimState {
         paused_only: bool,
     ) -> bool {
         let assets = self.assets.clone();
-        let char = &assets.characters[self.fighters[who].char_id];
+        let char_id = self.fighters[who]
+            .state_char_id
+            .unwrap_or(self.fighters[who].char_id);
+        let char = &assets.characters[char_id];
         let Some(state) = char.state(state_no) else {
             return false;
         };
@@ -1882,6 +1888,8 @@ impl SimState {
             fighter.attack = fighter::AttackState::default();
             fighter.hitdef = None;
             fighter.ctrl_exec.clear();
+            fighter.state_char_id = None;
+            fighter.anim_char_id = None;
             fighter.extra_exec = [Vec::new(), Vec::new(), Vec::new()];
             fighter.pos_freeze = 0;
             fighter.assert_flags = 0;
@@ -2392,6 +2400,7 @@ impl SimState {
             h.write_i32(f.state_time);
             h.write_i32(f.anim_no);
             h.write_u8(f.anim_char_id.map(|id| id as u8 + 1).unwrap_or(0));
+            h.write_u8(f.state_char_id.map(|id| id as u8 + 1).unwrap_or(0));
             h.write_i32(f.anim_clock);
             h.write_i32(f.anim_frame as i32);
             h.write_i32(f.anim_time);

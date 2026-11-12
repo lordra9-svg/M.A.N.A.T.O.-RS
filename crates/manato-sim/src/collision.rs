@@ -453,6 +453,11 @@ pub fn apply_hit_at(
             } else {
                 defender_char
             };
+            sim.fighters[defender].state_char_id = if use_p1_state {
+                Some(attacker_char)
+            } else {
+                None
+            };
             sim.fighters[defender].enter_state(
                 hitdef.p2stateno,
                 &assets.characters[state_char],
@@ -695,6 +700,9 @@ pub fn apply_hit_at(
             }
         }
     }
+
+    sim.fighters[defender].state_char_id = None;
+    sim.fighters[defender].anim_char_id = None;
 
     if !guarding
         && !defender_airborne
