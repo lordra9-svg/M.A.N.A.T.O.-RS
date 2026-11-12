@@ -13,6 +13,16 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | `TBD` | Scope/priority needs approval |
 | `N/A` | Deliberately out of scope |
 
+### Frozen scope decisions
+
+Approved scope is the fight screen plus title/select, `.fnt` v1/v2, explod
+perspective, and Ikemen-only zoom. The following rows are therefore `N/A`
+for manato and must not be implemented without a new scope approval:
+F-12 (storyboards), R-04 (turns/team/tag), R-05 (continue/survival/arcade),
+V-09 (custom shaders), and N-03 (spectators/lobby). X-06 and X-07 are also
+`N/A`: no Ikemen test content is shipped, and the clean-room policy uses
+Ikemen-GO alone as the runtime oracle.
+
 ## 1. Content formats
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
@@ -27,9 +37,9 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo and signed 24-bit conversion |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
-| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards pending |
-| F-12 | Storyboards | Required | Required | Missing | TBD |
-| F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation not implemented |
+| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards are out of scope (F-12) |
+| F-12 | Storyboards | Required | Required | N/A | Out of the approved frozen rendering scope (fight screen + title/select only) |
+| F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation is out of the frozen scope |
 
 ## 2. State machine
 
@@ -96,8 +106,8 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
 | R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw + RoundsWon/LoseKO/LoseTime + timer freeze/clamp |
 | R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay tests; quotes pending |
-| R-04 | Turns/team/tag modes | Required | Ikemen | Missing | TBD |
-| R-05 | Continue/survival/arcade | Required | Required | Missing | TBD |
+| R-04 | Turns/team/tag modes | Required | Ikemen | N/A | Out of the approved frozen scope; single/simul round structure only |
+| R-05 | Continue/survival/arcade | Required | Required | N/A | Out of the approved frozen scope; single-match flow only |
 | R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + `restart_match` API and R-key reset |
 
 ## 7. Rendering
@@ -110,9 +120,9 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Win-icon kind/perfect/cap + combo refresh + delayed fills + guard points/bar rendering with hide-at-zero + guard-crush drain/window; custom guard-break effects pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
-| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards pending |
+| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards are out of scope |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds |
-| V-09 | Custom shaders | N/A | Ikemen | Missing | TBD |
+| V-09 | Custom shaders | N/A | Ikemen | N/A | Out of the approved frozen rendering scope |
 
 ## 8. Audio
 
@@ -134,7 +144,7 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
 | N-02 | P2P input exchange | Required | Required | Partial | Localhost GGRS loopback test; internet/latency matrix pending |
-| N-03 | Spectators/lobby | N/A | Ikemen | Missing | TBD |
+| N-03 | Spectators/lobby | N/A | Ikemen | N/A | Out of the approved frozen scope; two-player rollback only |
 
 ## 10. Acceptance content
 
@@ -145,9 +155,9 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 | X-03 | Stock KFM | Required | Required | Partial | Stock tests |
 | X-04 | Stock Ryu | Required | Required | Partial | Content load |
 | X-05 | Stock stages | Required | Required | Partial | kfm/stage0/stage0-720/stage1 load tests; render oracle pending |
-| X-06 | Ikemen-GO test content | N/A | Required | Missing | TBD |
+| X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
-| X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | Missing | TBD |
+| X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | N/A | Clean-room policy forbids M.U.G.E.N binary analysis; Ikemen-GO is the only oracle |
 | X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification oracle in `docs/oracle/`; other subsystems pending |
 
 ## 11. Proposed rewrite order
