@@ -60,6 +60,7 @@ air.type = High|Low|Trip
 ground.velocity = x, y
 air.velocity = x, y
 down.velocity = x, y
+down.bounce = 0|1
 down.cornerpush.veloff = F
 yaccel = accel
 airguard.velocity = x, y
@@ -130,6 +131,9 @@ applied when a `HitDef` controller omits the parameter:
   allows only the same team.
 - `ground.velocity` and `air.velocity` are `0, 0`.
 - `down.velocity` inherits `air.velocity` when omitted.
+- `down.bounce` defaults to `0`. When `1` and `down.velocity.y` is non-zero,
+  the next fall ground impact rebounds once using `fall.xvelocity` and
+  `fall.yvelocity`; when `0`, those rebound velocities are cleared.
 - `yaccel` defaults to the documented localcoord-dependent value:
   `0.35 * localcoord.width / 320`, which is `.35` at 320x240, `.7` at
   640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
@@ -280,6 +284,9 @@ strict: distance must be less than `guard.dist`.
 - Hitting a grounded lying-down defender requires the `D` hitflag. It uses
   `down.velocity`, enters state `5080`, and otherwise follows the normal
   damage/hitpause rules.
+- A launched downed hit with `down.bounce = 1` rebounds once on its next fall
+  ground impact using the stored fall velocities, then the pending bounce is
+  cleared. `down.bounce = 0` disables the rebound.
 - `mindist`/`maxdist` clamp the defender’s post-hit position relative to the
   attack origin and attacker facing. X bounds apply to every successful
   contact; Y bounds apply to unguarded hits and airborne defenders.

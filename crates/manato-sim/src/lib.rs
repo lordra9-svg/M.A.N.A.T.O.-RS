@@ -1010,6 +1010,7 @@ impl SimState {
                 fighter.fall_defence_mul = 1.0;
                 fighter.hit.vars.fallcount = 0;
                 fighter.hit.vars.fall = false;
+                fighter.hit.down_bounce = false;
             }
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.make_dust_spacing = fighter.make_dust_spacing.saturating_add(1);
@@ -1467,6 +1468,12 @@ impl SimState {
                     diradd: 0.0,
                     decay: 0.0,
                 };
+            }
+            if fighter.hit.down_bounce {
+                fighter.hit.down_bounce = false;
+                if let Some(y) = fighter.hit.vars.fall_y_vel.filter(|y| *y != 0.0) {
+                    fighter.vel = Vec2::new(fighter.hit.vars.fall_x_vel.unwrap_or(0.0), y);
+                }
             }
         }
     }

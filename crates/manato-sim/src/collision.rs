@@ -599,6 +599,13 @@ pub fn apply_hit_at(
         f.hit.vars.fall_damage = hitdef.fall_damage;
         f.hit.vars.fall_x_vel = Some(hitdef.fall_xvel * -(attacker_facing as f32));
         f.hit.vars.fall_y_vel = Some(hitdef.fall_yvel);
+        let down_launch =
+            !guarding && defender_state_type == StateType::Liedown && hitdef.down_velocity.y != 0.0;
+        f.hit.down_bounce = down_launch && hitdef.down_bounce;
+        if down_launch && !hitdef.down_bounce {
+            f.hit.vars.fall_x_vel = None;
+            f.hit.vars.fall_y_vel = Some(0.0);
+        }
         f.hit.vars.damage = damage;
         f.hit.vars.guarded = guarding;
         f.hit.vars.hitcount += 1;

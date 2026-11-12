@@ -3562,6 +3562,98 @@ fn hitdef_chainid_and_nochainid_gate_hits() {
 }
 
 #[test]
+fn hitdef_down_bounce_rebounds_once_on_ground_impact() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert!(!default.down_bounce);
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("down.bounce".into(), "1".into()),
+        ],
+    );
+    assert!(parsed.down_bounce);
+
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(0.0, -8.0);
+    hit.fall_xvel = 3.0;
+    hit.fall_yvel = -5.0;
+    hit.down_bounce = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 0.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert!(sim.fighters[1].hit.down_bounce);
+    assert_eq!(sim.fighters[1].hit.vars.fall_x_vel, Some(-3.0));
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(-5.0));
+
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::Air;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Hit;
+    sim.fighters[1].pos.y = 25.0;
+    sim.fighters[1].vel = manato_core::Vec2::new(0.0, 10.0);
+    sim.fighters[0].hitdef = None;
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].vel, manato_core::Vec2::new(-3.0, -5.0));
+    assert!(!sim.fighters[1].hit.down_bounce);
+
+    // down.bounce = 0 clears the fall rebound velocities.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(0.0, -8.0);
+    hit.fall_xvel = 3.0;
+    hit.fall_yvel = -5.0;
+    hit.down_bounce = false;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 0.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert!(!sim.fighters[1].hit.down_bounce);
+    assert_eq!(sim.fighters[1].hit.vars.fall_x_vel, None);
+    assert_eq!(sim.fighters[1].hit.vars.fall_y_vel, Some(0.0));
+    sim.fighters[1].state_no = 5030;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].physics = manato_sim::fighter::Physics::Air;
+    sim.fighters[1].pos.y = 25.0;
+    sim.fighters[1].vel = manato_core::Vec2::new(0.0, 10.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].vel.y, 0.0);
+
+    // down.bounce is ignored when down.velocity has no Y component.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(-4.0, 0.0);
+    hit.down_bounce = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(20.0, 0.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert!(!sim.fighters[1].hit.down_bounce);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
