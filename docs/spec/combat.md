@@ -87,6 +87,9 @@ fall.recover = 0|1
 fall.time = N
 fall.recovertime = N
 fall.kill = 0|1
+palfx.time = N
+palfx.mul = r, g, b
+palfx.add = r, g, b
 envshake.time = N
 envshake.freq = F
 envshake.ampl = N
@@ -132,6 +135,8 @@ applied when a `HitDef` controller omits the parameter:
   KO'ing.
 - `kill` and `guard.kill` are `1`; when `0`, a normal or guarded hit
   respectively clamps life at `1` instead of KO'ing.
+- `palfx.time` is `0` (disabled), `palfx.mul` is `1,1,1`, and `palfx.add` is
+  `0,0,0`.
 - `envshake.time` is `0` (disabled), `envshake.freq` is `60`, and
   `envshake.ampl` is `-4`. `envshake.phase` defaults to the EnvShake rule:
   `90` when the frequency is at least `90`, otherwise `0`.
@@ -265,6 +270,9 @@ strict: distance must be less than `guard.dist`.
   state `5110`. Guarded contacts leave an existing value unchanged.
   Button-accelerated fast recovery is not modeled yet.
 - `GetHitVar(fall.kill)` reports whether fall damage may KO (`1`/`0`).
+- A HitDef `palfx.time` above zero replaces the defender’s palette effect
+  with `palfx.add`/`palfx.mul` for that many ticks on any successful contact,
+  guarded or unguarded. `palfx.time = 0` leaves an existing effect untouched.
 - A HitDef `envshake.time` above zero starts the screen shake on any
   successful contact, guarded or unguarded, using its explicit
   freq/ampl/phase. It overrides the generic heavy-hit camera kick.

@@ -182,6 +182,10 @@ pub struct HitDef {
     pub fall_envshake_ampl: i32,
     /// `NaN` means "derive the phase from the frequency".
     pub fall_envshake_phase: f32,
+    /// Successful-hit target palette effect (`palfx.*`).
+    pub palfx_time: i32,
+    pub palfx_mul: [f32; 3],
+    pub palfx_add: [f32; 3],
     /// Successful-hit screen shake (`envshake.*`).
     pub envshake_time: i32,
     pub envshake_freq: f32,
@@ -265,6 +269,9 @@ impl Default for HitDef {
             envshake_freq: 60.0,
             envshake_ampl: -4,
             envshake_phase: f32::NAN,
+            palfx_time: 0,
+            palfx_mul: [1.0; 3],
+            palfx_add: [0.0; 3],
             fall_damage: 0,
             fall_xvel: 0.0,
             fall_yvel: 0.0,
@@ -418,6 +425,9 @@ impl HitDef {
                 "envshake.freq" => h.envshake_freq = parse_f32(value).max(0.0),
                 "envshake.ampl" => h.envshake_ampl = parse_i32(value),
                 "envshake.phase" => h.envshake_phase = parse_f32(value),
+                "palfx.time" => h.palfx_time = parse_i32(value),
+                "palfx.mul" => h.palfx_mul = parse_triplet(value),
+                "palfx.add" => h.palfx_add = parse_triplet(value),
                 "fall.damage" => h.fall_damage = parse_i32(value),
                 "fall.xvelocity" => h.fall_xvel = parse_f32(value),
                 "fall.yvelocity" => h.fall_yvel = parse_f32(value),
@@ -736,6 +746,15 @@ fn parse_pair(s: &str) -> (f32, f32) {
 fn parse_vec(s: &str) -> Vec2 {
     let (x, y) = parse_pair(s);
     Vec2::new(x, y)
+}
+
+fn parse_triplet(s: &str) -> [f32; 3] {
+    let mut it = s.split(',');
+    [
+        it.next().unwrap_or("0").trim().parse().unwrap_or(0.0),
+        it.next().unwrap_or("0").trim().parse().unwrap_or(0.0),
+        it.next().unwrap_or("0").trim().parse().unwrap_or(0.0),
+    ]
 }
 
 #[cfg(test)]

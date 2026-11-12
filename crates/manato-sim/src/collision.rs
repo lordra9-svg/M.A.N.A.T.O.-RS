@@ -578,6 +578,16 @@ pub fn apply_hit_at(
         f.ctrl = false;
         f.attack = Default::default();
         f.hitdef = None;
+        if hitdef.palfx_time > 0 {
+            f.pal_add = hitdef.palfx_add;
+            f.pal_base_add = hitdef.palfx_add;
+            f.pal_sinadd = [0.0; 3];
+            f.pal_sin_period = 0;
+            f.pal_cycle = 0;
+            f.pal_mul = hitdef.palfx_mul;
+            f.pal_alpha = 1.0;
+            f.pal_time = hitdef.palfx_time;
+        }
     }
 
     if !guarding

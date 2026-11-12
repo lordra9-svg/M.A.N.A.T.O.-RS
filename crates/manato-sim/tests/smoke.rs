@@ -2971,6 +2971,84 @@ fn hitdef_envshake_applies_on_successful_hits() {
 }
 
 #[test]
+fn hitdef_palfx_applies_to_target() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert_eq!(default.palfx_time, 0);
+    assert_eq!(default.palfx_mul, [1.0; 3]);
+    assert_eq!(default.palfx_add, [0.0; 3]);
+
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("palfx.time".into(), "6".into()),
+            ("palfx.mul".into(), "0.5, 1, 0.25".into()),
+            ("palfx.add".into(), "32, 0, 8".into()),
+        ],
+    );
+    assert_eq!(parsed.palfx_time, 6);
+    assert_eq!(parsed.palfx_mul, [0.5, 1.0, 0.25]);
+    assert_eq!(parsed.palfx_add, [32.0, 0.0, 8.0]);
+
+    // Successful unguarded hit tints the defender.
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pal_time, 6);
+    assert_eq!(sim.fighters[1].pal_mul, [0.5, 1.0, 0.25]);
+    assert_eq!(sim.fighters[1].pal_add, [32.0, 0.0, 8.0]);
+    assert_eq!(sim.fighters[1].pal_base_add, [32.0, 0.0, 8.0]);
+    assert_eq!(sim.fighters[1].pal_alpha, 1.0);
+
+    // Guarded contacts also apply the target palette effect.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("palfx.time".into(), "6".into()),
+            ("palfx.mul".into(), "0.5, 1, 0.25".into()),
+            ("palfx.add".into(), "32, 0, 8".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].pal_time, 6);
+    assert_eq!(sim.fighters[1].pal_mul, [0.5, 1.0, 0.25]);
+
+    // palfx.time = 0 leaves an existing effect untouched.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].pal_time = 3;
+    sim.fighters[1].pal_mul = [0.9, 0.9, 0.9];
+    let mut hit = hitdef();
+    hit.palfx_time = 0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pal_time, 3);
+    assert_eq!(sim.fighters[1].pal_mul, [0.9, 0.9, 0.9]);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
