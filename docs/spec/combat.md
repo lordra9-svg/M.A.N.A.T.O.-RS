@@ -216,6 +216,8 @@ applied when a `HitDef` controller omits the parameter:
   omitted `p1sprpriority` still draws the attacker in front. This follows the
   public HitDef reference; Ikemen leaves the omitted value unchanged instead.
   Projectile contacts apply only the defender's priority.
+- `hitonce` defaults to `0`, except when the `attr` class contains `T`
+  (throw), where it defaults to `1`.
 - `id` defaults to `0` and is reported as `GetHitVar(hitid)`. `chainid`
   defaults to `-1` and is recorded as `GetHitVar(chainid)`.
 - `nochainid` defaults to `-1, -1` (no blocked chain IDs).

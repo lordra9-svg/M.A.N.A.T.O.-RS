@@ -4858,6 +4858,43 @@ fn hitdef_animtype_air_and_fall_inheritance_and_selection() {
 }
 
 #[test]
+fn hitdef_hitonce_defaults_on_for_throw_attr() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let throw = parse(&mut sim, vec![("attr".into(), "S, NT".into())]);
+    assert!(throw.hitonce, "throw attributes default hitonce to 1");
+    let normal = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert!(!normal.hitonce);
+    let explicit_off = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NT".into()),
+            ("hitonce".into(), "0".into()),
+        ],
+    );
+    assert!(!explicit_off.hitonce, "an explicit value wins");
+    let explicit_on = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("hitonce".into(), "1".into()),
+        ],
+    );
+    assert!(explicit_on.hitonce);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

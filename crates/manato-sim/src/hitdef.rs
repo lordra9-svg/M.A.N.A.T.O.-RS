@@ -416,6 +416,7 @@ impl HitDef {
             ..Self::default()
         };
         let mut air_type_set = false;
+        let mut hitonce_set = false;
         let mut air_anim_type_set = false;
         let mut fall_anim_type_set = false;
         let mut airguard_velocity_set = false;
@@ -517,7 +518,10 @@ impl HitDef {
                 "sparkxy" => h.sparkxy = parse_vec(value),
                 "hitsound" => h.hitsound = parse_sound_pair(value),
                 "guardsound" => h.guardsound = parse_sound_pair(value),
-                "hitonce" => h.hitonce = parse_i32(value) != 0,
+                "hitonce" => {
+                    h.hitonce = parse_i32(value) != 0;
+                    hitonce_set = true;
+                }
                 "kill" => h.kill = parse_i32(value) != 0,
                 "guard.kill" => h.guard_kill = parse_i32(value) != 0,
                 "fall" => h.fall = parse_i32(value) != 0,
@@ -626,6 +630,10 @@ impl HitDef {
         // follows ground.hittime, and guard.slidetime follows guard.hittime.
         if !air_type_set {
             h.air_type = h.ground_type;
+        }
+        // Throw attributes make `hitonce` default on.
+        if !hitonce_set {
+            h.hitonce = h.attr.class.contains('T');
         }
         // air.animtype inherits animtype; fall.animtype becomes Up/DiagUp when
         // the air type is Up/DiagUp and Back otherwise.
