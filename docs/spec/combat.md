@@ -298,6 +298,10 @@ Each guarded hit also starts a 60-tick regeneration cooldown. Once the
 cooldown expires and the crush window is over, guard points regenerate by `2`
 per tick up to the maximum.
 
+`GuardPointsAdd`/`GuardPointsSet` controllers let content change the meter.
+Both clamp to `0..guard_max`; additions scale by final defence unless
+`absolute = 1`, and both are no-ops when the character has no guard maximum.
+
 This is an explicit engine decision, not a full Ikemen guard-break port:
 custom guard-break animations, glass/shockwave effects, the dedicated
 guard-break state pair, and dizzy/guard-crush extensions are not modeled.

@@ -96,6 +96,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].power = clamp(value, 0.0, MAX_POWER);
         }
         "lifeadd" => life_add(sim, who, control),
+        "guardpointsadd" => guard_points_add(sim, who, control),
+        "guardpointsset" => guard_points_set(sim, who, control),
         "lifeset" => life_set(sim, who, control),
         "hitadd" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
@@ -695,6 +697,30 @@ fn life_set(sim: &mut SimState, who: usize, control: &Controller) {
     if !kill && fighter.life <= 0 {
         fighter.life = 1;
     }
+}
+
+fn guard_points_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
+    let fighter = &mut sim.fighters[who];
+    if fighter.guard_max <= 0 || value == 0 {
+        return;
+    }
+    let add = if absolute {
+        value as f32
+    } else {
+        value as f32 / fighter.defence_mul.max(0.01)
+    };
+    fighter.guard_points = (fighter.guard_points + add.round() as i32).clamp(0, fighter.guard_max);
+}
+
+fn guard_points_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let fighter = &mut sim.fighters[who];
+    if fighter.guard_max <= 0 {
+        return;
+    }
+    fighter.guard_points = value.clamp(0, fighter.guard_max);
 }
 
 fn target_power_add(sim: &mut SimState, who: usize, control: &Controller) {

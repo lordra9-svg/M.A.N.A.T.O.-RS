@@ -4327,6 +4327,76 @@ fn guard_points_regenerate_after_cooldown() {
 }
 
 #[test]
+fn guard_point_controllers_add_and_set() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 50;
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 1, &control, &assets);
+    };
+    run(
+        &mut sim,
+        "guardpointsset",
+        vec![("value".into(), "75".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 75);
+    run(
+        &mut sim,
+        "guardpointsset",
+        vec![("value".into(), "200".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 100);
+    run(
+        &mut sim,
+        "guardpointsset",
+        vec![("value".into(), "-5".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 0);
+
+    run(
+        &mut sim,
+        "guardpointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 10);
+
+    // Non-absolute additions scale by final defence.
+    sim.fighters[1].defence_mul = 2.0;
+    run(
+        &mut sim,
+        "guardpointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 15);
+    run(
+        &mut sim,
+        "guardpointsadd",
+        vec![
+            ("value".into(), "10".into()),
+            ("absolute".into(), "1".into()),
+        ],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 25);
+
+    // No guard meter means no effect.
+    sim.fighters[1].guard_max = 0;
+    run(
+        &mut sim,
+        "guardpointsset",
+        vec![("value".into(), "50".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 25);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -103,6 +103,7 @@ Required controller families for the approved matrix:
   `TargetPowerAdd`, `TargetVelSet`, `TargetVelAdd`
 - `Pause`, `SuperPause`
 - `EnvShake`, `FallEnvShake`
+- `GuardPointsAdd`, `GuardPointsSet`
 
 ### 4.3 Presentation and audio
 
@@ -169,7 +170,8 @@ missing redirect targets make the trigger false.
 - State: `StateNo`, `PrevStateNo`, `StateType`, `MoveType`, `Ctrl`, `Physics`
 - Combat: `Alive`, `Life`, `LifeMax`, `Power`, `GetHitVar`, `HitOver`,
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
-  `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`
+  `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,
+  `GuardBreak`, `GuardPoints`, `GuardPointsMax`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`
