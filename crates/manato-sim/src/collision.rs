@@ -475,9 +475,8 @@ pub fn apply_hit_at(
                 None
             };
         }
-        if hitdef.p1sprpriority_set {
-            sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
-        }
+        // The documented default is 1, so apply it even when omitted.
+        sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
         sim.fighters[defender].sprite_priority = hitdef.p2sprpriority;
         sim.fighters[attacker].target = Some(defender);
         sim.fighters[attacker].hit.hit_targets.push(defender);
@@ -584,7 +583,7 @@ pub fn apply_hit_at(
         hitdef.pausetime
     };
 
-    if from_fighter && hitdef.p1sprpriority_set {
+    if from_fighter {
         sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
     }
     let mut guard_crushed = false;

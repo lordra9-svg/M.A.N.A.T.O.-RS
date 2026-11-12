@@ -211,6 +211,11 @@ applied when a `HitDef` controller omits the parameter:
 - `p1stateno`/`p2stateno` default to `-1` (no state change).
   `p2getp1state` defaults to `1` when `p2stateno` is used; `0` keeps the
   defender's own state and animation data.
+- `p1sprpriority` defaults to `1` and `p2sprpriority` to `0`. Both are applied
+  on every successful melee contact, including guarded contacts, so an
+  omitted `p1sprpriority` still draws the attacker in front. This follows the
+  public HitDef reference; Ikemen leaves the omitted value unchanged instead.
+  Projectile contacts apply only the defender's priority.
 - `id` defaults to `0` and is reported as `GetHitVar(hitid)`. `chainid`
   defaults to `-1` and is recorded as `GetHitVar(chainid)`.
 - `nochainid` defaults to `-1, -1` (no blocked chain IDs).

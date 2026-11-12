@@ -14313,8 +14313,8 @@ fn p2sprpriority_applies_to_hits_and_projectiles() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
     assert_eq!(sim.fighters[1].sprite_priority, 4);
     assert_eq!(
-        sim.fighters[0].sprite_priority, 0,
-        "p1 untouched when unset"
+        sim.fighters[0].sprite_priority, 1,
+        "p1 defaults to the documented priority of 1"
     );
 
     let Some(mut sim) = fight_phase() else {
@@ -14368,6 +14368,18 @@ fn p2sprpriority_applies_to_hits_and_projectiles() {
     let hitdef = sim.fighters[0].hitdef.clone().expect("hitdef");
     assert!(hitdef.p1sprpriority_set);
     assert!(!hitdef.p2sprpriority_set);
+
+    // Omitting the parameter keeps the documented default of 1.
+    let default = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![("attr".into(), "S, NA".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &default, &assets);
+    let hitdef = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(hitdef.p1sprpriority, 1);
+    assert!(!hitdef.p1sprpriority_set);
+    assert_eq!(hitdef.p2sprpriority, 0);
 }
 
 #[test]
