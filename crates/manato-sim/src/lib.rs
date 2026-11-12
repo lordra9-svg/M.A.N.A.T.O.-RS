@@ -1003,7 +1003,11 @@ impl SimState {
             }
             fighter.hit.hit_over_timer = (fighter.hit.hit_over_timer - 1).max(0);
             if fighter.state_no == 5110 && fighter.hit.vars.down_recovertime > 0 {
-                fighter.hit.vars.down_recovertime -= 1;
+                let fast = fighter.hit.vars.down_recover
+                    && fighter.held_input().buttons & manato_core::Buttons::ALL != 0;
+                let step = if fast { 2 } else { 1 };
+                fighter.hit.vars.down_recovertime =
+                    (fighter.hit.vars.down_recovertime - step).max(0);
             }
             // Leaving hitstun ends the combo the attacker was building
             // (`docs/spec/render.md` §6.8).

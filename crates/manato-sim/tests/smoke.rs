@@ -3919,6 +3919,86 @@ fn p2_state_override_clears_on_selfstate_and_get_hit() {
 }
 
 #[test]
+fn hitdef_down_recover_and_recovertime_semantics() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert!(default.down_recover);
+    assert_eq!(default.down_recovertime, -1);
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("down.recover".into(), "0".into()),
+            ("down.recovertime".into(), "15".into()),
+        ],
+    );
+    assert!(!parsed.down_recover);
+    assert_eq!(parsed.down_recovertime, 15);
+
+    // Defaults seed from data.liedown.time and expose both GetHitVars.
+    let mut hit = hitdef();
+    hit.damage = 10;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(recovertime)"),
+        60
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(down.recovertime)"),
+        60
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(down.recover)"),
+        1
+    );
+
+    // A downed defender cannot have recovery time increased by a later hit.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].hit.vars.down_recovertime = 10;
+    let mut hit = hitdef();
+    hit.down_recovertime = 20;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.down_recovertime, 10);
+    hit.down_recovertime = 5;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.down_recovertime, 5);
+
+    // Buttons accelerate the countdown only when down.recover is enabled.
+    let recover = |sim: &mut SimState, recover: bool| {
+        sim.fighters[1].state_no = 5110;
+        sim.fighters[1].state_time = 1;
+        sim.fighters[1].move_type = manato_sim::fighter::MoveType::Hit;
+        sim.fighters[1].hit.vars.down_recover = recover;
+        sim.fighters[1].hit.vars.down_recovertime = 10;
+        sim.tick([
+            PlayerInput::default(),
+            PlayerInput::new(0, manato_core::Buttons::X),
+        ]);
+        sim.fighters[1].hit.vars.down_recovertime
+    };
+    assert_eq!(recover(&mut sim, true), 8);
+    assert_eq!(recover(&mut sim, false), 9);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

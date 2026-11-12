@@ -61,6 +61,8 @@ ground.velocity = x, y
 air.velocity = x, y
 down.velocity = x, y
 down.hittime = N
+down.recover = 0|1
+down.recovertime = N
 down.bounce = 0|1
 down.cornerpush.veloff = F
 yaccel = accel
@@ -141,6 +143,9 @@ applied when a `HitDef` controller omits the parameter:
 - `down.hittime` defaults to `20` (the engine’s oracle-compatible value; the
   public reference does not state a default). It applies only when
   `down.velocity.y` is zero.
+- `down.recover` defaults to `1`. `down.recovertime` defaults to `-1`, which
+  uses `data.liedown.time`. A later hit cannot increase an existing downed
+  recovery time; it can only reduce it.
 - `yaccel` defaults to the documented localcoord-dependent value:
   `0.35 * localcoord.width / 320`, which is `.35` at 320x240, `.7` at
   640x480, and `1.4` at 1280x720. An explicit `yaccel` overrides it.
@@ -322,11 +327,14 @@ strict: distance must be less than `guard.dist`.
   the defender remains in hitstun and resets when hitstun ends.
 - `GetHitVar(fall.recovertime)` returns the HitDef’s
   `fall.recovertime` value (`4` by default).
-- `GetHitVar(recovertime)` returns the remaining liedown recovery time. An
-  unguarded hit seeds it from the defender’s `data.liedown.time` constant
+- `GetHitVar(recovertime)` and `GetHitVar(down.recovertime)` return the
+  remaining liedown recovery time. An unguarded hit seeds it from the
+  HitDef’s `down.recovertime` or the defender’s `data.liedown.time` constant
   (`60` by default); it counts down once per tick while the defender is in
-  state `5110`. Guarded contacts leave an existing value unchanged.
-  Button-accelerated fast recovery is not modeled yet.
+  state `5110`. When `down.recover` is enabled, holding a button advances the
+  countdown by one extra tick. Guarded contacts leave an existing value
+  unchanged.
+- `GetHitVar(down.recover)` reports whether fast liedown recovery is allowed.
 - `GetHitVar(fall.kill)` reports whether fall damage may KO (`1`/`0`).
 - A HitDef `palfx.time` above zero replaces the defender’s palette effect
   with `palfx.add`/`palfx.mul` for that many ticks on any successful contact,

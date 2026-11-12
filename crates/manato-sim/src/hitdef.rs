@@ -160,6 +160,10 @@ pub struct HitDef {
     pub down_bounce: bool,
     /// Slide time for a grounded downed hit (`down.hittime`).
     pub down_hittime: i32,
+    /// Whether the defender may recover from liedown (`down.recover`).
+    pub down_recover: bool,
+    /// Explicit liedown recovery time; `-1` uses `data.liedown.time`.
+    pub down_recovertime: i32,
     /// Vertical acceleration imparted to the defender (`yaccel`).
     pub yaccel: f32,
     /// `guard.velocity`; falls back to `ground.velocity` when absent.
@@ -288,6 +292,8 @@ impl Default for HitDef {
             down_velocity: Vec2::ZERO,
             down_bounce: false,
             down_hittime: 20,
+            down_recover: true,
+            down_recovertime: -1,
             yaccel: 0.35,
             guard_velocity: None,
             airguard_velocity: Vec2::ZERO,
@@ -432,6 +438,8 @@ impl HitDef {
                 }
                 "down.bounce" => h.down_bounce = parse_i32(value) != 0,
                 "down.hittime" => h.down_hittime = parse_i32(value),
+                "down.recover" => h.down_recover = parse_i32(value) != 0,
+                "down.recovertime" => h.down_recovertime = parse_i32(value),
                 "yaccel" => h.yaccel = parse_f32(value),
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
                 "airguard.velocity" => {
@@ -676,6 +684,8 @@ pub struct GetHitVars {
     pub fall_recovertime: i32,
     /// Remaining liedown recovery time (`GetHitVar(recovertime)`).
     pub down_recovertime: i32,
+    /// Whether liedown recovery is allowed (`GetHitVar(down.recover)`).
+    pub down_recover: bool,
     /// Whether fall damage may KO (`GetHitVar(fall.kill)`).
     pub fall_kill: bool,
     /// Fall-impact screen shake (`GetHitVar(fall.envshake.*)`).
@@ -717,6 +727,7 @@ impl Default for GetHitVars {
             fall_time: 0,
             fall_recovertime: 4,
             down_recovertime: 0,
+            down_recover: true,
             fall_kill: true,
             fall_envshake_time: 0,
             fall_envshake_freq: 60.0,
@@ -755,6 +766,8 @@ impl GetHitVars {
             "fall.time" => Value::Int(self.fall_time),
             "fall.recovertime" => Value::Int(self.fall_recovertime),
             "recovertime" => Value::Int(self.down_recovertime),
+            "down.recovertime" => Value::Int(self.down_recovertime),
+            "down.recover" => Value::Int(self.down_recover as i32),
             "fall.kill" => Value::Int(self.fall_kill as i32),
             "fall.envshake.time" => Value::Int(self.fall_envshake_time),
             "fall.envshake.freq" => Value::Float(self.fall_envshake_freq),

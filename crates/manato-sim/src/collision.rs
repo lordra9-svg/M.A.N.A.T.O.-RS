@@ -614,7 +614,15 @@ pub fn apply_hit_at(
         f.hit.vars.fall_time = hitdef.fall_time;
         f.hit.vars.fall_recovertime = hitdef.fall_recovertime;
         if !guarding {
-            f.hit.vars.down_recovertime = liedown_time;
+            f.hit.vars.down_recover = hitdef.down_recover;
+            let target = if hitdef.down_recovertime >= 0 {
+                hitdef.down_recovertime
+            } else {
+                liedown_time
+            };
+            if f.hit.vars.down_recovertime > target || defender_state_type != StateType::Liedown {
+                f.hit.vars.down_recovertime = target.max(0);
+            }
             f.hit.vars.fall_kill = hitdef.fall_kill;
             f.hit.vars.fall_envshake_time = hitdef.fall_envshake_time;
             f.hit.vars.fall_envshake_freq = hitdef.fall_envshake_freq;
