@@ -192,6 +192,8 @@ pub struct Fighter {
     /// Guard points and their maximum; 0 means no guard bar.
     pub guard_points: i32,
     pub guard_max: i32,
+    /// Remaining ticks of the guard-crush no-guard window.
+    pub guard_crush_timer: i32,
     pub power: f32,
     pub defence_mul: f32,
     pub attack_mul: f32,
@@ -326,6 +328,7 @@ impl Fighter {
             life_max: life,
             guard_points: guard_max,
             guard_max,
+            guard_crush_timer: 0,
             power: 0.0,
             defence_mul: 1.0,
             attack_mul: 1.0,

@@ -286,6 +286,20 @@ within that HitDef’s `guard.dist`, or when one of the opponent’s active
 projectiles is within its own projectile `guard.dist`. The comparison is
 strict: distance must be less than `guard.dist`.
 
+### 6.1 Guard crush
+
+Guard points depleting from a positive value to zero on a guarded hit triggers
+a guard crush. The defender immediately enters the normal grounded/crouching/
+air hit reaction instead of a guard state, loses the current guard, and cannot
+guard again for 20 ticks. When that window expires, guard points reset to
+their maximum.
+
+This is an explicit engine decision, not a full Ikemen guard-break port:
+custom guard-break animations, glass/shockwave effects, the dedicated
+guard-break state pair, and dizzy/guard-crush extensions are not modeled.
+Content can observe the state through `GuardBreak`, `GuardPoints`, and
+`GuardPointsMax`.
+
 ## 7. Hit reaction
 
 - Damage = base damage × attacker `attack_mul` × defender `defence_mul`.

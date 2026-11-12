@@ -4231,6 +4231,61 @@ fn hitdef_forcecrouch_forces_crouching_reaction() {
 }
 
 #[test]
+fn guard_crush_triggers_and_blocks_guarding() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 5;
+    let mut hit = hitdef();
+    hit.guard_damage = 10;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_points, 0);
+    assert_eq!(sim.fighters[1].guard_crush_timer, 20);
+    assert!(!sim.fighters[1].hit.guarding);
+    assert_eq!(sim.fighters[1].state_no, 5000);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GuardBreak"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GuardPoints"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GuardPointsMax"), 100);
+
+    // The no-guard window restores guard points when it expires.
+    sim.fighters[1].guard_crush_timer = 1;
+    sim.fighters[1].guard_points = 0;
+    sim.fighters[0].hitdef = None;
+    sim.fighters[0].hit.hit_targets.clear();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].guard_crush_timer, 0);
+    assert_eq!(sim.fighters[1].guard_points, 100);
+
+    // While the crush timer is active, held-back input cannot guard.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 100;
+    sim.fighters[1].guard_crush_timer = 20;
+    sim.fighters[1].enter_state(0, &assets.characters[1], false);
+    sim.fighters[1].append_input(PlayerInput::new(manato_core::DIR_RIGHT, 0), 0);
+    sim.fighters[1].pos = manato_core::Vec2::new(10.0, 0.0);
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    let mut hit = hitdef();
+    hit.damage = 10;
+    hit.guardflag = "MA".into();
+    sim.fighters[0].hitdef = Some(hit);
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, life - 10);
+    assert!(!sim.fighters[1].hit.guarding);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

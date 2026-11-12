@@ -208,6 +208,9 @@ fn can_guard(sim: &SimState, defender: usize, hitdef: &HitDef, origin: Vec2) -> 
     if f.move_type == MoveType::Hit || f.state_no >= 5000 {
         return false;
     }
+    if f.guard_crush_timer > 0 {
+        return false;
+    }
     let dx = (origin.x - f.pos.x).abs();
     if dx >= hitdef.guard_dist as f32 {
         return false;
@@ -581,6 +584,7 @@ pub fn apply_hit_at(
     if from_fighter && hitdef.p1sprpriority_set {
         sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
     }
+    let mut guard_crushed = false;
     {
         let f = &mut sim.fighters[defender];
         f.sprite_priority = hitdef.p2sprpriority;
@@ -661,7 +665,12 @@ pub fn apply_hit_at(
             next_life.max(1)
         };
         if guarding && f.guard_max > 0 {
+            let before = f.guard_points;
             f.guard_points = (f.guard_points - damage).max(0);
+            if before > 0 && f.guard_points == 0 {
+                f.guard_crush_timer = 20;
+                guard_crushed = true;
+            }
         }
         if !guarding {
             f.received_hits = f.received_hits.saturating_add(hitdef.numhits.max(1));
@@ -680,6 +689,9 @@ pub fn apply_hit_at(
             f.pal_alpha = 1.0;
             f.pal_time = hitdef.palfx_time;
         }
+    }
+    if guard_crushed {
+        sim.fighters[defender].hit.guarding = false;
     }
 
     let (getpower, givepower) = if guarding {
@@ -742,7 +754,7 @@ pub fn apply_hit_at(
     }
 
     let char = &sim.assets.characters[sim.fighters[defender].char_id];
-    let mut new_state = if guarding {
+    let mut new_state = if guarding && !guard_crushed {
         match defender_state_type {
             StateType::Air => 154,
             StateType::Crouch => 152,
