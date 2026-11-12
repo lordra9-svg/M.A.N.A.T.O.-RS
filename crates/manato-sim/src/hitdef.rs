@@ -230,6 +230,8 @@ pub struct HitDef {
     pub id: i32,
     /// Chain identifier recorded in `GetHitVar(chainid)`.
     pub chainid: i32,
+    /// Up to two hit IDs that cannot chain into this hit (`nochainID`).
+    pub nochainid: [i32; 2],
     pub numhits: i32,
     pub p1stateno: i32,
     pub p2stateno: i32,
@@ -327,6 +329,7 @@ impl Default for HitDef {
             priority_type: PriorityType::Hit,
             id: 0,
             chainid: -1,
+            nochainid: [-1, -1],
             numhits: 1,
             p1stateno: -1,
             p2stateno: -1,
@@ -508,6 +511,15 @@ impl HitDef {
                 "numhits" | "hits" => h.numhits = parse_i32(value).max(1),
                 "id" => h.id = parse_i32(value).max(0),
                 "chainid" => h.chainid = parse_i32(value),
+                "nochainid" => {
+                    let mut parts = value.split(',');
+                    for slot in &mut h.nochainid {
+                        *slot = parts
+                            .next()
+                            .and_then(|part| part.trim().parse().ok())
+                            .unwrap_or(-1);
+                    }
+                }
                 "p1stateno" => h.p1stateno = parse_i32(value),
                 "p2stateno" => h.p2stateno = parse_i32(value),
                 "p1facing" => h.p1facing = parse_i32(value),

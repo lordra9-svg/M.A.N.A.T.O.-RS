@@ -3452,6 +3452,116 @@ fn hitdef_affectteam_filters_melee_and_projectile_hits() {
 }
 
 #[test]
+fn hitdef_chainid_and_nochainid_gate_hits() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert_eq!(default.nochainid, [-1, -1]);
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("chainid".into(), "5".into()),
+            ("nochainid".into(), "3, 4".into()),
+        ],
+    );
+    assert_eq!(parsed.chainid, 5);
+    assert_eq!(parsed.nochainid, [3, 4]);
+    let single = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("nochainid".into(), "3".into()),
+        ],
+    );
+    assert_eq!(single.nochainid, [3, -1]);
+
+    let melee = |sim: &mut SimState,
+                 chainid: i32,
+                 nochainid: [i32; 2],
+                 hit_id: i32,
+                 in_hit: bool|
+     -> bool {
+        sim.fighters[1].enter_state(0, &assets.characters[1], false);
+        sim.fighters[1].life = sim.fighters[1].life_max;
+        sim.fighters[1].hit.vars.hit_id = hit_id;
+        sim.fighters[1].move_type = if in_hit {
+            manato_sim::fighter::MoveType::Hit
+        } else {
+            manato_sim::fighter::MoveType::Idle
+        };
+        sim.fighters[1].pos = manato_core::Vec2::new(10.0, 0.0);
+        sim.fighters[1].facing = -1;
+        sim.fighters[0].hitdef = None;
+        sim.fighters[0].hit.hit_targets.clear();
+        sim.fighters[0].hit.hit_counts.clear();
+        sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+        sim.fighters[0].facing = 1;
+        sim.fighters[0].enter_state(200, &assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+        let mut hit = hitdef();
+        hit.damage = 10;
+        hit.chainid = chainid;
+        hit.nochainid = nochainid;
+        sim.fighters[0].hitdef = Some(hit);
+        manato_sim::collision::resolve(sim);
+        sim.fighters[1].life < sim.fighters[1].life_max
+    };
+    assert!(melee(&mut sim, -1, [-1, -1], 0, false));
+    assert!(melee(&mut sim, 5, [-1, -1], 5, false));
+    assert!(!melee(&mut sim, 5, [-1, -1], 6, false));
+    assert!(!melee(&mut sim, -1, [5, -1], 5, true));
+    assert!(melee(&mut sim, -1, [5, -1], 5, false));
+    assert!(melee(&mut sim, -1, [5, -1], 6, true));
+
+    let projectile =
+        |sim: &mut SimState, chainid: i32, nochainid: &str, hit_id: i32, in_hit: bool| -> bool {
+            sim.projectiles.clear();
+            sim.fighters[1].enter_state(0, &assets.characters[1], false);
+            sim.fighters[1].life = sim.fighters[1].life_max;
+            sim.fighters[1].hit.vars.hit_id = hit_id;
+            sim.fighters[1].move_type = if in_hit {
+                manato_sim::fighter::MoveType::Hit
+            } else {
+                manato_sim::fighter::MoveType::Idle
+            };
+            let control = manato_formats::Controller {
+                kind: "projectile".into(),
+                params: vec![
+                    ("projanim".into(), "1500".into()),
+                    ("velocity".into(), "0, 0".into()),
+                    ("removetime".into(), "60".into()),
+                    ("damage".into(), "10".into()),
+                    ("chainid".into(), chainid.to_string()),
+                    ("nochainid".into(), nochainid.into()),
+                ],
+                line: 0,
+            };
+            manato_sim::controller::execute(sim, 0, &control, &assets);
+            if let Some(shot) = sim.projectiles.last_mut() {
+                shot.pos = sim.fighters[1].pos;
+            }
+            manato_sim::collision::resolve_projectiles(sim);
+            sim.fighters[1].life < sim.fighters[1].life_max
+        };
+    assert!(projectile(&mut sim, 5, "-1", 5, false));
+    assert!(!projectile(&mut sim, 5, "-1", 6, false));
+    assert!(!projectile(&mut sim, -1, "5", 5, true));
+    assert!(projectile(&mut sim, -1, "5", 5, false));
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

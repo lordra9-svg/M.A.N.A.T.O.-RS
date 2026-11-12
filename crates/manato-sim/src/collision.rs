@@ -23,6 +23,9 @@ pub fn resolve(sim: &mut SimState) {
         if !affect_team_allows(sim, attacker, defender, &hitdef) {
             continue;
         }
+        if !chain_gate_allows(sim, defender, &hitdef) {
+            continue;
+        }
         if !hit_allowed(&sim.fighters[attacker].hit, defender, &hitdef) {
             continue;
         }
@@ -258,6 +261,23 @@ fn affect_team_allows(sim: &SimState, attacker: usize, defender: usize, hitdef: 
         TeamFilter::Enemy => attacker_side != defender_side,
         TeamFilter::Friendly => attacker_side == defender_side,
     }
+}
+
+/// Whether `chainid`/`nochainID` allow this hit against the defender's last
+/// recorded hit id.
+fn chain_gate_allows(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
+    let f = &sim.fighters[defender];
+    if hitdef.chainid >= 0 && f.hit.vars.hit_id != hitdef.chainid {
+        return false;
+    }
+    if f.move_type == MoveType::Hit {
+        for id in hitdef.nochainid {
+            if id >= 0 && f.hit.vars.hit_id == id {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn blocks_by_filter(sim: &SimState, defender: usize, hitdef: &HitDef) -> bool {
@@ -840,6 +860,9 @@ pub fn resolve_projectiles(sim: &mut SimState) {
             continue;
         }
         if !affect_team_allows(sim, owner, defender, &hitdef) {
+            continue;
+        }
+        if !chain_gate_allows(sim, defender, &hitdef) {
             continue;
         }
         if blocks_by_filter(sim, defender, &hitdef) {
