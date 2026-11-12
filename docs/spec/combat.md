@@ -302,6 +302,11 @@ per tick up to the maximum.
 Both clamp to `0..guard_max`; additions scale by final defence unless
 `absolute = 1`, and both are no-ops when the character has no guard maximum.
 
+`GetHitVar(guardpoints)` returns the live guard-point meter. This is an
+explicit engine decision: Ikemen’s internal GetHitVar exposes the pending
+guard-point damage for the current hit, while this engine exposes the meter
+that the bar and `GuardPoints` trigger use.
+
 This is an explicit engine decision, not a full Ikemen guard-break port:
 custom guard-break animations, glass/shockwave effects, the dedicated
 guard-break state pair, and dizzy/guard-crush extensions are not modeled.

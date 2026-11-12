@@ -4397,6 +4397,28 @@ fn guard_point_controllers_add_and_set() {
 }
 
 #[test]
+fn get_hitvar_guardpoints_reports_live_meter() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 42;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(guardpoints)"),
+        42
+    );
+    let mut hit = hitdef();
+    hit.guard_damage = 5;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(guardpoints)"),
+        37
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

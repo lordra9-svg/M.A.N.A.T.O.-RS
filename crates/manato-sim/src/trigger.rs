@@ -382,6 +382,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let lower = key.trim().to_ascii_lowercase();
             if lower == "hitshaketime" {
                 Value::Int(sim.fighters[who].hit.hit_shake_timer)
+            } else if lower == "guardpoints" {
+                Value::Int(sim.fighters[who].guard_points)
             } else {
                 sim.fighters[who].hit.vars.get(&lower)
             }
