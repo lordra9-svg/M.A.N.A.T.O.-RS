@@ -195,6 +195,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "targetstate" => target_state(sim, who, control, assets),
         "targetlifeadd" => target_life_add(sim, who, control),
         "targetpoweradd" => target_power_add(sim, who, control),
+        "targetguardpointsadd" => target_guard_points_add(sim, who, control),
+        "targetdizzypointsadd" => target_dizzy_points_add(sim, who, control),
         "targetvelset" => target_vel_set(sim, who, control),
         "targetveladd" => target_vel_add(sim, who, control),
         "afterimage" => after_image(sim, who, control),
@@ -786,6 +788,42 @@ fn target_power_add(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(target) = sim.fighters[who].target {
         sim.fighters[target].power = clamp(sim.fighters[target].power + value, 0.0, MAX_POWER);
     }
+}
+
+fn target_guard_points_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
+    let Some(target) = sim.fighters[who].target else {
+        return;
+    };
+    let fighter = &mut sim.fighters[target];
+    if fighter.guard_max <= 0 || value == 0 {
+        return;
+    }
+    let add = if absolute {
+        value as f32
+    } else {
+        value as f32 / fighter.defence_mul.max(0.01)
+    };
+    fighter.guard_points = (fighter.guard_points + add.round() as i32).clamp(0, fighter.guard_max);
+}
+
+fn target_dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
+    let Some(target) = sim.fighters[who].target else {
+        return;
+    };
+    let fighter = &mut sim.fighters[target];
+    if fighter.dizzy_max <= 0 || value == 0 {
+        return;
+    }
+    let add = if absolute {
+        value as f32
+    } else {
+        value as f32 / fighter.defence_mul.max(0.01)
+    };
+    fighter.dizzy_points = (fighter.dizzy_points + add.round() as i32).clamp(0, fighter.dizzy_max);
 }
 
 fn target_vel_set(sim: &mut SimState, who: usize, control: &Controller) {

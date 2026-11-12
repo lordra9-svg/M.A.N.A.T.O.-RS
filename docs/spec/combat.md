@@ -303,6 +303,8 @@ Both clamp to `0..guard_max`; additions scale by final defence unless
 `absolute = 1`, and both are no-ops when the character has no guard maximum.
 `GuardBreakSet` toggles the persistent guard-break flag observed by the
 `GuardBreak` trigger; it does not enter a custom guard-break state.
+`TargetGuardPointsAdd`/`TargetDizzyPointsAdd` apply the same scaled additions
+to the attacker’s currently bound target.
 
 `GetHitVar(guardpoints)` returns the live guard-point meter. This is an
 explicit engine decision: Ikemen’s internal GetHitVar exposes the pending

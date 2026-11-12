@@ -4589,6 +4589,89 @@ fn modify_player_adjusts_meter_maxima() {
 }
 
 #[test]
+fn target_guard_and_dizzy_point_add_controllers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 50;
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 50;
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(
+        &mut sim,
+        "targetguardpointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    run(
+        &mut sim,
+        "targetdizzypointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 60);
+    assert_eq!(sim.fighters[1].dizzy_points, 60);
+
+    // Non-absolute additions scale by the target's defence.
+    sim.fighters[1].defence_mul = 2.0;
+    run(
+        &mut sim,
+        "targetguardpointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    run(
+        &mut sim,
+        "targetdizzypointsadd",
+        vec![("value".into(), "10".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 65);
+    assert_eq!(sim.fighters[1].dizzy_points, 65);
+
+    // Absolute additions bypass defence and clamp at the maximum.
+    run(
+        &mut sim,
+        "targetguardpointsadd",
+        vec![
+            ("value".into(), "100".into()),
+            ("absolute".into(), "1".into()),
+        ],
+    );
+    run(
+        &mut sim,
+        "targetdizzypointsadd",
+        vec![
+            ("value".into(), "100".into()),
+            ("absolute".into(), "1".into()),
+        ],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 100);
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+
+    // No bound target leaves the meters unchanged.
+    sim.fighters[0].target = None;
+    run(
+        &mut sim,
+        "targetguardpointsadd",
+        vec![("value".into(), "-10".into())],
+    );
+    run(
+        &mut sim,
+        "targetdizzypointsadd",
+        vec![("value".into(), "-10".into())],
+    );
+    assert_eq!(sim.fighters[1].guard_points, 100);
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
