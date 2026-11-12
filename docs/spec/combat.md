@@ -87,6 +87,10 @@ fall.recover = 0|1
 fall.time = N
 fall.recovertime = N
 fall.kill = 0|1
+envshake.time = N
+envshake.freq = F
+envshake.ampl = N
+envshake.phase = F
 fall.envshake.time = N
 fall.envshake.freq = F
 fall.envshake.ampl = N
@@ -128,6 +132,9 @@ applied when a `HitDef` controller omits the parameter:
   KO'ing.
 - `kill` and `guard.kill` are `1`; when `0`, a normal or guarded hit
   respectively clamps life at `1` instead of KO'ing.
+- `envshake.time` is `0` (disabled), `envshake.freq` is `60`, and
+  `envshake.ampl` is `-4`. `envshake.phase` defaults to the EnvShake rule:
+  `90` when the frequency is at least `90`, otherwise `0`.
 - `fall.envshake.time` is `0` (disabled), `fall.envshake.freq` is `60`, and
   `fall.envshake.ampl` is `-4`. `fall.envshake.phase` defaults to the EnvShake
   rule: `90` when the frequency is at least `90`, otherwise `0`.
@@ -258,6 +265,9 @@ strict: distance must be less than `guard.dist`.
   state `5110`. Guarded contacts leave an existing value unchanged.
   Button-accelerated fast recovery is not modeled yet.
 - `GetHitVar(fall.kill)` reports whether fall damage may KO (`1`/`0`).
+- A HitDef `envshake.time` above zero starts the screen shake on any
+  successful contact, guarded or unguarded, using its explicit
+  freq/ampl/phase. It overrides the generic heavy-hit camera kick.
 - `GetHitVar(fall.envshake.time|freq|ampl|phase)` reports the stored
   fall-impact shake. On landing, the engine applies that shake, and a
   `FallEnvShake` controller consumes the same values and clears the time so it

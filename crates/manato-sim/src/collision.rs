@@ -720,6 +720,29 @@ pub fn apply_hit_at(
             decay: 0.0,
         };
     }
+    // An explicit HitDef envshake wins over the generic heavy-hit kick.
+    if hitdef.envshake_time > 0 {
+        let mut phase = hitdef.envshake_phase;
+        if phase.is_nan() {
+            phase = if hitdef.envshake_freq >= 90.0 {
+                90.0
+            } else {
+                0.0
+            };
+        }
+        phase = phase.clamp(-180.0, 180.0);
+        sim.env_shake = crate::EnvShake {
+            time: hitdef.envshake_time,
+            initial_time: hitdef.envshake_time,
+            freq: hitdef.envshake_freq,
+            ampl: hitdef.envshake_ampl as f32,
+            phase,
+            mul: 1.0,
+            dir: 0.0,
+            diradd: 0.0,
+            decay: 1.0,
+        };
+    }
     let _ = anim_duration;
     let _ = HitAttr::default();
 }

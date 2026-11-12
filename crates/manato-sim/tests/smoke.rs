@@ -2883,6 +2883,94 @@ fn hitdef_down_cornerpush_defaults_and_applies() {
 }
 
 #[test]
+fn hitdef_envshake_applies_on_successful_hits() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("envshake.time".into(), "8".into()),
+            ("envshake.freq".into(), "120".into()),
+            ("envshake.ampl".into(), "-6".into()),
+            ("envshake.phase".into(), "45".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(parsed.envshake_time, 8);
+    assert_eq!(parsed.envshake_freq, 120.0);
+    assert_eq!(parsed.envshake_ampl, -6);
+    assert_eq!(parsed.envshake_phase, 45.0);
+
+    // A successful unguarded heavy hit uses the explicit HitDef shake,
+    // overriding the generic heavy-hit camera kick.
+    let mut hit = hitdef();
+    hit.damage = 100;
+    hit.envshake_time = 8;
+    hit.envshake_freq = 120.0;
+    hit.envshake_ampl = -6;
+    hit.envshake_phase = 45.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.env_shake.time, 8);
+    assert_eq!(sim.env_shake.freq, 120.0);
+    assert_eq!(sim.env_shake.ampl, -6.0);
+    assert_eq!(sim.env_shake.phase, 45.0);
+    assert_eq!(sim.env_shake.decay, 1.0);
+
+    // Guarded contacts also count as successful hits for envshake.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.envshake_time = 8;
+    hit.envshake_freq = 120.0;
+    hit.envshake_ampl = -6;
+    hit.envshake_phase = 45.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.env_shake.time, 8);
+
+    // The omitted phase follows the EnvShake frequency rule.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.envshake_time = 5;
+    hit.envshake_freq = 100.0;
+    hit.envshake_phase = f32::NAN;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.env_shake.phase, 90.0);
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.envshake_time = 5;
+    hit.envshake_freq = 50.0;
+    hit.envshake_phase = f32::NAN;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.env_shake.phase, 0.0);
+
+    // time = 0 leaves the shake alone.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.damage = 10;
+    hit.envshake_time = 0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.env_shake.time, 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
