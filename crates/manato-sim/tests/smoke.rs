@@ -3999,6 +3999,51 @@ fn hitdef_down_recover_and_recovertime_semantics() {
 }
 
 #[test]
+fn liedown_recovery_enters_getup_state_at_zero() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[1].states.insert(
+            5120,
+            manato_formats::StateDef {
+                number: 5120,
+                params: vec![
+                    ("type".into(), "L".into()),
+                    ("movetype".into(), "I".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                ],
+                controllers: Vec::new(),
+                line: 0,
+                source: String::new(),
+            },
+        );
+    }
+    sim.fighters[1].state_no = 5110;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Hit;
+    sim.fighters[1].hit.vars.down_recovertime = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].hit.vars.down_recovertime, 0);
+    assert_eq!(sim.fighters[1].state_no, 5120);
+
+    // With no 5120 state available, the fighter stays in 5110.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].state_no = 5110;
+    sim.fighters[1].state_time = 1;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Hit;
+    sim.fighters[1].hit.vars.down_recovertime = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].state_no, 5110);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -333,7 +333,8 @@ strict: distance must be less than `guard.dist`.
   (`60` by default); it counts down once per tick while the defender is in
   state `5110`. When `down.recover` is enabled, holding a button advances the
   countdown by one extra tick. Guarded contacts leave an existing value
-  unchanged.
+  unchanged. Once the timer reaches zero in `5110`, an alive fighter enters
+  the common getup state `5120` when that state exists.
 - `GetHitVar(down.recover)` reports whether fast liedown recovery is allowed.
 - `GetHitVar(fall.kill)` reports whether fall damage may KO (`1`/`0`).
 - A HitDef `palfx.time` above zero replaces the defender’s palette effect

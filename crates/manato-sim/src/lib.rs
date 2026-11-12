@@ -1063,6 +1063,20 @@ impl SimState {
             }
         }
 
+        // Liedown recovery: once the timer reaches zero, alive fighters get up
+        // on the next state tick if the common getup state exists.
+        if self.fighters[who].state_no == 5110
+            && self.fighters[who].state_time >= 1
+            && self.fighters[who].hit.vars.down_recovertime <= 0
+            && self.fighters[who].alive()
+        {
+            let char_id = self.fighters[who].char_id;
+            let char = &self.assets.characters[char_id];
+            if char.state(5120).is_some() {
+                self.fighters[who].enter_state(5120, char, false);
+            }
+        }
+
         // Special states run every tick, in order -3, -2, -1. Helpers need
         // `keyctrl` (or `helpertype = player`) to run them.
         if self.fighters[who].active {
