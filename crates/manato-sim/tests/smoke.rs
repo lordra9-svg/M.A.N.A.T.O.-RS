@@ -4044,6 +4044,98 @@ fn liedown_recovery_enters_getup_state_at_zero() {
 }
 
 #[test]
+fn hitdef_getpower_and_givepower_apply_on_hit_and_guard() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "100".into()),
+        ],
+    );
+    assert_eq!(default.getpower, (70, 35));
+    assert_eq!(default.givepower, (60, 30));
+
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "100".into()),
+            ("getpower".into(), "20, 5".into()),
+            ("givepower".into(), "10, 4".into()),
+        ],
+    );
+    assert_eq!(parsed.getpower, (20, 5));
+    assert_eq!(parsed.givepower, (10, 4));
+
+    // Unguarded hit uses the primary values.
+    sim.fighters[0].power = 0.0;
+    sim.fighters[1].power = 0.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].power, 20.0);
+    assert_eq!(sim.fighters[1].power, 10.0);
+
+    // Guarded hit uses the guard values.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "100".into()),
+            ("getpower".into(), "20, 5".into()),
+            ("givepower".into(), "10, 4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[0].power = 0.0;
+    sim.fighters[1].power = 0.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[0].power, 5.0);
+    assert_eq!(sim.fighters[1].power, 4.0);
+
+    // Omitted values derive from damage with 0.7/0.6 multipliers.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "100".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[0].power = 0.0;
+    sim.fighters[1].power = 0.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].power, 70.0);
+    assert_eq!(sim.fighters[1].power, 60.0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

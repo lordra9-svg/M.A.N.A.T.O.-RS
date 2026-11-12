@@ -679,6 +679,16 @@ pub fn apply_hit_at(
         }
     }
 
+    let (getpower, givepower) = if guarding {
+        (hitdef.getpower.1, hitdef.givepower.1)
+    } else {
+        (hitdef.getpower.0, hitdef.givepower.0)
+    };
+    let attacker_power = &mut sim.fighters[attacker];
+    attacker_power.power = (attacker_power.power + getpower as f32).min(crate::MAX_POWER);
+    let defender_power = &mut sim.fighters[defender];
+    defender_power.power = (defender_power.power + givepower as f32).min(crate::MAX_POWER);
+
     {
         let f = &mut sim.fighters[defender];
         if !hitdef.mindist.x.is_nan() {

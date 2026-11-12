@@ -263,6 +263,10 @@ pub struct HitDef {
     pub p1sprpriority_set: bool,
     pub p2sprpriority: i32,
     pub p2sprpriority_set: bool,
+    /// `getpower = p1power, p1gpower` (attacker gain).
+    pub getpower: (i32, i32),
+    /// `givepower = p2power, p2gpower` (defender gain).
+    pub givepower: (i32, i32),
     pub ground_cornerpush: f32,
     pub air_cornerpush: f32,
     /// Corner push applied when the hit is guarded.
@@ -358,6 +362,8 @@ impl Default for HitDef {
             snap: Vec2::new(f32::NAN, f32::NAN),
             p2sprpriority: 0,
             p2sprpriority_set: false,
+            getpower: (0, 0),
+            givepower: (0, 0),
             ground_cornerpush: 0.0,
             air_cornerpush: 0.0,
             guard_cornerpush: 0.0,
@@ -408,6 +414,8 @@ impl HitDef {
         let mut airguard_cornerpush_set = false;
         let mut down_cornerpush_set = false;
         let mut guard_pausetime_set = false;
+        let mut getpower_set = false;
+        let mut givepower_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
@@ -528,6 +536,14 @@ impl HitDef {
                         .unwrap_or(PriorityType::Hit);
                 }
                 "numhits" | "hits" => h.numhits = parse_i32(value).max(1),
+                "getpower" => {
+                    h.getpower = parse_power_pair(value);
+                    getpower_set = true;
+                }
+                "givepower" => {
+                    h.givepower = parse_power_pair(value);
+                    givepower_set = true;
+                }
                 "id" => h.id = parse_i32(value).max(0),
                 "chainid" => h.chainid = parse_i32(value),
                 "nochainid" => {
@@ -636,6 +652,14 @@ impl HitDef {
         }
         if !guard_pausetime_set {
             h.guard_pausetime = h.pausetime;
+        }
+        if !getpower_set {
+            let primary = (h.damage.max(0) as f32 * 0.7) as i32;
+            h.getpower = (primary, primary / 2);
+        }
+        if !givepower_set {
+            let primary = (h.damage.max(0) as f32 * 0.6) as i32;
+            h.givepower = (primary, primary / 2);
         }
         // `snap` is implemented as an exact minimum/maximum on each set axis.
         if !h.snap.x.is_nan() {
@@ -864,6 +888,16 @@ fn parse_pair(s: &str) -> (f32, f32) {
 fn parse_vec(s: &str) -> Vec2 {
     let (x, y) = parse_pair(s);
     Vec2::new(x, y)
+}
+
+fn parse_power_pair(s: &str) -> (i32, i32) {
+    let mut it = s.split(',');
+    let primary = it.next().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+    let guard = it
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(primary / 2);
+    (primary, guard)
 }
 
 fn parse_distance(s: &str) -> Vec2 {

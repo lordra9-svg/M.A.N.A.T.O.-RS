@@ -51,6 +51,8 @@ Required/used parameters:
 attr = S, NA
 affectteam = B|E|F
 damage = 23, 0
+getpower = p1, p1guard
+givepower = p2, p2guard
 guard.damage = 5
 hitflag = MAF
 guardflag = MA
@@ -135,6 +137,9 @@ applied when a `HitDef` controller omits the parameter:
   by Ikemen-GO content are also accepted.
 - `affectteam` defaults to `E` (enemy team). `B` allows both teams and `F`
   allows only the same team.
+- `getpower` defaults to `damage × 0.7` for the primary value and half of
+  that for guards. `givepower` defaults to `damage × 0.6` for the primary
+  value and half of that for guards.
 - `ground.velocity` and `air.velocity` are `0, 0`.
 - `down.velocity` inherits `air.velocity` when omitted.
 - `down.bounce` defaults to `0`. When `1` and `down.velocity.y` is non-zero,
@@ -280,6 +285,9 @@ strict: distance must be less than `guard.dist`.
 - A hit may KO only when the applicable `kill` flag is set: `kill` for a
   normal hit and `guard.kill` for a guarded hit. When disabled, life clamps
   at `1`.
+- Successful hits add `getpower` to the attacker and `givepower` to the
+  defender; guarded contacts use the second value of each pair. Power is
+  clamped at the engine maximum.
 - Choose ground/air velocity and hit time from the defender’s state.
 - The defender’s `GetHitVar(fall)` flag comes from `air.fall` for an
   airborne hit and from `fall` for a grounded hit. Common fall states use it
