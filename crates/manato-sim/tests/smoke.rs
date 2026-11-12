@@ -4949,6 +4949,32 @@ fn get_hitvar_contact_offsets_record_relative_position() {
 }
 
 #[test]
+fn get_hitvar_fall_xvel_and_yvel_aliases() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.fall = true;
+    hit.fall_xvel = 3.0;
+    hit.fall_yvel = -5.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.xvel)"),
+        -3.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.yvel)"),
+        -5.0
+    );
+    // The longer HitDef parameter spelling remains available.
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 1, "GetHitVar(fall.yvelocity)"),
+        -5.0
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

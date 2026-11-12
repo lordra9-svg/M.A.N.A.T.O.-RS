@@ -853,6 +853,9 @@ impl GetHitVars {
             "fall.damage" => Value::Int(self.fall_damage),
             "fall.xvelocity" => Value::Float(self.fall_x_vel.unwrap_or(0.0)),
             "fall.yvelocity" => Value::Float(self.fall_y_vel.unwrap_or(0.0)),
+            // Public trigger names use the shorter `fall.xvel`/`fall.yvel`.
+            "fall.xvel" => Value::Float(self.fall_x_vel.unwrap_or(0.0)),
+            "fall.yvel" => Value::Float(self.fall_y_vel.unwrap_or(0.0)),
             "hitcount" => Value::Int(self.hitcount),
             "fallcount" => Value::Int(self.fallcount),
             "priority" => Value::Int(self.priority),

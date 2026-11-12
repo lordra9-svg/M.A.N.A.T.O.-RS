@@ -413,6 +413,9 @@ timed stun.
 - `GetHitVar(fallcount)` counts entries into the trip-shake state `5070` and
   the downed state `5100` during the current combo. The count persists while
   the defender remains in hitstun and resets when hitstun ends.
+- `GetHitVar(fall.xvel)`/`GetHitVar(fall.yvel)` return the stored bounce
+  velocities using the public trigger names; `fall.xvelocity`/`fall.yvelocity`
+  remain accepted as aliases.
 - `GetHitVar(fall.recovertime)` returns the HitDef’s
   `fall.recovertime` value (`4` by default).
 - `GetHitVar(recovertime)` and `GetHitVar(down.recovertime)` return the
