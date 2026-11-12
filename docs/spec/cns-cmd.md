@@ -105,7 +105,8 @@ Required controller families for the approved matrix:
 - `EnvShake`, `FallEnvShake`
 - `GuardPointsAdd`, `GuardPointsSet`, `GuardBreakSet`
 - `DizzyPointsAdd`, `DizzyPointsSet`, `DizzySet`
-- `ModifyPlayer` (`lifemax`, `guardpointsmax`, `dizzypointsmax`)
+- `ModifyPlayer` (`lifemax`, `guardpointsmax`, `dizzypointsmax`, `attack`,
+  `defence`, `ailevel`)
 - `TargetGuardPointsAdd`, `TargetDizzyPointsAdd`
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 

@@ -770,6 +770,9 @@ fn modify_player(sim: &mut SimState, who: usize, control: &Controller) {
     let life_max = int_param(sim, who, control, "lifemax");
     let guard_max = int_param(sim, who, control, "guardpointsmax");
     let dizzy_max = int_param(sim, who, control, "dizzypointsmax");
+    let attack = num_param(sim, who, control, "attack");
+    let defence = num_param(sim, who, control, "defence");
+    let ai_level = int_param(sim, who, control, "ailevel");
     let fighter = &mut sim.fighters[who];
     if let Some(value) = life_max {
         fighter.life_max = value.max(1);
@@ -782,6 +785,15 @@ fn modify_player(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(value) = dizzy_max {
         fighter.dizzy_max = value.max(0);
         fighter.dizzy_points = fighter.dizzy_points.clamp(0, fighter.dizzy_max);
+    }
+    if let Some(value) = attack {
+        fighter.attack_mul = (value / 100.0).max(0.0);
+    }
+    if let Some(value) = defence {
+        fighter.defence_mul = (value / 100.0).max(0.0);
+    }
+    if let Some(value) = ai_level {
+        fighter.ai_level = value.max(0);
     }
 }
 

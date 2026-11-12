@@ -306,7 +306,8 @@ Both clamp to `0..guard_max`; additions scale by final defence unless
 `TargetGuardPointsAdd`/`TargetDizzyPointsAdd` apply the same scaled additions
 to the attacker’s currently bound target. `TargetGuardPointsSet` and
 `TargetDizzyPointsSet` replace the bound target’s meter, clamped to the
-corresponding maximum.
+corresponding maximum. `ModifyPlayer` also accepts `attack`/`defence`
+percentages (`100` = 1x) and `ailevel`.
 
 `GetHitVar(guardpoints)` returns the live guard-point meter. This is an
 explicit engine decision: Ikemen’s internal GetHitVar exposes the pending

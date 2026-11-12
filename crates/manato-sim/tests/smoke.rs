@@ -4562,6 +4562,9 @@ fn modify_player_adjusts_meter_maxima() {
             ("lifemax".into(), "500".into()),
             ("guardpointsmax".into(), "50".into()),
             ("dizzypointsmax".into(), "25".into()),
+            ("attack".into(), "150".into()),
+            ("defence".into(), "50".into()),
+            ("ailevel".into(), "7".into()),
         ],
         line: 0,
     };
@@ -4572,6 +4575,9 @@ fn modify_player_adjusts_meter_maxima() {
     assert_eq!(sim.fighters[1].guard_points, 50);
     assert_eq!(sim.fighters[1].dizzy_max, 25);
     assert_eq!(sim.fighters[1].dizzy_points, 25);
+    assert_eq!(sim.fighters[1].attack_mul, 1.5);
+    assert_eq!(sim.fighters[1].defence_mul, 0.5);
+    assert_eq!(sim.fighters[1].ai_level, 7);
 
     let zero = manato_formats::Controller {
         kind: "modifyplayer".into(),
