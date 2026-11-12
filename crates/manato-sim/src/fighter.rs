@@ -962,3 +962,30 @@ pub const ASSERT_GLOBALNOSHADOW: u32 = 1 << 16;
 pub const ASSERT_NOBARDISPLAY: u32 = 1 << 17;
 pub const ASSERT_ROUNDNOTOVER: u32 = 1 << 18;
 pub const ASSERT_NOHARDCODEDKEYS: u32 = 1 << 19;
+
+/// Maps an `AssertSpecial`/`IsAsserted` flag name to its bit.
+pub fn assert_flag(name: &str) -> u32 {
+    match name {
+        "invisible" => ASSERT_INVISIBLE,
+        "noshadow" => ASSERT_NOSHADOW,
+        "nowalk" => ASSERT_NOWALK,
+        "noairguard" => ASSERT_NOAIRGUARD,
+        "nostandguard" => ASSERT_NOSTANDGUARD,
+        "nocrouchguard" => ASSERT_NOCROUCHGUARD,
+        "unguardable" => ASSERT_UNGUARDABLE,
+        "nojugglecheck" => ASSERT_NOJUGGLECHECK,
+        "noautoturn" => ASSERT_NOAUTOTURN,
+        "intro" => ASSERT_INTRO,
+        "nobg" => ASSERT_NOBG,
+        "nofg" => ASSERT_NOFG,
+        "noko" => ASSERT_NOKO,
+        "nokoslow" => ASSERT_NOKOSLOW,
+        "nokosnd" => ASSERT_NOKOSND,
+        "nomusic" => ASSERT_NOMUSIC,
+        "globalnoshadow" => ASSERT_GLOBALNOSHADOW,
+        "nobardisplay" => ASSERT_NOBARDISPLAY,
+        "roundnotover" => ASSERT_ROUNDNOTOVER,
+        "nohardcodedkeys" => ASSERT_NOHARDCODEDKEYS,
+        _ => 0,
+    }
+}

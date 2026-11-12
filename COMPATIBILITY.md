@@ -65,7 +65,7 @@ Ikemen-GO alone as the runtime oracle.
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + SysVar + IsHelper(id)/ParentDist/RootDist axis-facing + ParentExist ancestry tests |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const/math/random + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Partial | `TeamMode` single/simul/turns + `IsHomeTeam` versus side semantics; tag/partner/simul teams out of scope |
-| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented; remaining Ikemen-only trigger families pending |
+| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `IsAsserted(flag)`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented; remaining Ikemen-only trigger families pending |
 
 ## 4. Controllers
 

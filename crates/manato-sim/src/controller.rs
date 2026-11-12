@@ -1757,29 +1757,7 @@ fn hit_filter(sim: &mut SimState, who: usize, control: &Controller, not_hit_by: 
 
 fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
     let mut apply = |name: &str| {
-        let flag = match name {
-            "invisible" => crate::fighter::ASSERT_INVISIBLE,
-            "noshadow" => crate::fighter::ASSERT_NOSHADOW,
-            "nowalk" => crate::fighter::ASSERT_NOWALK,
-            "noairguard" => crate::fighter::ASSERT_NOAIRGUARD,
-            "nostandguard" => crate::fighter::ASSERT_NOSTANDGUARD,
-            "nocrouchguard" => crate::fighter::ASSERT_NOCROUCHGUARD,
-            "unguardable" => crate::fighter::ASSERT_UNGUARDABLE,
-            "nojugglecheck" => crate::fighter::ASSERT_NOJUGGLECHECK,
-            "noautoturn" => crate::fighter::ASSERT_NOAUTOTURN,
-            "intro" => crate::fighter::ASSERT_INTRO,
-            "nobg" => crate::fighter::ASSERT_NOBG,
-            "nofg" => crate::fighter::ASSERT_NOFG,
-            "noko" => crate::fighter::ASSERT_NOKO,
-            "nokoslow" => crate::fighter::ASSERT_NOKOSLOW,
-            "nokosnd" => crate::fighter::ASSERT_NOKOSND,
-            "nomusic" => crate::fighter::ASSERT_NOMUSIC,
-            "globalnoshadow" => crate::fighter::ASSERT_GLOBALNOSHADOW,
-            "nobardisplay" => crate::fighter::ASSERT_NOBARDISPLAY,
-            "roundnotover" => crate::fighter::ASSERT_ROUNDNOTOVER,
-            "nohardcodedkeys" => crate::fighter::ASSERT_NOHARDCODEDKEYS,
-            _ => 0,
-        };
+        let flag = crate::fighter::assert_flag(name);
         if flag != 0 {
             sim.fighters[who].assert_flags |= flag;
         }

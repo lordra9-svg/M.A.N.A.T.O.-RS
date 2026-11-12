@@ -181,14 +181,15 @@ missing redirect targets make the trigger false.
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
   `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
-  `DizzyPointsMax`
+  `DizzyPointsMax`, `ComboCount`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
   `TimeElapsed`, `TimeTotal`
-- Utility: `Const`, `Const240p`, `Const480p`, `Const720p`, `Random`, `IfElse`,
+- Utility: `IsAsserted(flag)`, `Const`, `Const240p`, `Const480p`, `Const720p`,
+  `Random`, `IfElse`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,
   `Sqrt`, `Pow`, `AILevel`
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,

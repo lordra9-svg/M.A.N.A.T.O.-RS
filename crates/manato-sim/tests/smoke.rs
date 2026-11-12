@@ -5211,6 +5211,51 @@ fn stage_edge_distance_triggers_clamp_to_stage_bounds() {
 }
 
 #[test]
+fn is_asserted_and_combo_count_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "IsAsserted(invisible)"),
+        0
+    );
+    let control = manato_formats::Controller {
+        kind: "assertspecial".into(),
+        params: vec![
+            ("invisible".into(), "1".into()),
+            ("nobardisplay".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "IsAsserted(invisible)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "IsAsserted(nobardisplay)"),
+        1
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IsAsserted(noshadow)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "IsAsserted(unknownflag)"),
+        0
+    );
+
+    sim.combo[0].hits = 4;
+    sim.fighters[0].side = 0;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ComboCount"), 4);
+    sim.fighters[1].side = 1;
+    sim.combo[1].hits = 2;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ComboCount"), 2);
+
+    // Helpers report no combo count, matching Ikemen's teamside handling.
+    sim.fighters[0].owner = Some(1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ComboCount"), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

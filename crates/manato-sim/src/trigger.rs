@@ -371,6 +371,17 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let n = arg_i32(sim, who, args, 0);
             Value::Bool(sim.character(who).animation(n).is_some())
         }
+        "isasserted" => {
+            let name = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default();
+            let flag = crate::fighter::assert_flag(&name.trim().to_ascii_lowercase());
+            Value::Bool(flag != 0 && sim.fighters[who].assert_flags & flag != 0)
+        }
         "gethitvar" => {
             let key = args
                 .first()
@@ -721,6 +732,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "camerazoom"
             | "zoomvar"
             | "drawgame"
+            | "combocount"
             | "dizzy"
             | "dizzypoints"
             | "dizzypointsmax"
@@ -950,6 +962,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "dizzypointsmax" => Value::Int(f.dizzy_max),
         "guardpoints" => Value::Int(f.guard_points),
         "guardpointsmax" => Value::Int(f.guard_max),
+        "combocount" => Value::Int(if f.owner.is_some() {
+            0
+        } else {
+            sim.combo.get(f.side).map(|combo| combo.hits).unwrap_or(0)
+        }),
         "matchover" => Value::Bool(sim.round.phase == crate::RoundPhase::Over),
         "roundno" => Value::Int(sim.round.number as i32),
         "roundsexisted" => Value::Int(sim.round.number.saturating_sub(1) as i32),
