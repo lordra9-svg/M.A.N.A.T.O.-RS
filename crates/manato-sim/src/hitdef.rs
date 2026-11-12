@@ -209,6 +209,9 @@ pub struct HitDef {
     /// Post-hit maximum distance from the attacker (`maxdist`), axis NaN
     /// when unset.
     pub maxdist: Vec2,
+    /// Exact post-hit position relative to the attacker (`snap`), axis NaN
+    /// when unset.
+    pub snap: Vec2,
     pub p1sprpriority: i32,
     pub p1sprpriority_set: bool,
     pub p2sprpriority: i32,
@@ -293,6 +296,7 @@ impl Default for HitDef {
             p1sprpriority_set: false,
             mindist: Vec2::new(f32::NAN, f32::NAN),
             maxdist: Vec2::new(f32::NAN, f32::NAN),
+            snap: Vec2::new(f32::NAN, f32::NAN),
             p2sprpriority: 0,
             p2sprpriority_set: false,
             ground_cornerpush: 0.0,
@@ -467,6 +471,7 @@ impl HitDef {
                 }
                 "mindist" => h.mindist = parse_distance(value),
                 "maxdist" => h.maxdist = parse_distance(value),
+                "snap" => h.snap = parse_distance(value),
                 "ground.cornerpush.veloff" => {
                     h.ground_cornerpush = parse_f32(value);
                     ground_cornerpush_set = true;
@@ -544,6 +549,15 @@ impl HitDef {
         }
         if !down_cornerpush_set {
             h.down_cornerpush = h.ground_cornerpush;
+        }
+        // `snap` is implemented as an exact minimum/maximum on each set axis.
+        if !h.snap.x.is_nan() {
+            h.mindist.x = h.snap.x;
+            h.maxdist.x = h.snap.x;
+        }
+        if !h.snap.y.is_nan() {
+            h.mindist.y = h.snap.y;
+            h.maxdist.y = h.snap.y;
         }
         h
     }

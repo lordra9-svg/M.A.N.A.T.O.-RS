@@ -3138,6 +3138,92 @@ fn hitdef_mindist_maxdist_clamp_post_hit_position() {
 }
 
 #[test]
+fn hitdef_snap_places_defender_relative_to_attacker() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("snap".into(), "50, -20".into()),
+        ],
+    );
+    assert_eq!(parsed.snap, manato_core::Vec2::new(50.0, -20.0));
+    assert_eq!(parsed.mindist, manato_core::Vec2::new(50.0, -20.0));
+    assert_eq!(parsed.maxdist, manato_core::Vec2::new(50.0, -20.0));
+
+    // Right-facing snap positions the defender exactly relative to P1.
+    sim.fighters[1].pos = manato_core::Vec2::new(200.0, 50.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(50.0, -20.0));
+
+    // Left-facing snap mirrors X.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("snap".into(), "50, -20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].pos = manato_core::Vec2::new(0.0, 0.0);
+    let origin = manato_core::Vec2::new(100.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, -1, true);
+    assert_eq!(sim.fighters[1].pos.x, 50.0);
+
+    // Guarded grounded hits apply the X snap but not Y.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].pos = manato_core::Vec2::new(200.0, 0.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(50.0, 0.0));
+
+    // snap overrides explicit min/max on the same axis.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("maxdist".into(), "200, 0".into()),
+            ("snap".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].pos = manato_core::Vec2::new(200.0, 0.0);
+    let origin = manato_core::Vec2::new(0.0, 0.0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos.x, 40.0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
