@@ -203,6 +203,8 @@ pub struct HitDef {
     pub air_fall: bool,
     /// Forces a crouching grounded defender into the standing hit reaction.
     pub forcestand: bool,
+    /// Forces a standing grounded defender into the crouching hit reaction.
+    pub forcecrouch: bool,
     /// Forces the defender out of an existing fall when the hit itself is not
     /// a fall (`forcenofall`).
     pub forcenofall: bool,
@@ -323,6 +325,7 @@ impl Default for HitDef {
             fall: false,
             air_fall: false,
             forcestand: false,
+            forcecrouch: false,
             forcenofall: false,
             fall_recover: false,
             fall_time: 0,
@@ -503,6 +506,7 @@ impl HitDef {
                     h.forcestand = parse_i32(value) != 0;
                     forcestand_set = true;
                 }
+                "forcecrouch" => h.forcecrouch = parse_i32(value) != 0,
                 "forcenofall" => h.forcenofall = parse_i32(value) != 0,
                 "fall.recover" => h.fall_recover = parse_i32(value) != 0,
                 "fall.time" => h.fall_time = parse_i32(value),

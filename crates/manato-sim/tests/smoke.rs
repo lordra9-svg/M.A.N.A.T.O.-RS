@@ -4157,6 +4157,80 @@ fn guard_hits_drain_guard_points() {
 }
 
 #[test]
+fn hitdef_forcecrouch_forces_crouching_reaction() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert!(!default.forcecrouch);
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("forcecrouch".into(), "1".into()),
+        ],
+    );
+    assert!(parsed.forcecrouch);
+
+    let mut hit = hitdef();
+    hit.forcecrouch = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Stand;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5010);
+    assert_eq!(
+        sim.fighters[1].state_type,
+        manato_sim::fighter::StateType::Crouch
+    );
+
+    // Airborne defenders ignore forcecrouch.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.forcecrouch = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5020);
+
+    // forcestand takes precedence for a crouching defender.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.forcestand = true;
+    hit.forcecrouch = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Crouch;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5000);
+
+    // forcecrouch applies to a standing defender when both are set.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.forcestand = true;
+    hit.forcecrouch = true;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Stand;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].state_no, 5010);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

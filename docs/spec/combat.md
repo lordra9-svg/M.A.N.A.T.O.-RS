@@ -99,6 +99,7 @@ guard.kill = 0|1
 fall = 0|1
 air.fall = 0|1
 forcestand = 0|1
+forcecrouch = 0|1
 forcenofall = 0|1
 fall.recover = 0|1
 fall.time = N
@@ -162,6 +163,9 @@ applied when a `HitDef` controller omits the parameter:
 - `forcestand` defaults to `1` when `ground.velocity.y` is non-zero, otherwise
   `0`. When active, a crouching grounded defender is moved to the standing hit
   reaction; airborne defenders ignore it.
+- `forcecrouch` defaults to `0`. When active, a standing grounded defender is
+  moved to the crouching hit reaction; airborne defenders ignore it.
+  `forcestand` takes precedence when both apply to a crouching defender.
 - `forcenofall` defaults to `0`. When set and the hit itself is not a fall,
   it clears the defender’s existing fall flag. It has no effect when the
   selected fall parameter is set.
@@ -294,7 +298,9 @@ strict: distance must be less than `guard.dist`.
   to choose the falling/knockdown reaction.
 - `forcestand` changes a crouching grounded defender to the standing state
   type before the hit reaction state is selected, so state `5000` is used
-  instead of `5010`.
+  instead of `5010`. `forcecrouch` does the inverse for a standing grounded
+  defender, selecting `5010`; `forcestand` wins when both target a crouching
+  defender.
 - A non-fall hit preserves the defender’s existing fall flag;
   `forcenofall` clears it. A hit that itself sets `fall`/`air.fall` ignores
   `forcenofall`. Ending hitstun clears the persistent fall flag.

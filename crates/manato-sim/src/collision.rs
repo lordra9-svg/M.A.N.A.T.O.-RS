@@ -732,6 +732,13 @@ pub fn apply_hit_at(
     {
         defender_state_type = StateType::Stand;
         sim.fighters[defender].state_type = StateType::Stand;
+    } else if !guarding
+        && !defender_airborne
+        && hitdef.forcecrouch
+        && defender_state_type == StateType::Stand
+    {
+        defender_state_type = StateType::Crouch;
+        sim.fighters[defender].state_type = StateType::Crouch;
     }
 
     let char = &sim.assets.characters[sim.fighters[defender].char_id];
