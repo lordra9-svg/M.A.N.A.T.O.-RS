@@ -193,7 +193,8 @@ missing redirect targets make the trigger false.
   `Sqrt`, `Pow`, `AILevel`
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,
   `BackEdge`, `FrontEdge`, `BackEdgeBodyDist`, `FrontEdgeBodyDist`,
-  `BackEdgeDist`, `FrontEdgeDist`
+  `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,
+  `StageBackEdgeDist` (`StageBackEdge` deprecated alias)
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`

@@ -5162,6 +5162,55 @@ fn prev_state_and_move_type_triggers_track_last_change() {
 }
 
 #[test]
+fn stage_edge_distance_triggers_clamp_to_stage_bounds() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.left_bound = -100.0;
+        assets.stage.right_bound = 100.0;
+    }
+    sim.camera.x = 0.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].pos.x = 0.0;
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageFrontEdgeDist"),
+        100.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageBackEdgeDist"),
+        100.0
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "StageBackEdge"), 100.0);
+
+    // Facing left swaps which stage bound is in front.
+    sim.fighters[0].facing = -1;
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageFrontEdgeDist"),
+        100.0
+    );
+    sim.fighters[0].pos.x = 50.0;
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageFrontEdgeDist"),
+        150.0
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "StageBackEdgeDist"), 50.0);
+
+    // The camera screen edge wins when it is inside the stage bound.
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].pos.x = 0.0;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.right_bound = 500.0;
+    }
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageFrontEdgeDist"),
+        manato_core::GAME_WIDTH * 0.5
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

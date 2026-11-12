@@ -818,6 +818,9 @@ fn is_trigger_name(name: &str) -> bool {
             | "timetotal"
             | "screenpos"
             | "screenvel"
+            | "stagebackedge"
+            | "stagebackedgedist"
+            | "stagefrontedgedist"
             | "stateno"
             | "statetime"
             | "statetype"
@@ -888,6 +891,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
             let right = sim.camera.x + GAME_WIDTH * 0.5;
             Value::Float(if f.facing < 0 { left } else { right })
         }
+        "stagefrontedgedist" => Value::Float(stage_edge_distance(sim, f, true)),
+        "stagebackedgedist" | "stagebackedge" => Value::Float(stage_edge_distance(sim, f, false)),
         "projcontacttime" => Value::Int(f.proj_contact_time),
         "projhittime" => Value::Int(f.proj_hit_time),
         "projguardedtime" => Value::Int(f.proj_guarded_time),
@@ -1091,6 +1096,20 @@ fn inguard_dist(sim: &SimState, who: usize) -> bool {
             && projectile.hits > 0
             && (projectile.pos.x - f.pos.x).abs() < projectile.hitdef.guard_dist as f32
     })
+}
+
+fn stage_edge_distance(sim: &SimState, f: &crate::fighter::Fighter, front: bool) -> f32 {
+    let half = GAME_WIDTH * 0.5;
+    let left = (sim.camera.x - half).max(sim.assets.stage.left_bound);
+    let right = (sim.camera.x + half).min(sim.assets.stage.right_bound);
+    let forward = f.facing >= 0;
+    // `front == forward` asks for the edge in front of the fighter.
+    let towards_right = front == forward;
+    if towards_right {
+        right - f.pos.x
+    } else {
+        f.pos.x - left
+    }
 }
 
 fn edge_distance(sim: &SimState, who: usize, front: bool, body: bool) -> f32 {
