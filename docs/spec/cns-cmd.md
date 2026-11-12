@@ -103,7 +103,7 @@ Required controller families for the approved matrix:
   `TargetPowerAdd`, `TargetVelSet`, `TargetVelAdd`
 - `Pause`, `SuperPause`
 - `EnvShake`, `FallEnvShake`
-- `GuardPointsAdd`, `GuardPointsSet`
+- `GuardPointsAdd`, `GuardPointsSet`, `GuardBreakSet`
 
 ### 4.3 Presentation and audio
 

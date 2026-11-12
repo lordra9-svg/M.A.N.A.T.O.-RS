@@ -194,6 +194,8 @@ pub struct Fighter {
     pub guard_max: i32,
     /// Remaining ticks of the guard-crush no-guard window.
     pub guard_crush_timer: i32,
+    /// Persistent guard-break flag (`GuardBreakSet`).
+    pub guard_break: bool,
     /// Remaining ticks before guard-point regeneration resumes.
     pub guard_cooldown: i32,
     pub power: f32,
@@ -331,6 +333,7 @@ impl Fighter {
             guard_points: guard_max,
             guard_max,
             guard_crush_timer: 0,
+            guard_break: false,
             guard_cooldown: 0,
             power: 0.0,
             defence_mul: 1.0,

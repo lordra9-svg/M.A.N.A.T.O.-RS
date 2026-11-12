@@ -917,7 +917,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "hitshakeover" => Value::Bool(hit_shake_over(sim, who)),
         "canrecover" => Value::Bool(f.hit.vars.fall_recover && (5030..5050).contains(&f.state_no)),
         "inguarddist" => Value::Bool(inguard_dist(sim, who)),
-        "guardbreak" => Value::Bool(f.guard_crush_timer > 0),
+        "guardbreak" => Value::Bool(f.guard_break || f.guard_crush_timer > 0),
         "guardpoints" => Value::Int(f.guard_points),
         "guardpointsmax" => Value::Int(f.guard_max),
         "matchover" => Value::Bool(sim.round.phase == crate::RoundPhase::Over),

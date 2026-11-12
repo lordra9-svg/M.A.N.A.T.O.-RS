@@ -4419,6 +4419,30 @@ fn get_hitvar_guardpoints_reports_live_meter() {
 }
 
 #[test]
+fn guard_break_set_controller_toggles_trigger() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "guardbreakset".into(),
+        params: vec![("value".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+    assert!(sim.fighters[1].guard_break);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GuardBreak"), 1);
+    let clear = manato_formats::Controller {
+        kind: "guardbreakset".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &clear, &assets);
+    assert!(!sim.fighters[1].guard_break);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GuardBreak"), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

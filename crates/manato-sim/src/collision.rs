@@ -670,6 +670,7 @@ pub fn apply_hit_at(
             f.guard_points = (f.guard_points - damage).max(0);
             if before > 0 && f.guard_points == 0 {
                 f.guard_crush_timer = 20;
+                f.guard_break = true;
                 guard_crushed = true;
             }
         }

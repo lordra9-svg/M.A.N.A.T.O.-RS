@@ -98,6 +98,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "lifeadd" => life_add(sim, who, control),
         "guardpointsadd" => guard_points_add(sim, who, control),
         "guardpointsset" => guard_points_set(sim, who, control),
+        "guardbreakset" => guard_break_set(sim, who, control),
         "lifeset" => life_set(sim, who, control),
         "hitadd" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
@@ -721,6 +722,11 @@ fn guard_points_set(sim: &mut SimState, who: usize, control: &Controller) {
         return;
     }
     fighter.guard_points = value.clamp(0, fighter.guard_max);
+}
+
+fn guard_break_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0) != 0;
+    sim.fighters[who].guard_break = value;
 }
 
 fn target_power_add(sim: &mut SimState, who: usize, control: &Controller) {

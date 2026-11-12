@@ -1016,6 +1016,7 @@ impl SimState {
                 fighter.guard_crush_timer -= 1;
                 if fighter.guard_crush_timer == 0 {
                     fighter.guard_points = fighter.guard_max;
+                    fighter.guard_break = false;
                 }
             }
             if fighter.guard_cooldown > 0 {
@@ -1934,6 +1935,7 @@ impl SimState {
             fighter.life = fighter.life_max;
             fighter.guard_points = fighter.guard_max;
             fighter.guard_crush_timer = 0;
+            fighter.guard_break = false;
             fighter.guard_cooldown = 0;
             fighter.power = power.min(MAX_POWER);
             fighter.state_no = 0;
@@ -2475,6 +2477,7 @@ impl SimState {
             h.write_i32(f.guard_points);
             h.write_i32(f.guard_max);
             h.write_i32(f.guard_crush_timer);
+            h.write_bool(f.guard_break);
             h.write_i32(f.guard_cooldown);
             h.write_f32(f.power);
             h.write_bool(f.ctrl);
