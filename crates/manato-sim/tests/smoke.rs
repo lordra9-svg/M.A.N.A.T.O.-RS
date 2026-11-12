@@ -2834,6 +2834,55 @@ fn hitdef_down_velocity_falls_back_to_air_and_hits_liedown() {
 }
 
 #[test]
+fn hitdef_down_cornerpush_defaults_and_applies() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let inherited = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.cornerpush.veloff".into(), "-8".into()),
+        ],
+    );
+    assert_eq!(inherited.down_cornerpush, -8.0);
+    let explicit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("ground.cornerpush.veloff".into(), "-8".into()),
+            ("down.cornerpush.veloff".into(), "-2".into()),
+        ],
+    );
+    assert_eq!(explicit.down_cornerpush, -2.0);
+
+    // A grounded downed hit near the corner uses down.cornerpush, not the
+    // ground value.
+    let mut hit = hitdef();
+    hit.down_velocity = manato_core::Vec2::new(-5.0, 0.0);
+    hit.ground_cornerpush = -8.0;
+    hit.down_cornerpush = -2.0;
+    let right = sim.assets.stage.right_bound;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Liedown;
+    sim.fighters[1].state_no = 5100;
+    sim.fighters[1].pos = manato_core::Vec2::new(right, 0.0);
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 3.0, "5 + (-2) down push");
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

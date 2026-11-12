@@ -59,6 +59,7 @@ air.type = High|Low|Trip
 ground.velocity = x, y
 air.velocity = x, y
 down.velocity = x, y
+down.cornerpush.veloff = F
 yaccel = accel
 airguard.velocity = x, y
 ground.hittime = N
@@ -175,8 +176,8 @@ contain `A`) gets `0`, otherwise it gets `1.3 * guard.velocity.x`, where
 Explicit values always win. `guard.cornerpush.veloff` inherits
 `ground.cornerpush.veloff`, and `airguard.cornerpush.veloff` inherits
 `guard.cornerpush.veloff`; guarded ground and air contacts select those
-values instead of the unguarded ones. `down.cornerpush.veloff` is not
-modeled because the engine does not distinguish a downed hit reaction.
+values instead of the unguarded ones. `down.cornerpush.veloff` inherits
+`ground.cornerpush.veloff` and is selected for grounded downed hits.
 
 ## 5. Hit resolution order
 

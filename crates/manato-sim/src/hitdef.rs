@@ -203,6 +203,8 @@ pub struct HitDef {
     pub guard_cornerpush: f32,
     /// Corner push applied when an air hit is guarded.
     pub airguard_cornerpush: f32,
+    /// Corner push applied when hitting a grounded lying-down defender.
+    pub down_cornerpush: f32,
     pub activation: u32,
 }
 
@@ -272,6 +274,7 @@ impl Default for HitDef {
             air_cornerpush: 0.0,
             guard_cornerpush: 0.0,
             airguard_cornerpush: 0.0,
+            down_cornerpush: 0.0,
             activation: 0,
         }
     }
@@ -315,6 +318,7 @@ impl HitDef {
         let mut air_cornerpush_set = false;
         let mut guard_cornerpush_set = false;
         let mut airguard_cornerpush_set = false;
+        let mut down_cornerpush_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
                 "attr" => h.attr = HitAttr::parse(value),
@@ -445,6 +449,10 @@ impl HitDef {
                     h.airguard_cornerpush = parse_f32(value);
                     airguard_cornerpush_set = true;
                 }
+                "down.cornerpush.veloff" => {
+                    h.down_cornerpush = parse_f32(value);
+                    down_cornerpush_set = true;
+                }
                 _ => {}
             }
         }
@@ -499,6 +507,9 @@ impl HitDef {
         }
         if !airguard_cornerpush_set {
             h.airguard_cornerpush = h.guard_cornerpush;
+        }
+        if !down_cornerpush_set {
+            h.down_cornerpush = h.ground_cornerpush;
         }
         h
     }

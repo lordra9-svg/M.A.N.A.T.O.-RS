@@ -491,11 +491,13 @@ pub fn apply_hit_at(
         let f = &sim.fighters[defender];
         let near_corner = f.pos.x <= stage.left_bound + 24.0 || f.pos.x >= stage.right_bound - 24.0;
         if near_corner {
-            match (guarding, defender_airborne) {
-                (true, true) => hitdef.airguard_cornerpush,
-                (true, false) => hitdef.guard_cornerpush,
-                (false, true) => hitdef.air_cornerpush,
-                (false, false) => hitdef.ground_cornerpush,
+            let downed = !defender_airborne && defender_state_type == StateType::Liedown;
+            match (guarding, defender_airborne, downed) {
+                (true, true, _) => hitdef.airguard_cornerpush,
+                (true, false, _) => hitdef.guard_cornerpush,
+                (false, true, _) => hitdef.air_cornerpush,
+                (false, false, true) => hitdef.down_cornerpush,
+                (false, false, false) => hitdef.ground_cornerpush,
             }
         } else {
             0.0
