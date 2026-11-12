@@ -332,8 +332,10 @@ reset to maximum and control returns. This is a bounded engine reaction; the
 custom dizzy state, birds, sounds, and palette/explod effects are not modeled.
 `DizzyPointsAdd`/`DizzyPointsSet` clamp to `0..dizzy_max`; additions scale by
 final defence unless `absolute = 1`. `Dizzy`, `DizzyPoints`, and
-`DizzyPointsMax` expose the state and meter. `DizzySet` toggles the persistent
-dizzy flag observed by `Dizzy`; it does not by itself start the timed stun.
+`DizzyPointsMax` expose the state and meter. `GetHitVar(dizzypoints)` returns
+the live meter, mirroring `GetHitVar(guardpoints)`. `DizzySet` toggles the
+persistent dizzy flag observed by `Dizzy`; it does not by itself start the
+timed stun.
 
 ## 7. Hit reaction
 

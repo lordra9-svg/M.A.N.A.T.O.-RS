@@ -384,6 +384,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Int(sim.fighters[who].hit.hit_shake_timer)
             } else if lower == "guardpoints" {
                 Value::Int(sim.fighters[who].guard_points)
+            } else if lower == "dizzypoints" {
+                Value::Int(sim.fighters[who].dizzy_points)
             } else {
                 sim.fighters[who].hit.vars.get(&lower)
             }

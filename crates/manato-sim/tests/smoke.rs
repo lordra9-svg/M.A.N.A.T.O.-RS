@@ -4715,6 +4715,27 @@ fn target_meter_setters_clamp_values() {
 }
 
 #[test]
+fn get_hitvar_dizzypoints_reports_live_meter() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 42;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(dizzypoints)"),
+        42
+    );
+    let mut hit = hitdef();
+    hit.damage = 10;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(dizzypoints)"),
+        24
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
