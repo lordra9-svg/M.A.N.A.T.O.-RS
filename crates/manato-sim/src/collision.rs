@@ -684,6 +684,7 @@ pub fn apply_hit_at(
                 f.dizzy_points = (f.dizzy_points - loss).max(0);
                 if before > 0 && f.dizzy_points == 0 {
                     f.dizzy_timer = 60;
+                    f.dizzy_flag = true;
                     f.ctrl = false;
                 }
             }

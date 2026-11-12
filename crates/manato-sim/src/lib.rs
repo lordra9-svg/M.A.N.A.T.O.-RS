@@ -1032,6 +1032,7 @@ impl SimState {
                 fighter.dizzy_timer -= 1;
                 if fighter.dizzy_timer == 0 {
                     fighter.dizzy_points = fighter.dizzy_max;
+                    fighter.dizzy_flag = false;
                     fighter.ctrl = true;
                 } else {
                     fighter.ctrl = false;
@@ -1947,6 +1948,7 @@ impl SimState {
             fighter.guard_break = false;
             fighter.dizzy_points = fighter.dizzy_max;
             fighter.dizzy_timer = 0;
+            fighter.dizzy_flag = false;
             fighter.guard_cooldown = 0;
             fighter.power = power.min(MAX_POWER);
             fighter.state_no = 0;
@@ -2493,6 +2495,7 @@ impl SimState {
             h.write_i32(f.dizzy_points);
             h.write_i32(f.dizzy_max);
             h.write_i32(f.dizzy_timer);
+            h.write_bool(f.dizzy_flag);
             h.write_f32(f.power);
             h.write_bool(f.ctrl);
             h.write_bool(f.face_p2_pending);

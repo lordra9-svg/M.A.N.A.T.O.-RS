@@ -4459,6 +4459,7 @@ fn dizzy_points_deplete_and_trigger_stun() {
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
     assert_eq!(sim.fighters[1].dizzy_points, 0);
     assert_eq!(sim.fighters[1].dizzy_timer, 60);
+    assert!(sim.fighters[1].dizzy_flag);
     assert!(!sim.fighters[1].ctrl);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "Dizzy"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "DizzyPoints"), 0);
@@ -4486,6 +4487,7 @@ fn dizzy_points_deplete_and_trigger_stun() {
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters[1].dizzy_timer, 0);
     assert_eq!(sim.fighters[1].dizzy_points, 100);
+    assert!(!sim.fighters[1].dizzy_flag);
     assert!(sim.fighters[1].ctrl);
 
     // Controllers clamp the meter.
@@ -4516,6 +4518,30 @@ fn dizzy_points_deplete_and_trigger_stun() {
         vec![("value".into(), "500".into())],
     );
     assert_eq!(sim.fighters[1].dizzy_points, 100);
+}
+
+#[test]
+fn dizzy_set_controller_toggles_trigger() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "dizzyset".into(),
+        params: vec![("value".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+    assert!(sim.fighters[1].dizzy_flag);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Dizzy"), 1);
+    let clear = manato_formats::Controller {
+        kind: "dizzyset".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &clear, &assets);
+    assert!(!sim.fighters[1].dizzy_flag);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Dizzy"), 0);
 }
 
 #[test]

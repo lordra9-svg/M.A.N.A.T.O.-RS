@@ -104,7 +104,7 @@ Required controller families for the approved matrix:
 - `Pause`, `SuperPause`
 - `EnvShake`, `FallEnvShake`
 - `GuardPointsAdd`, `GuardPointsSet`, `GuardBreakSet`
-- `DizzyPointsAdd`, `DizzyPointsSet`
+- `DizzyPointsAdd`, `DizzyPointsSet`, `DizzySet`
 
 ### 4.3 Presentation and audio
 

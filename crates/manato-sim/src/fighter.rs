@@ -200,6 +200,8 @@ pub struct Fighter {
     pub dizzy_points: i32,
     pub dizzy_max: i32,
     pub dizzy_timer: i32,
+    /// Persistent dizzy flag (`DizzySet`).
+    pub dizzy_flag: bool,
     /// Remaining ticks before guard-point regeneration resumes.
     pub guard_cooldown: i32,
     pub power: f32,
@@ -347,6 +349,7 @@ impl Fighter {
             dizzy_points: dizzy_max,
             dizzy_max,
             dizzy_timer: 0,
+            dizzy_flag: false,
             guard_cooldown: 0,
             power: 0.0,
             defence_mul: 1.0,

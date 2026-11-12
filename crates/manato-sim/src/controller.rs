@@ -101,6 +101,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "guardbreakset" => guard_break_set(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
+        "dizzyset" => dizzy_set(sim, who, control),
         "lifeset" => life_set(sim, who, control),
         "hitadd" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
@@ -753,6 +754,11 @@ fn dizzy_points_set(sim: &mut SimState, who: usize, control: &Controller) {
         return;
     }
     fighter.dizzy_points = value.clamp(0, fighter.dizzy_max);
+}
+
+fn dizzy_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0) != 0;
+    sim.fighters[who].dizzy_flag = value;
 }
 
 fn target_power_add(sim: &mut SimState, who: usize, control: &Controller) {
