@@ -5090,6 +5090,33 @@ fn ikemen_only_anim_and_round_time_triggers() {
 }
 
 #[test]
+fn round_time_controllers_set_and_clamp_ticks() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.round.round_time = 60;
+    sim.round.timer = 10 * manato_core::TICKS_PER_SECOND as i32;
+    let run = |sim: &mut SimState, kind: &str, value: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: vec![("value".into(), value.into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(&mut sim, "roundtimeset", "1800");
+    assert_eq!(sim.round.timer, 1800);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RoundTime"), 30);
+    run(&mut sim, "roundtimeadd", "300");
+    assert_eq!(sim.round.timer, 2100);
+    run(&mut sim, "roundtimeadd", "-999999");
+    assert_eq!(sim.round.timer, 0);
+    run(&mut sim, "roundtimeset", "999999");
+    assert_eq!(sim.round.timer, 60 * manato_core::TICKS_PER_SECOND as i32);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

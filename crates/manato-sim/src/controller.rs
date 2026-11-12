@@ -100,6 +100,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "guardpointsset" => guard_points_set(sim, who, control),
         "guardbreakset" => guard_break_set(sim, who, control),
         "gethitvarset" => get_hit_var_set(sim, who, control),
+        "roundtimeadd" => round_time_add(sim, who, control),
+        "roundtimeset" => round_time_set(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -856,6 +858,22 @@ fn get_hit_var_set(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(value) = hitshaketime {
         f.hit.hit_shake_timer = value.max(0);
     }
+}
+
+/// `RoundTimeAdd`/`RoundTimeSet` operate on the internal tick timer, clamped
+/// to the round's configured duration. Ikemen's equivalent controllers use the
+/// same tick units.
+fn round_time_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let max = (sim.round.round_time * manato_core::TICKS_PER_SECOND as i32).max(0);
+    let timer = (sim.round.timer + value).clamp(0, max);
+    sim.round.timer = timer;
+}
+
+fn round_time_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let max = (sim.round.round_time * manato_core::TICKS_PER_SECOND as i32).max(0);
+    sim.round.timer = value.clamp(0, max);
 }
 
 fn dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {

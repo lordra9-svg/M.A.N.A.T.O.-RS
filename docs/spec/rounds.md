@@ -132,8 +132,10 @@ Round/match triggers must reflect this state:
 
 ## 9. Round-time and match-state controllers
 
-- `RoundTime`-style content reads the timer through triggers; no dedicated
-  controller is required.
+- `RoundTimeAdd` and `RoundTimeSet` change the internal tick timer, clamped to
+  `0..round_time * TICKS_PER_SECOND`. Values are in game ticks, matching
+  Ikemen-GO's equivalent controllers; `RoundTime`/`TimeRemaining` still report
+  whole seconds.
 - `AssertSpecial` flags `NoKOSlow`, `NoKOSnd`, `NoKo`, `NoMusic`, and
   `NoBarDisplay` are honored by the round flow and renderer where applicable.
 - `RoundNotOver` delays the next phase while asserted.
