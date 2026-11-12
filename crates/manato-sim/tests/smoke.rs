@@ -4975,6 +4975,94 @@ fn get_hitvar_fall_xvel_and_yvel_aliases() {
 }
 
 #[test]
+fn get_hit_var_set_writes_modeled_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].dizzy_max = 100;
+    let control = manato_formats::Controller {
+        kind: "gethitvarset".into(),
+        params: vec![
+            ("xvel".into(), "-4.5".into()),
+            ("yvel".into(), "-6".into()),
+            ("yaccel".into(), "0.7".into()),
+            ("hittime".into(), "12".into()),
+            ("slidetime".into(), "3".into()),
+            ("ctrltime".into(), "4".into()),
+            ("damage".into(), "33".into()),
+            ("hitcount".into(), "2".into()),
+            ("fallcount".into(), "1".into()),
+            ("groundtype".into(), "2".into()),
+            ("airtype".into(), "3".into()),
+            ("animtype".into(), "4".into()),
+            ("guarded".into(), "1".into()),
+            ("fall".into(), "1".into()),
+            ("fall.damage".into(), "15".into()),
+            ("fall.kill".into(), "0".into()),
+            ("fall.recover".into(), "0".into()),
+            ("fall.recovertime".into(), "9".into()),
+            ("fall.xvel".into(), "2.5".into()),
+            ("fall.yvel".into(), "-5".into()),
+            ("fall.envshake.time".into(), "8".into()),
+            ("fall.envshake.freq".into(), "90".into()),
+            ("fall.envshake.ampl".into(), "-3".into()),
+            ("fall.envshake.phase".into(), "45".into()),
+            ("down.recover".into(), "0".into()),
+            ("down.recovertime".into(), "30".into()),
+            ("guardpoints".into(), "40".into()),
+            ("dizzypoints".into(), "60".into()),
+            ("hitshaketime".into(), "5".into()),
+            ("unknown.field".into(), "99".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+    let f = &sim.fighters[1];
+    assert_eq!(f.hit.vars.x_vel, -4.5);
+    assert_eq!(f.hit.vars.y_vel, -6.0);
+    assert_eq!(f.hit.vars.y_accel, 0.7);
+    assert_eq!(f.hit.vars.hittime, 12);
+    assert_eq!(f.hit.vars.slidetime, 3);
+    assert_eq!(f.hit.vars.ctrltime, 4);
+    assert_eq!(f.hit.vars.damage, 33);
+    assert_eq!(f.hit.vars.hitcount, 2);
+    assert_eq!(f.hit.vars.fallcount, 1);
+    assert_eq!(f.hit.vars.ground_type, 2);
+    assert_eq!(f.hit.vars.air_type, 3);
+    assert_eq!(f.hit.vars.anim_type, 4);
+    assert!(f.hit.vars.guarded);
+    assert!(f.hit.vars.fall);
+    assert_eq!(f.hit.vars.fall_damage, 15);
+    assert!(!f.hit.vars.fall_kill);
+    assert!(!f.hit.vars.fall_recover);
+    assert_eq!(f.hit.vars.fall_recovertime, 9);
+    assert_eq!(f.hit.vars.fall_x_vel, Some(2.5));
+    assert_eq!(f.hit.vars.fall_y_vel, Some(-5.0));
+    assert_eq!(f.hit.vars.fall_envshake_time, 8);
+    assert_eq!(f.hit.vars.fall_envshake_freq, 90.0);
+    assert_eq!(f.hit.vars.fall_envshake_ampl, -3);
+    assert_eq!(f.hit.vars.fall_envshake_phase, 45.0);
+    assert!(!f.hit.vars.down_recover);
+    assert_eq!(f.hit.vars.down_recovertime, 30);
+    assert_eq!(f.guard_points, 40);
+    assert_eq!(f.dizzy_points, 60);
+    assert_eq!(f.hit.hit_shake_timer, 5);
+
+    // Omitted fields keep their previous values.
+    let partial = manato_formats::Controller {
+        kind: "gethitset_none".into(),
+        params: vec![("xvel".into(), "1".into())],
+        line: 0,
+    };
+    let before = sim.fighters[1].hit.vars.damage;
+    manato_sim::controller::execute(&mut sim, 1, &partial, &assets);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, -4.5);
+    assert_eq!(sim.fighters[1].hit.vars.damage, before);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

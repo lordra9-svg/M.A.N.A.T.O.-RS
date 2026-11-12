@@ -99,6 +99,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "guardpointsadd" => guard_points_add(sim, who, control),
         "guardpointsset" => guard_points_set(sim, who, control),
         "guardbreakset" => guard_break_set(sim, who, control),
+        "gethitvarset" => get_hit_var_set(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -735,6 +736,126 @@ fn guard_points_set(sim: &mut SimState, who: usize, control: &Controller) {
 fn guard_break_set(sim: &mut SimState, who: usize, control: &Controller) {
     let value = int_param(sim, who, control, "value").unwrap_or(0) != 0;
     sim.fighters[who].guard_break = value;
+}
+
+/// `GetHitVarSet` writes directly into the fighter's stored GetHitVar block.
+/// Only fields the engine models are accepted; unknown parameters are ignored.
+fn get_hit_var_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let i = |key: &str| int_param(sim, who, control, key);
+    let n = |key: &str| num_param(sim, who, control, key);
+    let (xvel, yvel, yaccel) = (n("xvel"), n("yvel"), n("yaccel"));
+    let (hittime, slidetime, ctrltime) = (i("hittime"), i("slidetime"), i("ctrltime"));
+    let (damage, hitcount, fallcount) = (i("damage"), i("hitcount"), i("fallcount"));
+    let (ground_type, air_type, anim_type) = (i("groundtype"), i("airtype"), i("animtype"));
+    let guarded = i("guarded");
+    let fall = i("fall");
+    let (fall_damage, fall_kill, fall_recover, fall_recovertime) = (
+        i("fall.damage"),
+        i("fall.kill"),
+        i("fall.recover"),
+        i("fall.recovertime"),
+    );
+    let (fall_xvel, fall_yvel) = (n("fall.xvel"), n("fall.yvel"));
+    let (env_time, env_freq, env_ampl, env_phase) = (
+        i("fall.envshake.time"),
+        n("fall.envshake.freq"),
+        i("fall.envshake.ampl"),
+        n("fall.envshake.phase"),
+    );
+    let (down_recover, down_recovertime) = (i("down.recover"), i("down.recovertime"));
+    let (guardpoints, dizzypoints, hitshaketime) =
+        (i("guardpoints"), i("dizzypoints"), i("hitshaketime"));
+
+    let f = &mut sim.fighters[who];
+    let vars = &mut f.hit.vars;
+    if let Some(value) = xvel {
+        vars.x_vel = value;
+    }
+    if let Some(value) = yvel {
+        vars.y_vel = value;
+    }
+    if let Some(value) = yaccel {
+        vars.y_accel = value;
+    }
+    if let Some(value) = hittime {
+        vars.hittime = value;
+    }
+    if let Some(value) = slidetime {
+        vars.slidetime = value;
+    }
+    if let Some(value) = ctrltime {
+        vars.ctrltime = value;
+    }
+    if let Some(value) = damage {
+        vars.damage = value;
+    }
+    if let Some(value) = hitcount {
+        vars.hitcount = value;
+    }
+    if let Some(value) = fallcount {
+        vars.fallcount = value;
+    }
+    if let Some(value) = ground_type {
+        vars.ground_type = value;
+    }
+    if let Some(value) = air_type {
+        vars.air_type = value;
+    }
+    if let Some(value) = anim_type {
+        vars.anim_type = value;
+    }
+    if let Some(value) = guarded {
+        vars.guarded = value != 0;
+    }
+    if let Some(value) = fall {
+        vars.fall = value != 0;
+    }
+    if let Some(value) = fall_damage {
+        vars.fall_damage = value;
+    }
+    if let Some(value) = fall_kill {
+        vars.fall_kill = value != 0;
+    }
+    if let Some(value) = fall_recover {
+        vars.fall_recover = value != 0;
+    }
+    if let Some(value) = fall_recovertime {
+        vars.fall_recovertime = value;
+    }
+    if let Some(value) = fall_xvel {
+        vars.fall_x_vel = Some(value);
+    }
+    if let Some(value) = fall_yvel {
+        vars.fall_y_vel = Some(value);
+    }
+    if let Some(value) = env_time {
+        vars.fall_envshake_time = value;
+    }
+    if let Some(value) = env_freq {
+        vars.fall_envshake_freq = value;
+    }
+    if let Some(value) = env_ampl {
+        vars.fall_envshake_ampl = value;
+    }
+    if let Some(value) = env_phase {
+        vars.fall_envshake_phase = value;
+    }
+    if let Some(value) = down_recover {
+        vars.down_recover = value != 0;
+    }
+    if let Some(value) = down_recovertime {
+        vars.down_recovertime = value;
+    }
+    // Our GetHitVar exposes the live meters, so mirror that decision here.
+    if let Some(value) = guardpoints {
+        f.guard_points = value.clamp(0, f.guard_max);
+    }
+    if let Some(value) = dizzypoints {
+        f.dizzy_points = value.clamp(0, f.dizzy_max);
+    }
+    if let Some(value) = hitshaketime {
+        f.hit.hit_shake_timer = value.max(0);
+    }
 }
 
 fn dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {

@@ -324,6 +324,14 @@ to the attacker’s currently bound target. `TargetGuardPointsSet` and
 corresponding maximum. `ModifyPlayer` also accepts `attack`/`defence`
 percentages (`100` = 1x) and `ailevel`.
 
+`GetHitVarSet` writes directly into the stored GetHitVar block. The engine
+accepts the modeled fields (`xvel`, `yvel`, `yaccel`, `hittime`, `slidetime`,
+`ctrltime`, `damage`, `hitcount`, `fallcount`, `groundtype`, `airtype`,
+`animtype`, `guarded`, `fall`, `fall.*`, `down.recover`,
+`down.recovertime`, `hitshaketime`). `guardpoints`/`dizzypoints` write the
+live meters, matching this engine’s `GetHitVar` decision. Unknown parameters
+are ignored.
+
 `GetHitVar(guardpoints)` returns the live guard-point meter. This is an
 explicit engine decision: Ikemen’s internal GetHitVar exposes the pending
 guard-point damage for the current hit, while this engine exposes the meter

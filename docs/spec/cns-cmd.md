@@ -109,6 +109,7 @@ Required controller families for the approved matrix:
   `defence`, `ailevel`)
 - `TargetGuardPointsAdd`, `TargetDizzyPointsAdd`
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
+- `GetHitVarSet` (modeled GetHitVar fields)
 
 ### 4.3 Presentation and audio
 
