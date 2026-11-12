@@ -462,6 +462,24 @@ impl Fighter {
     }
 
     pub fn enter_state(&mut self, number: i32, char: &Character, face_p2: bool) {
+        let persisted = char.state(number);
+        let persist_hitdef = persisted
+            .and_then(|state| state.get_i32("hitdefpersist"))
+            .unwrap_or(0)
+            != 0;
+        let persist_movehit = persisted
+            .and_then(|state| state.get_i32("movehitpersist"))
+            .unwrap_or(0)
+            != 0;
+        let persist_hitcount = persisted
+            .and_then(|state| state.get_i32("hitcountpersist"))
+            .unwrap_or(0)
+            != 0;
+        let previous_attack = self.attack;
+        let previous_hitdef = self.hitdef.clone();
+        let previous_targets = std::mem::take(&mut self.hit.hit_targets);
+        let previous_counts = std::mem::take(&mut self.hit.hit_counts);
+
         self.prev_state_no = self.state_no;
         self.state_no = number;
         self.state_time = 0;
@@ -481,6 +499,23 @@ impl Fighter {
         self.hit.hit_counts.clear();
         self.hit.pause_gap = 0;
         self.width_override = None;
+
+        if persist_hitdef {
+            self.hitdef = previous_hitdef;
+            self.hit.hit_targets = previous_targets;
+            self.hit.hit_counts = previous_counts;
+        }
+        if persist_movehit {
+            self.attack.move_contact = previous_attack.move_contact;
+            self.attack.move_hit = previous_attack.move_hit;
+            self.attack.move_guarded = previous_attack.move_guarded;
+            self.attack.move_reversed = previous_attack.move_reversed;
+        }
+        if persist_hitcount {
+            self.attack.hit_count = previous_attack.hit_count;
+            self.attack.uniq_hit_count = previous_attack.uniq_hit_count;
+            self.attack.guard_count = previous_attack.guard_count;
+        }
 
         let _ = face_p2;
         if number == 0 || number == 52 {

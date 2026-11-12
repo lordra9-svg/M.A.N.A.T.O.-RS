@@ -56,6 +56,9 @@ poweradd = N
 juggle = N
 sprpriority = N
 facep2 = 0|1
+hitdefpersist = 0|1
+movehitpersist = 0|1
+hitcountpersist = 0|1
 ```
 
 Defaults:
@@ -70,6 +73,12 @@ Defaults:
 - `juggle = 0`
 - `sprpriority = 0`
 - `facep2 = 0`
+- `hitdefpersist = 0`: the active HitDef and its per-activation hit
+  targets/counts are cleared on state entry
+- `movehitpersist = 0`: `MoveContact`/`MoveHit`/`MoveGuarded`/`MoveReversed`
+  are cleared on state entry
+- `hitcountpersist = 0`: `HitCount`, `UniqHitCount`, and the guarded count
+  are cleared on state entry
 
 `U` means “keep the previous value.” Entering a state applies the header before
 the first controller runs.

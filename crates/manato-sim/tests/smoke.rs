@@ -5256,6 +5256,98 @@ fn is_asserted_and_combo_count_triggers() {
 }
 
 #[test]
+fn statedef_persist_flags_control_state_entry_resets() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[0];
+        for (number, params) in [
+            (
+                7100,
+                vec![
+                    ("type".into(), "S".into()),
+                    ("movetype".into(), "I".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                    ("hitdefpersist".into(), "1".into()),
+                ],
+            ),
+            (
+                7101,
+                vec![
+                    ("type".into(), "S".into()),
+                    ("movetype".into(), "I".into()),
+                    ("physics".into(), "N".into()),
+                    ("anim".into(), "0".into()),
+                    ("movehitpersist".into(), "1".into()),
+                    ("hitcountpersist".into(), "1".into()),
+                ],
+            ),
+        ] {
+            character.states.insert(
+                number,
+                manato_formats::StateDef {
+                    number,
+                    params,
+                    controllers: Vec::new(),
+                    line: 0,
+                    source: String::new(),
+                },
+            );
+        }
+    }
+    let assets = sim.assets.clone();
+    let fighter = &mut sim.fighters[0];
+    fighter.hitdef = Some(hitdef());
+    fighter.hit.hit_targets = vec![1];
+    fighter.hit.hit_counts = vec![(1, 3)];
+    fighter.attack.move_contact = true;
+    fighter.attack.move_hit = true;
+    fighter.attack.move_guarded = true;
+    fighter.attack.move_reversed = true;
+    fighter.attack.hit_count = 4;
+    fighter.attack.uniq_hit_count = 5;
+    fighter.attack.guard_count = 6;
+
+    // hitdefpersist keeps the active HitDef and its per-activation targets.
+    fighter.enter_state(7100, &assets.characters[0], false);
+    assert!(fighter.hitdef.is_some());
+    assert_eq!(fighter.hit.hit_targets, vec![1]);
+    assert_eq!(fighter.hit.hit_counts, vec![(1, 3)]);
+    assert!(!fighter.attack.move_hit);
+    assert_eq!(fighter.attack.hit_count, 0);
+
+    fighter.attack.move_contact = true;
+    fighter.attack.move_hit = true;
+    fighter.attack.move_guarded = true;
+    fighter.attack.move_reversed = true;
+    fighter.attack.hit_count = 4;
+    fighter.attack.uniq_hit_count = 5;
+    fighter.attack.guard_count = 6;
+
+    // movehitpersist/hitcountpersist keep Move* flags and hit counters, while
+    // the HitDef itself is cleared.
+    fighter.enter_state(7101, &assets.characters[0], false);
+    assert!(fighter.hitdef.is_none());
+    assert!(fighter.hit.hit_targets.is_empty());
+    assert!(fighter.attack.move_contact);
+    assert!(fighter.attack.move_hit);
+    assert!(fighter.attack.move_guarded);
+    assert!(fighter.attack.move_reversed);
+    assert_eq!(fighter.attack.hit_count, 4);
+    assert_eq!(fighter.attack.uniq_hit_count, 5);
+    assert_eq!(fighter.attack.guard_count, 6);
+
+    // Defaults clear everything again.
+    fighter.enter_state(0, &assets.characters[0], false);
+    assert!(fighter.hitdef.is_none());
+    assert!(!fighter.attack.move_hit);
+    assert_eq!(fighter.attack.hit_count, 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
