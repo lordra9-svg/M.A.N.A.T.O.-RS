@@ -397,6 +397,11 @@ timed stun.
   defender’s facing. Guarded contacts leave facing unchanged.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
+- `GetHitVar(xoff)`/`GetHitVar(yoff)` record the defender’s position relative
+  to the attacker after the contact resolves, including any
+  `mindist`/`maxdist`/`snap` clamp. The public reference labels these
+  deprecated snap offsets; this engine records the actual relative position
+  instead.
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,
   including on guarded contacts. It counts down once per game tick and stops
   at zero; `HitShakeOver` becomes true at that point.

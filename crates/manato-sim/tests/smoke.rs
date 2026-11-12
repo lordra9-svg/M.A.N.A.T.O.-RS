@@ -4895,6 +4895,60 @@ fn hitdef_hitonce_defaults_on_for_throw_attr() {
 }
 
 #[test]
+fn get_hitvar_contact_offsets_record_relative_position() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(xoff)"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yoff)"), 0.0);
+    sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+    sim.fighters[1].pos = manato_core::Vec2::new(10.0, -20.0);
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(xoff)"), 20.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yoff)"), -20.0);
+
+    // Snap clamps the position first, then the offsets report the result.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.snap = manato_core::Vec2::new(50.0, -20.0);
+    hit.mindist = manato_core::Vec2::new(50.0, -20.0);
+    hit.maxdist = manato_core::Vec2::new(50.0, -20.0);
+    sim.fighters[0].pos = manato_core::Vec2::ZERO;
+    sim.fighters[1].pos = manato_core::Vec2::new(200.0, 40.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].pos, manato_core::Vec2::new(50.0, -20.0));
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(xoff)"), 50.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(yoff)"), -20.0);
+
+    // Facing left keeps the offset signed relative to the attacker.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("snap".into(), "50, 0".into()),
+        ],
+        line: 0,
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[0].pos = manato_core::Vec2::new(100.0, 0.0);
+    sim.fighters[1].pos = manato_core::Vec2::ZERO;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, -1, true);
+    assert_eq!(sim.fighters[1].pos.x, 50.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 1, "GetHitVar(xoff)"), -50.0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

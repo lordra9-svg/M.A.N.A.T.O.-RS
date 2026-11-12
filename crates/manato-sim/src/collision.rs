@@ -760,6 +760,13 @@ pub fn apply_hit_at(
     sim.fighters[defender].state_char_id = None;
     sim.fighters[defender].anim_char_id = None;
 
+    // Record the defender's position relative to the attacker at contact
+    // (after any mindist/maxdist/snap clamp) for GetHitVar(xoff/yoff).
+    let attacker_pos = sim.fighters[attacker].pos;
+    let defender_pos = sim.fighters[defender].pos;
+    sim.fighters[defender].hit.vars.x_off = defender_pos.x - attacker_pos.x;
+    sim.fighters[defender].hit.vars.y_off = defender_pos.y - attacker_pos.y;
+
     if !guarding
         && !defender_airborne
         && hitdef.forcestand
