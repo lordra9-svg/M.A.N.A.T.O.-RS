@@ -705,6 +705,9 @@ fn is_trigger_name(name: &str) -> bool {
             | "anim"
             | "animelem"
             | "animtime"
+            | "animlength"
+            | "animloopcount"
+            | "sprpriority"
             | "author"
             | "backedge"
             | "backedgebodydist"
@@ -808,6 +811,9 @@ fn is_trigger_name(name: &str) -> bool {
             | "roundsexisted"
             | "roundstate"
             | "roundtime"
+            | "timeremaining"
+            | "timeelapsed"
+            | "timetotal"
             | "screenpos"
             | "screenvel"
             | "stateno"
@@ -909,6 +915,13 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "anim" => Value::Int(f.anim_no),
         "animelem" => Value::Int(f.anim_elem()),
         "animtime" => Value::Int(f.anim_time_remaining(sim.anim_character(who))),
+        "animlength" => Value::Int(
+            f.current_anim(sim.anim_character(who))
+                .map(|anim| anim.total_time())
+                .unwrap_or(0),
+        ),
+        "animloopcount" => Value::Int(f.anim_looped),
+        "sprpriority" => Value::Int(f.sprite_priority),
         "facing" => Value::Int(f.facing),
         "pos" => Value::Float(f.pos.x),
         "vel" => Value::Float(f.vel.x),
@@ -933,6 +946,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "roundsexisted" => Value::Int(sim.round.number.saturating_sub(1) as i32),
         "roundstate" => Value::Int(sim.round.roundstate_code()),
         "roundtime" => Value::Int(sim.round.seconds()),
+        "timeremaining" => Value::Int(sim.round.seconds()),
+        "timetotal" => Value::Int(sim.round.round_time),
+        "timeelapsed" => Value::Int((sim.round.round_time - sim.round.seconds()).max(0)),
         "teamside" => Value::Int(f.side as i32 + 1),
         "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
         "ishelper" => Value::Int(sim.is_helper(who) as i32),

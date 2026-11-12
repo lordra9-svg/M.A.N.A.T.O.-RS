@@ -5063,6 +5063,33 @@ fn get_hit_var_set_writes_modeled_fields() {
 }
 
 #[test]
+fn ikemen_only_anim_and_round_time_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let char = &sim.assets.characters[0];
+    let expected_length = char.animation(0).map(|anim| anim.total_time()).unwrap_or(0);
+    sim.fighters[0].set_anim(0, char, None);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "AnimLength"),
+        expected_length
+    );
+    sim.fighters[0].anim_looped = 3;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimLoopCount"), 3);
+    sim.fighters[0].sprite_priority = 7;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SprPriority"), 7);
+
+    sim.round.round_time = 60;
+    sim.round.timer = 30 * manato_core::TICKS_PER_SECOND as i32;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeRemaining"), 30);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeTotal"), 60);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeElapsed"), 30);
+    sim.round.timer = 0;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeRemaining"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeElapsed"), 60);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

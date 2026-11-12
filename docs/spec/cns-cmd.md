@@ -171,8 +171,9 @@ missing redirect targets make the trigger false.
 ### 5.3 Required trigger families
 
 - Time/animation: `Time`, `Anim`, `AnimElem`, `AnimElemTime`, `AnimTime`,
-  `AnimExist`, `SelfAnimExist`
-- Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`
+  `AnimExist`, `SelfAnimExist`, `AnimLength`, `AnimLoopCount`
+- Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
+  `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `MoveType`, `Ctrl`, `Physics`
 - Combat: `Alive`, `Life`, `LifeMax`, `Power`, `GetHitVar`, `HitOver`,
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
@@ -183,7 +184,8 @@ missing redirect targets make the trigger false.
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
-  `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`
+  `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
+  `TimeElapsed`, `TimeTotal`
 - Utility: `Const`, `Const240p`, `Const480p`, `Const720p`, `Random`, `IfElse`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,
   `Sqrt`, `Pow`, `AILevel`
