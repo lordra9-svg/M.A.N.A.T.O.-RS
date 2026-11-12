@@ -148,6 +148,10 @@ pub struct HitDef {
     /// True when the content explicitly supplied a guard-damage value.
     pub guard_damage_set: bool,
     pub anim_type: AnimType,
+    /// Reaction animation type for airborne defenders (`air.animtype`).
+    pub air_anim_type: AnimType,
+    /// Reaction animation type for falling defenders (`fall.animtype`).
+    pub fall_anim_type: AnimType,
     pub hitflag: String,
     pub guardflag: String,
     pub ground_type: GroundType,
@@ -289,6 +293,8 @@ impl Default for HitDef {
             guard_damage: 0,
             guard_damage_set: false,
             anim_type: AnimType::Light,
+            air_anim_type: AnimType::Light,
+            fall_anim_type: AnimType::Back,
             hitflag: "MAF".into(),
             guardflag: "MA".into(),
             ground_type: GroundType::High,
@@ -410,6 +416,8 @@ impl HitDef {
             ..Self::default()
         };
         let mut air_type_set = false;
+        let mut air_anim_type_set = false;
+        let mut fall_anim_type_set = false;
         let mut airguard_velocity_set = false;
         let mut down_velocity_set = false;
         let mut air_fall_set = false;
@@ -441,6 +449,14 @@ impl HitDef {
                     h.guard_damage_set = true;
                 }
                 "animtype" => h.anim_type = AnimType::parse(value),
+                "air.animtype" => {
+                    h.air_anim_type = AnimType::parse(value);
+                    air_anim_type_set = true;
+                }
+                "fall.animtype" => {
+                    h.fall_anim_type = AnimType::parse(value);
+                    fall_anim_type_set = true;
+                }
                 "hitflag" => h.hitflag = value.to_ascii_uppercase(),
                 "guardflag" => h.guardflag = value.to_ascii_uppercase(),
                 "ground.type" => h.ground_type = GroundType::parse(value),
@@ -610,6 +626,17 @@ impl HitDef {
         // follows ground.hittime, and guard.slidetime follows guard.hittime.
         if !air_type_set {
             h.air_type = h.ground_type;
+        }
+        // air.animtype inherits animtype; fall.animtype becomes Up/DiagUp when
+        // the air type is Up/DiagUp and Back otherwise.
+        if !air_anim_type_set {
+            h.air_anim_type = h.anim_type;
+        }
+        if !fall_anim_type_set {
+            h.fall_anim_type = match h.air_anim_type {
+                AnimType::Up | AnimType::DiagUp => h.air_anim_type,
+                _ => AnimType::Back,
+            };
         }
         if !air_fall_set {
             h.air_fall = h.fall;

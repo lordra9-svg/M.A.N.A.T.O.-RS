@@ -57,6 +57,8 @@ guard.damage = 5
 hitflag = MAF
 guardflag = MA
 animtype = Light|Medium|Heavy|Back|Up|DiagUp
+air.animtype = Light|Medium|Heavy|Back|Up|DiagUp
+fall.animtype = Light|Medium|Heavy|Back|Up|DiagUp
 ground.type = High|Low|Trip
 air.type = High|Low|Trip
 ground.velocity = x, y
@@ -136,6 +138,12 @@ applied when a `HitDef` controller omits the parameter:
 - `ground.type` is `High`. `air.type` inherits `ground.type` when omitted.
   Type names are case-insensitive; the single-letter forms `L` and `T` used
   by Ikemen-GO content are also accepted.
+- `animtype` is `Light`. `air.animtype` inherits `animtype`. `fall.animtype`
+  becomes the `air.animtype` value when that is `Up` or `DiagUp`, and `Back`
+  otherwise. `GetHitVar(animtype)` reports the selected type: the fall type
+  for a fall hit, the air type for an airborne defender, and the ground type
+  otherwise. A grounded `Back`/`Up`/`DiagUp` type with zero Y velocity
+  degrades to `Heavy`.
 - `affectteam` defaults to `E` (enemy team). `B` allows both teams and `F`
   allows only the same team.
 - `getpower` defaults to `damage × 0.7` for the primary value and half of

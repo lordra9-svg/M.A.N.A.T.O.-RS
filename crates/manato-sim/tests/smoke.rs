@@ -4736,6 +4736,128 @@ fn get_hitvar_dizzypoints_reports_live_meter() {
 }
 
 #[test]
+fn hitdef_animtype_air_and_fall_inheritance_and_selection() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+
+    // air.animtype inherits animtype.
+    let inherited = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("animtype".into(), "Medium".into()),
+        ],
+    );
+    assert_eq!(
+        inherited.air_anim_type,
+        manato_sim::hitdef::AnimType::Medium
+    );
+    assert_eq!(inherited.fall_anim_type, manato_sim::hitdef::AnimType::Back);
+
+    // fall.animtype follows Up/DiagUp air types, else Back.
+    let up = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.animtype".into(), "Up".into()),
+        ],
+    );
+    assert_eq!(up.fall_anim_type, manato_sim::hitdef::AnimType::Up);
+    let diag = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.animtype".into(), "DiagUp".into()),
+        ],
+    );
+    assert_eq!(diag.fall_anim_type, manato_sim::hitdef::AnimType::DiagUp);
+    let explicit = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("air.animtype".into(), "Up".into()),
+            ("fall.animtype".into(), "Hard".into()),
+        ],
+    );
+    assert_eq!(explicit.fall_anim_type, manato_sim::hitdef::AnimType::Heavy);
+
+    // An airborne defender uses air.animtype.
+    let mut hit = hitdef();
+    hit.anim_type = manato_sim::hitdef::AnimType::Light;
+    hit.air_anim_type = manato_sim::hitdef::AnimType::Heavy;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(animtype)"),
+        manato_sim::hitdef::AnimType::Heavy.code()
+    );
+
+    // A fall hit selects fall.animtype.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.fall = true;
+    hit.air_fall = true;
+    hit.anim_type = manato_sim::hitdef::AnimType::Light;
+    hit.air_anim_type = manato_sim::hitdef::AnimType::Light;
+    hit.fall_anim_type = manato_sim::hitdef::AnimType::DiagUp;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(animtype)"),
+        manato_sim::hitdef::AnimType::DiagUp.code()
+    );
+
+    // A grounded Back/Up type with no Y velocity degrades to Heavy.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.anim_type = manato_sim::hitdef::AnimType::Back;
+    hit.air_anim_type = manato_sim::hitdef::AnimType::Back;
+    hit.fall = false;
+    hit.air_fall = false;
+    hit.ground_velocity = manato_core::Vec2::new(-4.0, 0.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(animtype)"),
+        manato_sim::hitdef::AnimType::Heavy.code()
+    );
+
+    // With a Y velocity the ground type is preserved.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.anim_type = manato_sim::hitdef::AnimType::Back;
+    hit.air_anim_type = manato_sim::hitdef::AnimType::Back;
+    hit.fall = false;
+    hit.air_fall = false;
+    hit.ground_velocity = manato_core::Vec2::new(-4.0, -6.0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(animtype)"),
+        manato_sim::hitdef::AnimType::Back.code()
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -10717,7 +10839,8 @@ fn hitdef_parses_ground_air_types_times_and_cornerpush() {
     assert_eq!(sim.fighters[1].hit.vars.hittime, 9);
     assert_eq!(sim.fighters[1].hit.vars.slidetime, 6);
     assert_eq!(sim.fighters[1].hit.vars.ctrltime, 9);
-    assert_eq!(sim.fighters[1].hit.vars.anim_type, 5);
+    // A grounded DiagUp type with no Y velocity degrades to Hard/Heavy.
+    assert_eq!(sim.fighters[1].hit.vars.anim_type, 2);
     assert_eq!(sim.fighters[1].hit.vars.ground_type, 2);
     assert_eq!(sim.fighters[1].hit.vars.air_type, 3);
     assert_eq!(sim.fighters[1].hit.vars.hit_type, 2);

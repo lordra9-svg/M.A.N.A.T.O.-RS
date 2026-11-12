@@ -4,7 +4,7 @@ use manato_core::{Dir8, Rect, Vec2};
 use manato_formats::Character;
 
 use crate::fighter::{MoveType, StateType};
-use crate::hitdef::{GroundType, HitAttr, HitDef, TeamFilter};
+use crate::hitdef::{AnimType, GroundType, HitAttr, HitDef, TeamFilter};
 use crate::trigger::command_active;
 use crate::{SimState, SoundEvent, SoundSource};
 
@@ -591,7 +591,6 @@ pub fn apply_hit_at(
     {
         let f = &mut sim.fighters[defender];
         f.sprite_priority = hitdef.p2sprpriority;
-        f.hit.vars.anim_type = hitdef.anim_type.code();
         f.hit.vars.ground_type = hitdef.ground_type.code();
         f.hit.vars.air_type = hitdef.air_type.code();
         f.hit.vars.hit_type = if defender_airborne {
@@ -617,6 +616,16 @@ pub fn apply_hit_at(
             fall_flag = false;
         }
         f.hit.vars.fall = fall_flag;
+        // Select the reaction animation type from the defender's state.
+        f.hit.vars.anim_type = if fall_flag {
+            hitdef.fall_anim_type.code()
+        } else if defender_airborne {
+            hitdef.air_anim_type.code()
+        } else if hitdef.anim_type.code() >= AnimType::Back.code() && velocity.y == 0.0 {
+            AnimType::Heavy.code()
+        } else {
+            hitdef.anim_type.code()
+        };
         f.hit.vars.fall_recover = hitdef.fall_recover;
         f.hit.vars.fall_time = hitdef.fall_time;
         f.hit.vars.fall_recovertime = hitdef.fall_recovertime;
