@@ -1025,6 +1025,11 @@ impl SimState {
                 fighter.state_time = fighter.state_time.saturating_add(1);
             }
             fighter.hit.hit_over_timer = (fighter.hit.hit_over_timer - 1).max(0);
+            // GetHitVar(hittime) counts down only once the hit shake is over
+            // and stops at -1 (`HitOver`).
+            if fighter.hit.hit_shake_timer <= 0 && fighter.hit.vars.hittime >= 0 {
+                fighter.hit.vars.hittime = fighter.hit.vars.hittime.saturating_sub(1);
+            }
             if fighter.state_no == 5110 && fighter.hit.vars.down_recovertime > 0 {
                 let fast = fighter.hit.vars.down_recover
                     && fighter.held_input().buttons & manato_core::Buttons::ALL != 0;

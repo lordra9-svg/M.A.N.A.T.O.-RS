@@ -5385,6 +5385,53 @@ fn victory_quote_controller_and_selection() {
 }
 
 #[test]
+fn get_hitvar_hittime_counts_down_after_shake_to_minus_one() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.ground_hittime = 3;
+    hit.pausetime = (0, 0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitOver"), 0);
+
+    for expected in [2, 1, 0, -1, -1] {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(
+            manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"),
+            expected
+        );
+        assert_eq!(
+            manato_sim::trigger::int(&sim, 1, "HitOver"),
+            i32::from(expected < 0)
+        );
+    }
+
+    // A hit shake delays the countdown until it expires.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.ground_hittime = 4;
+    hit.pausetime = (0, 2);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"), 4);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"),
+        4,
+        "hit pause/shake keeps hittime frozen"
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"), 4);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(hittime)"), 3);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

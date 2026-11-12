@@ -413,6 +413,10 @@ timed stun.
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,
   including on guarded contacts. It counts down once per game tick and stops
   at zero; `HitShakeOver` becomes true at that point.
+- `GetHitVar(hittime)` begins at the selected hit time and counts down once
+  per tick only after the hit shake reaches zero, stopping at `-1`.
+  `HitOver` is exactly `GetHitVar(hittime) < 0`, and the fighter stays in
+  hitstun until then.
 - `GetHitVar(hitid)` reports the connecting HitDef/projectile `id`, and
   `GetHitVar(chainid)` records its `chainid`. A HitDef with `chainid >= 0`
   can only hit a defender whose last recorded hit id matches. During hitstun,

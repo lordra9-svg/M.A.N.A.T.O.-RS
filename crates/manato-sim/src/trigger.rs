@@ -1080,11 +1080,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
 }
 
 fn hit_over(sim: &SimState, who: usize) -> bool {
-    let f = &sim.fighters[who];
-    if f.move_type != crate::fighter::MoveType::Hit {
-        return true;
-    }
-    f.state_time >= f.hit.vars.hittime.max(1)
+    sim.fighters[who].hit.vars.hittime < 0
 }
 
 fn hit_shake_over(sim: &SimState, who: usize) -> bool {
