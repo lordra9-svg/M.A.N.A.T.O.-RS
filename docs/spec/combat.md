@@ -72,6 +72,9 @@ guard.dist = N
 mindist = x, y
 maxdist = x, y
 snap = x, y
+p1facing = -1|0|1
+p1getp2facing = -1|0|1
+p2facing = -1|0|1
 airguard.ctrltime = N
 pausetime = attacker, defender
 guard.pausetime = attacker, defender
@@ -160,6 +163,9 @@ applied when a `HitDef` controller omits the parameter:
   component leaves that axis unconstrained.
 - `snap` defaults to no change (unset per axis). A set axis overrides both
   `mindist` and `maxdist` on that axis.
+- `p1facing`, `p1getp2facing`, and `p2facing` default to `0` (no change).
+  `p1getp2facing` overrides `p1facing` when non-zero. Facing changes apply
+  only to unguarded successful hits.
 - `airguard.velocity` defaults to
   `(air.velocity.x * 1.5, air.velocity.y * 0.5)` when omitted. Guard
   velocities are applied directly; the engine does not halve them.
@@ -270,6 +276,9 @@ strict: distance must be less than `guard.dist`.
 - `snap` sets the exact post-hit position on each provided axis, overriding
   the corresponding min/max bound. Its X axis is facing-relative; Y follows
   the same application conditions as the Y bounds.
+- On unguarded hits, `p1getp2facing` sets P1 to P2’s facing (`1`) or its
+  opposite (`-1`) and takes precedence over `p1facing`; `p2facing` sets the
+  defender’s facing. Guarded contacts leave facing unchanged.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
 - `GetHitVar(hitshaketime)` returns the defender’s current hit-shake timer,

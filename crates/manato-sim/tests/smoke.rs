@@ -3290,6 +3290,94 @@ fn hitdef_guard_pausetime_defaults_and_applies() {
 }
 
 #[test]
+fn hitdef_facing_params_apply_to_normal_hits() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let parse = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "hitdef".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters[0].hitdef.clone().expect("hitdef")
+    };
+    let default = parse(&mut sim, vec![("attr".into(), "S, NA".into())]);
+    assert_eq!(default.p1getp2facing, 0);
+    let parsed = parse(
+        &mut sim,
+        vec![
+            ("attr".into(), "S, NA".into()),
+            ("p1getp2facing".into(), "1".into()),
+        ],
+    );
+    assert_eq!(parsed.p1getp2facing, 1);
+
+    // p1getp2facing = 1 copies P2's facing.
+    let mut hit = hitdef();
+    hit.p1getp2facing = 1;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].facing, -1);
+
+    // -1 takes the opposite.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.p1getp2facing = -1;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].facing, 1);
+
+    // p1getp2facing overrides p1facing.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.p1facing = 1;
+    hit.p1getp2facing = 1;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].facing, -1);
+
+    // p1facing and p2facing apply to normal hits, not only throws.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.p1facing = 1;
+    hit.p2facing = -1;
+    sim.fighters[0].facing = -1;
+    sim.fighters[1].facing = 1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[0].facing, 1);
+    assert_eq!(sim.fighters[1].facing, -1);
+
+    // Guarded contacts do not change facing.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.p1getp2facing = 1;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].facing = -1;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(sim.fighters[0].facing, 1);
+    assert_eq!(sim.fighters[1].facing, -1);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -207,6 +207,9 @@ pub struct HitDef {
     pub p2stateno: i32,
     pub p1facing: i32,
     pub p2facing: i32,
+    /// `1`/`-1` makes P1 copy P2 facing or its opposite; overrides
+    /// `p1facing` when non-zero.
+    pub p1getp2facing: i32,
     /// Post-hit minimum distance from the attacker (`mindist`), axis NaN
     /// when unset.
     pub mindist: Vec2,
@@ -298,6 +301,7 @@ impl Default for HitDef {
             p2stateno: -1,
             p1facing: 0,
             p2facing: 0,
+            p1getp2facing: 0,
             p1sprpriority: 0,
             p1sprpriority_set: false,
             mindist: Vec2::new(f32::NAN, f32::NAN),
@@ -474,6 +478,7 @@ impl HitDef {
                 "p2stateno" => h.p2stateno = parse_i32(value),
                 "p1facing" => h.p1facing = parse_i32(value),
                 "p2facing" => h.p2facing = parse_i32(value),
+                "p1getp2facing" => h.p1getp2facing = parse_i32(value),
                 "p1sprpriority" => {
                     h.p1sprpriority = parse_i32(value);
                     h.p1sprpriority_set = true;

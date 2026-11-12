@@ -394,6 +394,17 @@ pub fn apply_hit_at(
             return;
         }
     }
+    if !guarding {
+        if from_fighter && hitdef.p1getp2facing != 0 {
+            let sign = if hitdef.p1getp2facing < 0 { -1 } else { 1 };
+            sim.fighters[attacker].facing = sim.fighters[defender].facing * sign;
+        } else if from_fighter && hitdef.p1facing != 0 {
+            sim.fighters[attacker].facing = hitdef.p1facing;
+        }
+        if hitdef.p2facing != 0 {
+            sim.fighters[defender].facing = hitdef.p2facing;
+        }
+    }
     if from_fighter && !guarding && hitdef.p1stateno >= 0 {
         let assets = sim.assets.clone();
         let attacker_char = sim.fighters[attacker].char_id;
@@ -407,12 +418,6 @@ pub fn apply_hit_at(
                 &assets.characters[defender_char],
                 false,
             );
-        }
-        if hitdef.p1facing != 0 {
-            sim.fighters[attacker].facing = hitdef.p1facing;
-        }
-        if hitdef.p2facing != 0 {
-            sim.fighters[defender].facing = hitdef.p2facing;
         }
         if hitdef.p1sprpriority_set {
             sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
