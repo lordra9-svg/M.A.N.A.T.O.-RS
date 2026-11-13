@@ -1379,6 +1379,30 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn last_player_id_tracks_latest_creation() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 1);
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "4".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "LastPlayerID"), 2);
+
+    sim.restart_match();
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 1);
+}
+
+#[test]
 fn index_and_hit_overridden_triggers() {
     let Some(mut sim) = fight_phase() else {
         return;

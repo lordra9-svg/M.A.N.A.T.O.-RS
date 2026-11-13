@@ -645,6 +645,8 @@ pub struct SimState {
     pub frame: u64,
     /// Ticks since the match started (`FightTime`); not reset between rounds.
     pub match_time: i32,
+    /// Most recently assigned fighter index (`LastPlayerID`).
+    pub last_player_id: i32,
     pub round: RoundState,
     pub camera: CameraState,
     pub effects: Vec<Effect>,
@@ -727,6 +729,7 @@ impl SimState {
             fighters,
             frame: 0,
             match_time: 0,
+            last_player_id: 1,
             round: RoundState::new(options.rounds_to_win, options.round_time),
             camera: CameraState {
                 x: cam_start.x,
@@ -1998,6 +2001,7 @@ impl SimState {
         self.win_history = [Vec::new(), Vec::new()];
         self.finished = false;
         self.match_time = 0;
+        self.last_player_id = 1;
         self.score = [0.0; 2];
         self.score_rounds = [0.0; 2];
         for fighter in &mut self.fighters {
@@ -2014,6 +2018,7 @@ impl SimState {
             }
         }
         self.fighters.truncate(2);
+        self.last_player_id = self.fighters.len().saturating_sub(1) as i32;
         let stage = &self.assets.stage;
         for slot in 0..2 {
             let char = &self.assets.characters[slot];
@@ -2516,6 +2521,7 @@ impl SimState {
         let mut h = StateHasher::new();
         h.write_u64(self.frame);
         h.write_i32(self.match_time);
+        h.write_i32(self.last_player_id);
         h.write_u32(self.round.number);
         h.write_u8(self.round.phase as u8);
         h.write_i32(self.round.timer);

@@ -209,7 +209,8 @@ missing redirect targets make the trigger false.
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,
-  `PlayerNo`, `PlayerIDExist(n)`, `PlayerIndexExist(n)`, `PlayerNoExist(n)`
+  `PlayerNo`, `PlayerIDExist(n)`, `PlayerIndexExist(n)`, `PlayerNoExist(n)`,
+  `LastPlayerID`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
   `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `TeamSide`, `TeamMode`, `IsHomeTeam`,
