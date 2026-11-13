@@ -5738,6 +5738,34 @@ fn player_count_and_existence_triggers() {
 }
 
 #[test]
+fn prev_anim_tracks_the_last_animation_change() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let char = &sim.assets.characters[0];
+    assert!(char.animation(200).is_some());
+    assert!(char.animation(210).is_some());
+    sim.fighters[0].set_anim(200, char, None);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevAnim"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Anim"), 200);
+
+    sim.fighters[0].set_anim(210, char, None);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevAnim"), 200);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Anim"), 210);
+
+    // ChangeAnim goes through the same setter.
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "changeanim".into(),
+        params: vec![("value".into(), "200".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevAnim"), 210);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Anim"), 200);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -1995,6 +1995,7 @@ impl SimState {
             fighter.prev_state_no = 0;
             fighter.state_time = 0;
             fighter.anim_no = 0;
+            fighter.prev_anim = 0;
             fighter.anim_clock = 0;
             fighter.anim_frame = 0;
             fighter.anim_time = 0;

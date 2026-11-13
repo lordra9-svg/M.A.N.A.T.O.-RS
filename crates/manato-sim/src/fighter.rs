@@ -180,6 +180,8 @@ pub struct Fighter {
     pub state_time: i32,
 
     pub anim_no: i32,
+    /// Animation number active before the most recent change (`PrevAnim`).
+    pub prev_anim: i32,
     /// Character whose animation bank supplies `anim_no`; `None` = own bank.
     pub anim_char_id: Option<usize>,
     pub anim_clock: i32,
@@ -344,6 +346,7 @@ impl Fighter {
             prev_move_type: MoveType::Idle,
             state_time: 0,
             anim_no: 0,
+            prev_anim: 0,
             anim_char_id: None,
             anim_clock: 0,
             anim_frame: 0,
@@ -625,6 +628,7 @@ impl Fighter {
 
     pub fn set_anim(&mut self, number: i32, char: &Character, elem: Option<i32>) {
         self.anim_char_id = None;
+        self.prev_anim = self.anim_no;
         self.anim_no = number;
         self.anim_clock = 0;
         self.anim_frame = 0;

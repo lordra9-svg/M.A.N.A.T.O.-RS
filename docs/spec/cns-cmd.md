@@ -184,8 +184,8 @@ missing redirect targets make the trigger false.
 
 ### 5.3 Required trigger families
 
-- Time/animation: `Time`, `Anim`, `AnimElem`, `AnimElemTime`, `AnimTime`,
-  `AnimExist`, `SelfAnimExist`, `AnimLength`, `AnimLoopCount`
+- Time/animation: `Time`, `Anim`, `PrevAnim`, `AnimElem`, `AnimElemTime`,
+  `AnimTime`, `AnimExist`, `SelfAnimExist`, `AnimLength`, `AnimLoopCount`
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,

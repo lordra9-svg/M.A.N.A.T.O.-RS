@@ -774,6 +774,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "animtime"
             | "animlength"
             | "animloopcount"
+            | "prevanim"
             | "sprpriority"
             | "author"
             | "backedge"
@@ -1005,6 +1006,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
                 .unwrap_or(0),
         ),
         "animloopcount" => Value::Int(f.anim_looped),
+        "prevanim" => Value::Int(f.prev_anim),
         "sprpriority" => Value::Int(f.sprite_priority),
         "facing" => Value::Int(f.facing),
         "pos" => Value::Float(f.pos.x),
