@@ -1165,6 +1165,9 @@ impl SimState {
             fighter.angle_draw = false;
             fighter.angle_draw_value = None;
             fighter.angle_draw_scale = None;
+            fighter.transform_x_shear = 0.0;
+            fighter.transform_focal_length = 2048.0;
+            fighter.transform_projection = crate::ProjectionMode::Orthographic;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2702,6 +2705,9 @@ impl SimState {
             let draw_scale = f.angle_draw_scale.unwrap_or(Vec2::new(f32::NAN, f32::NAN));
             h.write_f32(draw_scale.x);
             h.write_f32(draw_scale.y);
+            h.write_f32(f.transform_x_shear);
+            h.write_f32(f.transform_focal_length);
+            h.write_u8(f.transform_projection as u8);
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);
             h.write_i32(f.facing);

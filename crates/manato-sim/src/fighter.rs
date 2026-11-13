@@ -247,6 +247,10 @@ pub struct Fighter {
     pub angle_draw: bool,
     pub angle_draw_value: Option<f32>,
     pub angle_draw_scale: Option<Vec2>,
+    /// Per-tick `TransformSprite` overrides.
+    pub transform_x_shear: f32,
+    pub transform_focal_length: f32,
+    pub transform_projection: crate::ProjectionMode,
     /// Per-tick `ModifyReflection` overrides; `None` uses the stage reflection.
     pub reflection_intensity: Option<i32>,
     pub reflection_color: Option<[u8; 3]>,
@@ -415,6 +419,9 @@ impl Fighter {
             angle_draw: false,
             angle_draw_value: None,
             angle_draw_scale: None,
+            transform_x_shear: 0.0,
+            transform_focal_length: 2048.0,
+            transform_projection: crate::ProjectionMode::Orthographic,
             reflection_intensity: None,
             reflection_color: None,
             reflection_offset: Vec2::ZERO,

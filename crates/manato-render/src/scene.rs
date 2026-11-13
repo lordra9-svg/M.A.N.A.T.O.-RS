@@ -699,10 +699,48 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     } else {
         (scale, pose.angle)
     };
+    let bank = bank::CHARACTER_BASE + fighter.char_id as u8;
+    if fighter.transform_x_shear != 0.0
+        || fighter.transform_projection != manato_sim::ProjectionMode::Orthographic
+    {
+        if let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) {
+            let (dest, flipped) = sprite_dest(
+                anchor,
+                pose.offset,
+                sprite,
+                fighter.facing,
+                scale,
+                pose.flip_h,
+                pose.flip_v,
+            );
+            let localcoord_h = sim.assets.stage.localcoord.1.max(1.0);
+            let focal = fighter.transform_focal_length * (GAME_HEIGHT / localcoord_h);
+            let corners = project_quad(
+                dest,
+                angle,
+                0.0,
+                0.0,
+                fighter.transform_x_shear,
+                fighter.transform_projection,
+                focal,
+                Vec2::new(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.5),
+            );
+            painter.quad_corners(
+                TexRef::Atlas(atlas_sprite.page),
+                pose.blend,
+                corners,
+                atlas_sprite.uv,
+                flipped,
+                pose.flip_v,
+                tint,
+            );
+        }
+        return;
+    }
     draw_sprite(
         painter,
         atlas,
-        bank::CHARACTER_BASE + fighter.char_id as u8,
+        bank,
         sprite,
         anchor,
         pose.offset,

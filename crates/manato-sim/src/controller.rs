@@ -265,6 +265,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "makedust" => make_dust(sim, who, control),
         "explodbindtime" => explod_bind_time(sim, who, control),
         "modifystagevar" => modify_stage_var(sim, who, control),
+        "transformsprite" => transform_sprite(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1657,6 +1658,24 @@ fn modify_stage_var(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(v) = right_bound {
         sim.stage_right_bound = v;
+    }
+}
+
+/// `TransformSprite` subset: x-shear, focal length, and projection.
+/// `window` is parsed but not modeled (the renderer has no per-fighter scissor).
+fn transform_sprite(sim: &mut SimState, who: usize, control: &Controller) {
+    let shear = num_param(sim, who, control, "xshear");
+    let focal = num_param(sim, who, control, "focallength");
+    let projection = str_param(control, "projection").map(crate::ProjectionMode::parse);
+    let fighter = &mut sim.fighters[who];
+    if let Some(value) = shear {
+        fighter.transform_x_shear = value;
+    }
+    if let Some(value) = focal {
+        fighter.transform_focal_length = value.max(1.0);
+    }
+    if let Some(value) = projection {
+        fighter.transform_projection = value;
     }
 }
 

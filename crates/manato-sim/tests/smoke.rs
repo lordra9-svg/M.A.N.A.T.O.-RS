@@ -1379,6 +1379,40 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn transform_sprite_sets_per_tick_render_transform() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "transformsprite".into(),
+        params: vec![
+            ("xshear".into(), "0.4".into()),
+            ("focallength".into(), "512".into()),
+            ("projection".into(), "perspective2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let fighter = &sim.fighters[0];
+    assert_eq!(fighter.transform_x_shear, 0.4);
+    assert_eq!(fighter.transform_focal_length, 512.0);
+    assert_eq!(
+        fighter.transform_projection,
+        manato_sim::ProjectionMode::Perspective2
+    );
+
+    sim.tick([PlayerInput::default(); 2]);
+    let fighter = &sim.fighters[0];
+    assert_eq!(fighter.transform_x_shear, 0.0, "per-tick override");
+    assert_eq!(fighter.transform_focal_length, 2048.0);
+    assert_eq!(
+        fighter.transform_projection,
+        manato_sim::ProjectionMode::Orthographic
+    );
+}
+
+#[test]
 fn modify_stage_var_updates_camera_and_bounds() {
     let Some(mut sim) = fight_phase() else {
         return;
