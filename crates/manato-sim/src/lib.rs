@@ -643,6 +643,8 @@ pub struct SimState {
     pub assets: Arc<Assets>,
     pub fighters: Vec<Fighter>,
     pub frame: u64,
+    /// Ticks since the match started (`FightTime`); not reset between rounds.
+    pub match_time: i32,
     pub round: RoundState,
     pub camera: CameraState,
     pub effects: Vec<Effect>,
@@ -724,6 +726,7 @@ impl SimState {
             assets,
             fighters,
             frame: 0,
+            match_time: 0,
             round: RoundState::new(options.rounds_to_win, options.round_time),
             camera: CameraState {
                 x: cam_start.x,
@@ -888,6 +891,7 @@ impl SimState {
             self.update_effects();
             self.update_fight_screen();
             self.clear_state_changed_tick();
+            self.match_time = self.match_time.saturating_add(1);
             return;
         }
 
@@ -895,6 +899,7 @@ impl SimState {
             self.update_effects();
             self.update_fight_screen();
             self.clear_state_changed_tick();
+            self.match_time = self.match_time.saturating_add(1);
             return;
         }
 
@@ -929,6 +934,7 @@ impl SimState {
         self.bg_time += 1.0;
         self.update_stage_layers();
         self.clear_state_changed_tick();
+        self.match_time = self.match_time.saturating_add(1);
     }
 
     fn clear_state_changed_tick(&mut self) {
@@ -1990,6 +1996,7 @@ impl SimState {
         self.round.time_over = false;
         self.win_history = [Vec::new(), Vec::new()];
         self.finished = false;
+        self.match_time = 0;
         self.score = [0.0; 2];
         self.score_rounds = [0.0; 2];
         for fighter in &mut self.fighters {
@@ -2507,6 +2514,7 @@ impl SimState {
     pub fn checksum(&self) -> u64 {
         let mut h = StateHasher::new();
         h.write_u64(self.frame);
+        h.write_i32(self.match_time);
         h.write_u32(self.round.number);
         h.write_u8(self.round.phase as u8);
         h.write_i32(self.round.timer);

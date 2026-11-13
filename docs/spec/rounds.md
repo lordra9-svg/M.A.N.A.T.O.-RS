@@ -128,6 +128,7 @@ Round/match triggers must reflect this state:
 | `WinClutch` | Won with life at or below the clutch threshold |
 | `DecisiveRound` | This side is one round win from the match |
 | `ConsecutiveWins` | Consecutive match sweeps (Ikemen-GO); 0 for helpers |
+| `FightTime` | Ticks since the match started (Ikemen-GO); not reset between rounds |
 | `TeamSide` | 1 for left, 2 for right |
 | `DrawGame` | The current round is a draw |
 | `Lose` | This player lost the round |

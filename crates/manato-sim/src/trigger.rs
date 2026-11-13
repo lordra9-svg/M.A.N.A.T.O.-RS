@@ -1026,6 +1026,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "numplayer"
             | "localcoordx"
             | "stagetime"
+            | "fighttime"
             | "teamsize"
             | "teamleader"
             | "memberno"
@@ -1183,6 +1184,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         }),
         "numplayer" => Value::Int(sim.fighters.iter().filter(|f| f.active).count() as i32),
         "stagetime" => Value::Int(sim.bg_time as i32),
+        "fighttime" => Value::Int(sim.match_time),
         // Single-member teams in the frozen scope.
         "teamsize" => Value::Int(1),
         "teamleader" => Value::Int(f.slot as i32 + 1),

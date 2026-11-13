@@ -1379,6 +1379,39 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn fight_time_counts_match_ticks_across_rounds() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "FightTime"),
+        sim.frame as i32
+    );
+    let start = manato_sim::trigger::int(&sim, 0, "FightTime");
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "FightTime"), start + 3);
+
+    // Time keeps running through the KO phase and the next round's intro.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    let between_rounds = manato_sim::trigger::int(&sim, 0, "FightTime");
+    assert!(
+        between_rounds > start + 3,
+        "FightTime is not reset between rounds"
+    );
+
+    // Restarting the match clears the counter.
+    sim.restart_match();
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "FightTime"), 0);
+}
+
+#[test]
 fn round_and_random_range_expressions() {
     let Some(mut sim) = fight_phase() else {
         return;
