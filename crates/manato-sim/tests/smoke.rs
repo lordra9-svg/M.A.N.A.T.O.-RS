@@ -6050,6 +6050,62 @@ fn modify_reversal_def_updates_attr_and_guardflags() {
 }
 
 #[test]
+fn hit_def_var_reports_active_hitdef_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(hitdamage)"), 0);
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "33".into()),
+            ("guard.damage".into(), "7".into()),
+            ("guardflag".into(), "L".into()),
+            ("pausetime".into(), "3, 5".into()),
+            ("sparkno".into(), "12".into()),
+            ("sparkxy".into(), "-8, -40".into()),
+            ("hitsound".into(), "5, 1".into()),
+            ("id".into(), "9".into()),
+            ("priority".into(), "2, Miss".into()),
+            ("yaccel".into(), "0.7".into()),
+            ("ground.velocity".into(), "-6, -2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "HitDefVar(hitdamage)"),
+        33
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "HitDefVar(guarddamage)"),
+        7
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "HitDefVar(guardflag) = L"),
+        1
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(pausetime)"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(shaketime)"), 5);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(sparkno)"), 12);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "HitDefVar(sparkx)"), -8.0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "HitDefVar(hitsound.group)"),
+        5
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(id)"), 9);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(priority)"), 2);
+    assert!((manato_sim::trigger::num(&sim, 0, "HitDefVar(yaccel)") - 0.7).abs() < 1e-4);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(ground.velocity.x)"),
+        -6.0
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(unknown)"), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -409,6 +409,49 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let flag = crate::fighter::assert_flag(&name.trim().to_ascii_lowercase());
             Value::Bool(flag != 0 && sim.fighters[who].assert_flags & flag != 0)
         }
+        "hitdefvar" => {
+            let key = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default();
+            let key = key.trim().to_ascii_lowercase();
+            let Some(hitdef) = sim.fighters[who].hitdef.as_ref() else {
+                return Value::Int(0);
+            };
+            match key.as_str() {
+                "hitdamage" => Value::Int(hitdef.damage),
+                "guarddamage" => Value::Int(hitdef.guard_damage),
+                "hitflag" => Value::Str(hitdef.hitflag.clone()),
+                "guardflag" => Value::Str(hitdef.guardflag.clone()),
+                "sparkno" => Value::Int(hitdef.sparkno),
+                "guard.sparkno" => Value::Int(hitdef.guard_sparkno),
+                "sparkx" => Value::Float(hitdef.sparkxy.x),
+                "sparky" => Value::Float(hitdef.sparkxy.y),
+                "hitsound.group" => Value::Int(hitdef.hitsound.0),
+                "hitsound.number" => Value::Int(hitdef.hitsound.1),
+                "guardsound.group" => Value::Int(hitdef.guardsound.0),
+                "guardsound.number" => Value::Int(hitdef.guardsound.1),
+                "id" => Value::Int(hitdef.id),
+                "p1stateno" => Value::Int(hitdef.p1stateno),
+                "p2stateno" => Value::Int(hitdef.p2stateno),
+                "priority" => Value::Int(hitdef.priority),
+                "pausetime" => Value::Int(hitdef.pausetime.0),
+                "shaketime" => Value::Int(hitdef.pausetime.1),
+                "guard.pausetime" => Value::Int(hitdef.guard_pausetime.0),
+                "guard.shaketime" => Value::Int(hitdef.guard_pausetime.1),
+                "yaccel" => Value::Float(hitdef.yaccel),
+                "ground.velocity.x" => Value::Float(hitdef.ground_velocity.x),
+                "ground.velocity.y" => Value::Float(hitdef.ground_velocity.y),
+                "air.velocity.x" => Value::Float(hitdef.air_velocity.x),
+                "air.velocity.y" => Value::Float(hitdef.air_velocity.y),
+                "down.velocity.x" => Value::Float(hitdef.down_velocity.x),
+                "down.velocity.y" => Value::Float(hitdef.down_velocity.y),
+                _ => Value::Int(0),
+            }
+        }
         "map" => {
             let key = args
                 .first()
