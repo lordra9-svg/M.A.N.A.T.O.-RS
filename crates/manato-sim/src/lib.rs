@@ -641,6 +641,11 @@ impl Default for BarFill {
 #[derive(Debug, Clone)]
 pub struct SimState {
     pub assets: Arc<Assets>,
+    /// Live camera definition; `ModifyStageVar` may change it during a match.
+    pub stage_camera: manato_formats::stage::CameraDef,
+    /// Live playable bounds; `ModifyStageVar` may change them.
+    pub stage_left_bound: f32,
+    pub stage_right_bound: f32,
     pub fighters: Vec<Fighter>,
     pub frame: u64,
     /// Ticks since the match started (`FightTime`); not reset between rounds.
@@ -724,8 +729,14 @@ impl SimState {
             .iter()
             .map(StageLayerState::from_layer)
             .collect();
+        let stage_camera = assets.stage.camera.clone();
+        let stage_left_bound = assets.stage.left_bound;
+        let stage_right_bound = assets.stage.right_bound;
         let mut state = Self {
             assets,
+            stage_camera,
+            stage_left_bound,
+            stage_right_bound,
             fighters,
             frame: 0,
             match_time: 0,
@@ -1608,12 +1619,12 @@ impl SimState {
     }
 
     fn separate_pushboxes(&mut self) {
-        let stage_left = self.assets.stage.left_bound;
-        let stage_right = self.assets.stage.right_bound;
+        let stage_left = self.stage_left_bound;
+        let stage_right = self.stage_right_bound;
         // Vertical stage extent from the camera's high/low bounds: the top is
         // negative, the floor is the lower value.
-        let stage_top = self.assets.stage.camera.bound_high;
-        let stage_bottom = self.assets.stage.camera.bound_low;
+        let stage_top = self.stage_camera.bound_high;
+        let stage_bottom = self.stage_camera.bound_low;
         for i in 0..2 {
             if self.fighters[i].screen_bound.0 {
                 let p = self.fighters[i].pos.x;
@@ -2002,6 +2013,9 @@ impl SimState {
         self.finished = false;
         self.match_time = 0;
         self.last_player_id = 1;
+        self.stage_camera = self.assets.stage.camera.clone();
+        self.stage_left_bound = self.assets.stage.left_bound;
+        self.stage_right_bound = self.assets.stage.right_bound;
         self.score = [0.0; 2];
         self.score_rounds = [0.0; 2];
         for fighter in &mut self.fighters {
@@ -2130,10 +2144,10 @@ impl SimState {
         self.camera.view = CameraView::Fighting;
         self.camera.follow = None;
         self.camera.free_pos = Vec2::ZERO;
-        self.camera.x = self.assets.stage.camera.start.x;
-        self.camera.y = self.assets.stage.camera.start.y;
-        self.camera.scale = self.assets.stage.camera.start_zoom;
-        self.camera.target_scale = self.assets.stage.camera.start_zoom;
+        self.camera.x = self.stage_camera.start.x;
+        self.camera.y = self.stage_camera.start.y;
+        self.camera.scale = self.stage_camera.start_zoom;
+        self.camera.target_scale = self.stage_camera.start_zoom;
         self.camera.zoom_delay = 0;
         self.camera.zoom_override = None;
         self.pause_mover = None;
@@ -2153,8 +2167,8 @@ impl SimState {
     }
 
     fn update_camera(&mut self) {
-        let stage = &self.assets.stage;
-        let cam = &stage.camera;
+        let cam = self.stage_camera.clone();
+        let cam = &cam;
 
         if let Some(mut zoom) = self.camera.zoom_override {
             let step = if zoom.time > 0 {
@@ -2174,8 +2188,8 @@ impl SimState {
 
             if zoom.stage_bound {
                 let half_w = manato_core::GAME_WIDTH * 0.5 / self.camera.scale.max(0.0001);
-                let lo = self.assets.stage.left_bound + half_w;
-                let hi = self.assets.stage.right_bound - half_w;
+                let lo = self.stage_left_bound + half_w;
+                let hi = self.stage_right_bound - half_w;
                 if lo <= hi {
                     self.camera.x = clamp(self.camera.x, lo, hi);
                 }
@@ -2472,13 +2486,13 @@ impl SimState {
         let shake = self.camera.shake;
         let ground = self.ground_screen_y();
         let center_y = manato_core::GAME_HEIGHT * 0.5;
-        let anchor_y = if self.assets.stage.camera.zoom_anchor {
+        let anchor_y = if self.stage_camera.zoom_anchor {
             ground
         } else {
             center_y
         };
         // Distance from the zoom anchor to the ground line at scale 1.
-        let anchor_offset = if self.assets.stage.camera.zoom_anchor {
+        let anchor_offset = if self.stage_camera.zoom_anchor {
             0.0
         } else {
             ground - center_y
@@ -2542,6 +2556,26 @@ impl SimState {
         h.write_u8(self.camera.follow.map(|i| i as u8 + 1).unwrap_or(0));
         h.write_f32(self.camera.free_pos.x);
         h.write_f32(self.camera.free_pos.y);
+        h.write_f32(self.stage_camera.start.x);
+        h.write_f32(self.stage_camera.start.y);
+        h.write_f32(self.stage_camera.bound_left);
+        h.write_f32(self.stage_camera.bound_right);
+        h.write_f32(self.stage_camera.bound_high);
+        h.write_f32(self.stage_camera.bound_low);
+        h.write_f32(self.stage_camera.vertical_follow);
+        h.write_f32(self.stage_camera.floor_tension);
+        h.write_f32(self.stage_camera.tension);
+        h.write_f32(self.stage_camera.cut_high);
+        h.write_f32(self.stage_camera.cut_low);
+        h.write_f32(self.stage_camera.start_zoom);
+        h.write_f32(self.stage_camera.zoom_out);
+        h.write_f32(self.stage_camera.zoom_in);
+        h.write_i32(self.stage_camera.zoom_in_delay);
+        h.write_f32(self.stage_camera.zoom_in_speed);
+        h.write_f32(self.stage_camera.zoom_out_speed);
+        h.write_bool(self.stage_camera.zoom_anchor);
+        h.write_f32(self.stage_left_bound);
+        h.write_f32(self.stage_right_bound);
         if let Some(zoom) = self.camera.zoom_override {
             h.write_bool(true);
             h.write_f32(zoom.target_pos.x);

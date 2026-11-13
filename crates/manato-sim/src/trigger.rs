@@ -1871,8 +1871,8 @@ fn inguard_dist(sim: &SimState, who: usize) -> bool {
 
 fn stage_edge_distance(sim: &SimState, f: &crate::fighter::Fighter, front: bool) -> f32 {
     let half = GAME_WIDTH * 0.5;
-    let left = (sim.camera.x - half).max(sim.assets.stage.left_bound);
-    let right = (sim.camera.x + half).min(sim.assets.stage.right_bound);
+    let left = (sim.camera.x - half).max(sim.stage_left_bound);
+    let right = (sim.camera.x + half).min(sim.stage_right_bound);
     let forward = f.facing >= 0;
     // `front == forward` asks for the edge in front of the fighter.
     let towards_right = front == forward;

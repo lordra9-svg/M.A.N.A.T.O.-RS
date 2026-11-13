@@ -1379,6 +1379,76 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn modify_stage_var_updates_camera_and_bounds() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "modifystagevar".into(),
+        params: vec![
+            ("camera.boundleft".into(), "-50".into()),
+            ("camera.boundright".into(), "50".into()),
+            ("camera.boundhigh".into(), "-40".into()),
+            ("camera.boundlow".into(), "-5".into()),
+            ("camera.verticalfollow".into(), "0.5".into()),
+            ("camera.floortension".into(), "12".into()),
+            ("camera.tension".into(), "80".into()),
+            ("camera.cuthigh".into(), "-20".into()),
+            ("camera.cutlow".into(), "-2".into()),
+            ("camera.startzoom".into(), "0.8".into()),
+            ("camera.zoomout".into(), "0.5".into()),
+            ("camera.zoomin".into(), "2".into()),
+            ("camera.zoomindelay".into(), "7".into()),
+            ("camera.zoominspeed".into(), "0.25".into()),
+            ("camera.zoomoutspeed".into(), "0.75".into()),
+            ("playerinfo.leftbound".into(), "-80".into()),
+            ("playerinfo.rightbound".into(), "80".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    let camera = &sim.stage_camera;
+    assert_eq!(camera.bound_left, -50.0);
+    assert_eq!(camera.bound_right, 50.0);
+    assert_eq!(camera.bound_high, -40.0);
+    assert_eq!(camera.bound_low, -5.0);
+    assert_eq!(camera.vertical_follow, 0.5);
+    assert_eq!(camera.floor_tension, 12.0);
+    assert_eq!(camera.tension, 80.0);
+    assert_eq!(camera.cut_high, -20.0);
+    assert_eq!(camera.cut_low, -2.0);
+    assert_eq!(camera.start_zoom, 0.8);
+    assert_eq!(camera.zoom_out, 0.5);
+    assert_eq!(camera.zoom_in, 2.0);
+    assert_eq!(camera.zoom_in_delay, 7);
+    assert_eq!(camera.zoom_in_speed, 0.25);
+    assert_eq!(camera.zoom_out_speed, 0.75);
+    assert_eq!(sim.stage_left_bound, -80.0);
+    assert_eq!(sim.stage_right_bound, 80.0);
+
+    // The new playable bounds feed the stage-edge trigger.
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].pos.x = 0.0;
+    sim.camera.x = 0.0;
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageFrontEdgeDist"),
+        80.0
+    );
+
+    // A restart restores the stage's declared values.
+    sim.restart_match();
+    assert_eq!(sim.stage_left_bound, assets.stage.left_bound);
+    assert_eq!(sim.stage_right_bound, assets.stage.right_bound);
+    assert_eq!(sim.stage_camera.bound_left, assets.stage.camera.bound_left);
+    assert_eq!(
+        sim.stage_camera.zoom_in_delay,
+        assets.stage.camera.zoom_in_delay
+    );
+}
+
+#[test]
 fn explod_bind_time_rebinds_matching_explods() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -6069,11 +6139,8 @@ fn stage_edge_distance_triggers_clamp_to_stage_bounds() {
     let Some(mut sim) = fight_phase() else {
         return;
     };
-    {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        assets.stage.left_bound = -100.0;
-        assets.stage.right_bound = 100.0;
-    }
+    sim.stage_left_bound = -100.0;
+    sim.stage_right_bound = 100.0;
     sim.camera.x = 0.0;
     sim.fighters[0].facing = 1;
     sim.fighters[0].pos.x = 0.0;
@@ -6103,10 +6170,7 @@ fn stage_edge_distance_triggers_clamp_to_stage_bounds() {
     // The camera screen edge wins when it is inside the stage bound.
     sim.fighters[0].facing = 1;
     sim.fighters[0].pos.x = 0.0;
-    {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        assets.stage.right_bound = 500.0;
-    }
+    sim.stage_right_bound = 500.0;
     assert_eq!(
         manato_sim::trigger::num(&sim, 0, "StageFrontEdgeDist"),
         manato_core::GAME_WIDTH * 0.5
@@ -15000,8 +15064,7 @@ fn camera_zoom_bounds_tension_and_helper_ignoring() {
         return;
     };
     {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        let cam = &mut assets.stage.camera;
+        let cam = &mut sim.stage_camera;
         cam.zoom_out = 0.5;
         cam.zoom_in = 2.0;
         cam.zoom_in_delay = 0;
@@ -15081,8 +15144,7 @@ fn camera_vertical_follow_and_floor_tension() {
         return;
     };
     {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        let cam = &mut assets.stage.camera;
+        let cam = &mut sim.stage_camera;
         cam.vertical_follow = 1.0;
         cam.floor_tension = 0.0;
         cam.bound_high = -76.0;
@@ -15106,8 +15168,7 @@ fn camera_vertical_follow_and_floor_tension() {
         return;
     };
     {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        let cam = &mut assets.stage.camera;
+        let cam = &mut sim.stage_camera;
         cam.vertical_follow = 0.2;
         cam.floor_tension = 0.0;
         cam.bound_high = -500.0;
@@ -15129,8 +15190,7 @@ fn camera_vertical_follow_and_floor_tension() {
         return;
     };
     {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        let cam = &mut assets.stage.camera;
+        let cam = &mut sim.stage_camera;
         cam.vertical_follow = 0.0;
         cam.floor_tension = 0.0;
         cam.bound_high = -500.0;
@@ -15147,8 +15207,7 @@ fn camera_vertical_follow_and_floor_tension() {
         return;
     };
     {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        let cam = &mut assets.stage.camera;
+        let cam = &mut sim.stage_camera;
         cam.vertical_follow = 0.5;
         cam.floor_tension = 100.0;
         cam.bound_high = -500.0;
@@ -16415,10 +16474,7 @@ fn camera_round_reset_and_zoom_anchor_mapping() {
     assert_eq!(sim.camera.target_scale, 0.8);
 
     // Zoom anchor off: the centre world point stays at the view centre.
-    {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        assets.stage.camera.zoom_anchor = false;
-    }
+    sim.stage_camera.zoom_anchor = false;
     sim.camera.x = 0.0;
     sim.camera.y = -30.0;
     sim.camera.scale = 2.0;
@@ -16440,10 +16496,7 @@ fn camera_round_reset_and_zoom_anchor_mapping() {
     );
 
     // Zoom anchor on: the ground world line stays on the ground line.
-    {
-        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
-        assets.stage.camera.zoom_anchor = true;
-    }
+    sim.stage_camera.zoom_anchor = true;
     let mapped = sim.screen_pos(manato_core::Vec2::new(0.0, 0.0));
     let expected = ground + (0.0 - sim.camera.y) * 2.0;
     assert!(

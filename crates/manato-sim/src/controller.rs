@@ -264,6 +264,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "removeexplod" => remove_explod(sim, who, control),
         "makedust" => make_dust(sim, who, control),
         "explodbindtime" => explod_bind_time(sim, who, control),
+        "modifystagevar" => modify_stage_var(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1561,6 +1562,104 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
     }
 }
 
+/// `ModifyStageVar` subset: camera framing/zoom and playable bounds.
+fn modify_stage_var(sim: &mut SimState, who: usize, control: &Controller) {
+    let (
+        bound_left,
+        bound_right,
+        bound_high,
+        bound_low,
+        vertical_follow,
+        floor_tension,
+        tension,
+        cut_high,
+        cut_low,
+        start_zoom,
+        zoom_out,
+        zoom_in,
+        zoom_in_delay,
+        zoom_in_speed,
+        zoom_out_speed,
+        left_bound,
+        right_bound,
+    ) = {
+        let value = |key: &str| num_param(sim, who, control, key);
+        let int_value = |key: &str| int_param(sim, who, control, key);
+        (
+            value("camera.boundleft"),
+            value("camera.boundright"),
+            value("camera.boundhigh"),
+            value("camera.boundlow"),
+            value("camera.verticalfollow"),
+            value("camera.floortension"),
+            value("camera.tension"),
+            value("camera.cuthigh"),
+            value("camera.cutlow"),
+            value("camera.startzoom"),
+            value("camera.zoomout"),
+            value("camera.zoomin"),
+            int_value("camera.zoomindelay"),
+            value("camera.zoominspeed"),
+            value("camera.zoomoutspeed"),
+            value("playerinfo.leftbound"),
+            value("playerinfo.rightbound"),
+        )
+    };
+
+    let camera = &mut sim.stage_camera;
+    if let Some(v) = bound_left {
+        camera.bound_left = v;
+    }
+    if let Some(v) = bound_right {
+        camera.bound_right = v;
+    }
+    if let Some(v) = bound_high {
+        camera.bound_high = v;
+    }
+    if let Some(v) = bound_low {
+        camera.bound_low = v;
+    }
+    if let Some(v) = vertical_follow {
+        camera.vertical_follow = v;
+    }
+    if let Some(v) = floor_tension {
+        camera.floor_tension = v;
+    }
+    if let Some(v) = tension {
+        camera.tension = v;
+    }
+    if let Some(v) = cut_high {
+        camera.cut_high = v;
+    }
+    if let Some(v) = cut_low {
+        camera.cut_low = v;
+    }
+    if let Some(v) = start_zoom {
+        camera.start_zoom = v.max(0.0001);
+    }
+    if let Some(v) = zoom_out {
+        camera.zoom_out = v.max(0.0001);
+    }
+    if let Some(v) = zoom_in {
+        camera.zoom_in = v.max(0.0001);
+    }
+    if let Some(v) = zoom_in_delay {
+        camera.zoom_in_delay = v.max(0);
+    }
+    if let Some(v) = zoom_in_speed {
+        camera.zoom_in_speed = v;
+    }
+    if let Some(v) = zoom_out_speed {
+        camera.zoom_out_speed = v;
+    }
+    if let Some(v) = left_bound {
+        sim.stage_left_bound = v;
+    }
+    if let Some(v) = right_bound {
+        sim.stage_right_bound = v;
+    }
+}
+
 fn explod_bind_time(sim: &mut SimState, who: usize, control: &Controller) {
     let id = int_param(sim, who, control, "id").unwrap_or(-1);
     let time = int_param(sim, who, control, "time")
@@ -2259,7 +2358,7 @@ fn zoom(sim: &mut SimState, who: usize, control: &Controller) {
     let time = int_param(sim, who, control, "time").unwrap_or(0).max(0);
     let mut target_pos = Vec2::new(px, py);
     if int_param(sim, who, control, "camerabound").unwrap_or(0) != 0 {
-        let cam = &sim.assets.stage.camera;
+        let cam = &sim.stage_camera;
         let half_w = manato_core::GAME_WIDTH * 0.5 / target_scale;
         let lo = cam.bound_left + half_w;
         let hi = cam.bound_right - half_w;
