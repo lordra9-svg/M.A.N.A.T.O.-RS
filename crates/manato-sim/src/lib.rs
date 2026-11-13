@@ -1106,9 +1106,10 @@ impl SimState {
             }
             // AssertSpecial is a per-tick assertion; states must re-assert it.
             fighter.assert_flags = 0;
-            // `Width` is a per-tick override: Ikemen resets it before the
-            // state controllers run each tick.
+            // `Width`/`Height` are per-tick overrides: Ikemen resets them
+            // before the state controllers run each tick.
             fighter.width_override = None;
+            fighter.height_player = Vec2::ZERO;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2153,8 +2154,8 @@ impl SimState {
                 }
                 left = left.min(fighter.pos.x - fighter.width_back);
                 right = right.max(fighter.pos.x + fighter.width_front);
-                top = top.min(fighter.pos.y - fighter.height);
-                bottom = bottom.max(fighter.pos.y);
+                top = top.min(fighter.pos.y - fighter.height - fighter.height_player.x);
+                bottom = bottom.max(fighter.pos.y + fighter.height_player.y);
             }
             if !left.is_finite() {
                 left = mid_x;
@@ -2522,6 +2523,8 @@ impl SimState {
         for f in &self.fighters {
             h.write_f32(f.pos.x);
             h.write_f32(f.pos.y);
+            h.write_f32(f.height_player.x);
+            h.write_f32(f.height_player.y);
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);
             h.write_i32(f.facing);

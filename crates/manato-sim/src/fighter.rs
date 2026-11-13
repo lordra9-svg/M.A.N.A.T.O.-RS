@@ -233,6 +233,8 @@ pub struct Fighter {
     pub width_back: f32,
     pub width_front: f32,
     pub height: f32,
+    /// `Height` controller offsets: `x` extends the top, `y` the bottom.
+    pub height_player: Vec2,
     /// Per-entity sprite scale (Helper `size.xscale`/`size.yscale`).
     pub size_xscale: f32,
     pub size_yscale: f32,
@@ -383,6 +385,7 @@ impl Fighter {
             width_back: char.constants.get_or("size.ground.back", 15.0),
             width_front: char.constants.get_or("size.ground.front", 16.0),
             height: char.constants.get_or("size.height", 60.0),
+            height_player: Vec2::ZERO,
             size_xscale: 1.0,
             size_yscale: 1.0,
             make_dust_spacing: 0,

@@ -120,6 +120,7 @@ Required controller families for the approved matrix:
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 - `GetHitVarSet` (modeled GetHitVar fields)
 - `MapSet`, `MapAdd`, `MapReset` (per-fighter string-keyed maps)
+- `Height` (per-tick top/bottom size offset)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

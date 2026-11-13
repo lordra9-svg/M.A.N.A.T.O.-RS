@@ -5766,6 +5766,30 @@ fn prev_anim_tracks_the_last_animation_change() {
 }
 
 #[test]
+fn height_controller_sets_per_tick_offsets() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "height".into(),
+        params: vec![("value".into(), "30, 20".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(
+        sim.fighters[0].height_player,
+        manato_core::Vec2::new(30.0, 20.0)
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[0].height_player,
+        manato_core::Vec2::ZERO,
+        "Height is a per-tick override"
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

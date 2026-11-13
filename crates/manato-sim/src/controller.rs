@@ -155,6 +155,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].sprite_priority = value;
         }
         "width" => width(sim, who, control),
+        "height" => height(sim, who, control),
         "screenbound" => {
             let (x, y) = control.get_pair("value").unwrap_or((1.0, 1.0));
             sim.fighters[who].screen_bound = (x != 0.0, y != 0.0);
@@ -1980,6 +1981,14 @@ fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
             apply(&lower);
         }
     }
+}
+
+fn height(sim: &mut SimState, who: usize, control: &Controller) {
+    // `Height` takes a two-component value: top extension, then bottom.
+    let Some((top, bottom)) = control.get_pair("value") else {
+        return;
+    };
+    sim.fighters[who].height_player = Vec2::new(top, bottom);
 }
 
 fn width(sim: &mut SimState, who: usize, control: &Controller) {
