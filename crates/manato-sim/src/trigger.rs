@@ -447,6 +447,28 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "helpervar" => {
+            let field = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            if sim.fighters[who].owner.is_none() {
+                Value::Int(0)
+            } else {
+                let fighter = &sim.fighters[who];
+                match field.as_str() {
+                    "id" => Value::Int(fighter.helper_id),
+                    "helpertype" => Value::Int(if fighter.helper_type_player { 2 } else { 1 }),
+                    "keyctrl" => Value::Bool(fighter.keyctrl & 1 != 0),
+                    _ => Value::Int(0),
+                }
+            }
+        }
         "projvar" => {
             let id = arg_i32(sim, who, args, 0);
             let index = arg_i32(sim, who, args, 1).max(0) as usize;

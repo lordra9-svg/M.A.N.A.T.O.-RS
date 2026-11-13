@@ -1379,6 +1379,55 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn helper_var_reports_helper_metadata() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, id: &str, helper_type: &str, keyctrl: &str| {
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params: vec![
+                ("stateno".into(), "0".into()),
+                ("id".into(), id.into()),
+                ("removetime".into(), "-1".into()),
+                ("helpertype".into(), helper_type.into()),
+                ("keyctrl".into(), keyctrl.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Helpers report their own metadata through their slot.
+    spawn(&mut sim, "9", "normal", "1");
+    assert_eq!(sim.fighters.len(), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "HelperVar(id)"), 9);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 2, "HelperVar(helpertype)"),
+        1
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "HelperVar(keyctrl)"), 1);
+
+    spawn(&mut sim, "11", "player", "0");
+    assert_eq!(sim.fighters.len(), 4);
+    assert_eq!(manato_sim::trigger::int(&sim, 3, "HelperVar(id)"), 11);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 3, "HelperVar(helpertype)"),
+        2
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 3, "HelperVar(keyctrl)"), 0);
+
+    // Players are not helpers; unknown fields return 0.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HelperVar(id)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "HelperVar(helpertype)"),
+        0
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "HelperVar(unknown)"), 0);
+}
+
+#[test]
 fn proj_var_reports_active_projectile_fields() {
     let Some(mut sim) = fight_phase() else {
         return;

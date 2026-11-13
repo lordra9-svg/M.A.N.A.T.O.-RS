@@ -232,7 +232,7 @@ missing redirect targets make the trigger false.
   `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,
   `StageBackEdgeDist` (`StageBackEdge` deprecated alias)
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjVar(id, index, field)`,
-  `ProjHit`,
+  `HelperVar(id|helpertype|keyctrl)`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`
