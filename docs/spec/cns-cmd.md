@@ -203,7 +203,9 @@ missing redirect targets make the trigger false.
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
   `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
-  `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`
+  `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`,
+  `PowerMax`, `Attack`, `AttackMul`, `Defence`, `DefenceMul`, `GuardCount`,
+  `Angle`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,

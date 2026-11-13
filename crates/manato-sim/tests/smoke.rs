@@ -1379,6 +1379,34 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn attack_defence_and_draw_angle_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PowerMax"), 3000);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "GuardCount"), 0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Attack"), 100.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Defence"), 100.0);
+
+    sim.fighters[0].attack.guard_count = 3;
+    sim.fighters[0].attack_mul = 1.2;
+    sim.fighters[0].defence_mul = 0.8;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "GuardCount"), 3);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Attack"), 120.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "AttackMul"), 1.2);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Defence"), 80.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "DefenceMul"), 80.0);
+
+    // Angle only reports while AngleDraw is active.
+    sim.fighters[0].draw_angle = 30.0;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Angle"), 0.0);
+    sim.fighters[0].angle_draw = true;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Angle"), 30.0);
+    sim.fighters[0].angle_draw_value = Some(-20.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Angle"), -20.0);
+}
+
+#[test]
 fn fight_time_counts_match_ticks_across_rounds() {
     let Some(mut sim) = fight_phase() else {
         return;

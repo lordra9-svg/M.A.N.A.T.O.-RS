@@ -892,6 +892,13 @@ fn is_trigger_name(name: &str) -> bool {
     matches!(
         name,
         "ailevel"
+            | "powermax"
+            | "guardcount"
+            | "attack"
+            | "attackmul"
+            | "defence"
+            | "defencemul"
+            | "angle"
             | "alive"
             | "anim"
             | "animelem"
@@ -1254,6 +1261,17 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "backedgebodydist" => Value::Float(edge_distance(sim, who, false, true)),
         "frontedgebodydist" => Value::Float(edge_distance(sim, who, true, true)),
         "ailevel" => Value::Int(f.ai_level),
+        "powermax" => Value::Int(crate::MAX_POWER as i32),
+        "guardcount" => Value::Int(f.attack.guard_count),
+        "attack" => Value::Float(snap3(100.0 * f.attack_mul)),
+        "attackmul" => Value::Float(f.attack_mul),
+        "defence" => Value::Float(snap3(100.0 * f.defence_mul)),
+        "defencemul" => Value::Float(snap3(100.0 * f.defence_mul)),
+        "angle" => Value::Float(if f.angle_draw {
+            f.angle_draw_value.unwrap_or(f.draw_angle)
+        } else {
+            0.0
+        }),
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
         "hitpausetime" => Value::Int(f.hit.hit_pause_time),
@@ -1351,6 +1369,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "timemod" => Value::Int(0),
         _ => Value::Int(0),
     }
+}
+
+/// Snaps a value to three decimals, matching Ikemen's attack/defence triggers.
+fn snap3(value: f32) -> f32 {
+    (value * 1000.0).round() / 1000.0
 }
 
 /// `AnimElemNo(t)`: the animation element active `t` ticks from now.
