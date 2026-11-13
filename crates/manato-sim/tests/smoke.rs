@@ -1379,6 +1379,93 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn stage_bg_var_reads_layer_state_and_animation() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let anim =
+        manato_formats::air::parse_air_str("[Begin Action 9100]\n9000,1, 0,0, 4\n9000,1, 0,0, 6\n")
+            .into_iter()
+            .next()
+            .expect("animation");
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.animations.insert(9100, anim);
+    }
+    sim.stage_layers[0].action = Some(9100);
+
+    let field = |sim: &SimState, id: i32, index: i32, name: &str| {
+        manato_sim::trigger::eval_str(sim, 0, &format!("StageBGVar({id}, {index}, {name})"))
+    };
+    sim.bg_time = 0.0;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, actionno)"),
+        9100
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animelem)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animelemtime)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animtime)"),
+        -10
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animloopcount)"),
+        0
+    );
+
+    sim.bg_time = 4.0;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animelem)"),
+        2
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animelemtime)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animtime)"),
+        -6
+    );
+
+    sim.bg_time = 10.0;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animelem)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animelemtime)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animtime)"),
+        -10
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageBGVar(0, 0, animloopcount)"),
+        1
+    );
+
+    sim.bg_time = 0.0;
+    assert_eq!(field(&sim, 0, 0, "delta.x").as_f32(), 1.0);
+    assert_eq!(field(&sim, 0, 0, "delta.y").as_f32(), 1.0);
+    assert_eq!(field(&sim, 0, 1, "start.y").as_f32(), -46.0);
+    assert_eq!(field(&sim, 0, 1, "tile.y").as_i32(), 0);
+    assert_eq!(field(&sim, 0, 1, "layerno").as_i32(), 0);
+    assert_eq!(field(&sim, 0, 1, "id").as_i32(), 0);
+
+    // No matching id/index or unknown field yields 0.
+    assert_eq!(field(&sim, 99, 0, "delta.x").as_i32(), 0);
+    assert_eq!(field(&sim, 0, 99, "delta.x").as_i32(), 0);
+    assert_eq!(field(&sim, 0, 0, "unknown").as_i32(), 0);
+}
+
+#[test]
 fn combo_counter_tracks_hits_and_expires() {
     let Some(mut sim) = fight_phase() else {
         return;

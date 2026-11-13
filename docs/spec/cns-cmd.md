@@ -211,8 +211,9 @@ missing redirect targets make the trigger false.
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TeamSize`, `TeamLeader`,
   `MemberNo`, `Standby`, `TimeRemaining`, `TimeElapsed`, `TimeTotal`,
   `StageTime`, `Score`, `ScoreTotal`
-- Utility: `IsAsserted(flag)`, `Map(key)`, `HitDefVar(key)`, `Name`,
-  `DisplayName`, `AuthorName`, `NumStageBG`, `Const`,
+- Utility: `IsAsserted(flag)`, `Map(key)`, `HitDefVar(key)`,
+  `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
+  `NumStageBG`, `Const`,
   `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Clamp`, `Lerp`, `Sign`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,

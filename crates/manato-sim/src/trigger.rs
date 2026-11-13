@@ -409,6 +409,20 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let flag = crate::fighter::assert_flag(&name.trim().to_ascii_lowercase());
             Value::Bool(flag != 0 && sim.fighters[who].assert_flags & flag != 0)
         }
+        "stagebgvar" => {
+            let id = arg_i32(sim, who, args, 0);
+            let index = arg_i32(sim, who, args, 1).max(0) as usize;
+            let field = args
+                .get(2)
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            stage_bg_var(sim, id, index, &field)
+        }
         "hitdefvar" => {
             let key = args
                 .first()
@@ -1250,6 +1264,114 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "palno" => Value::Int(1),
         "timemod" => Value::Int(0),
         _ => Value::Int(0),
+    }
+}
+
+/// `StageBGVar(id, index, field)`: reads a stage background element state.
+/// `id < 0` matches every layer; `index` is the Nth match.
+fn stage_bg_var(sim: &SimState, id: i32, index: usize, field: &str) -> Value {
+    let Some((layer_index, layer)) = sim
+        .assets
+        .stage
+        .layers
+        .iter()
+        .enumerate()
+        .filter(|(_, layer)| id < 0 || layer.id == id)
+        .nth(index)
+    else {
+        return Value::Int(0);
+    };
+    let Some(state) = sim.stage_layers.get(layer_index) else {
+        return Value::Int(0);
+    };
+    match field {
+        "actionno" => Value::Int(state.action.or(layer.action).unwrap_or(-1)),
+        "animelem" | "animelemtime" | "animtime" | "animloopcount" => {
+            let Some(action) = state.action.or(layer.action) else {
+                return Value::Int(0);
+            };
+            let Some(anim) = sim.assets.stage.animations.get(&action) else {
+                return Value::Int(0);
+            };
+            let position = anim_position(anim, sim.bg_time as i32);
+            match field {
+                "animelem" => Value::Int(position.elem),
+                "animelemtime" => Value::Int(position.elem_time),
+                "animtime" => Value::Int(position.anim_time),
+                _ => Value::Int(position.loop_count),
+            }
+        }
+        "delta.x" => Value::Float(layer.delta.x),
+        "delta.y" => Value::Float(layer.delta.y),
+        "start.x" => Value::Float(layer.start.x),
+        "start.y" => Value::Float(layer.start.y),
+        "velocity.x" => Value::Float(layer.velocity.x),
+        "velocity.y" => Value::Float(layer.velocity.y),
+        "tile.x" => Value::Int(layer.tile.0),
+        "tile.y" => Value::Int(layer.tile.1),
+        "layerno" => Value::Int(layer.layer_no),
+        "id" => Value::Int(layer.id),
+        "pos.x" => Value::Float(layer.start.x + state.offset.x),
+        "pos.y" => Value::Float(layer.start.y + state.offset.y),
+        _ => Value::Int(0),
+    }
+}
+
+/// Position of a stage BG animation for a monotonically increasing clock,
+/// mirroring the looping `Action` model used by the renderer.
+struct AnimPosition {
+    elem: i32,
+    elem_time: i32,
+    anim_time: i32,
+    loop_count: i32,
+}
+
+fn anim_position(anim: &manato_formats::Animation, clock: i32) -> AnimPosition {
+    let clock = clock.max(0);
+    let total = anim.total_time();
+    if anim.frames.is_empty() || total <= 0 || anim.is_infinite() {
+        let (elem, elem_time) = anim
+            .frame_at(clock)
+            .map(|(index, elapsed)| (index as i32 + 1, elapsed))
+            .unwrap_or((0, 0));
+        return AnimPosition {
+            elem,
+            elem_time,
+            anim_time: 0,
+            loop_count: 0,
+        };
+    }
+    let loop_time = anim.frames[..anim.loop_start.min(anim.frames.len())]
+        .iter()
+        .fold(0i32, |acc, frame| {
+            acc.saturating_add(frame.effective_duration())
+        });
+    let loop_span = (total - loop_time).max(1);
+    let (position, loop_count) = if clock < loop_time {
+        (clock.min(total - 1), 0)
+    } else {
+        (
+            loop_time + (clock - loop_time) % loop_span,
+            (clock - loop_time) / loop_span,
+        )
+    };
+    let mut start = 0i32;
+    let mut elem = anim.frames.len() as i32;
+    let mut elem_time = position;
+    for (index, frame) in anim.frames.iter().enumerate() {
+        let duration = frame.effective_duration();
+        if position < start.saturating_add(duration) {
+            elem = index as i32 + 1;
+            elem_time = position - start;
+            break;
+        }
+        start = start.saturating_add(duration);
+    }
+    AnimPosition {
+        elem,
+        elem_time,
+        anim_time: position - total,
+        loop_count,
     }
 }
 
