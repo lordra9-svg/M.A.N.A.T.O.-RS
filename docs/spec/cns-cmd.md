@@ -233,6 +233,9 @@ missing redirect targets make the trigger false.
   local `PalFX`; `add` is 0–255, `mul` is 0–256 with 256 as identity, and
   `color`/`hue`/`invert*` plus the global `bg`/`all` variants are
   unmodeled),
+  `Scale.X`, `Scale.Y` (1 unless `AngleDraw` is active), `Offset.X`,
+  `Offset.Y` (current draw offset), `XShear` (current `TransformSprite`
+  shear),
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,

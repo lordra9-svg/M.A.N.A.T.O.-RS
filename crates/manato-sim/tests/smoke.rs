@@ -1511,6 +1511,50 @@ fn palfx_var_reads_effective_effect() {
 }
 
 #[test]
+fn presentation_var_triggers_read_draw_state() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Scale.X"), 1.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Scale.Y"), 1.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Offset.X"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Offset.Y"), 0.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "XShear"), 0.0);
+
+    let angledraw = manato_formats::Controller {
+        kind: "angledraw".into(),
+        params: vec![
+            ("value".into(), "30".into()),
+            ("scale".into(), "1.5, 0.75".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &angledraw, &assets);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Angle"), 30.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Scale.X"), 1.5);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Scale.Y"), 0.75);
+
+    let offset = manato_formats::Controller {
+        kind: "offset".into(),
+        params: vec![("x".into(), "12".into()), ("y".into(), "-4".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &offset, &assets);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Offset.X"), 12.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Offset.Y"), -4.0);
+
+    let shear = manato_formats::Controller {
+        kind: "transformsprite".into(),
+        params: vec![("xshear".into(), "0.25".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &shear, &assets);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "XShear"), 0.25);
+}
+
+#[test]
 fn transform_clsn_scales_collision_boxes_per_tick() {
     let Some(mut sim) = fight_phase() else {
         return;
