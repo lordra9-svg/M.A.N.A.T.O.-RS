@@ -219,7 +219,7 @@ missing redirect targets make the trigger false.
   `StageTime`, `Score`, `ScoreTotal`
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
-  `HitDefVar(key)`,
+  `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,

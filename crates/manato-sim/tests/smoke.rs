@@ -1379,6 +1379,55 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn sprite_var_reports_current_frame_sprite() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].set_anim(0, &sim.assets.characters[0], None);
+    let expected = {
+        let char = &sim.assets.characters[0];
+        let frame = sim.fighters[0]
+            .current_frame(char)
+            .expect("current animation frame");
+        let sprite = char.sprites.get(frame.group, frame.index).expect("sprite");
+        (
+            sprite.group,
+            sprite.index,
+            sprite.width,
+            sprite.height,
+            sprite.axis_x,
+            sprite.axis_y,
+        )
+    };
+
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "SpriteVar(group)"),
+        expected.0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "SpriteVar(image)"),
+        expected.1
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "SpriteVar(width)"),
+        expected.2 as f32
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "SpriteVar(height)"),
+        expected.3 as f32
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "SpriteVar(xoffset)"),
+        expected.4 as f32
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "SpriteVar(yoffset)"),
+        expected.5 as f32
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SpriteVar(unknown)"), 0);
+}
+
+#[test]
 fn last_player_id_tracks_latest_creation() {
     let Some(mut sim) = fight_phase() else {
         return;

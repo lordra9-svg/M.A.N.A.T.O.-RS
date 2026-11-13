@@ -447,6 +447,33 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "spritevar" => {
+            let field = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            let character = sim.anim_character(who);
+            let Some(frame) = sim.fighters[who].current_frame(character) else {
+                return Value::Int(0);
+            };
+            let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+                return Value::Int(0);
+            };
+            match field.as_str() {
+                "group" => Value::Int(sprite.group),
+                "image" => Value::Int(sprite.index),
+                "width" => Value::Float(sprite.width as f32),
+                "height" => Value::Float(sprite.height as f32),
+                "xoffset" => Value::Float(sprite.axis_x as f32),
+                "yoffset" => Value::Float(sprite.axis_y as f32),
+                _ => Value::Int(0),
+            }
+        }
         "mugenversion" => {
             let part = args
                 .first()
