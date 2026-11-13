@@ -7100,11 +7100,16 @@ fn height_controller_sets_per_tick_offsets() {
 fn ikemen_math_and_localcoord_expressions() {
     use std::f32::consts::PI;
 
-    let Some(sim) = fight_phase() else {
+    let Some(mut sim) = fight_phase() else {
         return;
     };
+    sim.fighters[0].ai_level = 7;
     let num = |expr: &str| manato_sim::trigger::num(&sim, 0, expr);
     let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
+    assert!(close(num("Pi"), PI));
+    assert_eq!(num("Float(3)"), 3.0);
+    assert_eq!(num("Float(1.5)"), 1.5);
+    assert_eq!(num("AILevelF"), 7.0);
     assert!(close(num(&format!("Sin({})", PI / 2.0)), 1.0));
     assert!(close(num(&format!("Cos({})", PI)), -1.0));
     assert!(close(num("Atan(1)"), PI / 4.0));

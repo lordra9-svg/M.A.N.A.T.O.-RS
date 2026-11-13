@@ -353,6 +353,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             Value::Int((lo as i64 + (x >> 33) as i64 % span as i64) as i32)
         }
         "abs" => Value::Float(arg_f32(sim, who, args, 0).abs()),
+        "float" => Value::Float(arg_f32(sim, who, args, 0)),
         "ceil" => Value::Float(arg_f32(sim, who, args, 0).ceil()),
         "floor" => Value::Float(arg_f32(sim, who, args, 0).floor()),
         "sqrt" => Value::Float(arg_f32(sim, who, args, 0).max(0.0).sqrt()),
@@ -1127,6 +1128,8 @@ fn is_trigger_name(name: &str) -> bool {
     matches!(
         name,
         "ailevel"
+            | "ailevelf"
+            | "pi"
             | "powermax"
             | "guardcount"
             | "attack"
@@ -1508,6 +1511,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "backedgebodydist" => Value::Float(edge_distance(sim, who, false, true)),
         "frontedgebodydist" => Value::Float(edge_distance(sim, who, true, true)),
         "ailevel" => Value::Int(f.ai_level),
+        "ailevelf" => Value::Float(f.ai_level as f32),
+        "pi" => Value::Float(std::f32::consts::PI),
         "powermax" => Value::Int(crate::MAX_POWER as i32),
         "guardcount" => Value::Int(f.attack.guard_count),
         "attack" => Value::Float(snap3(100.0 * f.attack_mul)),

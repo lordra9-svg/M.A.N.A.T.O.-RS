@@ -243,7 +243,7 @@ missing redirect targets make the trigger false.
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,
   `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Round`, `RandomRange`, `Exp`,
   `Log`, `Sqrt`, `Pow`,
-  `AILevel`, `LocalCoordX`, `LocalCoordY`
+  `AILevel`, `AILevelF`, `LocalCoordX`, `LocalCoordY`, `Pi`, `Float(x)`
   Trigonometric functions take and return radians, as in the M.U.G.E.N
   expression reference.
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,
