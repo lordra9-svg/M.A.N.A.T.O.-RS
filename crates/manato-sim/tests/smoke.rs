@@ -1379,6 +1379,59 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn win_and_decisive_round_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Win"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinKO"), 0);
+
+    sim.round.phase = manato_sim::RoundPhase::Ko;
+    sim.round.winner = Some(0);
+    sim.round.time_over = false;
+    sim.win_history[0].push(manato_sim::WinRecord {
+        time_over: false,
+        perfect: true,
+        clutch: false,
+    });
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Win"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinKO"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinTime"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinPerfect"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinClutch"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Win"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Lose"), 1);
+
+    // Time-over win with a clutch (non-perfect) record.
+    sim.round.time_over = true;
+    sim.win_history[0].pop();
+    sim.win_history[0].push(manato_sim::WinRecord {
+        time_over: true,
+        perfect: false,
+        clutch: true,
+    });
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinTime"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinKO"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinPerfect"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinClutch"), 1);
+
+    // Helpers never report a match win.
+    sim.fighters[0].owner = Some(1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Win"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "WinTime"), 0);
+
+    // DecisiveRound: both sides at one win from the match.
+    sim.fighters[0].owner = None;
+    sim.round.rounds_to_win = 2;
+    sim.round.wins = [1, 0];
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "DecisiveRound"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "DecisiveRound"), 0);
+    sim.round.wins = [1, 1];
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "DecisiveRound"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "DecisiveRound"), 1);
+}
+
+#[test]
 fn anim_elem_no_reads_present_and_wrapped_elements() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -895,6 +895,12 @@ fn is_trigger_name(name: &str) -> bool {
             | "camerazoom"
             | "zoomvar"
             | "drawgame"
+            | "win"
+            | "winko"
+            | "wintime"
+            | "winperfect"
+            | "winclutch"
+            | "decisiveround"
             | "combocount"
             | "dizzy"
             | "dizzypoints"
@@ -1237,6 +1243,40 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "gametime" => Value::Int(sim.frame as i32),
         "matchno" => Value::Int(1),
         "roundswon" => Value::Int(sim.round.wins[who] as i32),
+        "win" => Value::Bool(!sim.is_helper(who) && sim.round.winner == Some(who)),
+        "winko" => Value::Bool(
+            !sim.is_helper(who)
+                && sim.round.winner == Some(who)
+                && sim.round.phase != crate::RoundPhase::Fight
+                && !sim.round.time_over,
+        ),
+        "wintime" => Value::Bool(
+            !sim.is_helper(who)
+                && sim.round.winner == Some(who)
+                && sim.round.phase != crate::RoundPhase::Fight
+                && sim.round.time_over,
+        ),
+        "winperfect" => Value::Bool(
+            !sim.is_helper(who)
+                && sim.round.winner == Some(who)
+                && sim
+                    .win_history
+                    .get(who)
+                    .and_then(|history| history.last())
+                    .is_some_and(|record| record.perfect),
+        ),
+        "winclutch" => Value::Bool(
+            !sim.is_helper(who)
+                && sim.round.winner == Some(who)
+                && sim
+                    .win_history
+                    .get(who)
+                    .and_then(|history| history.last())
+                    .is_some_and(|record| record.clutch),
+        ),
+        "decisiveround" => Value::Bool(
+            !sim.is_helper(who) && sim.round.wins[who] as i32 + 1 >= sim.round.rounds_to_win as i32,
+        ),
         "lose" => Value::Bool(sim.round.winner == Some(other)),
         "loseko" => Value::Bool(
             sim.round.winner == Some(other)

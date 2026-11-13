@@ -105,7 +105,7 @@ Ikemen-GO alone as the runtime oracle.
 | --- | --- | --- | --- | --- | --- |
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
 | R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw + RoundsWon/LoseKO/LoseTime + timer freeze/clamp |
-| R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
+| R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay + Win/WinKO/WinTime/WinPerfect/WinClutch/DecisiveRound triggers + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
 | R-04 | Turns/team/tag modes | Required | Ikemen | N/A | Out of the approved frozen scope; single/simul round structure only |
 | R-05 | Continue/survival/arcade | Required | Required | N/A | Out of the approved frozen scope; single-match flow only |
 | R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + `restart_match` API and R-key reset |

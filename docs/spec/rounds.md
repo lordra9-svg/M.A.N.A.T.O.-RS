@@ -121,6 +121,12 @@ Round/match triggers must reflect this state:
 | `Time` | Ticks since the current state was entered |
 | `Winner` | 1 if this player won the round |
 | `Loser` | 1 if this player lost the round |
+| `Win` | This player won the round (false for helpers) |
+| `WinKO` | Won by KO |
+| `WinTime` | Won on time |
+| `WinPerfect` | Won with full life |
+| `WinClutch` | Won with life at or below the clutch threshold |
+| `DecisiveRound` | This side is one round win from the match |
 | `TeamSide` | 1 for left, 2 for right |
 | `DrawGame` | The current round is a draw |
 | `Lose` | This player lost the round |
