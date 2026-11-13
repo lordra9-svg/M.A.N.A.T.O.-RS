@@ -272,6 +272,11 @@ fn guard_ratio(points: i32, max: i32) -> Option<f32> {
     (max > 0).then(|| (points as f32 / max as f32).clamp(0.0, 1.0))
 }
 
+/// Recoverable-life fill ratio; `None` when there is nothing to show.
+fn red_fill_ratio(life: i32, red_life: i32, life_max: i32) -> Option<f32> {
+    (red_life > life && life_max > 0).then(|| (red_life as f32 / life_max as f32).clamp(0.0, 1.0))
+}
+
 fn life_bar(
     painter: &mut Painter,
     deps: &FightDeps,
@@ -281,6 +286,7 @@ fn life_bar(
     def: &BarDef,
     map: &ScreenMap,
     ratio: f32,
+    red: Option<f32>,
     mid: f32,
     value_text: String,
 ) {
@@ -310,6 +316,11 @@ fn life_bar(
     draw_fill(
         painter, deps, &def.mid, fight, map, origin, time, mid, right, width, [1.0; 4],
     );
+    if let Some(red) = red {
+        draw_fill(
+            painter, deps, &def.red, fight, map, origin, time, red, right, width, [1.0; 4],
+        );
+    }
     draw_fill(
         painter, deps, &def.front, fight, map, origin, time, ratio, right, width, [1.0; 4],
     );
@@ -824,6 +835,7 @@ pub fn draw_background(
                 &fight.life[side],
                 &map,
                 life_ratio,
+                red_fill_ratio(fighter.life, fighter.red_life, fighter.life_max),
                 bar.mid_life.clamp(0.0, 1.0),
                 fighter.life.to_string(),
             );
@@ -849,6 +861,7 @@ pub fn draw_background(
                     &fight.guard[side],
                     &map,
                     guard_ratio,
+                    None,
                     bar.mid_guard.clamp(0.0, 1.0),
                     fighter.guard_points.to_string(),
                 );
@@ -955,6 +968,15 @@ mod tests {
         assert_eq!(guard_ratio(0, 1000), Some(0.0));
         assert_eq!(guard_ratio(2000, 1000), Some(1.0));
         assert_eq!(guard_ratio(10, 0), None);
+    }
+
+    #[test]
+    fn red_fill_hides_when_red_life_matches_life() {
+        assert_eq!(red_fill_ratio(400, 800, 1000), Some(0.8));
+        assert_eq!(red_fill_ratio(400, 400, 1000), None);
+        assert_eq!(red_fill_ratio(400, 300, 1000), None);
+        assert_eq!(red_fill_ratio(400, 800, 0), None);
+        assert_eq!(red_fill_ratio(0, 1200, 1000), Some(1.0));
     }
 
     #[test]

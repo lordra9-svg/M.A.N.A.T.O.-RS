@@ -297,7 +297,7 @@ are accepted; `pN.` applies to one player and overrides the unprefixed value.
 | `top.*` | Foreground overlay drawn last |
 | `front.*` | Bar fill animation, cropped to the life ratio |
 | `mid.*` | Delayed "damage" fill behind `front` |
-| `red.*` | Red fill when life is critical |
+| `red.*` | Recoverable-life fill (from `life` to `red_life`) |
 | `danger.*` | M.U.G.E.N 1.1 alias for `red` |
 | `shift.*` | Fill offset, `shift.x` in pixels |
 | `warn.*` | Warning overlay, shown in `warn.range` |
@@ -310,6 +310,12 @@ Rendering: the fill animation is cropped horizontally to
 drains at `mid.steps` pixels per tick times `mid.mult`, clamped to
 `midlifeMin`. When `mid.freeze` is false the mid fill drains during hit
 pause.
+
+The `red` layer is cropped to `red_life / life_max` and drawn behind `front`,
+so the visible red band spans current life to recoverable life. It is skipped
+when `red_life <= life`, `life_max <= 0`, or the layer is empty. Critical-life
+feedback remains the `bg1`/`bg2`/`warn` layers; `danger.*` remains an alias
+for the same `red` layer.
 
 Text: `%d` and `%i` format the integer life value; `%f` formats the ratio as
 a percentage with no decimals.
