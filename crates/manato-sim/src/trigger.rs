@@ -409,6 +409,26 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let flag = crate::fighter::assert_flag(&name.trim().to_ascii_lowercase());
             Value::Bool(flag != 0 && sim.fighters[who].assert_flags & flag != 0)
         }
+        "numstagebg" => {
+            let id = arg_i32(sim, who, args, 0);
+            Value::Int(
+                sim.assets
+                    .stage
+                    .layers
+                    .iter()
+                    .filter(|layer| id < 0 || layer.id == id)
+                    .count() as i32,
+            )
+        }
+        "animelemno" => {
+            let time = arg_i32(sim, who, args, 0);
+            let character = sim.anim_character(who);
+            let fighter = &sim.fighters[who];
+            let Some(anim) = fighter.current_anim(character) else {
+                return Value::Int(0);
+            };
+            Value::Int(anim_elem_no(anim, fighter.anim_time, time))
+        }
         "stagebgvar" => {
             let id = arg_i32(sim, who, args, 0);
             let index = arg_i32(sim, who, args, 1).max(0) as usize;
@@ -1265,6 +1285,45 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "timemod" => Value::Int(0),
         _ => Value::Int(0),
     }
+}
+
+/// `AnimElemNo(t)`: the animation element active `t` ticks from now.
+/// Positive values wrap into the loop region; negative values wrap backwards
+/// through the full animation, matching Ikemen's `AnimElemNo`.
+fn anim_elem_no(anim: &manato_formats::Animation, clock: i32, time: i32) -> i32 {
+    if anim.frames.is_empty() {
+        return 0;
+    }
+    let total = anim.total_time();
+    if total <= 0 || anim.is_infinite() {
+        return anim
+            .frame_at((clock + time).max(0))
+            .map(|(index, _)| index as i32 + 1)
+            .unwrap_or(anim.frames.len() as i32);
+    }
+    let loop_start = anim.loop_start.min(anim.frames.len().saturating_sub(1));
+    let loop_time = anim.frames[..loop_start].iter().fold(0i32, |acc, frame| {
+        acc.saturating_add(frame.effective_duration())
+    });
+    let mut position = clock.saturating_add(time);
+    if position < 0 {
+        position %= total;
+        if position < 0 {
+            position += total;
+        }
+    }
+    let span = total - loop_time;
+    if position >= total && span > 0 {
+        position = loop_time + (position - loop_time) % span;
+    }
+    let mut start = 0i32;
+    for (index, frame) in anim.frames.iter().enumerate() {
+        start = start.saturating_add(frame.effective_duration());
+        if position < start || frame.is_infinite() {
+            return index as i32 + 1;
+        }
+    }
+    anim.frames.len() as i32
 }
 
 /// `StageBGVar(id, index, field)`: reads a stage background element state.

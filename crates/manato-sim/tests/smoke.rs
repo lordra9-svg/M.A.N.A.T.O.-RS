@@ -1379,6 +1379,39 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn anim_elem_no_reads_present_and_wrapped_elements() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let anim =
+        manato_formats::air::parse_air_str("[Begin Action 9200]\n9000,1, 0,0, 4\n9000,1, 0,0, 6\n")
+            .into_iter()
+            .next()
+            .expect("animation");
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].animations.insert(9200, anim);
+    }
+    let char = &sim.assets.characters[0];
+    sim.fighters[0].set_anim(9200, char, None);
+    sim.fighters[0].anim_time = 4;
+    sim.fighters[0].anim_clock = 4;
+    sim.fighters[0].anim_frame = 1;
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemNo(0)"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemNo(-1)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemNo(-4)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemNo(-5)"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemNo(1)"), 2);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "AnimElemNo(6)"),
+        1,
+        "past the end wraps to the loop start"
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemNo(15)"), 2);
+}
+
+#[test]
 fn stage_bg_var_reads_layer_state_and_animation() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -6318,6 +6351,20 @@ fn character_metadata_and_stage_bg_triggers() {
         sim.stage_layers.len() as i32
     );
     assert!(manato_sim::trigger::int(&sim, 0, "NumStageBG") > 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "NumStageBG(-1)"),
+        sim.stage_layers.len() as i32
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "NumStageBG(0)"),
+        sim.assets
+            .stage
+            .layers
+            .iter()
+            .filter(|layer| layer.id == 0)
+            .count() as i32
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumStageBG(77)"), 0);
 }
 
 #[test]

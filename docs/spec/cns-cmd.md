@@ -192,8 +192,9 @@ missing redirect targets make the trigger false.
 
 ### 5.3 Required trigger families
 
-- Time/animation: `Time`, `Anim`, `PrevAnim`, `AnimElem`, `AnimElemTime`,
-  `AnimTime`, `AnimExist`, `SelfAnimExist`, `AnimLength`, `AnimLoopCount`
+- Time/animation: `Time`, `Anim`, `PrevAnim`, `AnimElem`, `AnimElemNo`,
+  `AnimElemTime`, `AnimTime`, `AnimExist`, `SelfAnimExist`, `AnimLength`,
+  `AnimLoopCount`
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
@@ -213,7 +214,7 @@ missing redirect targets make the trigger false.
   `StageTime`, `Score`, `ScoreTotal`
 - Utility: `IsAsserted(flag)`, `Map(key)`, `HitDefVar(key)`,
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
-  `NumStageBG`, `Const`,
+  `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Clamp`, `Lerp`, `Sign`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,
