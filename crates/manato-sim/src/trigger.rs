@@ -447,6 +447,33 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "projvar" => {
+            let id = arg_i32(sim, who, args, 0);
+            let index = arg_i32(sim, who, args, 1).max(0) as usize;
+            let field = args
+                .get(2)
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            if let Some(projectile) = sim
+                .projectiles
+                .iter()
+                .filter(|projectile| {
+                    projectile.owner == who
+                        && projectile.status == crate::projectile::ProjectileStatus::Active
+                        && (id < 0 || projectile.id == id)
+                })
+                .nth(index)
+            {
+                projectile_var(sim, projectile, &field)
+            } else {
+                Value::Int(0)
+            }
+        }
         "stagebgvar" => {
             let id = arg_i32(sim, who, args, 0);
             let index = arg_i32(sim, who, args, 1).max(0) as usize;
@@ -1367,6 +1394,62 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "p2name" => Value::Str(sim.character(1).display_name().to_string()),
         "palno" => Value::Int(1),
         "timemod" => Value::Int(0),
+        _ => Value::Int(0),
+    }
+}
+
+/// `ProjVar(id, index, field)` value lookup for one active projectile.
+fn projectile_var(
+    sim: &SimState,
+    projectile: &crate::projectile::Projectile,
+    field: &str,
+) -> Value {
+    match field {
+        "pos.x" => Value::Float(projectile.pos.x),
+        "pos.y" => Value::Float(projectile.pos.y),
+        "pos.z" => Value::Int(0),
+        "vel.x" => Value::Float(projectile.vel.x),
+        "vel.y" => Value::Float(projectile.vel.y),
+        "vel.z" => Value::Int(0),
+        "accel.x" => Value::Float(projectile.accel.x),
+        "accel.y" => Value::Float(projectile.accel.y),
+        "accel.z" => Value::Int(0),
+        "anim" => Value::Int(projectile.anim),
+        "animelem" => {
+            let character = &sim.assets.characters[sim.fighters[projectile.owner].char_id];
+            Value::Int(
+                character
+                    .animation(projectile.anim)
+                    .and_then(|anim| anim.frame_at(projectile.time))
+                    .map(|(index, _)| index as i32 + 1)
+                    .unwrap_or(0),
+            )
+        }
+        "animprefix" => Value::Str("s".into()),
+        "facing" => Value::Float(projectile.facing as f32),
+        "projid" => Value::Int(projectile.id),
+        "projlayerno" => Value::Int(projectile.layer_no),
+        "projsprpriority" => Value::Int(projectile.sprite_priority),
+        "projpriority" => Value::Int(projectile.priority),
+        "projremovetime" => Value::Int(projectile.remove_time),
+        "projstagebound" => Value::Float(projectile.stage_bound),
+        "projedgebound" => Value::Float(projectile.edge_bound),
+        "projhits" => Value::Int(projectile.hits),
+        "projremove" => Value::Bool(projectile.remove_on_hits_exhausted),
+        "projremanim" => Value::Int(projectile.rem_anim),
+        "projhitanim" => Value::Int(projectile.hit_anim),
+        "projcancelanim" => Value::Int(projectile.cancel_anim),
+        "projmisstime" => Value::Int(projectile.miss_time),
+        "scale.x" => Value::Float(projectile.scale.x),
+        "scale.y" => Value::Float(projectile.scale.y),
+        "angle" => Value::Float(projectile.angle),
+        "angle.x" => Value::Int(0),
+        "angle.y" => Value::Int(0),
+        "xshear" => Value::Float(projectile.x_shear),
+        "time" => Value::Int(projectile.time),
+        "shadow.r" => Value::Int(projectile.shadow[0]),
+        "shadow.g" => Value::Int(projectile.shadow[1]),
+        "shadow.b" => Value::Int(projectile.shadow[2]),
         _ => Value::Int(0),
     }
 }

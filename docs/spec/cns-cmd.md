@@ -231,7 +231,8 @@ missing redirect targets make the trigger false.
   `BackEdge`, `FrontEdge`, `BackEdgeBodyDist`, `FrontEdgeBodyDist`,
   `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,
   `StageBackEdgeDist` (`StageBackEdge` deprecated alias)
-- Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjHit`,
+- Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjVar(id, index, field)`,
+  `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`

@@ -1379,6 +1379,116 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn proj_var_reports_active_projectile_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "3, -2".into()),
+            ("accel".into(), "1, 0".into()),
+            ("id".into(), "7".into()),
+            ("projremovetime".into(), "50".into()),
+            ("projscale".into(), "2, 0.5".into()),
+            ("projangle".into(), "15".into()),
+            ("projxshear".into(), "0.25".into()),
+            ("projlayerno".into(), "1".into()),
+            ("projsprpriority".into(), "4".into()),
+            ("projstagebound".into(), "30".into()),
+            ("projedgebound".into(), "20".into()),
+            ("projshadow".into(), "10, 20, 30".into()),
+            ("projmisstime".into(), "6".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles.len(), 1);
+    let projectile = sim.projectiles[0].clone();
+
+    let num = |sim: &SimState, expr: &str| manato_sim::trigger::num(sim, 0, expr);
+    assert_eq!(num(&sim, "ProjVar(7, 0, pos.x)"), projectile.pos.x);
+    assert_eq!(num(&sim, "ProjVar(7, 0, pos.y)"), projectile.pos.y);
+    assert_eq!(num(&sim, "ProjVar(7, 0, vel.x)"), 3.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, vel.y)"), -2.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, accel.x)"), 1.0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, anim)"),
+        1500
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, animelem)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "ProjVar(7, 0, animprefix)").as_str(),
+        "s"
+    );
+    assert_eq!(num(&sim, "ProjVar(7, 0, facing)"), 1.0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projid)"),
+        7
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projlayerno)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projsprpriority)"),
+        4
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projremovetime)"),
+        50
+    );
+    assert_eq!(num(&sim, "ProjVar(7, 0, projstagebound)"), 30.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, projedgebound)"), 20.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, scale.x)"), 2.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, scale.y)"), 0.5);
+    assert_eq!(num(&sim, "ProjVar(7, 0, angle)"), 15.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, xshear)"), 0.25);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, time)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, shadow.r)"),
+        10
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, shadow.g)"),
+        20
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, shadow.b)"),
+        30
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projmisstime)"),
+        6
+    );
+
+    // `id < 0` matches any projectile; missing id/index and unknown fields
+    // yield 0.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(-1, 0, projid)"),
+        7
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(99, 0, projid)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 5, projid)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, unknown)"),
+        0
+    );
+}
+
+#[test]
 fn attack_defence_and_draw_angle_triggers() {
     let Some(mut sim) = fight_phase() else {
         return;
