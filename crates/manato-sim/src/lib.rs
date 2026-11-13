@@ -209,6 +209,8 @@ pub struct RoundState {
     pub timer: i32,
     pub phase_timer: i32,
     pub wins: [u32; 2],
+    /// Consecutive match sweeps (`ConsecutiveWins`), per side.
+    pub consecutive_wins: [i32; 2],
     pub winner: Option<usize>,
     /// True when the round ended on the timer rather than a KO.
     pub time_over: bool,
@@ -231,6 +233,7 @@ impl RoundState {
             timer: round_time.max(1) * manato_core::TICKS_PER_SECOND as i32,
             phase_timer: 40,
             wins: [0, 0],
+            consecutive_wins: [0, 0],
             winner: None,
             time_over: false,
             display: "Round 1".into(),
@@ -1700,6 +1703,7 @@ impl SimState {
                     self.emit_round_sound(if winner.is_none() { "dko" } else { "ko" });
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
+                        self.round.consecutive_wins[1 - w] = 0;
                         let perfect = self.record_win(w, false);
                         self.emit_round_sound(if perfect { "win2" } else { "win" });
                         self.fighters[w].power = (self.fighters[w].power + 200.0).min(MAX_POWER);
@@ -1731,6 +1735,7 @@ impl SimState {
                     self.emit_round_sound(if winner.is_none() { "dko" } else { "to" });
                     if let Some(w) = winner {
                         self.round.wins[w] += 1;
+                        self.round.consecutive_wins[1 - w] = 0;
                         let perfect = self.record_win(w, true);
                         self.emit_round_sound(if perfect { "win2" } else { "win" });
                     }
@@ -1759,6 +1764,11 @@ impl SimState {
                         } else {
                             None
                         };
+                        if let Some(w) = winner {
+                            if self.round.wins[1 - w] == 0 {
+                                self.round.consecutive_wins[w] += 1;
+                            }
+                        }
                         self.round.winner = winner;
                         self.round.phase = RoundPhase::Over;
                         self.round.display = match winner {
@@ -1975,6 +1985,7 @@ impl SimState {
     pub fn restart_match(&mut self) {
         self.round.number = 1;
         self.round.wins = [0, 0];
+        self.round.consecutive_wins = [0, 0];
         self.round.winner = None;
         self.round.time_over = false;
         self.win_history = [Vec::new(), Vec::new()];
@@ -2505,6 +2516,8 @@ impl SimState {
         h.write_bool(self.round.slow_disabled);
         h.write_u32(self.round.wins[0]);
         h.write_u32(self.round.wins[1]);
+        h.write_i32(self.round.consecutive_wins[0]);
+        h.write_i32(self.round.consecutive_wins[1]);
         h.write_f32(self.camera.x);
         h.write_f32(self.camera.y);
         h.write_f32(self.camera.scale);

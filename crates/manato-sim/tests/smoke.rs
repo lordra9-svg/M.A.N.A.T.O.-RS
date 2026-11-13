@@ -1379,6 +1379,67 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn consecutive_wins_counts_match_sweeps() {
+    // A 1-0 sweep increments the winner's streak.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ConsecutiveWins"), 0);
+    sim.round.rounds_to_win = 1;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ConsecutiveWins"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ConsecutiveWins"), 0);
+    sim.fighters[0].owner = Some(1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ConsecutiveWins"), 0);
+
+    // A 2-1 match is not a sweep, so the streak stays zero.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.round.rounds_to_win = 2;
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ConsecutiveWins"), 0);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    sim.fighters[0].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.number, 3);
+    for _ in 0..200 {
+        if sim.round.phase == manato_sim::RoundPhase::Fight {
+            break;
+        }
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    for _ in 0..130 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Over);
+    assert_eq!(sim.round.wins, [2, 1]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ConsecutiveWins"), 0);
+}
+
+#[test]
 fn win_and_decisive_round_triggers() {
     let Some(mut sim) = fight_phase() else {
         return;

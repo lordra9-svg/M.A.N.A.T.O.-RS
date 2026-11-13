@@ -896,6 +896,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "zoomvar"
             | "drawgame"
             | "win"
+            | "consecutivewins"
             | "winko"
             | "wintime"
             | "winperfect"
@@ -1244,6 +1245,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "matchno" => Value::Int(1),
         "roundswon" => Value::Int(sim.round.wins[who] as i32),
         "win" => Value::Bool(!sim.is_helper(who) && sim.round.winner == Some(who)),
+        "consecutivewins" => Value::Int(if sim.is_helper(who) {
+            0
+        } else {
+            sim.round.consecutive_wins.get(who).copied().unwrap_or(0)
+        }),
         "winko" => Value::Bool(
             !sim.is_helper(who)
                 && sim.round.winner == Some(who)
