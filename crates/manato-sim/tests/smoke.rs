@@ -5705,6 +5705,39 @@ fn relative_map_controllers_write_parent_root_and_team() {
 }
 
 #[test]
+fn player_count_and_existence_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumPlayer"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PlayerNo"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIDExist(1)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIDExist(99)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIndexExist(1)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIndexExist(99)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerNoExist(1)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerNoExist(2)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerNoExist(3)"), 0);
+
+    // Helpers count towards NumPlayer and inherit the owner's PlayerNo.
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "5".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    assert_eq!(sim.fighters.len(), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumPlayer"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "PlayerNo"), 1);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

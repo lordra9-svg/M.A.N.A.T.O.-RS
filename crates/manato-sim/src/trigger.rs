@@ -397,6 +397,37 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 .cloned()
                 .unwrap_or(crate::expr::Value::Int(0))
         }
+        "playeridexist" => {
+            let index = arg_i32(sim, who, args, 0);
+            Value::Bool(
+                index >= 0
+                    && sim
+                        .fighters
+                        .get(index as usize)
+                        .is_some_and(|fighter| fighter.active),
+            )
+        }
+        "playerindexexist" => {
+            let index = arg_i32(sim, who, args, 0);
+            Value::Bool(
+                index >= 0
+                    && sim
+                        .fighters
+                        .get(index as usize)
+                        .is_some_and(|fighter| fighter.active),
+            )
+        }
+        "playernoexist" => {
+            let number = arg_i32(sim, who, args, 0);
+            let exists = if (1..=2).contains(&number) {
+                sim.fighters
+                    .get((number - 1) as usize)
+                    .is_some_and(|fighter| fighter.owner.is_none() && fighter.active)
+            } else {
+                false
+            };
+            Value::Bool(exists)
+        }
         "selfstatenoexist" => {
             let number = arg_i32(sim, who, args, 0);
             Value::Bool(
@@ -857,6 +888,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "timeelapsed"
             | "timetotal"
             | "score"
+            | "numplayer"
+            | "playerno"
             | "scoretotal"
             | "screenpos"
             | "screenvel"
@@ -1005,6 +1038,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         } else {
             sim.score.get(f.side).copied().unwrap_or(0.0)
         }),
+        "numplayer" => Value::Int(sim.fighters.iter().filter(|f| f.active).count() as i32),
+        "playerno" => Value::Int(f.slot as i32 + 1),
         "scoretotal" => Value::Float(if f.owner.is_some() {
             0.0
         } else {

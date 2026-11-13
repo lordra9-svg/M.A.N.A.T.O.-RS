@@ -197,7 +197,8 @@ missing redirect targets make the trigger false.
   `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
-  `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`
+  `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,
+  `PlayerNo`, `PlayerIDExist(n)`, `PlayerIndexExist(n)`, `PlayerNoExist(n)`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
   `TimeElapsed`, `TimeTotal`, `Score`, `ScoreTotal`
