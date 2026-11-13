@@ -123,6 +123,7 @@ Required controller families for the approved matrix:
 - `Height` (per-tick top/bottom size offset)
 - `Camera` (`view = fighting|follow|free`, `followid`, `pos`)
 - `ModifyHitDef` (overrides modeled fields of the active HitDef)
+- `ModifyReversalDef` (reversal attr/guardflag overrides)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

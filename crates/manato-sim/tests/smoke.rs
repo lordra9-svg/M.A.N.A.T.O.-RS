@@ -5952,6 +5952,104 @@ fn team_membership_triggers_for_single_member_teams() {
 }
 
 #[test]
+fn modify_reversal_def_updates_attr_and_guardflags() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let reversal = manato_formats::Controller {
+        kind: "reversaldef".into(),
+        params: vec![
+            ("reversal.attr".into(), "S, NA".into()),
+            ("reversal.guardflag".into(), "A".into()),
+            ("damage".into(), "15".into()),
+            ("time".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &reversal, &assets);
+    let parsed = sim.fighters[1].reversal.clone().expect("reversal");
+    assert_eq!(parsed.attr.state_types, "S");
+    assert_eq!(parsed.attr.class, "NA");
+    assert_eq!(parsed.reversal_guardflag, "A");
+
+    let modify = manato_formats::Controller {
+        kind: "modifyreversaldef".into(),
+        params: vec![
+            ("reversal.attr".into(), "S, SA".into()),
+            ("reversal.guardflag".into(), "MA".into()),
+            ("reversal.guardflag.not".into(), "L".into()),
+            ("damage".into(), "25".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &modify, &assets);
+    let parsed = sim.fighters[1].reversal.clone().expect("reversal");
+    assert_eq!(parsed.attr.class, "SA");
+    assert_eq!(parsed.reversal_guardflag, "MA");
+    assert_eq!(parsed.reversal_guardflag_not, "L");
+    assert_eq!(parsed.damage, 25);
+
+    // Guardflag gating: no intersection falls through to a normal hit.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    let mut rev = hitdef();
+    rev.attr = manato_sim::hitdef::HitAttr::parse("S, NA");
+    rev.reversal_guardflag = "L".into();
+    sim.fighters[1].reversal = Some(rev.clone());
+    sim.fighters[1].reversal_time = 5;
+    let p2_life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, p2_life - 20);
+
+    // Matching guardflag reverses; guardflag.not can veto it.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    rev.reversal_guardflag = "MA".into();
+    sim.fighters[1].reversal = Some(rev.clone());
+    sim.fighters[1].reversal_time = 5;
+    let p2_life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, p2_life, "matching guardflag reverses");
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -10.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 10.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    rev.reversal_guardflag_not = "M".into();
+    sim.fighters[1].reversal = Some(rev);
+    sim.fighters[1].reversal_time = 5;
+    let p2_life = sim.fighters[1].life;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, p2_life - 20, "guardflag.not vetoes");
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

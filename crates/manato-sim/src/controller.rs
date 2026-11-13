@@ -162,6 +162,20 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 hitdef.apply_modifiers(control);
             }
         }
+        "modifyreversaldef" => {
+            if let Some(reversal) = sim.fighters[who].reversal.as_mut() {
+                if let Some(attr) = control.get("reversal.attr") {
+                    reversal.attr = crate::hitdef::HitAttr::parse(attr);
+                }
+                if let Some(flag) = control.get("reversal.guardflag") {
+                    reversal.reversal_guardflag = flag.to_ascii_uppercase();
+                }
+                if let Some(flag) = control.get("reversal.guardflag.not") {
+                    reversal.reversal_guardflag_not = flag.to_ascii_uppercase();
+                }
+                reversal.apply_modifiers(control);
+            }
+        }
         "screenbound" => {
             let (x, y) = control.get_pair("value").unwrap_or((1.0, 1.0));
             sim.fighters[who].screen_bound = (x != 0.0, y != 0.0);
@@ -495,12 +509,16 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
 
 fn reversal_def(sim: &mut SimState, who: usize, control: &Controller) {
     let character = &sim.assets.characters[sim.fighters[who].char_id];
-    let hitdef = HitDef::from_controller_for(
+    let mut hitdef = HitDef::from_controller_for(
         control,
         sim.hit_activation,
         character.localcoord(),
         character_guard_dist(character, false),
     );
+    // ReversalDef uses `reversal.attr`; accept legacy `attr` as a fallback.
+    if let Some(attr) = control.get("reversal.attr") {
+        hitdef.attr = crate::hitdef::HitAttr::parse(attr);
+    }
     let time = int_param(sim, who, control, "time").unwrap_or(1).max(1);
     sim.fighters[who].reversal = Some(hitdef);
     sim.fighters[who].reversal_time = time;

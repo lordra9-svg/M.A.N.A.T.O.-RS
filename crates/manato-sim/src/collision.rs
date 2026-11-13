@@ -30,8 +30,16 @@ pub fn resolve(sim: &mut SimState) {
             continue;
         }
         if let Some(reversal) = sim.fighters[defender].reversal.clone() {
+            let guard_ok = {
+                let intersects =
+                    |mask: &str| mask.chars().any(|flag| hitdef.guardflag.contains(flag));
+                (reversal.reversal_guardflag.is_empty() || intersects(&reversal.reversal_guardflag))
+                    && (reversal.reversal_guardflag_not.is_empty()
+                        || !intersects(&reversal.reversal_guardflag_not))
+            };
             if sim.fighters[defender].reversal_time > 0
                 && attr_matches_attr(&reversal.attr, &hitdef.attr)
+                && guard_ok
             {
                 let origin = sim.fighters[defender].pos;
                 let facing = sim.fighters[defender].facing;

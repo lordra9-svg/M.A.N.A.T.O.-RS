@@ -154,6 +154,10 @@ pub struct HitDef {
     pub fall_anim_type: AnimType,
     pub hitflag: String,
     pub guardflag: String,
+    /// `reversal.guardflag`: the incoming attack must intersect this mask.
+    pub reversal_guardflag: String,
+    /// `reversal.guardflag.not`: the incoming attack must not intersect this.
+    pub reversal_guardflag_not: String,
     pub ground_type: GroundType,
     pub air_type: GroundType,
     pub ground_velocity: Vec2,
@@ -297,6 +301,8 @@ impl Default for HitDef {
             fall_anim_type: AnimType::Back,
             hitflag: "MAF".into(),
             guardflag: "MA".into(),
+            reversal_guardflag: String::new(),
+            reversal_guardflag_not: String::new(),
             ground_type: GroundType::High,
             air_type: GroundType::High,
             ground_velocity: Vec2::ZERO,
@@ -460,6 +466,12 @@ impl HitDef {
                 }
                 "hitflag" => h.hitflag = value.to_ascii_uppercase(),
                 "guardflag" => h.guardflag = value.to_ascii_uppercase(),
+                "reversal.guardflag" => {
+                    h.reversal_guardflag = value.to_ascii_uppercase();
+                }
+                "reversal.guardflag.not" => {
+                    h.reversal_guardflag_not = value.to_ascii_uppercase();
+                }
                 "ground.type" => h.ground_type = GroundType::parse(value),
                 "air.type" => {
                     h.air_type = GroundType::parse(value);
