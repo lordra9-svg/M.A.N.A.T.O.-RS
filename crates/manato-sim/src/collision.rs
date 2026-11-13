@@ -143,7 +143,7 @@ fn juggle_allows(
     juggle_points >= cost
 }
 
-fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
+pub(crate) fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
     let fighter = &sim.fighters[who];
     let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
         return Vec::new();

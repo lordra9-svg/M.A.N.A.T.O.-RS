@@ -1379,6 +1379,48 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn clsn_overlap_checks_collision_boxes_between_players() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[1].facing = -1;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 1, clsn2)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "ClsnOverlap(clsn2, 0, clsn2)"),
+        1
+    );
+
+    sim.fighters[1].pos.x = 400.0;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 1, clsn2)"),
+        0
+    );
+
+    // Clsn1 of a standing animation has no attack boxes.
+    sim.fighters[1].pos.x = 0.0;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn1, 1, clsn2)"),
+        0
+    );
+
+    // Invalid or self targets are false.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 99, clsn2)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 0, clsn2)"),
+        0
+    );
+}
+
+#[test]
 fn env_shake_var_reads_active_shake() {
     let Some(mut sim) = fight_phase() else {
         return;

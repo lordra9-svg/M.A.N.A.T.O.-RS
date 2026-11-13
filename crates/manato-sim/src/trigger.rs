@@ -447,6 +447,40 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "clsnoverlap" => {
+            let box_type = |arg: Option<&Expr>| -> Option<bool> {
+                let name = match arg? {
+                    Expr::Ident(name) => name.to_ascii_lowercase(),
+                    other => eval(sim, who, other).as_str().to_ascii_lowercase(),
+                };
+                match name.as_str() {
+                    // Clsn1 holds attack boxes; Clsn2 holds vulnerable boxes.
+                    "clsn1" => Some(true),
+                    "clsn2" => Some(false),
+                    _ => None,
+                }
+            };
+            let Some(first) = box_type(args.first()) else {
+                return Value::Bool(false);
+            };
+            let target_id = arg_i32(sim, who, args, 1);
+            let Some(second) = box_type(args.get(2)) else {
+                return Value::Bool(false);
+            };
+            if target_id < 0 || target_id as usize >= sim.fighters.len() {
+                return Value::Bool(false);
+            }
+            let target = target_id as usize;
+            if target == who || !sim.fighters[target].active {
+                return Value::Bool(false);
+            }
+            let a = crate::collision::clsn_boxes(sim, who, first);
+            let b = crate::collision::clsn_boxes(sim, target, second);
+            Value::Bool(
+                a.iter()
+                    .any(|left| b.iter().any(|right| left.intersects(*right))),
+            )
+        }
         "envshakevar" => {
             let field = args
                 .first()

@@ -209,7 +209,7 @@ missing redirect targets make the trigger false.
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
   `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`,
   `PowerMax`, `Attack`, `AttackMul`, `Defence`, `DefenceMul`, `GuardCount`,
-  `Angle`, `HitOverridden`
+  `Angle`, `HitOverridden`, `ClsnOverlap(box, playerID, box)` (Clsn1/Clsn2)
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,
