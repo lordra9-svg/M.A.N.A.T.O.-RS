@@ -529,6 +529,42 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 _ => Value::Int(0),
             }
         }
+        "stagevar" => {
+            let key = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            let stage = &sim.assets.stage;
+            let cam = &sim.stage_camera;
+            match key.as_str() {
+                "info.name" => Value::Str(stage.name.clone()),
+                "info.displayname" => Value::Str(stage.display_name.clone()),
+                "info.author" => Value::Str(stage.author.clone()),
+                "camera.boundleft" => Value::Float(cam.bound_left),
+                "camera.boundright" => Value::Float(cam.bound_right),
+                "camera.boundhigh" => Value::Float(cam.bound_high),
+                "camera.boundlow" => Value::Float(cam.bound_low),
+                "camera.verticalfollow" => Value::Float(cam.vertical_follow),
+                "camera.floortension" => Value::Float(cam.floor_tension),
+                "camera.tension" => Value::Float(cam.tension),
+                "camera.cuthigh" => Value::Float(cam.cut_high),
+                "camera.cutlow" => Value::Float(cam.cut_low),
+                "camera.startzoom" => Value::Float(cam.start_zoom),
+                "camera.zoomout" => Value::Float(cam.zoom_out),
+                "camera.zoomin" => Value::Float(cam.zoom_in),
+                "camera.zoomindelay" => Value::Int(cam.zoom_in_delay),
+                "camera.zoominspeed" => Value::Float(cam.zoom_in_speed),
+                "camera.zoomoutspeed" => Value::Float(cam.zoom_out_speed),
+                "playerinfo.leftbound" => Value::Float(sim.stage_left_bound),
+                "playerinfo.rightbound" => Value::Float(sim.stage_right_bound),
+                _ => Value::Int(0),
+            }
+        }
         "spritevar" => {
             let field = args
                 .first()
@@ -1295,6 +1331,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "stagebackedge"
             | "stagebackedgedist"
             | "stagefrontedgedist"
+            | "stagevar"
             | "stateno"
             | "statetime"
             | "statetype"

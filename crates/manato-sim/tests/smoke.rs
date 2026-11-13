@@ -1715,6 +1715,67 @@ fn transform_sprite_sets_per_tick_render_transform() {
 }
 
 #[test]
+fn stage_var_reads_stage_and_live_camera_values() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // Info strings come straight from the loaded stage definition.
+    let text = |sim: &SimState, expr: &str| manato_sim::trigger::eval_str(sim, 0, expr).as_str();
+    assert_eq!(text(&sim, "StageVar(info.name)"), sim.assets.stage.name);
+    assert_eq!(
+        text(&sim, "StageVar(info.displayname)"),
+        sim.assets.stage.display_name
+    );
+    assert_eq!(text(&sim, "StageVar(info.author)"), sim.assets.stage.author);
+
+    // Live camera values reflect the stage definition before any mutation.
+    let num = |sim: &SimState, expr: &str| manato_sim::trigger::num(sim, 0, expr);
+    let camera = sim.stage_camera.clone();
+    assert_eq!(num(&sim, "StageVar(camera.boundleft)"), camera.bound_left);
+    assert_eq!(num(&sim, "StageVar(camera.boundright)"), camera.bound_right);
+    assert_eq!(num(&sim, "StageVar(camera.startzoom)"), camera.start_zoom);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageVar(camera.zoomindelay)"),
+        camera.zoom_in_delay
+    );
+
+    // Unknown keys are inert.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageVar(info.unknown)"),
+        0
+    );
+
+    // `ModifyStageVar` mutates the same values `StageVar` reports.
+    let control = manato_formats::Controller {
+        kind: "modifystagevar".into(),
+        params: vec![
+            ("camera.boundleft".into(), "-320".into()),
+            ("camera.boundright".into(), "320".into()),
+            ("camera.cuthigh".into(), "-60".into()),
+            ("camera.startzoom".into(), "0.75".into()),
+            ("camera.zoomindelay".into(), "9".into()),
+            ("playerinfo.leftbound".into(), "-90".into()),
+            ("playerinfo.rightbound".into(), "90".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    assert_eq!(num(&sim, "StageVar(camera.boundleft)"), -320.0);
+    assert_eq!(num(&sim, "StageVar(camera.boundright)"), 320.0);
+    assert_eq!(num(&sim, "StageVar(camera.cuthigh)"), -60.0);
+    assert_eq!(num(&sim, "StageVar(camera.startzoom)"), 0.75);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "StageVar(camera.zoomindelay)"),
+        9
+    );
+    assert_eq!(num(&sim, "StageVar(playerinfo.leftbound)"), -90.0);
+    assert_eq!(num(&sim, "StageVar(playerinfo.rightbound)"), 90.0);
+}
+
+#[test]
 fn modify_stage_var_updates_camera_and_bounds() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -236,7 +236,10 @@ missing redirect targets make the trigger false.
   `Scale.X`, `Scale.Y` (1 unless `AngleDraw` is active), `Offset.X`,
   `Offset.Y` (current draw offset), `XShear` (current `TransformSprite`
   shear), `Alpha.Source`, `Alpha.Dest` (raw trans alpha bytes, 0–255),
-  `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
+  `StageBGVar(id, index, field)`, `StageVar(key)` (stage info strings,
+  live camera bounds/follow/tension/cut/zoom values, and
+  `playerinfo.leftbound`/`rightbound`; other keys are unmodeled and read
+  as `0`), `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Clamp`, `Lerp`, `Sign`,
