@@ -235,6 +235,12 @@ pub struct Fighter {
     pub height: f32,
     /// `Height` controller offsets: `x` extends the top, `y` the bottom.
     pub height_player: Vec2,
+    /// Per-tick `ModifyShadow` overrides; `None` uses the stage shadow.
+    pub shadow_intensity: Option<i32>,
+    pub shadow_color: Option<[u8; 3]>,
+    pub shadow_offset: Vec2,
+    pub shadow_xscale: Option<f32>,
+    pub shadow_yscale: Option<f32>,
     /// Per-entity sprite scale (Helper `size.xscale`/`size.yscale`).
     pub size_xscale: f32,
     pub size_yscale: f32,
@@ -386,6 +392,11 @@ impl Fighter {
             width_front: char.constants.get_or("size.ground.front", 16.0),
             height: char.constants.get_or("size.height", 60.0),
             height_player: Vec2::ZERO,
+            shadow_intensity: None,
+            shadow_color: None,
+            shadow_offset: Vec2::ZERO,
+            shadow_xscale: None,
+            shadow_yscale: None,
             size_xscale: 1.0,
             size_yscale: 1.0,
             make_dust_spacing: 0,

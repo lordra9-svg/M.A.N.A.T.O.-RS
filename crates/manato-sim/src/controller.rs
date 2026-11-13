@@ -157,6 +157,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "width" => width(sim, who, control),
         "height" => height(sim, who, control),
         "camera" => camera(sim, who, control),
+        "modifyshadow" => modify_shadow(sim, who, control),
         "modifyhitdef" => {
             if let Some(hitdef) = sim.fighters[who].hitdef.as_mut() {
                 hitdef.apply_modifiers(control);
@@ -2004,6 +2005,33 @@ fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
         } else if value.trim() != "0" {
             apply(&lower);
         }
+    }
+}
+
+fn modify_shadow(sim: &mut SimState, who: usize, control: &Controller) {
+    let intensity = int_param(sim, who, control, "intensity");
+    let color = control
+        .get("color")
+        .and_then(|value| parse_triplet(sim, who, value))
+        .map(|c| [c[0] as u8, c[1] as u8, c[2] as u8]);
+    let offset = control.get_pair("offset");
+    let xscale = num_param(sim, who, control, "xscale");
+    let yscale = num_param(sim, who, control, "yscale");
+    let fighter = &mut sim.fighters[who];
+    if let Some(value) = intensity {
+        fighter.shadow_intensity = Some(value);
+    }
+    if color.is_some() {
+        fighter.shadow_color = color;
+    }
+    if let Some((x, y)) = offset {
+        fighter.shadow_offset = Vec2::new(x, y);
+    }
+    if let Some(value) = xscale {
+        fighter.shadow_xscale = Some(value);
+    }
+    if let Some(value) = yscale {
+        fighter.shadow_yscale = Some(value);
     }
 }
 

@@ -6106,6 +6106,40 @@ fn hit_def_var_reports_active_hitdef_fields() {
 }
 
 #[test]
+fn modify_shadow_sets_per_tick_overrides() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "modifyshadow".into(),
+        params: vec![
+            ("intensity".into(), "128".into()),
+            ("color".into(), "10, 20, 30".into()),
+            ("offset".into(), "4, -2".into()),
+            ("xscale".into(), "1.5".into()),
+            ("yscale".into(), "0.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let fighter = &sim.fighters[0];
+    assert_eq!(fighter.shadow_intensity, Some(128));
+    assert_eq!(fighter.shadow_color, Some([10, 20, 30]));
+    assert_eq!(fighter.shadow_offset, manato_core::Vec2::new(4.0, -2.0));
+    assert_eq!(fighter.shadow_xscale, Some(1.5));
+    assert_eq!(fighter.shadow_yscale, Some(0.5));
+
+    sim.tick([PlayerInput::default(); 2]);
+    let fighter = &sim.fighters[0];
+    assert_eq!(fighter.shadow_intensity, None, "per-tick override");
+    assert_eq!(fighter.shadow_color, None);
+    assert_eq!(fighter.shadow_offset, manato_core::Vec2::ZERO);
+    assert_eq!(fighter.shadow_xscale, None);
+    assert_eq!(fighter.shadow_yscale, None);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

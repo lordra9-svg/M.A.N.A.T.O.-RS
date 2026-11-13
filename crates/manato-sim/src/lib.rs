@@ -1128,6 +1128,11 @@ impl SimState {
             // before the state controllers run each tick.
             fighter.width_override = None;
             fighter.height_player = Vec2::ZERO;
+            fighter.shadow_intensity = None;
+            fighter.shadow_color = None;
+            fighter.shadow_offset = Vec2::ZERO;
+            fighter.shadow_xscale = None;
+            fighter.shadow_yscale = None;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2583,6 +2588,14 @@ impl SimState {
             h.write_f32(f.pos.y);
             h.write_f32(f.height_player.x);
             h.write_f32(f.height_player.y);
+            h.write_i32(f.shadow_intensity.unwrap_or(-1));
+            for channel in f.shadow_color.unwrap_or([255; 3]) {
+                h.write_u8(channel);
+            }
+            h.write_f32(f.shadow_offset.x);
+            h.write_f32(f.shadow_offset.y);
+            h.write_f32(f.shadow_xscale.unwrap_or(0.0));
+            h.write_f32(f.shadow_yscale.unwrap_or(0.0));
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);
             h.write_i32(f.facing);

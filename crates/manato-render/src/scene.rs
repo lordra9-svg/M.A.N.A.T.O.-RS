@@ -439,13 +439,24 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
         {
             continue;
         }
-        let ground = sim.screen_pos(Vec2::new(fighter.pos.x, 0.0));
-        let height = (-fighter.pos.y).max(0.0);
         let shadow = &sim.assets.stage.shadow;
-        let base_alpha = (shadow.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.6;
+        let ground = sim.screen_pos(Vec2::new(fighter.pos.x, 0.0))
+            + fighter.shadow_offset * sim.camera.scale;
+        let height = (-fighter.pos.y).max(0.0);
+        let intensity = fighter.shadow_intensity.unwrap_or(shadow.intensity);
+        let color = fighter.shadow_color.unwrap_or(shadow.color);
+        let xscale = fighter
+            .shadow_xscale
+            .filter(|value| *value > 0.0)
+            .unwrap_or(1.0);
+        let yscale = fighter
+            .shadow_yscale
+            .filter(|value| *value > 0.0)
+            .unwrap_or(1.0);
+        let base_alpha = (intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.6;
         let alpha = (base_alpha - height / 400.0).clamp(0.05, base_alpha.max(0.05));
-        let w = (fighter.width_back + fighter.width_front) * 1.35 * sim.camera.scale;
-        let h = 7.0 * sim.camera.scale;
+        let w = (fighter.width_back + fighter.width_front) * 1.35 * sim.camera.scale * xscale;
+        let h = 7.0 * sim.camera.scale * yscale;
         painter.quad(
             TexRef::Shadow,
             Blend::Normal,
@@ -459,9 +470,9 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
             false,
             false,
             [
-                shadow.color[0] as f32 / 255.0,
-                shadow.color[1] as f32 / 255.0,
-                shadow.color[2] as f32 / 255.0,
+                color[0] as f32 / 255.0,
+                color[1] as f32 / 255.0,
+                color[2] as f32 / 255.0,
                 alpha,
             ],
         );
