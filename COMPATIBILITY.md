@@ -63,9 +63,9 @@ Ikemen-GO alone as the runtime oracle.
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/xoff/yoff/hittime countdown/HitOver equivalence/redlife/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.*/fall.xvel fall.yvel + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + SysVar + IsHelper(id)/ParentDist/RootDist axis-facing + ParentExist ancestry tests |
-| T-06 | Const/expressions/random | Required | Required | Partial | Const/math/random + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel |
+| T-06 | Const/expressions/random | Required | Required | Partial | Const incl. 1080p + radian trig/asin/acos/atan2 + Clamp/Lerp/Sign + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Partial | `TeamMode` single/simul/turns + `IsHomeTeam` versus side semantics; tag/partner/simul teams out of scope |
-| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `PrevAnim`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `IsAsserted(flag)`, `Map`, `NumPlayer`, `PlayerNo`, `PlayerIDExist`, `PlayerIndexExist`, `PlayerNoExist`, `Score`, `ScoreTotal`, `RedLife`, `ReceivedHits`, `ReceivedDamage`, `SelfStateNoExist`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented; remaining Ikemen-only trigger families pending |
+| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `PrevAnim`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `IsAsserted(flag)`, `LocalCoordX/Y`, `Map`, `NumPlayer`, `PlayerNo`, `PlayerIDExist`, `PlayerIndexExist`, `PlayerNoExist`, `Score`, `ScoreTotal`, `RedLife`, `ReceivedHits`, `ReceivedDamage`, `SelfStateNoExist`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented; remaining Ikemen-only trigger families pending |
 
 ## 4. Controllers
 

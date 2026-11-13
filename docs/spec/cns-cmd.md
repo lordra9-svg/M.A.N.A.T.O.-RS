@@ -204,9 +204,12 @@ missing redirect targets make the trigger false.
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
   `TimeElapsed`, `TimeTotal`, `Score`, `ScoreTotal`
 - Utility: `IsAsserted(flag)`, `Map(key)`, `Const`, `Const240p`, `Const480p`,
-  `Const720p`, `Random`, `IfElse`,
-  `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,
-  `Sqrt`, `Pow`, `AILevel`
+  `Const720p`, `Const1080p`, `Random`, `IfElse`, `Clamp`, `Lerp`, `Sign`,
+  `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,
+  `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Exp`, `Log`, `Sqrt`, `Pow`,
+  `AILevel`, `LocalCoordX`, `LocalCoordY`
+  Trigonometric functions take and return radians, as in the M.U.G.E.N
+  expression reference.
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,
   `BackEdge`, `FrontEdge`, `BackEdgeBodyDist`, `FrontEdgeBodyDist`,
   `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,

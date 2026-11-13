@@ -5790,6 +5790,38 @@ fn height_controller_sets_per_tick_offsets() {
 }
 
 #[test]
+fn ikemen_math_and_localcoord_expressions() {
+    use std::f32::consts::PI;
+
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let num = |expr: &str| manato_sim::trigger::num(&sim, 0, expr);
+    let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
+    assert!(close(num(&format!("Sin({})", PI / 2.0)), 1.0));
+    assert!(close(num(&format!("Cos({})", PI)), -1.0));
+    assert!(close(num("Atan(1)"), PI / 4.0));
+    assert!(close(num("Atan2(1, 0)"), PI / 2.0));
+    assert!(close(num("Asin(1)"), PI / 2.0));
+    assert!(close(num("Acos(0)"), PI / 2.0));
+    assert!(close(num("Rad(180)"), PI));
+    assert!(close(num(&format!("Deg({})", PI)), 180.0));
+    assert!(close(num("Clamp(5, 0, 3)"), 3.0));
+    assert!(close(num("Lerp(0, 10, 0.5)"), 5.0));
+    assert!(close(num("Lerp(0, 10, 2)"), 10.0));
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Sign(-4)"), -1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Sign(0)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Sign(9)"), 1);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LocalCoordX"), 320);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LocalCoordY"), 240);
+    assert!(close(
+        manato_sim::trigger::num(&sim, 0, "Const1080p(movement.yaccel)"),
+        0.44 * 4.5
+    ));
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -7654,10 +7686,11 @@ fn math_and_resolution_constants() {
         return;
     };
     let num = |expr: &str| manato_sim::trigger::num(&sim, 0, expr);
-    assert!((num("Sin(30)") - 0.5).abs() < 0.001);
-    assert!((num("Cos(60)") - 0.5).abs() < 0.001);
-    assert!((num("Tan(45)") - 1.0).abs() < 0.001);
-    assert!((num("Atan(1)") - 45.0).abs() < 0.001);
+    // Trigonometry uses radians (`sin(pi/2)` in the M.U.G.E.N reference).
+    assert!((num("Sin(0.5235988)") - 0.5).abs() < 0.001);
+    assert!((num("Cos(1.0471976)") - 0.5).abs() < 0.001);
+    assert!((num("Tan(0.7853982)") - 1.0).abs() < 0.001);
+    assert!((num("Atan(1)") - std::f32::consts::FRAC_PI_4).abs() < 0.001);
     assert!((num("Sqrt(16)") - 4.0).abs() < 0.001);
     assert!((num("Pow(2, 10)") - 1024.0).abs() < 0.001);
     assert!((num("Exp(0)") - 1.0).abs() < 0.001);

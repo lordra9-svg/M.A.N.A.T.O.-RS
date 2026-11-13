@@ -338,10 +338,37 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "ceil" => Value::Float(arg_f32(sim, who, args, 0).ceil()),
         "floor" => Value::Float(arg_f32(sim, who, args, 0).floor()),
         "sqrt" => Value::Float(arg_f32(sim, who, args, 0).max(0.0).sqrt()),
-        "sin" => Value::Float(arg_f32(sim, who, args, 0).to_radians().sin()),
-        "cos" => Value::Float(arg_f32(sim, who, args, 0).to_radians().cos()),
-        "tan" => Value::Float(arg_f32(sim, who, args, 0).to_radians().tan()),
-        "atan" => Value::Float(arg_f32(sim, who, args, 0).atan().to_degrees()),
+        // M.U.G.E.N trig functions take and return radians (`sin(pi/2)`).
+        "sin" => Value::Float(arg_f32(sim, who, args, 0).sin()),
+        "cos" => Value::Float(arg_f32(sim, who, args, 0).cos()),
+        "tan" => Value::Float(arg_f32(sim, who, args, 0).tan()),
+        "asin" => Value::Float(arg_f32(sim, who, args, 0).clamp(-1.0, 1.0).asin()),
+        "acos" => Value::Float(arg_f32(sim, who, args, 0).clamp(-1.0, 1.0).acos()),
+        "atan" => Value::Float(arg_f32(sim, who, args, 0).atan()),
+        "atan2" => Value::Float(arg_f32(sim, who, args, 0).atan2(arg_f32(sim, who, args, 1))),
+        "clamp" => Value::Float(
+            arg_f32(sim, who, args, 0)
+                .max(arg_f32(sim, who, args, 1))
+                .min(arg_f32(sim, who, args, 2)),
+        ),
+        "lerp" => {
+            let from = arg_f32(sim, who, args, 0);
+            let to = arg_f32(sim, who, args, 1);
+            let amount = arg_f32(sim, who, args, 2).clamp(0.0, 1.0);
+            Value::Float(from + (to - from) * amount)
+        }
+        "sign" => {
+            let value = arg_f32(sim, who, args, 0);
+            Value::Int(if value < 0.0 {
+                -1
+            } else if value > 0.0 {
+                1
+            } else {
+                0
+            })
+        }
+        "rad" => Value::Float(arg_f32(sim, who, args, 0).to_radians()),
+        "deg" => Value::Float(arg_f32(sim, who, args, 0).to_degrees()),
         "exp" => Value::Float(arg_f32(sim, who, args, 0).exp()),
         "log" | "ln" => Value::Float(arg_f32(sim, who, args, 0).max(0.0001).ln()),
         "min" => Value::Float(arg_f32(sim, who, args, 0).min(arg_f32(sim, who, args, 1))),
@@ -502,7 +529,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 .unwrap_or(false);
             Value::Bool(matched)
         }
-        "const240p" | "const480p" | "const720p" => {
+        "const240p" | "const480p" | "const720p" | "const1080p" => {
             let key = args
                 .first()
                 .map(|arg| match arg {
@@ -514,8 +541,10 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 1.0
             } else if lower == "const480p" {
                 2.0
-            } else {
+            } else if lower == "const720p" {
                 3.0
+            } else {
+                4.5
             };
             Value::Float(sim.character(who).constants.get(&key).unwrap_or(0.0) * scale)
         }
@@ -890,6 +919,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "timetotal"
             | "score"
             | "numplayer"
+            | "localcoordx"
+            | "localcoordy"
             | "playerno"
             | "scoretotal"
             | "screenpos"
@@ -1041,6 +1072,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
             sim.score.get(f.side).copied().unwrap_or(0.0)
         }),
         "numplayer" => Value::Int(sim.fighters.iter().filter(|f| f.active).count() as i32),
+        "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
+        "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
         "playerno" => Value::Int(f.slot as i32 + 1),
         "scoretotal" => Value::Float(if f.owner.is_some() {
             0.0
