@@ -5638,6 +5638,73 @@ fn map_controllers_and_trigger() {
 }
 
 #[test]
+fn relative_map_controllers_write_parent_root_and_team() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    sim.fighters[0].parent = Some(1);
+    sim.fighters[0].root = Some(1);
+    run(
+        &mut sim,
+        "parentmapset",
+        vec![
+            ("map".into(), "shared".into()),
+            ("value".into(), "4".into()),
+        ],
+    );
+    assert_eq!(
+        sim.fighters[1].map.get("shared").map(|v| v.as_i32()),
+        Some(4)
+    );
+    assert!(!sim.fighters[0].map.contains_key("shared"));
+    run(
+        &mut sim,
+        "rootmapadd",
+        vec![
+            ("map".into(), "shared".into()),
+            ("value".into(), "2".into()),
+        ],
+    );
+    assert_eq!(
+        sim.fighters[1].map.get("shared").map(|v| v.as_i32()),
+        Some(6)
+    );
+
+    // Team maps apply to every player on the same side, not helpers.
+    sim.fighters[0].side = 0;
+    sim.fighters[1].side = 0;
+    run(
+        &mut sim,
+        "teammapset",
+        vec![("map(team)".into(), "9".into())],
+    );
+    assert_eq!(sim.fighters[0].map.get("team").map(|v| v.as_i32()), Some(9));
+    assert_eq!(sim.fighters[1].map.get("team").map(|v| v.as_i32()), Some(9));
+
+    // Helpers are not player-side map targets.
+    sim.fighters[1].owner = Some(0);
+    run(
+        &mut sim,
+        "teammapadd",
+        vec![("map".into(), "team".into()), ("value".into(), "1".into())],
+    );
+    assert_eq!(
+        sim.fighters[0].map.get("team").map(|v| v.as_i32()),
+        Some(10)
+    );
+    assert_eq!(sim.fighters[1].map.get("team").map(|v| v.as_i32()), Some(9));
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

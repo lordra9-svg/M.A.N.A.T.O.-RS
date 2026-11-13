@@ -111,6 +111,12 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "mapset" => map_write(sim, who, control, false),
         "mapadd" => map_write(sim, who, control, true),
         "mapreset" => map_reset(sim, who, control),
+        "parentmapset" => map_write_relative(sim, who, control, false, Relative::Parent),
+        "parentmapadd" => map_write_relative(sim, who, control, true, Relative::Parent),
+        "rootmapset" => map_write_relative(sim, who, control, false, Relative::Root),
+        "rootmapadd" => map_write_relative(sim, who, control, true, Relative::Root),
+        "teammapset" => map_write_relative(sim, who, control, false, Relative::Team),
+        "teammapadd" => map_write_relative(sim, who, control, true, Relative::Team),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -922,7 +928,11 @@ fn map_key(name: &str) -> String {
     name.trim().trim_matches('"').trim().to_ascii_lowercase()
 }
 
-fn map_write(sim: &mut SimState, who: usize, control: &Controller, add: bool) {
+fn map_assignment(
+    sim: &SimState,
+    who: usize,
+    control: &Controller,
+) -> Option<(String, crate::expr::Value)> {
     let mut name: Option<String> = None;
     let mut assigned: Option<String> = None;
     for (key, value) in &control.params {
@@ -941,10 +951,11 @@ fn map_write(sim: &mut SimState, who: usize, control: &Controller, add: bool) {
         .map(str::to_string)
         .or(assigned)
         .unwrap_or_default();
-    let Some(name) = name.filter(|name| !name.is_empty()) else {
-        return;
-    };
-    let value = trigger::eval_str(sim, who, &value_expr);
+    let name = name.filter(|name| !name.is_empty())?;
+    Some((name, trigger::eval_str(sim, who, &value_expr)))
+}
+
+fn apply_map(sim: &mut SimState, who: usize, name: String, value: crate::expr::Value, add: bool) {
     let map = &mut sim.fighters[who].map;
     if !add {
         map.insert(name, value);
@@ -965,6 +976,55 @@ fn map_write(sim: &mut SimState, who: usize, control: &Controller, add: bool) {
         (a, b) => crate::expr::Value::Float(a.as_f32() + b.as_f32()),
     };
     map.insert(name, sum);
+}
+
+#[derive(Clone, Copy)]
+enum Relative {
+    Parent,
+    Root,
+    Team,
+}
+
+fn map_write_relative(
+    sim: &mut SimState,
+    who: usize,
+    control: &Controller,
+    add: bool,
+    relative: Relative,
+) {
+    let Some((name, value)) = map_assignment(sim, who, control) else {
+        return;
+    };
+    match relative {
+        Relative::Parent => {
+            let dest = sim.parent_of(who);
+            apply_map(sim, dest, name, value, add);
+        }
+        Relative::Root => {
+            let dest = sim.root_of(who);
+            apply_map(sim, dest, name, value, add);
+        }
+        Relative::Team => {
+            let side = sim.fighters[who].side;
+            let destinations: Vec<usize> = sim
+                .fighters
+                .iter()
+                .enumerate()
+                .filter(|(_, fighter)| fighter.owner.is_none() && fighter.side == side)
+                .map(|(index, _)| index)
+                .collect();
+            for dest in destinations {
+                apply_map(sim, dest, name.clone(), value.clone(), add);
+            }
+        }
+    }
+}
+
+fn map_write(sim: &mut SimState, who: usize, control: &Controller, add: bool) {
+    let Some((name, value)) = map_assignment(sim, who, control) else {
+        return;
+    };
+    apply_map(sim, who, name, value, add);
 }
 
 fn map_reset(sim: &mut SimState, who: usize, control: &Controller) {
