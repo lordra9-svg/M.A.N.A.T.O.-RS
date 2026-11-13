@@ -1306,6 +1306,79 @@ fn zoom_controller_and_triggers_round_trip() {
 }
 
 #[test]
+fn zoom_controller_honors_stage_and_camera_bounds() {
+    let root = mugen_root();
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    if !root.join(&config.stage).exists() {
+        eprintln!("skipping: content not present at {}", root.display());
+        return;
+    }
+    let mut loaded = manato_sim::Assets::load(&config).expect("assets load");
+    loaded.stage.camera.zoom_out = 0.5;
+    loaded.stage.camera.zoom_in = 2.0;
+    loaded.stage.camera.bound_left = -200.0;
+    loaded.stage.camera.bound_right = 200.0;
+    loaded.stage.left_bound = -150.0;
+    loaded.stage.right_bound = 150.0;
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(std::sync::Arc::new(loaded), options);
+    let assets = sim.assets.clone();
+
+    // scale 2 => half-width 80, so camera bounds clamp x to +-120.
+    let zoom = |params: Vec<(String, String)>| manato_formats::Controller {
+        kind: "zoom".into(),
+        params,
+        line: 0,
+    };
+    let camera_bound = zoom(vec![
+        ("pos".into(), "400, 0".into()),
+        ("scale".into(), "2".into()),
+        ("time".into(), "20".into()),
+        ("lag".into(), "1".into()),
+        ("camerabound".into(), "1".into()),
+    ]);
+    manato_sim::controller::execute(&mut sim, 0, &camera_bound, &assets);
+    for _ in 0..12 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.x - 120.0).abs() < 0.5,
+        "camerabound should clamp x to {} (got {})",
+        120.0,
+        sim.camera.x
+    );
+
+    sim.camera.x = 0.0;
+    sim.camera.scale = 2.0;
+    let stage_bound = zoom(vec![
+        ("pos".into(), "400, 0".into()),
+        ("scale".into(), "2".into()),
+        ("time".into(), "20".into()),
+        ("lag".into(), "1".into()),
+        ("stagebound".into(), "1".into()),
+    ]);
+    manato_sim::controller::execute(&mut sim, 0, &stage_bound, &assets);
+    for _ in 0..12 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.x - 70.0).abs() < 0.5,
+        "stagebound should clamp x to {} (got {})",
+        70.0,
+        sim.camera.x
+    );
+}
+
+#[test]
 fn combo_counter_tracks_hits_and_expires() {
     let Some(mut sim) = fight_phase() else {
         return;

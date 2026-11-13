@@ -680,6 +680,13 @@ While an override is active, automatic tracking is suspended; the override
 steers `current` toward `scale`/`pos` over `time` ticks with `lag` smoothing
 and releases after `endlag`. A second `Zoom` replaces the active override.
 
+`camerabound` clamps the target and every smoothed step to the stage camera
+bounds (`boundleft`/`boundright` inset by the half-visible width,
+`boundhigh`/`boundlow`). `stagebound` does the same against the playable
+player-info bounds (`leftbound`/`rightbound`). Both are applied after zoom
+smoothing, so a shrink that would expose the outside of the stage cannot
+push the camera past its bounds.
+
 ### 11.4 `ZoomVar` trigger
 
 `ZoomVar(scale)`, `ZoomVar(pos.x)`, `ZoomVar(pos.y)`, `ZoomVar(lag)`,

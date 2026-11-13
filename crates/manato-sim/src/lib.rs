@@ -2148,6 +2148,24 @@ impl SimState {
             self.camera.scale += (zoom.target_scale - self.camera.scale) * smoothing;
             self.camera.scale = clamp(self.camera.scale, cam.zoom_out, cam.zoom_in);
 
+            if zoom.stage_bound {
+                let half_w = manato_core::GAME_WIDTH * 0.5 / self.camera.scale.max(0.0001);
+                let lo = self.assets.stage.left_bound + half_w;
+                let hi = self.assets.stage.right_bound - half_w;
+                if lo <= hi {
+                    self.camera.x = clamp(self.camera.x, lo, hi);
+                }
+            }
+            if zoom.camera_bound {
+                let half_w = manato_core::GAME_WIDTH * 0.5 / self.camera.scale.max(0.0001);
+                let lo = cam.bound_left + half_w;
+                let hi = cam.bound_right - half_w;
+                if lo <= hi {
+                    self.camera.x = clamp(self.camera.x, lo, hi);
+                }
+                self.camera.y = clamp(self.camera.y, cam.bound_high, cam.bound_low);
+            }
+
             if zoom.hold > 0 {
                 zoom.hold -= 1;
                 if zoom.hold == 0 {
