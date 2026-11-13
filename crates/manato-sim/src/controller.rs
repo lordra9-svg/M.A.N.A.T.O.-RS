@@ -263,6 +263,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "modifyexplod" => modify_explod(sim, who, control, assets),
         "removeexplod" => remove_explod(sim, who, control),
         "makedust" => make_dust(sim, who, control),
+        "explodbindtime" => explod_bind_time(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1560,6 +1561,20 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
     }
 }
 
+fn explod_bind_time(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(-1);
+    let time = int_param(sim, who, control, "time")
+        .or_else(|| int_param(sim, who, control, "value"))
+        .unwrap_or(0);
+    for effect in &mut sim.effects {
+        if effect.owner != who || (id >= 0 && effect.id != id) {
+            continue;
+        }
+        effect.bind_time = time;
+        effect.bound = time != 0 && effect.bind_target.is_some();
+    }
+}
+
 fn remove_explod(sim: &mut SimState, who: usize, control: &Controller) {
     let id = int_param(sim, who, control, "id").unwrap_or(0);
     sim.effects
@@ -2407,7 +2422,9 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         owner: who,
         behind: int_param(sim, who, control, "ontop").unwrap_or(1) == 0,
         bind_time,
-        bind_target: if bind_time != 0 { bind_target } else { None },
+        // Keep the anchor even while unbound so `ExplodBindTime` can re-bind
+        // the effect later.
+        bind_target,
         bind_offset,
         bound: bind_time != 0 && bind_target.is_some(),
         remove_on_get_hit: int_param(sim, who, control, "removeongethit").unwrap_or(0) != 0,

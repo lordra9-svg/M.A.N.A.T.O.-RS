@@ -128,6 +128,7 @@ Required controller families for the approved matrix:
 - `ModifyReversalDef` (reversal attr/guardflag overrides)
 - `ModifyShadow`, `ModifyReflection`
   (intensity/color/offset/xscale/yscale overrides)
+- `ExplodBindTime` (rebind matching explods by id)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

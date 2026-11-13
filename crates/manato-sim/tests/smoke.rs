@@ -1379,6 +1379,63 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn explod_bind_time_rebinds_matching_explods() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "5".into()),
+            ("pos".into(), "0, 0".into()),
+            ("bindtime".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.effects.len(), 1);
+    assert!(!sim.effects[0].bound, "bindtime = 0 is not bound");
+
+    let bind = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "explodbindtime".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    bind(
+        &mut sim,
+        vec![("id".into(), "5".into()), ("time".into(), "3".into())],
+    );
+    assert_eq!(sim.effects[0].bind_time, 3);
+    assert!(sim.effects[0].bound);
+
+    // The explod follows the owner while bound.
+    sim.fighters[0].pos = manato_core::Vec2::new(40.0, -10.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.effects[0].bind_time, 2);
+    let owner_pos = sim.fighters[0].pos;
+    assert!((sim.effects[0].pos.x - owner_pos.x).abs() < 0.001);
+    assert!((sim.effects[0].pos.y - owner_pos.y).abs() < 0.001);
+
+    // A non-matching id leaves the explod untouched.
+    bind(
+        &mut sim,
+        vec![("id".into(), "9".into()), ("time".into(), "5".into())],
+    );
+    assert_eq!(sim.effects[0].bind_time, 2);
+
+    // `value` is the documented fallback for `time`; id < 0 matches all.
+    bind(&mut sim, vec![("value".into(), "1".into())]);
+    assert_eq!(sim.effects[0].bind_time, 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.effects[0].bound, "bind expires at zero");
+}
+
+#[test]
 fn sprite_var_reports_current_frame_sprite() {
     let Some(mut sim) = fight_phase() else {
         return;
