@@ -5835,6 +5835,60 @@ fn stage_time_tracks_ticks_since_round_start() {
 }
 
 #[test]
+fn camera_controller_switches_view_and_targets() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(sim.camera.view, manato_sim::CameraView::Fighting);
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "camera".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(
+        &mut sim,
+        vec![
+            ("view".into(), "free".into()),
+            ("pos".into(), "1000, 0".into()),
+        ],
+    );
+    assert_eq!(sim.camera.view, manato_sim::CameraView::Free);
+    assert_eq!(sim.camera.free_pos, manato_core::Vec2::new(1000.0, 0.0));
+    let before = sim.camera.x;
+    for _ in 0..30 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.camera.x > before, "free view moves toward pos");
+
+    run(
+        &mut sim,
+        vec![
+            ("view".into(), "follow".into()),
+            ("followid".into(), "1".into()),
+        ],
+    );
+    assert_eq!(sim.camera.view, manato_sim::CameraView::Follow);
+    assert_eq!(sim.camera.follow, Some(1));
+    sim.fighters[1].pos.x = 120.0;
+    for _ in 0..60 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.camera.x > 40.0, "follow view tracks the target");
+
+    run(&mut sim, vec![("view".into(), "fighting".into())]);
+    assert_eq!(sim.camera.view, manato_sim::CameraView::Fighting);
+    assert_eq!(sim.camera.follow, None);
+
+    // Follow mode defaults to the controller's owner.
+    run(&mut sim, vec![("view".into(), "follow".into())]);
+    assert_eq!(sim.camera.follow, Some(0));
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

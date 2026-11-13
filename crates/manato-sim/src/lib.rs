@@ -255,11 +255,26 @@ impl RoundState {
     }
 }
 
+/// Camera mode selected by the Ikemen-only `Camera` controller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CameraView {
+    #[default]
+    Fighting,
+    Follow,
+    Free,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CameraState {
     pub x: f32,
     pub y: f32,
     pub shake: Vec2,
+    /// Automatic tracking mode (`Camera` controller).
+    pub view: CameraView,
+    /// Fighter followed in `Follow` mode.
+    pub follow: Option<usize>,
+    /// Explicit position target in `Free` mode.
+    pub free_pos: Vec2,
     /// Current zoom scale (`camerazoom`).
     pub scale: f32,
     /// Scale the automatic tracker is heading toward.
@@ -291,6 +306,9 @@ impl Default for CameraState {
             x: 0.0,
             y: 0.0,
             shake: Vec2::ZERO,
+            view: CameraView::Fighting,
+            follow: None,
+            free_pos: Vec2::ZERO,
             scale: 1.0,
             target_scale: 1.0,
             zoom_delay: 0,
@@ -2068,6 +2086,9 @@ impl SimState {
                 delay: 0,
             },
         ];
+        self.camera.view = CameraView::Fighting;
+        self.camera.follow = None;
+        self.camera.free_pos = Vec2::ZERO;
         self.camera.x = self.assets.stage.camera.start.x;
         self.camera.y = self.assets.stage.camera.start.y;
         self.camera.scale = self.assets.stage.camera.start_zoom;
@@ -2138,31 +2159,64 @@ impl SimState {
                     self.camera.zoom_override = None;
                 }
             }
+        } else if self.camera.view == CameraView::Free {
+            let half_w = manato_core::GAME_WIDTH * 0.5 / self.camera.scale.max(0.0001);
+            let lo = cam.bound_left + half_w;
+            let hi = cam.bound_right - half_w;
+            let target_x = if lo <= hi {
+                clamp(self.camera.free_pos.x, lo, hi)
+            } else {
+                self.camera.free_pos.x
+            };
+            let target_y = clamp(self.camera.free_pos.y, cam.bound_high, cam.bound_low);
+            self.camera.target_scale = self.camera.scale;
+            self.camera.x += (target_x - self.camera.x) * 0.35;
+            self.camera.y += (target_y - self.camera.y) * 0.35;
         } else {
-            let mid_x = (self.fighters[0].pos.x + self.fighters[1].pos.x) * 0.5;
-            let highest = self.fighters[0].pos.y.min(self.fighters[1].pos.y);
-
-            // Visible extents of the non-helper fighters, including their body
-            // boxes. Helpers never drive the camera.
-            let mut left = f32::INFINITY;
-            let mut right = f32::NEG_INFINITY;
-            let mut top = f32::INFINITY;
-            let mut bottom = f32::NEG_INFINITY;
-            for fighter in &self.fighters {
-                if fighter.owner.is_some() {
-                    continue;
+            let follow = if self.camera.view == CameraView::Follow {
+                self.camera.follow.filter(|index| {
+                    self.fighters
+                        .get(*index)
+                        .is_some_and(|fighter| fighter.active)
+                })
+            } else {
+                None
+            };
+            let (mid_x, highest, left, right, top, bottom) = if let Some(index) = follow {
+                let fighter = &self.fighters[index];
+                (
+                    fighter.pos.x,
+                    fighter.pos.y,
+                    fighter.pos.x - fighter.width_back,
+                    fighter.pos.x + fighter.width_front,
+                    fighter.pos.y - fighter.height - fighter.height_player.x,
+                    fighter.pos.y + fighter.height_player.y,
+                )
+            } else {
+                let mid_x = (self.fighters[0].pos.x + self.fighters[1].pos.x) * 0.5;
+                let highest = self.fighters[0].pos.y.min(self.fighters[1].pos.y);
+                // Visible extents of the non-helper fighters, including their
+                // body boxes. Helpers never drive the fighting camera.
+                let mut left = f32::INFINITY;
+                let mut right = f32::NEG_INFINITY;
+                let mut top = f32::INFINITY;
+                let mut bottom = f32::NEG_INFINITY;
+                for fighter in &self.fighters {
+                    if fighter.owner.is_some() {
+                        continue;
+                    }
+                    left = left.min(fighter.pos.x - fighter.width_back);
+                    right = right.max(fighter.pos.x + fighter.width_front);
+                    top = top.min(fighter.pos.y - fighter.height - fighter.height_player.x);
+                    bottom = bottom.max(fighter.pos.y + fighter.height_player.y);
                 }
-                left = left.min(fighter.pos.x - fighter.width_back);
-                right = right.max(fighter.pos.x + fighter.width_front);
-                top = top.min(fighter.pos.y - fighter.height - fighter.height_player.x);
-                bottom = bottom.max(fighter.pos.y + fighter.height_player.y);
-            }
-            if !left.is_finite() {
-                left = mid_x;
-                right = mid_x;
-                top = highest;
-                bottom = highest;
-            }
+                (mid_x, highest, left, right, top, bottom)
+            };
+            let (left, right, top, bottom) = if left.is_finite() {
+                (left, right, top, bottom)
+            } else {
+                (mid_x, mid_x, highest, highest)
+            };
             let extent_w = (right - left + cam.tension).max(1.0);
             let extent_h = (bottom - top + cam.tension * 0.5).max(1.0);
             let target = (manato_core::GAME_WIDTH / extent_w)
@@ -2421,6 +2475,10 @@ impl SimState {
         h.write_f32(self.camera.scale);
         h.write_f32(self.camera.target_scale);
         h.write_i32(self.camera.zoom_delay);
+        h.write_u8(self.camera.view as u8);
+        h.write_u8(self.camera.follow.map(|i| i as u8 + 1).unwrap_or(0));
+        h.write_f32(self.camera.free_pos.x);
+        h.write_f32(self.camera.free_pos.y);
         if let Some(zoom) = self.camera.zoom_override {
             h.write_bool(true);
             h.write_f32(zoom.target_pos.x);

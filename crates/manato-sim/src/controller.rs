@@ -156,6 +156,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         }
         "width" => width(sim, who, control),
         "height" => height(sim, who, control),
+        "camera" => camera(sim, who, control),
         "screenbound" => {
             let (x, y) = control.get_pair("value").unwrap_or((1.0, 1.0));
             sim.fighters[who].screen_bound = (x != 0.0, y != 0.0);
@@ -1980,6 +1981,33 @@ fn assert_special(sim: &mut SimState, who: usize, control: &Controller) {
         } else if value.trim() != "0" {
             apply(&lower);
         }
+    }
+}
+
+fn camera(sim: &mut SimState, who: usize, control: &Controller) {
+    if let Some(index) = int_param(sim, who, control, "followid") {
+        if index >= 0 && (index as usize) < sim.fighters.len() {
+            sim.camera.follow = Some(index as usize);
+        }
+    }
+    if let Some(view) = str_param(control, "view") {
+        match view.to_ascii_lowercase().as_str() {
+            "follow" => {
+                sim.camera.view = crate::CameraView::Follow;
+                if sim.camera.follow.is_none() {
+                    sim.camera.follow = Some(who);
+                }
+            }
+            "free" => sim.camera.view = crate::CameraView::Free,
+            "fighting" => {
+                sim.camera.view = crate::CameraView::Fighting;
+                sim.camera.follow = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(pos) = control.get_pair("pos") {
+        sim.camera.free_pos = Vec2::new(pos.0, pos.1);
     }
 }
 

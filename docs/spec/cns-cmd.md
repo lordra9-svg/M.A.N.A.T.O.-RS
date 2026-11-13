@@ -121,6 +121,7 @@ Required controller families for the approved matrix:
 - `GetHitVarSet` (modeled GetHitVar fields)
 - `MapSet`, `MapAdd`, `MapReset` (per-fighter string-keyed maps)
 - `Height` (per-tick top/bottom size offset)
+- `Camera` (`view = fighting|follow|free`, `followid`, `pos`)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,
