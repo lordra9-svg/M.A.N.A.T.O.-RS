@@ -351,23 +351,68 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         };
         let pose = Pose::from_frame(frame);
         let zoom = sim.camera.scale;
+        let anchor = sim.screen_pos(projectile.pos);
+        let scale = Vec2::new(
+            pose.scale.x * projectile.scale.x * zoom,
+            pose.scale.y * projectile.scale.y * zoom,
+        );
+        let angle = pose.angle + projectile.angle * projectile.facing as f32;
+        let bank = bank::CHARACTER_BASE + projectile.owner as u8;
+        let color = [1.0, 1.0, 1.0, pose.alpha];
+
+        if projectile.x_shear != 0.0
+            || projectile.projection != manato_sim::ProjectionMode::Orthographic
+        {
+            let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
+                continue;
+            };
+            let (dest, flipped) = sprite_dest(
+                anchor,
+                pose.offset,
+                sprite,
+                projectile.facing,
+                scale,
+                pose.flip_h,
+                pose.flip_v,
+            );
+            let localcoord_h = sim.assets.stage.localcoord.1.max(1.0);
+            let focal = projectile.focal_length * (GAME_HEIGHT / localcoord_h);
+            let corners = project_quad(
+                dest,
+                angle,
+                0.0,
+                0.0,
+                projectile.x_shear,
+                projectile.projection,
+                focal,
+                Vec2::new(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.5),
+            );
+            painter.quad_corners(
+                TexRef::Atlas(atlas_sprite.page),
+                pose.blend,
+                corners,
+                atlas_sprite.uv,
+                flipped,
+                pose.flip_v,
+                color,
+            );
+            continue;
+        }
+
         draw_sprite(
             painter,
             atlas,
-            bank::CHARACTER_BASE + projectile.owner as u8,
+            bank,
             sprite,
-            sim.screen_pos(projectile.pos),
+            anchor,
             pose.offset,
             projectile.facing,
-            Vec2::new(
-                pose.scale.x * projectile.scale.x * zoom,
-                pose.scale.y * projectile.scale.y * zoom,
-            ),
+            scale,
             pose.flip_h,
             pose.flip_v,
             pose.blend,
-            [1.0, 1.0, 1.0, pose.alpha],
-            pose.angle + projectile.angle * projectile.facing as f32,
+            color,
+            angle,
         );
     }
 }

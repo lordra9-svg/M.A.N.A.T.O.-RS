@@ -85,6 +85,9 @@ Rules:
   disabled before the next pass.
 - `assertspecial = invisible` hides the owning fighter and its shadows but
   not its explods.
+- Projectiles honor `projscale`, `projangle`, `projxshear`, and
+  `projprojection`/`projfocallength` in the same way as explods; an
+  orthographic, unsheared projectile uses the fast sprite path.
 - Effects owned by a hidden fighter still draw.
 - Title and select screens replace passes 1–12 entirely; they never composite
   over a live match, except for the optional background used behind the
