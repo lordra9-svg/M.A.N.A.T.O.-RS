@@ -325,7 +325,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let value = sim.character(who).constants.get(&key).unwrap_or(0.0);
             Value::Float(value)
         }
-        "ifelse" => {
+        "ifelse" | "cond" => {
             if args.len() >= 3 && eval(sim, who, &args[0]).truthy() {
                 eval(sim, who, &args[1])
             } else if args.len() >= 3 {
@@ -389,7 +389,18 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "rad" => Value::Float(arg_f32(sim, who, args, 0).to_radians()),
         "deg" => Value::Float(arg_f32(sim, who, args, 0).to_degrees()),
         "exp" => Value::Float(arg_f32(sim, who, args, 0).exp()),
-        "log" | "ln" => Value::Float(arg_f32(sim, who, args, 0).max(0.0001).ln()),
+        "ln" => Value::Float(arg_f32(sim, who, args, 0).max(0.0001).ln()),
+        // M.U.G.E.N 1.1 `Log(base, value)`; non-positive arguments are
+        // undefined and read as zero.
+        "log" => {
+            let base = arg_f32(sim, who, args, 0);
+            let value = arg_f32(sim, who, args, 1);
+            if base <= 0.0 || value <= 0.0 || base == 1.0 {
+                Value::Float(0.0)
+            } else {
+                Value::Float(value.ln() / base.ln())
+            }
+        }
         "min" => Value::Float(arg_f32(sim, who, args, 0).min(arg_f32(sim, who, args, 1))),
         "max" => Value::Float(arg_f32(sim, who, args, 0).max(arg_f32(sim, who, args, 1))),
         "pow" => Value::Float(arg_f32(sim, who, args, 0).powf(arg_f32(sim, who, args, 1))),
@@ -1166,6 +1177,7 @@ fn is_trigger_name(name: &str) -> bool {
         "ailevel"
             | "ailevelf"
             | "pi"
+            | "e"
             | "powermax"
             | "guardcount"
             | "attack"
@@ -1550,6 +1562,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "ailevel" => Value::Int(f.ai_level),
         "ailevelf" => Value::Float(f.ai_level as f32),
         "pi" => Value::Float(std::f32::consts::PI),
+        "e" => Value::Float(std::f32::consts::E),
         "powermax" => Value::Int(crate::MAX_POWER as i32),
         "guardcount" => Value::Int(f.attack.guard_count),
         "attack" => Value::Float(snap3(100.0 * f.attack_mul)),
