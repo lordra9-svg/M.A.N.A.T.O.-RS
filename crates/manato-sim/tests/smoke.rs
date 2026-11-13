@@ -1379,6 +1379,101 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn explod_var_reports_active_effect_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "3".into()),
+            ("pos".into(), "10, 20".into()),
+            ("vel".into(), "2, -1".into()),
+            ("accel".into(), "0.5, 0".into()),
+            ("scale".into(), "1.5, 0.75".into()),
+            ("angle".into(), "30".into()),
+            ("xangle".into(), "15".into()),
+            ("yangle".into(), "10".into()),
+            ("xshear".into(), "0.25".into()),
+            ("sprpriority".into(), "7".into()),
+            ("removetime".into(), "40".into()),
+            ("pausemovetime".into(), "5".into()),
+            ("ignorehitpause".into(), "1".into()),
+            ("ontop".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.effects.len(), 1);
+    let effect = sim.effects[0].clone();
+
+    let num = |sim: &SimState, expr: &str| manato_sim::trigger::num(sim, 0, expr);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, pos.x)"), effect.pos.x);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, pos.y)"), effect.pos.y);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, vel.x)"), 2.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, vel.y)"), -1.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, accel.x)"), 0.5);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, scale.x)"), 1.5);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, scale.y)"), 0.75);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, anim)"),
+        10
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, animelem)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, animelemtime)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "ExplodVar(3, 0, animprefix)").as_str(),
+        "s"
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, id)"), 3);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, layerno)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, sprpriority)"),
+        7
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, time)"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, removetime)"),
+        40
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, pausemovetime)"),
+        5
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, ignorehitpause)"),
+        1
+    );
+    assert_eq!(num(&sim, "ExplodVar(3, 0, angle)"), 30.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, angle.x)"), 15.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, angle.y)"), 10.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, xshear)"), 0.25);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ExplodVar(-1, 0, id)"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ExplodVar(-1, 0, id)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ExplodVar(99, 0, id)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 9, id)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, unknown)"),
+        0
+    );
+}
+
+#[test]
 fn helper_var_reports_helper_metadata() {
     let Some(mut sim) = fight_phase() else {
         return;

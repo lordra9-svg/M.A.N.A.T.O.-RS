@@ -447,6 +447,31 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "explodvar" => {
+            let id = arg_i32(sim, who, args, 0);
+            let index = arg_i32(sim, who, args, 1).max(0) as usize;
+            let field = args
+                .get(2)
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            if let Some(effect) = sim
+                .effects
+                .iter()
+                .filter(|effect| {
+                    effect.owner == who && !effect.is_expired() && (id < 0 || effect.id == id)
+                })
+                .nth(index)
+            {
+                explod_var(sim, effect, &field)
+            } else {
+                Value::Int(0)
+            }
+        }
         "helpervar" => {
             let field = args
                 .first()
@@ -1416,6 +1441,66 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "p2name" => Value::Str(sim.character(1).display_name().to_string()),
         "palno" => Value::Int(1),
         "timemod" => Value::Int(0),
+        _ => Value::Int(0),
+    }
+}
+
+/// `ExplodVar(id, index, field)` value lookup for one active effect.
+fn explod_var(sim: &SimState, effect: &crate::Effect, field: &str) -> Value {
+    let anim = match effect.source {
+        crate::EffectSource::Character(char_id) => {
+            sim.assets.characters[char_id].animation(effect.anim)
+        }
+        crate::EffectSource::FightFx => sim.assets.effects.animations.get(&effect.anim),
+        crate::EffectSource::Stage => sim.assets.stage.animations.get(&effect.anim),
+    };
+    let start = anim
+        .map(|anim| {
+            anim.frames
+                .iter()
+                .take(effect.anim_elem.saturating_sub(1) as usize)
+                .map(|frame| frame.effective_duration())
+                .sum::<i32>()
+        })
+        .unwrap_or(0);
+    let clock = if effect.anim_freeze {
+        start
+    } else {
+        effect.time + start
+    };
+    let position = anim
+        .and_then(|anim| anim.frame_at(clock))
+        .map(|(frame, elapsed)| (frame as i32 + 1, elapsed));
+    match field {
+        "pos.x" => Value::Float(effect.pos.x),
+        "pos.y" => Value::Float(effect.pos.y),
+        "pos.z" => Value::Int(0),
+        "vel.x" => Value::Float(effect.vel.x),
+        "vel.y" => Value::Float(effect.vel.y),
+        "vel.z" => Value::Int(0),
+        "accel.x" => Value::Float(effect.accel.x),
+        "accel.y" => Value::Float(effect.accel.y),
+        "accel.z" => Value::Int(0),
+        "scale.x" => Value::Float(effect.scale.x),
+        "scale.y" => Value::Float(effect.scale.y),
+        "anim" => Value::Int(effect.anim),
+        "animelem" => Value::Int(position.map(|(elem, _)| elem).unwrap_or(0)),
+        "animelemtime" => Value::Int(position.map(|(_, time)| time).unwrap_or(0)),
+        "animtime" => Value::Int(anim.map(|anim| clock - anim.total_time()).unwrap_or(0)),
+        "animprefix" => Value::Str("s".into()),
+        "facing" => Value::Float(effect.facing as f32),
+        "id" => Value::Int(effect.id),
+        "layerno" => Value::Int(i32::from(!effect.behind)),
+        "sprpriority" => Value::Int(effect.sprite_priority),
+        "time" => Value::Int(effect.time),
+        "removetime" => Value::Int(effect.duration),
+        "bindtime" => Value::Int(effect.bind_time),
+        "pausemovetime" => Value::Int(effect.pause_move_time),
+        "ignorehitpause" => Value::Bool(effect.ignore_hit_pause),
+        "angle" => Value::Float(effect.angle),
+        "angle.x" => Value::Float(effect.x_angle),
+        "angle.y" => Value::Float(effect.y_angle),
+        "xshear" => Value::Float(effect.x_shear),
         _ => Value::Int(0),
     }
 }
