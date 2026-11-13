@@ -186,12 +186,12 @@ missing redirect targets make the trigger false.
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
-  `PrevMoveType`, `Ctrl`, `Physics`
+  `PrevMoveType`, `Ctrl`, `Physics`, `SelfStateNoExist(n)`
 - Combat: `Alive`, `Life`, `LifeMax`, `Power`, `GetHitVar`, `HitOver`,
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
   `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
-  `DizzyPointsMax`, `RedLife`, `ComboCount`
+  `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`

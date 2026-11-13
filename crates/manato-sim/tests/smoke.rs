@@ -5547,6 +5547,30 @@ fn red_life_model_controllers_and_triggers() {
 }
 
 #[test]
+fn received_and_self_state_exist_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let mut hit = hitdef();
+    hit.damage = 20;
+    hit.numhits = 2;
+    hit.pausetime = (0, 0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ReceivedHits"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ReceivedDamage"), 20);
+
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "SelfStateNoExist(200)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "SelfStateNoExist(999999)"),
+        0
+    );
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

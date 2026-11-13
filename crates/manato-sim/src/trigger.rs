@@ -382,6 +382,14 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let flag = crate::fighter::assert_flag(&name.trim().to_ascii_lowercase());
             Value::Bool(flag != 0 && sim.fighters[who].assert_flags & flag != 0)
         }
+        "selfstatenoexist" => {
+            let number = arg_i32(sim, who, args, 0);
+            Value::Bool(
+                sim.assets.characters[sim.fighters[who].char_id]
+                    .state(number)
+                    .is_some(),
+            )
+        }
         "gethitvar" => {
             let key = args
                 .first()
@@ -745,6 +753,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "guardpoints"
             | "guardpointsmax"
             | "redlife"
+            | "receivedhits"
+            | "receiveddamage"
             | "ishometeam"
             | "lose"
             | "loseko"
@@ -968,6 +978,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "guardpoints" => Value::Int(f.guard_points),
         "guardpointsmax" => Value::Int(f.guard_max),
         "redlife" => Value::Int(f.red_life),
+        "receivedhits" => Value::Int(f.received_hits),
+        "receiveddamage" => Value::Int(f.received_damage),
         "combocount" => Value::Int(if f.owner.is_some() {
             0
         } else {
