@@ -108,8 +108,8 @@ fall.time = N
 fall.recovertime = N
 fall.kill = 0|1
 palfx.time = N
-palfx.mul = r, g, b
-palfx.add = r, g, b
+palfx.mul = r, g, b        ; 0..256, 256 = identity
+palfx.add = r, g, b        ; 0..255
 envshake.time = N
 envshake.freq = F
 envshake.ampl = N
@@ -184,7 +184,8 @@ applied when a `HitDef` controller omits the parameter:
   KO'ing.
 - `kill` and `guard.kill` are `1`; when `0`, a normal or guarded hit
   respectively clamps life at `1` instead of KO'ing.
-- `palfx.time` is `0` (disabled), `palfx.mul` is `1,1,1`, and `palfx.add` is
+- `palfx.time` is `0` (disabled), `palfx.mul` is `256,256,256` (the
+  identity multiplier, stored internally as `1.0`), and `palfx.add` is
   `0,0,0`.
 - `envshake.time` is `0` (disabled), `envshake.freq` is `60`, and
   `envshake.ampl` is `-4`. `envshake.phase` defaults to the EnvShake rule:

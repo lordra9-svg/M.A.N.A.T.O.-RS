@@ -230,6 +230,7 @@ pub struct HitDef {
     pub fall_envshake_phase: f32,
     /// Successful-hit target palette effect (`palfx.*`).
     pub palfx_time: i32,
+    /// Normalized multiplier (content units 0..256, 256 = identity).
     pub palfx_mul: [f32; 3],
     pub palfx_add: [f32; 3],
     /// Successful-hit screen shake (`envshake.*`).
@@ -560,7 +561,13 @@ impl HitDef {
                 "envshake.ampl" => h.envshake_ampl = parse_i32(value),
                 "envshake.phase" => h.envshake_phase = parse_f32(value),
                 "palfx.time" => h.palfx_time = parse_i32(value),
-                "palfx.mul" => h.palfx_mul = parse_triplet(value),
+                "palfx.mul" => {
+                    // `PalFX`/HitDef `mul` uses 0..256 units (256 = identity);
+                    // keep a normalized multiplier so the runtime and
+                    // `PalfxVar(mul.*)` share one scale.
+                    let mul = parse_triplet(value);
+                    h.palfx_mul = [mul[0] / 256.0, mul[1] / 256.0, mul[2] / 256.0];
+                }
                 "palfx.add" => h.palfx_add = parse_triplet(value),
                 "fall.damage" => h.fall_damage = parse_i32(value),
                 "fall.xvelocity" => h.fall_xvel = parse_f32(value),

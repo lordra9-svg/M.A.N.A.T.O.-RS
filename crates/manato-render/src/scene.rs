@@ -684,9 +684,9 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     }
 
     let tint = [
-        (fighter.pal_mul[0] + fighter.pal_add[0]).clamp(0.0, 1.0),
-        (fighter.pal_mul[1] + fighter.pal_add[1]).clamp(0.0, 1.0),
-        (fighter.pal_mul[2] + fighter.pal_add[2]).clamp(0.0, 1.0),
+        (fighter.pal_mul[0] + fighter.pal_add[0] / 255.0).clamp(0.0, 1.0),
+        (fighter.pal_mul[1] + fighter.pal_add[1] / 255.0).clamp(0.0, 1.0),
+        (fighter.pal_mul[2] + fighter.pal_add[2] / 255.0).clamp(0.0, 1.0),
         (pose.alpha * fighter.pal_alpha * fighter.trans_alpha).clamp(0.0, 1.0),
     ];
     let (scale, angle) = if fighter.angle_draw {

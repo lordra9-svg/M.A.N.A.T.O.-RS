@@ -1461,6 +1461,56 @@ fn env_shake_var_reads_active_shake() {
 }
 
 #[test]
+fn palfx_var_reads_effective_effect() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // Identity values apply when no effect is active; `mul` uses 0..256 units.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(time)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(add.r)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.r)"), 256);
+
+    let control = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("add".into(), "10, 20, 30".into()),
+            ("mul".into(), "128, 64, 32".into()),
+            ("sinadd".into(), "5, 0, 0, 4".into()),
+            ("time".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(time)"), 40);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(add.r)"), 10);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(add.g)"), 20);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(add.b)"), 30);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.r)"), 128);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.g)"), 64);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.b)"), 32);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(unknown)"), 0);
+
+    // The reported add includes the active `sinadd` oscillation.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_add[0] - 15.0).abs() < 0.01);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(add.r)"), 15);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(time)"), 39);
+
+    let off = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![("time".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &off, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(time)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(add.r)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.r)"), 256);
+}
+
+#[test]
 fn transform_clsn_scales_collision_boxes_per_tick() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -4167,7 +4217,7 @@ fn hitdef_palfx_applies_to_target() {
         vec![
             ("attr".into(), "S, NA".into()),
             ("palfx.time".into(), "6".into()),
-            ("palfx.mul".into(), "0.5, 1, 0.25".into()),
+            ("palfx.mul".into(), "128, 256, 64".into()),
             ("palfx.add".into(), "32, 0, 8".into()),
         ],
     );
@@ -4183,6 +4233,10 @@ fn hitdef_palfx_applies_to_target() {
     assert_eq!(sim.fighters[1].pal_add, [32.0, 0.0, 8.0]);
     assert_eq!(sim.fighters[1].pal_base_add, [32.0, 0.0, 8.0]);
     assert_eq!(sim.fighters[1].pal_alpha, 1.0);
+    // `PalfxVar` reports the same effect in content units.
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PalfxVar(mul.r)"), 128);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PalfxVar(mul.g)"), 256);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PalfxVar(add.r)"), 32);
 
     // Guarded contacts also apply the target palette effect.
     let Some(mut sim) = fight_phase() else {
@@ -4194,7 +4248,7 @@ fn hitdef_palfx_applies_to_target() {
         params: vec![
             ("attr".into(), "S, NA".into()),
             ("palfx.time".into(), "6".into()),
-            ("palfx.mul".into(), "0.5, 1, 0.25".into()),
+            ("palfx.mul".into(), "128, 256, 64".into()),
             ("palfx.add".into(), "32, 0, 8".into()),
         ],
         line: 0,
@@ -8859,7 +8913,7 @@ fn after_image_time_and_pal_fx_and_trans_controllers() {
     };
     manato_sim::controller::execute(&mut sim, 0, &palfx, &assets);
     assert_eq!(sim.fighters[0].pal_add, [10.0, 20.0, 30.0]);
-    assert_eq!(sim.fighters[0].pal_mul, [128.0, 128.0, 128.0]);
+    assert_eq!(sim.fighters[0].pal_mul, [0.5, 0.5, 0.5]);
     assert_eq!(sim.fighters[0].pal_time, 2);
     sim.tick([PlayerInput::default(); 2]);
     sim.tick([PlayerInput::default(); 2]);
@@ -16983,7 +17037,7 @@ fn palfx_sinadd_with_mul_and_round_reset() {
     assert!((sim.fighters[0].pal_add[0] - 15.0).abs() < 0.01);
     assert_eq!(
         sim.fighters[0].pal_mul,
-        [128.0, 64.0, 32.0],
+        [0.5, 0.25, 0.125],
         "mul survives sinadd"
     );
     assert_eq!(sim.fighters[0].pal_sin_period, 4);

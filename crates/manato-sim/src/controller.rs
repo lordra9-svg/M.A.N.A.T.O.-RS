@@ -662,7 +662,9 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(value) = control.get("mul") {
         if let Some(mul) = parse_triplet(sim, who, value) {
-            sim.fighters[who].pal_mul = mul;
+            // `PalFX` documents `mul` in 0..256 units with 256 as identity;
+            // store the normalized multiplier used by rendering and triggers.
+            sim.fighters[who].pal_mul = [mul[0] / 256.0, mul[1] / 256.0, mul[2] / 256.0];
         }
     }
     if let Some(value) = control.get("alpha") {

@@ -144,6 +144,10 @@ Required controller families for the approved matrix:
 - `MakeDust`, `GameMakeAnim`
 - `AfterImage`, `AfterImageTime`
 - `PalFX`, `RemapPal`, `Trans`
+  `PalFX` models `add`/`sinadd` in 0–255 units, `mul` in 0–256 units
+  (256 = identity), and `alpha` in 0–1. `color`, `hue`, `invertall`,
+  `invertblend`, `sinmul`, `sincolor`, and `sinhue` are unmodeled; the
+  global `bg`/`all` PalFX layers are not implemented.
 - `ForceFeedback`
 
 ### 4.4 Helpers
@@ -225,6 +229,10 @@ missing redirect targets make the trigger false.
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
   `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,
   `EnvShakeVar(time|freq|ampl|dir|phase|diradd|decay)`,
+  `PalfxVar(time|add.r|add.g|add.b|mul.r|mul.g|mul.b)` (reads the effective
+  local `PalFX`; `add` is 0–255, `mul` is 0–256 with 256 as identity, and
+  `color`/`hue`/`invert*` plus the global `bg`/`all` variants are
+  unmodeled),
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,

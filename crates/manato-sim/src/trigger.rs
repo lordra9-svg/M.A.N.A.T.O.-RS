@@ -503,6 +503,31 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 _ => Value::Int(0),
             }
         }
+        "palfxvar" => {
+            let field = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            let fighter = &sim.fighters[who];
+            let add = |axis: usize| Value::Int(fighter.pal_add[axis].round() as i32);
+            // `mul` is reported in Ikemen-GO's 0..256 units (256 = identity).
+            let mul = |axis: usize| Value::Int((fighter.pal_mul[axis] * 256.0).round() as i32);
+            match field.as_str() {
+                "time" => Value::Int(fighter.pal_time),
+                "add.r" => add(0),
+                "add.g" => add(1),
+                "add.b" => add(2),
+                "mul.r" => mul(0),
+                "mul.g" => mul(1),
+                "mul.b" => mul(2),
+                _ => Value::Int(0),
+            }
+        }
         "spritevar" => {
             let field = args
                 .first()
@@ -1130,6 +1155,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "camerazoom"
             | "zoomvar"
             | "drawgame"
+            | "palfxvar"
             | "win"
             | "consecutivewins"
             | "winko"

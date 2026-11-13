@@ -1630,14 +1630,14 @@ impl SimState {
         // negative, the floor is the lower value.
         let stage_top = self.stage_camera.bound_high;
         let stage_bottom = self.stage_camera.bound_low;
-        for i in 0..2 {
-            if self.fighters[i].screen_bound.0 {
-                let p = self.fighters[i].pos.x;
-                self.fighters[i].pos.x = clamp(p, stage_left, stage_right);
+        for fighter in self.fighters.iter_mut().take(2) {
+            if fighter.screen_bound.0 {
+                let p = fighter.pos.x;
+                fighter.pos.x = clamp(p, stage_left, stage_right);
             }
-            if self.fighters[i].screen_bound.1 {
-                let p = self.fighters[i].pos.y;
-                self.fighters[i].pos.y = clamp(p, stage_top, stage_bottom);
+            if fighter.screen_bound.1 {
+                let p = fighter.pos.y;
+                fighter.pos.y = clamp(p, stage_top, stage_bottom);
             }
         }
         let (a, b) = (0usize, 1usize);
@@ -1839,11 +1839,11 @@ impl SimState {
     /// (`§6.1`, `§6.2`).
     fn update_fight_screen(&mut self) {
         self.update_bars();
-        for side in 0..2 {
-            for message in &mut self.actions[side] {
+        for messages in self.actions.iter_mut().take(2) {
+            for message in messages.iter_mut() {
                 message.time -= 1;
             }
-            self.actions[side].retain(|message| message.time > 0);
+            messages.retain(|message| message.time > 0);
         }
 
         for side in 0..2 {
