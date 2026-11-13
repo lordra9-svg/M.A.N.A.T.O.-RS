@@ -104,7 +104,11 @@ fn redirect_target(sim: &SimState, who: usize, name: &str) -> usize {
             .strip_suffix(')')
             .and_then(|value| value.parse::<usize>().ok())
         {
-            return value.min(1);
+            // Unique player IDs are 1-based (`playerID(1)` is P1).
+            if value >= 1 && value <= sim.fighters.len() {
+                return value - 1;
+            }
+            return who;
         }
     }
     if lower == "enemy" || lower == "enemynear" || lower.starts_with("enemy(") {
@@ -803,12 +807,13 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 .unwrap_or(crate::expr::Value::Int(0))
         }
         "playeridexist" => {
-            let index = arg_i32(sim, who, args, 0);
+            // Argument is a 1-based unique player ID.
+            let id = arg_i32(sim, who, args, 0);
             Value::Bool(
-                index >= 0
+                id >= 1
                     && sim
                         .fighters
-                        .get(index as usize)
+                        .get((id - 1) as usize)
                         .is_some_and(|fighter| fighter.active),
             )
         }
@@ -1098,7 +1103,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Int((helper && sim.fighters[who].helper_id == id) as i32)
             }
         }
-        "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
+        "playerid" => Value::Int(who as i32 + 1),
+        "id" => Value::Int(who as i32 + 1),
         "helperindex" => Value::Int(who.saturating_sub(2) as i32),
         "hitpausetime" => Value::Int(sim.fighters[who].hit.hit_pause_time),
         "movereversed" => Value::Bool(sim.fighters[who].attack.move_reversed),
@@ -1265,6 +1271,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "hitdefattr"
             | "hitbyattr"
             | "helperindex"
+            | "id"
             | "hitfall"
             | "hitvel"
             | "hitover"
@@ -1515,7 +1522,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "timetotal" => Value::Int(sim.round.round_time),
         "timeelapsed" => Value::Int((sim.round.round_time - sim.round.seconds()).max(0)),
         "teamside" => Value::Int(f.side as i32 + 1),
-        "playerid" => Value::Int(sim.fighters[who].owner.unwrap_or(who) as i32),
+        "playerid" => Value::Int(who as i32 + 1),
+        "id" => Value::Int(who as i32 + 1),
         "ishelper" => Value::Int(sim.is_helper(who) as i32),
         "numenemy" => Value::Int(1),
         "numexplod" => Value::Int(

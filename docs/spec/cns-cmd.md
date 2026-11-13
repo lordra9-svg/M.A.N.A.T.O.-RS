@@ -218,7 +218,9 @@ missing redirect targets make the trigger false.
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,
   `PlayerNo`, `PlayerIDExist(n)`, `PlayerIndexExist(n)`, `PlayerNoExist(n)`,
-  `LastPlayerID`
+  `LastPlayerID`, `ID` (and the `PlayerID` alias). Unique IDs are 1-based
+  and assigned in fighter creation order (P1, P2, then each helper), so
+  `PlayerID(1)` addresses P1 and `ID` reports the current fighter's own ID.
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
   `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `TeamSide`, `TeamMode`, `IsHomeTeam`,

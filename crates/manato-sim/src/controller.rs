@@ -774,7 +774,8 @@ fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         .unwrap_or(false);
     entity.enter_state(stateno, character, false);
     sim.fighters.push(entity);
-    sim.last_player_id = (sim.fighters.len() - 1) as i32;
+    // Each created fighter receives the next 1-based unique ID.
+    sim.last_player_id = sim.fighters.len() as i32;
 }
 
 fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {

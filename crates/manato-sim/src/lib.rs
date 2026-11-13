@@ -2037,7 +2037,8 @@ impl SimState {
             }
         }
         self.fighters.truncate(2);
-        self.last_player_id = self.fighters.len().saturating_sub(1) as i32;
+        // Unique IDs are 1-based, so two players occupy IDs 1 and 2.
+        self.last_player_id = self.fighters.len() as i32;
         let stage = &self.assets.stage;
         for slot in 0..2 {
             let char = &self.assets.characters[slot];

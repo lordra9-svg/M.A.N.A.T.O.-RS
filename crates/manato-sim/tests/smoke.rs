@@ -1956,7 +1956,7 @@ fn last_player_id_tracks_latest_creation() {
     let Some(mut sim) = fight_phase() else {
         return;
     };
-    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 2);
     let assets = sim.assets.clone();
     let helper = manato_formats::Controller {
         kind: "helper".into(),
@@ -1968,11 +1968,11 @@ fn last_player_id_tracks_latest_creation() {
         line: 0,
     };
     manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
-    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 2);
-    assert_eq!(manato_sim::trigger::int(&sim, 2, "LastPlayerID"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "LastPlayerID"), 3);
 
     sim.restart_match();
-    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "LastPlayerID"), 2);
 }
 
 #[test]
@@ -7081,6 +7081,8 @@ fn player_count_and_existence_triggers() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerNo"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "PlayerNo"), 2);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIDExist(1)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIDExist(2)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIDExist(0)"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIDExist(99)"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIndexExist(1)"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerIndexExist(99)"), 0);
@@ -12618,14 +12620,17 @@ fn identity_and_team_triggers() {
     let Some(mut sim) = fight_phase() else {
         return;
     };
-    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerID"), 0);
-    assert_eq!(manato_sim::trigger::int(&sim, 1, "PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "PlayerID"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ID"), 2);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumEnemy"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "NumPartner"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PalNo"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "PalNo"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "TimeMod"), 0);
-    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2, PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "P2, PlayerID"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PlayerID(2), ID"), 2);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Enemy, NumEnemy"), 1);
 
     // Team character names: P1/P2 are populated; P3/P4 are empty in 1v1.
@@ -12667,9 +12672,19 @@ fn identity_and_team_triggers() {
         sim.fighters[helper_index].owner,
         sim.fighters.len()
     );
-    assert_eq!(manato_sim::trigger::int(&sim, helper_index, "PlayerID"), 0);
-    assert_eq!(manato_sim::trigger::int(&sim, 0, "Helper(9), PlayerID"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper_index, "PlayerID"),
+        (helper_index + 1) as i32
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Helper(9), PlayerID"),
+        (helper_index + 1) as i32
+    );
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Helper(9), NumEnemy"), 1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, helper_index, "ID"),
+        (helper_index + 1) as i32
+    );
 }
 
 #[test]
@@ -14657,8 +14672,8 @@ fn root_parent_self_redirects_from_helper() {
     assert_eq!(manato_sim::trigger::int(&sim, index, "Parent, var(2)"), 77);
     assert_eq!(manato_sim::trigger::int(&sim, index, "Self, stateno"), 20);
     assert_eq!(manato_sim::trigger::int(&sim, index, "Enemy, stateno"), 50);
-    assert_eq!(manato_sim::trigger::int(&sim, index, "Root, PlayerID"), 0);
-    assert_eq!(manato_sim::trigger::int(&sim, index, "P2, PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "Root, PlayerID"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, index, "P2, PlayerID"), 2);
 }
 
 #[test]
