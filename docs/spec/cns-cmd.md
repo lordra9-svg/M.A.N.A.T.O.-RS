@@ -216,7 +216,9 @@ missing redirect targets make the trigger false.
   `TeamSize`, `TeamLeader`,
   `MemberNo`, `Standby`, `TimeRemaining`, `TimeElapsed`, `TimeTotal`,
   `StageTime`, `Score`, `ScoreTotal`
-- Utility: `IsAsserted(flag)`, `Map(key)`, `HitDefVar(key)`,
+- Utility: `MugenVersion(major|minor)`,
+  `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
+  `HitDefVar(key)`,
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,
@@ -232,7 +234,8 @@ missing redirect targets make the trigger false.
   `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,
   `StageBackEdgeDist` (`StageBackEdge` deprecated alias)
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjVar(id, index, field)`,
-  `HelperVar(id|helpertype|keyctrl)`, `ExplodVar(id, index, field)`, `ProjHit`,
+  `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`,
+  `ExplodVar(id, index, field)`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`

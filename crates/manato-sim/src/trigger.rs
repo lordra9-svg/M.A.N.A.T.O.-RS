@@ -447,6 +447,59 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "mugenversion" => {
+            let part = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            let (major, minor) = mugen_version_parts(&sim.character(who).def.mugen_version);
+            Value::Int(if part == "minor" { minor } else { major })
+        }
+        "ikemenversion" => {
+            let part = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            let text = sim
+                .character(who)
+                .def
+                .info
+                .get("ikemenversion")
+                .cloned()
+                .unwrap_or_default();
+            let parts = version_parts(&text);
+            Value::Int(match part.as_str() {
+                "major" => parts.0,
+                "minor" => parts.1,
+                "patch" => parts.2,
+                _ => 0,
+            })
+        }
+        "helperindexexist" => {
+            let index = arg_i32(sim, who, args, 0);
+            if index <= 0 {
+                return Value::Bool(true);
+            }
+            let root = sim.root_of(who);
+            let count = sim
+                .fighters
+                .iter()
+                .enumerate()
+                .filter(|(_, fighter)| fighter.owner.is_some() && fighter.active)
+                .filter(|(index, _)| sim.root_of(*index) == root)
+                .count() as i32;
+            Value::Bool(count >= index)
+        }
         "explodvar" => {
             let id = arg_i32(sim, who, args, 0);
             let index = arg_i32(sim, who, args, 1).max(0) as usize;
@@ -1442,6 +1495,38 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "palno" => Value::Int(1),
         "timemod" => Value::Int(0),
         _ => Value::Int(0),
+    }
+}
+
+/// Splits a dotted version string into up to three integer components.
+fn version_parts(text: &str) -> (i32, i32, i32) {
+    let mut parts = [0i32; 3];
+    for (slot, piece) in parts.iter_mut().zip(text.split('.')) {
+        *slot = piece.trim().parse().unwrap_or(0);
+    }
+    (parts[0], parts[1], parts[2])
+}
+
+/// Parses `mugenversion` and normalizes everything except 1.0/1.1 to WinMugen
+/// (`0.5`), matching Ikemen's `ParseMugenVersion`.
+fn mugen_version_parts(text: &str) -> (i32, i32) {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return (1, 0);
+    }
+    let mut parts = trimmed.split('.');
+    let major = parts
+        .next()
+        .and_then(|piece| piece.trim().parse::<i32>().ok())
+        .unwrap_or(0);
+    let minor = parts
+        .next()
+        .and_then(|piece| piece.trim().parse::<i32>().ok())
+        .unwrap_or(0);
+    if (major, minor) == (1, 0) || (major, minor) == (1, 1) {
+        (major, minor)
+    } else {
+        (0, 5)
     }
 }
 

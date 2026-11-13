@@ -1379,6 +1379,59 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn version_and_helper_index_exist_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MugenVersion(major)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MugenVersion(minor)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IkemenVersion(major)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IkemenVersion(minor)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IkemenVersion(patch)"), 0);
+
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].def.mugen_version = "1.1".into();
+        assets.characters[1].def.mugen_version = "14.10.1999".into();
+        assets.characters[0]
+            .def
+            .info
+            .insert("ikemenversion".into(), "0.99.3".into());
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MugenVersion(major)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MugenVersion(minor)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "MugenVersion(major)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "MugenVersion(minor)"), 5);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IkemenVersion(major)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "IkemenVersion(minor)"),
+        99
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IkemenVersion(patch)"), 3);
+
+    // HelperIndexExist: index 0 is the fighter itself; helpers are counted in
+    // creation order for that root player.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HelperIndexExist(0)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HelperIndexExist(1)"), 0);
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "4".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    drop(assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HelperIndexExist(1)"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "HelperIndexExist(2)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HelperIndexExist(1)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "HelperIndexExist(0)"), 1);
+}
+
+#[test]
 fn explod_var_reports_active_effect_fields() {
     let Some(mut sim) = fight_phase() else {
         return;
