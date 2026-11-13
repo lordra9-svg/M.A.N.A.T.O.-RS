@@ -220,7 +220,8 @@ missing redirect targets make the trigger false.
   `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Clamp`, `Lerp`, `Sign`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,
-  `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Exp`, `Log`, `Sqrt`, `Pow`,
+  `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Round`, `RandomRange`, `Exp`,
+  `Log`, `Sqrt`, `Pow`,
   `AILevel`, `LocalCoordX`, `LocalCoordY`
   Trigonometric functions take and return radians, as in the M.U.G.E.N
   expression reference.

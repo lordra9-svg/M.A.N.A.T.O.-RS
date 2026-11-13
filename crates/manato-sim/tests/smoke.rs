@@ -1379,6 +1379,46 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn round_and_random_range_expressions() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let num = |sim: &SimState, expr: &str| manato_sim::trigger::num(sim, 0, expr);
+    let close = |a: f32, b: f32| (a - b).abs() < 1e-4;
+    assert!(close(num(&sim, "Round(2.5, 0)"), 3.0));
+    assert!(close(num(&sim, "Round(2.4, 0)"), 2.0));
+    assert!(close(num(&sim, "Round(1.2345, 2)"), 1.23));
+    assert!(close(num(&sim, "Round(-1.5, 0)"), -1.0));
+    assert!(close(num(&sim, "Round(-1.6, 0)"), -2.0));
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RandomRange(5, 5)"), 5);
+    for frame in 0..20 {
+        sim.frame = frame;
+        for (lo, hi) in [(0, 1), (2, 10), (10, 2), (-4, 4)] {
+            let (min, max) = (lo.min(hi), lo.max(hi));
+            let value = manato_sim::trigger::int(&sim, 0, &format!("RandomRange({lo}, {hi})"));
+            assert!(
+                (min..=max).contains(&value),
+                "RandomRange({lo}, {hi}) = {value} outside {min}..={max}"
+            );
+        }
+    }
+
+    // The function is deterministic for a given frame and fighter.
+    sim.frame = 7;
+    let first = manato_sim::trigger::int(&sim, 0, "RandomRange(100, 200)");
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "RandomRange(100, 200)"),
+        first
+    );
+    let clone = sim.clone();
+    assert_eq!(
+        manato_sim::trigger::int(&clone, 1, "RandomRange(100, 200)"),
+        manato_sim::trigger::int(&sim, 1, "RandomRange(100, 200)")
+    );
+}
+
+#[test]
 fn consecutive_wins_counts_match_sweeps() {
     // A 1-0 sweep increments the winner's streak.
     let Some(mut sim) = fight_phase() else {

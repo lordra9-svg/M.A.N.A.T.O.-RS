@@ -334,6 +334,24 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Int(0)
             }
         }
+        "round" => {
+            let value = arg_f32(sim, who, args, 0);
+            let digits = arg_i32(sim, who, args, 1).clamp(-9, 9);
+            let shift = 10f32.powi(digits);
+            Value::Float(((value * shift) + 0.5).floor() / shift)
+        }
+        "randomrange" => {
+            let a = arg_i32(sim, who, args, 0);
+            let b = arg_i32(sim, who, args, 1);
+            let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+            let span = (hi as i64 - lo as i64 + 1).max(1) as u64;
+            let x = sim
+                .frame
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407)
+                .wrapping_add(who as u64 * 7919);
+            Value::Int((lo as i64 + (x >> 33) as i64 % span as i64) as i32)
+        }
         "abs" => Value::Float(arg_f32(sim, who, args, 0).abs()),
         "ceil" => Value::Float(arg_f32(sim, who, args, 0).ceil()),
         "floor" => Value::Float(arg_f32(sim, who, args, 0).floor()),
