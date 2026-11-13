@@ -276,6 +276,8 @@ pub struct Fighter {
     pub screen_bound: (bool, bool),
     pub draw_offset: Vec2,
     pub hit_overrides: [Option<HitOverride>; 8],
+    /// True when a `HitOverride` matched during the current tick.
+    pub hit_overridden: bool,
     pub after_image: Option<AfterImageState>,
     pub after_images: Vec<AfterImageFrame>,
     pub pal_add: [f32; 3],
@@ -436,6 +438,7 @@ impl Fighter {
             screen_bound: (true, true),
             draw_offset: Vec2::ZERO,
             hit_overrides: std::array::from_fn(|_| None),
+            hit_overridden: false,
             after_image: None,
             after_images: Vec::new(),
             pal_add: [0.0, 0.0, 0.0],

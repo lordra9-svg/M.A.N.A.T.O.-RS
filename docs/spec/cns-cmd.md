@@ -205,7 +205,7 @@ missing redirect targets make the trigger false.
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
   `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`,
   `PowerMax`, `Attack`, `AttackMul`, `Defence`, `DefenceMul`, `GuardCount`,
-  `Angle`
+  `Angle`, `HitOverridden`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,
@@ -234,7 +234,7 @@ missing redirect targets make the trigger false.
   `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,
   `StageBackEdgeDist` (`StageBackEdge` deprecated alias)
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjVar(id, index, field)`,
-  `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`,
+  `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`, `Index`,
   `ExplodVar(id, index, field)`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`

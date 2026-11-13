@@ -1379,6 +1379,64 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn index_and_hit_overridden_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Index"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Index"), 1);
+    let assets = sim.assets.clone();
+    let helper = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "4".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &helper, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 2, "Index"), 2);
+    sim.fighters[1].active = false;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 2, "Index"),
+        1,
+        "inactive fighters are skipped"
+    );
+
+    // HitOverride sets HitOverridden on the tick it intercepts the hit.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::new(-10.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(10.0, 0.0);
+    sim.fighters[1].facing = -1;
+    sim.fighters[1].hit_overrides[0] = Some(manato_sim::fighter::HitOverride {
+        attr: "S, NA".into(),
+        state: 0,
+        time: 100,
+        keepstate: false,
+        forceguard: false,
+    });
+    sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    sim.fighters[0].set_anim(200, &assets.characters[0], Some(2));
+    sim.fighters[0].hitdef = Some(hitdef());
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitOverridden"), 0);
+    sim.fighters[1].hit_overridden = false;
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "HitOverridden"), 1);
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "HitOverridden"),
+        0,
+        "the flag is per-tick"
+    );
+}
+
+#[test]
 fn version_and_helper_index_exist_triggers() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -1102,6 +1102,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "hitvel"
             | "hitover"
             | "hitpausetime"
+            | "hitoverridden"
+            | "index"
             | "hitshakeover"
             | "inguarddist"
             | "ishelper"
@@ -1402,6 +1404,14 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
         "hitpausetime" => Value::Int(f.hit.hit_pause_time),
+        "hitoverridden" => Value::Bool(f.hit_overridden),
+        "index" => Value::Int(
+            sim.fighters
+                .iter()
+                .take(who)
+                .filter(|fighter| fighter.active)
+                .count() as i32,
+        ),
         "movereversed" => Value::Int(f.attack.move_reversed as i32),
         "screenwidth" | "gamewidth" => Value::Float(manato_core::GAME_WIDTH),
         "screenheight" | "gameheight" => Value::Float(manato_core::GAME_HEIGHT),

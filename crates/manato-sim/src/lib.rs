@@ -1109,6 +1109,7 @@ impl SimState {
             fighter.pos_freeze = (fighter.pos_freeze - 1).max(0);
             fighter.make_dust_spacing = fighter.make_dust_spacing.saturating_add(1);
             fighter.hit.invuln_timer = (fighter.hit.invuln_timer - 1).max(0);
+            fighter.hit_overridden = false;
             for slot in &mut fighter.hit_overrides {
                 if let Some(override_) = slot.as_mut() {
                     if override_.time > 0 {
@@ -2701,6 +2702,7 @@ impl SimState {
             h.write_bool(f.screen_bound.1);
             h.write_f32(f.draw_offset.x);
             h.write_f32(f.draw_offset.y);
+            h.write_bool(f.hit_overridden);
             h.write_u32(f.hit_overrides.iter().flatten().count() as u32);
             for override_ in f.hit_overrides.iter().flatten() {
                 h.write_i32(override_.state);
