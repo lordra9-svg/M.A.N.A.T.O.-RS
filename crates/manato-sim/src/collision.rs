@@ -149,7 +149,12 @@ fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
         return Vec::new();
     };
     let boxes = if attack { &frame.clsn1 } else { &frame.clsn2 };
-    boxes.iter().map(|b| fighter.world_box(b)).collect()
+    let group = usize::from(!attack);
+    boxes
+        .iter()
+        .enumerate()
+        .map(|(index, b)| fighter.world_clsn_box(b, group, index))
+        .collect()
 }
 
 fn any_overlap(a: &[Rect], b: &[Rect]) -> bool {

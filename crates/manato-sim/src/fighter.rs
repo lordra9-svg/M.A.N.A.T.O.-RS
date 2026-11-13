@@ -6,6 +6,13 @@ use manato_formats::{Animation, Character, CommandDef, CommandStep, StateDef};
 use crate::expr::Value;
 use crate::hitdef::{HitDef, HitState};
 
+/// One `TransformClsn` entry; `index < 0` applies to every box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClsnTransform {
+    pub index: i32,
+    pub scale: Vec2,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StateType {
     #[default]
@@ -251,6 +258,8 @@ pub struct Fighter {
     pub transform_x_shear: f32,
     pub transform_focal_length: f32,
     pub transform_projection: crate::ProjectionMode,
+    /// Per-tick `TransformClsn` entries for Clsn1/Clsn2.
+    pub clsn_transforms: [Vec<ClsnTransform>; 2],
     /// Per-tick `ModifyReflection` overrides; `None` uses the stage reflection.
     pub reflection_intensity: Option<i32>,
     pub reflection_color: Option<[u8; 3]>,
@@ -422,6 +431,7 @@ impl Fighter {
             transform_x_shear: 0.0,
             transform_focal_length: 2048.0,
             transform_projection: crate::ProjectionMode::Orthographic,
+            clsn_transforms: [Vec::new(), Vec::new()],
             reflection_intensity: None,
             reflection_color: None,
             reflection_offset: Vec2::ZERO,
@@ -820,6 +830,33 @@ impl Fighter {
             r = r.mirror_x();
         }
         r.translate(self.pos.x.round() as i32, self.pos.y.round() as i32)
+    }
+
+    /// World-space collision box after per-tick `TransformClsn` scaling.
+    /// `group` is 0 for Clsn1 and 1 for Clsn2.
+    pub fn world_clsn_box(
+        &self,
+        bx: &manato_formats::CollisionBox,
+        group: usize,
+        index: usize,
+    ) -> Rect {
+        let mut scale = Vec2::new(1.0, 1.0);
+        for transform in &self.clsn_transforms[group] {
+            if transform.index < 0 || transform.index as usize == index {
+                scale.x *= transform.scale.x;
+                scale.y *= transform.scale.y;
+            }
+        }
+        if scale == Vec2::new(1.0, 1.0) {
+            return self.world_box(bx);
+        }
+        let scaled = manato_formats::CollisionBox {
+            x1: (bx.x1 as f32 * scale.x).round() as i32,
+            y1: (bx.y1 as f32 * scale.y).round() as i32,
+            x2: (bx.x2 as f32 * scale.x).round() as i32,
+            y2: (bx.y2 as f32 * scale.y).round() as i32,
+        };
+        self.world_box(&scaled)
     }
 
     pub fn hit_pause(&self) -> i32 {

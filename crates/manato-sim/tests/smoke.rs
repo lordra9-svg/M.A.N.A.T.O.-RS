@@ -1379,6 +1379,89 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn transform_clsn_scales_collision_boxes_per_tick() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos = manato_core::Vec2::ZERO;
+    sim.fighters[0].facing = 1;
+    let box1 = manato_formats::CollisionBox {
+        x1: -10,
+        y1: -20,
+        x2: 10,
+        y2: 0,
+    };
+    let control = |params: Vec<(String, String)>| manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params,
+        line: 0,
+    };
+    manato_sim::controller::execute(
+        &mut sim,
+        0,
+        &control(vec![
+            ("group".into(), "2".into()),
+            ("scale".into(), "2, 1".into()),
+        ]),
+        &assets,
+    );
+    let world = sim.fighters[0].world_clsn_box(&box1, 1, 0);
+    assert_eq!((world.x1, world.y1, world.x2, world.y2), (-20, -20, 20, 0));
+    // Clsn1 is a separate group.
+    let untouched = sim.fighters[0].world_clsn_box(&box1, 0, 0);
+    assert_eq!(
+        (untouched.x1, untouched.y1, untouched.x2, untouched.y2),
+        (-10, -20, 10, 0)
+    );
+
+    // Index-specific transforms stack on top of the all-boxes entry.
+    manato_sim::controller::execute(
+        &mut sim,
+        0,
+        &control(vec![
+            ("group".into(), "2".into()),
+            ("index".into(), "0".into()),
+            ("scale".into(), "3, 2".into()),
+        ]),
+        &assets,
+    );
+    let first = sim.fighters[0].world_clsn_box(&box1, 1, 0);
+    assert_eq!((first.x1, first.y1, first.x2, first.y2), (-60, -40, 60, 0));
+    let second = sim.fighters[0].world_clsn_box(&box1, 1, 1);
+    assert_eq!(
+        (second.x1, second.y1, second.x2, second.y2),
+        (-20, -20, 20, 0)
+    );
+
+    // Transforms are per-tick.
+    sim.tick([PlayerInput::default(); 2]);
+    let reset = sim.fighters[0].world_clsn_box(&box1, 1, 0);
+    assert_eq!((reset.x1, reset.y1, reset.x2, reset.y2), (-10, -20, 10, 0));
+
+    // group = 0 clears existing transforms immediately.
+    manato_sim::controller::execute(
+        &mut sim,
+        0,
+        &control(vec![
+            ("group".into(), "-1".into()),
+            ("scale".into(), "2, 2".into()),
+        ]),
+        &assets,
+    );
+    assert!(!sim.fighters[0].clsn_transforms[0].is_empty());
+    assert!(!sim.fighters[0].clsn_transforms[1].is_empty());
+    manato_sim::controller::execute(
+        &mut sim,
+        0,
+        &control(vec![("group".into(), "0".into())]),
+        &assets,
+    );
+    assert!(sim.fighters[0].clsn_transforms[0].is_empty());
+    assert!(sim.fighters[0].clsn_transforms[1].is_empty());
+}
+
+#[test]
 fn transform_sprite_sets_per_tick_render_transform() {
     let Some(mut sim) = fight_phase() else {
         return;

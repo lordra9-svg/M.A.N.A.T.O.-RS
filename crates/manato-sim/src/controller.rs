@@ -266,6 +266,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "explodbindtime" => explod_bind_time(sim, who, control),
         "modifystagevar" => modify_stage_var(sim, who, control),
         "transformsprite" => transform_sprite(sim, who, control),
+        "transformclsn" => transform_clsn(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1658,6 +1659,44 @@ fn modify_stage_var(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(v) = right_bound {
         sim.stage_right_bound = v;
+    }
+}
+
+/// `TransformClsn` subset: per-tick collision-box scaling for Clsn1/Clsn2.
+/// `angle`/`pivot` are not modeled (collision boxes stay axis-aligned).
+fn transform_clsn(sim: &mut SimState, who: usize, control: &Controller) {
+    let group = int_param(sim, who, control, "group").unwrap_or(-1);
+    let index = int_param(sim, who, control, "index").unwrap_or(-1);
+    let scale = control
+        .get("scale")
+        .map(|raw| {
+            let mut parts = raw.split(',');
+            let x = parts
+                .next()
+                .and_then(|v| v.trim().parse::<f32>().ok())
+                .unwrap_or(1.0);
+            let y = parts
+                .next()
+                .and_then(|v| v.trim().parse::<f32>().ok())
+                .unwrap_or(x);
+            Vec2::new(x, y)
+        })
+        .unwrap_or(Vec2::new(1.0, 1.0));
+    let transforms = &mut sim.fighters[who].clsn_transforms;
+    match group {
+        0 => {
+            transforms[0].clear();
+            transforms[1].clear();
+        }
+        -1 => {
+            for group in transforms.iter_mut() {
+                group.push(crate::fighter::ClsnTransform { index, scale });
+            }
+        }
+        1..=2 => {
+            transforms[(group - 1) as usize].push(crate::fighter::ClsnTransform { index, scale });
+        }
+        _ => {}
     }
 }
 

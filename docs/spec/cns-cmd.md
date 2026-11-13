@@ -131,6 +131,7 @@ Required controller families for the approved matrix:
 - `ExplodBindTime` (rebind matching explods by id)
 - `ModifyStageVar` (camera bounds/framing/zoom and player-info bounds subset)
 - `TransformSprite` (xshear/focallength/projection subset)
+- `TransformClsn` (per-tick Clsn1/Clsn2 scale subset; angle/pivot unmodeled)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

@@ -1168,6 +1168,8 @@ impl SimState {
             fighter.transform_x_shear = 0.0;
             fighter.transform_focal_length = 2048.0;
             fighter.transform_projection = crate::ProjectionMode::Orthographic;
+            fighter.clsn_transforms[0].clear();
+            fighter.clsn_transforms[1].clear();
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2708,6 +2710,14 @@ impl SimState {
             h.write_f32(f.transform_x_shear);
             h.write_f32(f.transform_focal_length);
             h.write_u8(f.transform_projection as u8);
+            for transforms in &f.clsn_transforms {
+                h.write_u32(transforms.len() as u32);
+                for transform in transforms {
+                    h.write_i32(transform.index);
+                    h.write_f32(transform.scale.x);
+                    h.write_f32(transform.scale.y);
+                }
+            }
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);
             h.write_i32(f.facing);
