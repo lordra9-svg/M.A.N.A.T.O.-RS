@@ -956,6 +956,9 @@ fn is_trigger_name(name: &str) -> bool {
             | "roundno"
             | "roundsexisted"
             | "roundstate"
+            | "displayname"
+            | "authorname"
+            | "numstagebg"
             | "roundtime"
             | "timeremaining"
             | "timeelapsed"
@@ -1239,7 +1242,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "zoomvar" => Value::Float(sim.camera.scale),
         "hitvel" => Value::Float(f.hit.vars.x_vel),
         "p3name" | "p4name" => Value::Str(String::new()),
-        "name" => Value::Str(sim.character(who).display_name().to_string()),
+        "name" | "displayname" => Value::Str(sim.character(who).display_name().to_string()),
+        "authorname" => Value::Str(sim.character(who).def.author.clone()),
+        "numstagebg" => Value::Int(sim.stage_layers.len() as i32),
         "p1name" => Value::Str(sim.character(0).display_name().to_string()),
         "p2name" => Value::Str(sim.character(1).display_name().to_string()),
         "palno" => Value::Int(1),

@@ -6140,6 +6140,27 @@ fn modify_shadow_sets_per_tick_overrides() {
 }
 
 #[test]
+fn character_metadata_and_stage_bg_triggers() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let character = sim.character(0);
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "AuthorName").as_str(),
+        character.def.author
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "DisplayName").as_str(),
+        character.display_name()
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "NumStageBG"),
+        sim.stage_layers.len() as i32
+    );
+    assert!(manato_sim::trigger::int(&sim, 0, "NumStageBG") > 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
