@@ -124,6 +124,7 @@ Required controller families for the approved matrix:
 - `AngleSet`, `AngleAdd`, `AngleMul`, `AngleDraw` (2D draw angle/scale)
 - `Camera` (`view = fighting|follow|free`, `followid`, `pos`)
 - `ModifyHitDef` (overrides modeled fields of the active HitDef)
+- `AttackDist` (updates the active HitDef `guard.dist`)
 - `ModifyReversalDef` (reversal attr/guardflag overrides)
 - `ModifyShadow`, `ModifyReflection`
   (intensity/color/offset/xscale/yscale overrides)

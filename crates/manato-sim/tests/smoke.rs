@@ -6237,6 +6237,37 @@ fn angle_controllers_track_persistent_and_per_tick_draw_state() {
 }
 
 #[test]
+fn attack_dist_updates_active_guard_distance() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let hitdef = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("guard.dist".into(), "120".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &hitdef, &assets);
+    assert_eq!(sim.fighters[0].hitdef.as_ref().unwrap().guard_dist, 120);
+
+    let attack_dist = manato_formats::Controller {
+        kind: "attackdist".into(),
+        params: vec![("value".into(), "45".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &attack_dist, &assets);
+    assert_eq!(sim.fighters[0].hitdef.as_ref().unwrap().guard_dist, 45);
+
+    // No active HitDef means no change and no panic.
+    sim.fighters[0].hitdef = None;
+    manato_sim::controller::execute(&mut sim, 0, &attack_dist, &assets);
+    assert!(sim.fighters[0].hitdef.is_none());
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

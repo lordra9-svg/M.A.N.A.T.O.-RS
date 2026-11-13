@@ -194,6 +194,12 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 fighter.angle_draw_scale = scale;
             }
         }
+        "attackdist" => {
+            let value = int_param(sim, who, control, "value").unwrap_or(0);
+            if let Some(hitdef) = sim.fighters[who].hitdef.as_mut() {
+                hitdef.guard_dist = value.max(0);
+            }
+        }
         "modifyhitdef" => {
             if let Some(hitdef) = sim.fighters[who].hitdef.as_mut() {
                 hitdef.apply_modifiers(control);
