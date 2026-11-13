@@ -108,6 +108,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "redlifeadd" => red_life_add(sim, who, control),
         "redlifeset" => red_life_set(sim, who, control),
         "targetredlifeadd" => target_red_life_add(sim, who, control),
+        "mapset" => map_write(sim, who, control, false),
+        "mapadd" => map_write(sim, who, control, true),
+        "mapreset" => map_reset(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -912,6 +915,72 @@ fn target_score_add(sim: &mut SimState, who: usize, control: &Controller) {
     }
     let side = fighter.side.min(1);
     sim.score[side] += value;
+}
+
+/// Resolves a map name from `map = ...` or a `map(name) = ...` key.
+fn map_key(name: &str) -> String {
+    name.trim().trim_matches('"').trim().to_ascii_lowercase()
+}
+
+fn map_write(sim: &mut SimState, who: usize, control: &Controller, add: bool) {
+    let mut name: Option<String> = None;
+    let mut assigned: Option<String> = None;
+    for (key, value) in &control.params {
+        if key == "map" {
+            name = Some(map_key(value));
+        } else if let Some(inner) = key
+            .strip_prefix("map(")
+            .and_then(|rest| rest.strip_suffix(')'))
+        {
+            name = Some(map_key(inner));
+            assigned = Some(value.clone());
+        }
+    }
+    let value_expr = control
+        .get("value")
+        .map(str::to_string)
+        .or(assigned)
+        .unwrap_or_default();
+    let Some(name) = name.filter(|name| !name.is_empty()) else {
+        return;
+    };
+    let value = trigger::eval_str(sim, who, &value_expr);
+    let map = &mut sim.fighters[who].map;
+    if !add {
+        map.insert(name, value);
+        return;
+    }
+    let Some(previous) = map.get(&name).cloned() else {
+        map.insert(name, value);
+        return;
+    };
+    if matches!(previous, crate::expr::Value::Str(_)) || matches!(value, crate::expr::Value::Str(_))
+    {
+        return;
+    }
+    let sum = match (previous, value) {
+        (crate::expr::Value::Int(a), crate::expr::Value::Int(b)) => {
+            crate::expr::Value::Int(a.saturating_add(b))
+        }
+        (a, b) => crate::expr::Value::Float(a.as_f32() + b.as_f32()),
+    };
+    map.insert(name, sum);
+}
+
+fn map_reset(sim: &mut SimState, who: usize, control: &Controller) {
+    let excludes: Vec<String> = control
+        .params
+        .iter()
+        .filter(|(key, _)| key == "exclude" || key.starts_with("exclude"))
+        .map(|(_, value)| map_key(value))
+        .filter(|value| !value.is_empty())
+        .collect();
+    let map = &mut sim.fighters[who].map;
+    if excludes.is_empty() {
+        map.clear();
+    } else {
+        map.retain(|key, _| !excludes.iter().any(|exclude| key.contains(exclude)));
+    }
 }
 
 fn red_life_add(sim: &mut SimState, who: usize, control: &Controller) {

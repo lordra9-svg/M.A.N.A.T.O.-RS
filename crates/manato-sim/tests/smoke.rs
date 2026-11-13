@@ -5571,6 +5571,73 @@ fn received_and_self_state_exist_triggers() {
 }
 
 #[test]
+fn map_controllers_and_trigger() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(
+        &mut sim,
+        "mapset",
+        vec![
+            ("map".into(), "\"timer\"".into()),
+            ("value".into(), "5".into()),
+        ],
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Map(timer)"), 5);
+    run(
+        &mut sim,
+        "mapadd",
+        vec![("map".into(), "timer".into()), ("value".into(), "3".into())],
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Map(timer)"), 8);
+
+    // `map(name) = value` form.
+    run(&mut sim, "mapset", vec![("map(score)".into(), "10".into())]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Map(score)"), 10);
+
+    // Float promotion on add.
+    run(
+        &mut sim,
+        "mapadd",
+        vec![
+            ("map".into(), "timer".into()),
+            ("value".into(), "1.5".into()),
+        ],
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "Map(timer)"), 9.5);
+
+    // String values round-trip.
+    run(
+        &mut sim,
+        "mapset",
+        vec![
+            ("map".into(), "greeting".into()),
+            ("value".into(), "\"hello\"".into()),
+        ],
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "Map(greeting)").as_str(),
+        "hello"
+    );
+
+    // MapReset with an exclusion keeps matching substring keys only.
+    run(&mut sim, "mapreset", vec![("exclude".into(), "ti".into())]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Map(timer)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Map(score)"), 10);
+    run(&mut sim, "mapreset", Vec::new());
+    assert_eq!(sim.fighters[0].map.len(), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

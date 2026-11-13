@@ -119,6 +119,7 @@ Required controller families for the approved matrix:
 - `TargetGuardPointsAdd`, `TargetDizzyPointsAdd`
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 - `GetHitVarSet` (modeled GetHitVar fields)
+- `MapSet`, `MapAdd`, `MapReset` (per-fighter string-keyed maps)
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,
   `TargetScoreAdd`, `RedLifeAdd`, `RedLifeSet`, `TargetRedLifeAdd`
 
@@ -198,8 +199,8 @@ missing redirect targets make the trigger false.
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
   `TimeElapsed`, `TimeTotal`, `Score`, `ScoreTotal`
-- Utility: `IsAsserted(flag)`, `Const`, `Const240p`, `Const480p`, `Const720p`,
-  `Random`, `IfElse`,
+- Utility: `IsAsserted(flag)`, `Map(key)`, `Const`, `Const240p`, `Const480p`,
+  `Const720p`, `Random`, `IfElse`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Exp`, `Log`,
   `Sqrt`, `Pow`, `AILevel`
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,

@@ -382,6 +382,21 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let flag = crate::fighter::assert_flag(&name.trim().to_ascii_lowercase());
             Value::Bool(flag != 0 && sim.fighters[who].assert_flags & flag != 0)
         }
+        "map" => {
+            let key = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default();
+            let key = key.trim().trim_matches('"').trim().to_ascii_lowercase();
+            sim.fighters[who]
+                .map
+                .get(&key)
+                .cloned()
+                .unwrap_or(crate::expr::Value::Int(0))
+        }
         "selfstatenoexist" => {
             let number = arg_i32(sim, who, args, 0);
             Value::Bool(

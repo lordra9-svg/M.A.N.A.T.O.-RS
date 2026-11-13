@@ -2634,6 +2634,34 @@ impl SimState {
             for &v in &f.sysfvars {
                 h.write_f32(v);
             }
+            h.write_u32(f.map.len() as u32);
+            for (key, value) in &f.map {
+                h.write_u32(key.len() as u32);
+                for byte in key.bytes() {
+                    h.write_u8(byte);
+                }
+                match value {
+                    crate::expr::Value::Int(v) => {
+                        h.write_u8(0);
+                        h.write_i32(*v);
+                    }
+                    crate::expr::Value::Float(v) => {
+                        h.write_u8(1);
+                        h.write_f32(*v);
+                    }
+                    crate::expr::Value::Bool(v) => {
+                        h.write_u8(2);
+                        h.write_bool(*v);
+                    }
+                    crate::expr::Value::Str(v) => {
+                        h.write_u8(3);
+                        h.write_u32(v.len() as u32);
+                        for byte in v.bytes() {
+                            h.write_u8(byte);
+                        }
+                    }
+                }
+            }
             for frame in &f.history {
                 h.write_u8(frame.input.dir);
                 h.write_u8(frame.input.buttons);

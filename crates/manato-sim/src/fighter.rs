@@ -1,8 +1,9 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 use manato_core::{Buttons, Dir8, PlayerInput, Rect, Vec2};
 use manato_formats::{Animation, Character, CommandDef, CommandStep, StateDef};
 
+use crate::expr::Value;
 use crate::hitdef::{HitDef, HitState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -281,6 +282,8 @@ pub struct Fighter {
     pub target: Option<usize>,
     /// `VictoryQuote` index; `-1` selects a default quote.
     pub win_quote: i32,
+    /// Per-fighter `Map()` storage; deterministic ordering for rollback.
+    pub map: BTreeMap<String, Value>,
     pub pal_remap: Option<(i32, i32)>,
     /// Ticks since the last projectile contact (`-1` = never).
     pub proj_contact_time: i32,
@@ -418,6 +421,7 @@ impl Fighter {
             helper_type_player: false,
             target: None,
             win_quote: -1,
+            map: BTreeMap::new(),
             pal_remap: None,
             proj_contact_time: -1,
             proj_hit_time: -1,
