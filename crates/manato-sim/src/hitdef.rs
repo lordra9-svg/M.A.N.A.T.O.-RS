@@ -719,6 +719,72 @@ impl HitDef {
         h
     }
 
+    /// Applies `ModifyHitDef` parameters to an already-active HitDef.
+    pub fn apply_modifiers(&mut self, c: &Controller) {
+        for (key, value) in &c.params {
+            match key.as_str() {
+                "attr" => self.attr = HitAttr::parse(value),
+                "damage" => self.damage = parse_i32(value),
+                "guard.damage" => {
+                    self.guard_damage = parse_i32(value);
+                    self.guard_damage_set = true;
+                }
+                "animtype" => self.anim_type = AnimType::parse(value),
+                "air.animtype" => self.air_anim_type = AnimType::parse(value),
+                "fall.animtype" => self.fall_anim_type = AnimType::parse(value),
+                "hitflag" => self.hitflag = value.to_ascii_uppercase(),
+                "guardflag" => self.guardflag = value.to_ascii_uppercase(),
+                "ground.type" => self.ground_type = GroundType::parse(value),
+                "air.type" => self.air_type = GroundType::parse(value),
+                "ground.velocity" => self.ground_velocity = parse_vec(value),
+                "air.velocity" => self.air_velocity = parse_vec(value),
+                "yaccel" => self.yaccel = parse_f32(value),
+                "ground.hittime" => self.ground_hittime = parse_i32(value),
+                "air.hittime" => self.air_hittime = parse_i32(value),
+                "ground.slidetime" => self.ground_slidetime = parse_i32(value),
+                "guard.hittime" => self.guard_hittime = parse_i32(value),
+                "guard.slidetime" => self.guard_slidetime = parse_i32(value),
+                "guard.ctrltime" => self.guard_ctrltime = parse_i32(value),
+                "airguard.ctrltime" => self.airguard_ctrltime = parse_i32(value),
+                "guard.dist" | "guard.dist.width" => {
+                    self.guard_dist = parse_pair(value).0 as i32;
+                }
+                "pausetime" => {
+                    let (a, b) = parse_pair(value);
+                    self.pausetime = (a as i32, b as i32);
+                }
+                "guard.pausetime" => {
+                    let (a, b) = parse_pair(value);
+                    self.guard_pausetime = (a as i32, b as i32);
+                    self.guard_pausetime_set = true;
+                }
+                "id" => self.id = parse_i32(value).max(0),
+                "chainid" => self.chainid = parse_i32(value),
+                "numhits" | "hits" => self.numhits = parse_i32(value).max(1),
+                "priority" => {
+                    let mut parts = value.split(',');
+                    self.priority = parts
+                        .next()
+                        .and_then(|part| part.trim().parse().ok())
+                        .unwrap_or(0);
+                    self.priority_type = parts
+                        .next()
+                        .map(PriorityType::parse)
+                        .unwrap_or(PriorityType::Hit);
+                }
+                "air.juggle" => self.air_juggle = parse_i32(value),
+                "kill" => self.kill = parse_i32(value) != 0,
+                "guard.kill" => self.guard_kill = parse_i32(value) != 0,
+                "fall" => self.fall = parse_i32(value) != 0,
+                "air.fall" => self.air_fall = parse_i32(value) != 0,
+                "forcestand" => self.forcestand = parse_i32(value) != 0,
+                "forcecrouch" => self.forcecrouch = parse_i32(value) != 0,
+                "forcenofall" => self.forcenofall = parse_i32(value) != 0,
+                _ => {}
+            }
+        }
+    }
+
     pub fn can_hit_air(&self) -> bool {
         self.hitflag.contains('A')
     }

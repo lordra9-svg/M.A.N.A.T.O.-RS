@@ -5889,6 +5889,55 @@ fn camera_controller_switches_view_and_targets() {
 }
 
 #[test]
+fn modify_hit_def_updates_active_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let base = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "20".into()),
+            ("guardflag".into(), "MA".into()),
+            ("ground.velocity".into(), "-4, 0".into()),
+            ("air.velocity".into(), "-5, -6".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &base, &assets);
+    let modify = manato_formats::Controller {
+        kind: "modifyhitdef".into(),
+        params: vec![
+            ("damage".into(), "50".into()),
+            ("guardflag".into(), "L".into()),
+            ("ground.velocity".into(), "-9, 0".into()),
+            ("numhits".into(), "3".into()),
+            ("id".into(), "7".into()),
+            ("pausetime".into(), "3, 5".into()),
+            ("guard.pausetime".into(), "1, 2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+    assert_eq!(hit.damage, 50);
+    assert_eq!(hit.guardflag, "L");
+    assert_eq!(hit.ground_velocity, manato_core::Vec2::new(-9.0, 0.0));
+    assert_eq!(hit.air_velocity, manato_core::Vec2::new(-5.0, -6.0));
+    assert_eq!(hit.numhits, 3);
+    assert_eq!(hit.id, 7);
+    assert_eq!(hit.pausetime, (3, 5));
+    assert_eq!(hit.guard_pausetime, (1, 2));
+    assert_eq!(hit.hitflag, "MAF", "unmodified fields stay");
+
+    // Without an active HitDef the controller is a no-op.
+    sim.fighters[0].hitdef = None;
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert!(sim.fighters[0].hitdef.is_none());
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

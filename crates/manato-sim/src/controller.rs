@@ -157,6 +157,11 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "width" => width(sim, who, control),
         "height" => height(sim, who, control),
         "camera" => camera(sim, who, control),
+        "modifyhitdef" => {
+            if let Some(hitdef) = sim.fighters[who].hitdef.as_mut() {
+                hitdef.apply_modifiers(control);
+            }
+        }
         "screenbound" => {
             let (x, y) = control.get_pair("value").unwrap_or((1.0, 1.0));
             sim.fighters[who].screen_bound = (x != 0.0, y != 0.0);
