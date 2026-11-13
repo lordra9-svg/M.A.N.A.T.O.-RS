@@ -1982,6 +1982,7 @@ impl SimState {
             fighter.vel = Vec2::ZERO;
             fighter.facing = if facing == 0 { 1 } else { facing };
             fighter.life = fighter.life_max;
+            fighter.red_life = fighter.life_max;
             fighter.guard_points = fighter.guard_max;
             fighter.guard_crush_timer = 0;
             fighter.guard_break = false;
@@ -2535,6 +2536,7 @@ impl SimState {
             h.write_i32(f.anim_frame as i32);
             h.write_i32(f.anim_time);
             h.write_i32(f.life);
+            h.write_i32(f.red_life);
             h.write_i32(f.guard_points);
             h.write_i32(f.guard_max);
             h.write_i32(f.guard_crush_timer);

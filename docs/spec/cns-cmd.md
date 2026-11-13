@@ -120,7 +120,7 @@ Required controller families for the approved matrix:
 - `TargetGuardPointsSet`, `TargetDizzyPointsSet`
 - `GetHitVarSet` (modeled GetHitVar fields)
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,
-  `TargetScoreAdd`
+  `TargetScoreAdd`, `RedLifeAdd`, `RedLifeSet`, `TargetRedLifeAdd`
 
 ### 4.3 Presentation and audio
 
@@ -191,7 +191,7 @@ missing redirect targets make the trigger false.
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
   `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
-  `DizzyPointsMax`, `ComboCount`
+  `DizzyPointsMax`, `RedLife`, `ComboCount`
 - Commands: `Command`
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`

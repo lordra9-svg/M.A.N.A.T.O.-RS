@@ -675,6 +675,11 @@ pub fn apply_hit_at(
         } else {
             next_life.max(1)
         };
+        // Recoverable life drops by 75% of the damage but never below life.
+        let red_loss = (damage as f32 * 0.75).round() as i32;
+        f.red_life = (f.red_life - red_loss)
+            .max(f.life)
+            .min(f.life_max.max(f.life));
         if guarding && f.guard_max > 0 {
             f.guard_cooldown = 60;
             let before = f.guard_points;

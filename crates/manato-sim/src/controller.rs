@@ -105,6 +105,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "victoryquote" => victory_quote(sim, who, control),
         "scoreadd" => score_add(sim, who, control),
         "targetscoreadd" => target_score_add(sim, who, control),
+        "redlifeadd" => red_life_add(sim, who, control),
+        "redlifeset" => red_life_set(sim, who, control),
+        "targetredlifeadd" => target_red_life_add(sim, who, control),
         "dizzypointsadd" => dizzy_points_add(sim, who, control),
         "dizzypointsset" => dizzy_points_set(sim, who, control),
         "dizzyset" => dizzy_set(sim, who, control),
@@ -704,6 +707,7 @@ fn life_add(sim: &mut SimState, who: usize, control: &Controller) {
     if !kill && fighter.life <= 0 {
         fighter.life = 1;
     }
+    fighter.clamp_red_life();
 }
 
 fn life_set(sim: &mut SimState, who: usize, control: &Controller) {
@@ -714,6 +718,7 @@ fn life_set(sim: &mut SimState, who: usize, control: &Controller) {
     if !kill && fighter.life <= 0 {
         fighter.life = 1;
     }
+    fighter.clamp_red_life();
 }
 
 fn guard_points_add(sim: &mut SimState, who: usize, control: &Controller) {
@@ -909,6 +914,48 @@ fn target_score_add(sim: &mut SimState, who: usize, control: &Controller) {
     sim.score[side] += value;
 }
 
+fn red_life_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
+    let fighter = &mut sim.fighters[who];
+    if value == 0 {
+        return;
+    }
+    let add = if absolute {
+        value
+    } else {
+        (value as f32 / fighter.defence_mul.max(0.01)).round() as i32
+    };
+    fighter.red_life = fighter.red_life.saturating_add(add);
+    fighter.clamp_red_life();
+}
+
+fn red_life_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let fighter = &mut sim.fighters[who];
+    fighter.red_life = value;
+    fighter.clamp_red_life();
+}
+
+fn target_red_life_add(sim: &mut SimState, who: usize, control: &Controller) {
+    let value = int_param(sim, who, control, "value").unwrap_or(0);
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
+    let Some(target) = sim.fighters[who].target else {
+        return;
+    };
+    let fighter = &mut sim.fighters[target];
+    if value == 0 {
+        return;
+    }
+    let add = if absolute {
+        value
+    } else {
+        (value as f32 / fighter.defence_mul.max(0.01)).round() as i32
+    };
+    fighter.red_life = fighter.red_life.saturating_add(add);
+    fighter.clamp_red_life();
+}
+
 fn dizzy_points_add(sim: &mut SimState, who: usize, control: &Controller) {
     let value = int_param(sim, who, control, "value").unwrap_or(0);
     let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
@@ -949,6 +996,7 @@ fn modify_player(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(value) = life_max {
         fighter.life_max = value.max(1);
         fighter.life = fighter.life.clamp(0, fighter.life_max);
+        fighter.clamp_red_life();
     }
     if let Some(value) = guard_max {
         fighter.guard_max = value.max(0);

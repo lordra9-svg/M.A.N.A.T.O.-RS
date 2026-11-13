@@ -397,6 +397,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 Value::Int(sim.fighters[who].guard_points)
             } else if lower == "dizzypoints" {
                 Value::Int(sim.fighters[who].dizzy_points)
+            } else if lower == "redlife" {
+                Value::Int(sim.fighters[who].red_life)
             } else {
                 sim.fighters[who].hit.vars.get(&lower)
             }
@@ -742,6 +744,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "guardbreak"
             | "guardpoints"
             | "guardpointsmax"
+            | "redlife"
             | "ishometeam"
             | "lose"
             | "loseko"
@@ -964,6 +967,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "dizzypointsmax" => Value::Int(f.dizzy_max),
         "guardpoints" => Value::Int(f.guard_points),
         "guardpointsmax" => Value::Int(f.guard_max),
+        "redlife" => Value::Int(f.red_life),
         "combocount" => Value::Int(if f.owner.is_some() {
             0
         } else {

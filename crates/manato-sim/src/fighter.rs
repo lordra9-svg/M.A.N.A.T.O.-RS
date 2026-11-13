@@ -193,6 +193,8 @@ pub struct Fighter {
 
     pub life: i32,
     pub life_max: i32,
+    /// Recoverable life shown by the red life bar (`RedLife`).
+    pub red_life: i32,
     /// Guard points and their maximum; 0 means no guard bar.
     pub guard_points: i32,
     pub guard_max: i32,
@@ -350,6 +352,7 @@ impl Fighter {
             physics: Physics::Stand,
             life,
             life_max: life,
+            red_life: life,
             guard_points: guard_max,
             guard_max,
             guard_crush_timer: 0,
@@ -431,6 +434,15 @@ impl Fighter {
 
     pub fn alive(&self) -> bool {
         self.life > 0
+    }
+
+    /// Clamps red life into `life..=life_max`, mirroring the controller rule.
+    pub fn clamp_red_life(&mut self) {
+        if self.life <= 0 {
+            self.red_life = 0;
+        } else {
+            self.red_life = self.red_life.clamp(self.life, self.life_max.max(self.life));
+        }
     }
 
     pub fn is_airborne(&self) -> bool {

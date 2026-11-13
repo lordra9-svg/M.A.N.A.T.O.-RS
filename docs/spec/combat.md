@@ -405,6 +405,12 @@ timed stun.
   defender’s facing. Guarded contacts leave facing unchanged.
 - Set `GetHitVar` values: damage, velocities, hit time, slide time, guard flag,
   fall flag, fall time, fall damage, hit id.
+- Red life starts at `life_max`. Damage lowers it by `round(damage × 0.75)`
+  but never below current life; it is clamped to `life..=life_max`.
+  `RedLife` and `GetHitVar(redlife)` expose the live meter (an explicit
+  engine decision, mirroring `guardpoints`), while `RedLifeAdd`/
+  `RedLifeSet`/`TargetRedLifeAdd` change it (`absolute` bypasses defence
+  scaling).
 - `GetHitVar(xoff)`/`GetHitVar(yoff)` record the defender’s position relative
   to the attacker after the contact resolves, including any
   `mindist`/`maxdist`/`snap` clamp. The public reference labels these

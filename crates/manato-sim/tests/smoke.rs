@@ -5468,6 +5468,85 @@ fn score_controllers_and_triggers() {
 }
 
 #[test]
+fn red_life_model_controllers_and_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[1].life_max = 1000;
+    sim.fighters[1].life = 1000;
+    sim.fighters[1].red_life = 1000;
+    let mut hit = hitdef();
+    hit.damage = 100;
+    hit.pausetime = (0, 0);
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, 900);
+    assert_eq!(sim.fighters[1].red_life, 925, "75% of damage is red loss");
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "RedLife"), 925);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "GetHitVar(redlife)"), 925);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].red_life, 850);
+
+    let run = |sim: &mut SimState, who: usize, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, who, &control, &assets);
+    };
+    run(
+        &mut sim,
+        1,
+        "redlifeadd",
+        vec![
+            ("value".into(), "20".into()),
+            ("absolute".into(), "1".into()),
+        ],
+    );
+    assert_eq!(sim.fighters[1].red_life, 870);
+    run(
+        &mut sim,
+        1,
+        "redlifeset",
+        vec![("value".into(), "500".into())],
+    );
+    assert_eq!(sim.fighters[1].red_life, 800, "red clamps at life");
+    run(
+        &mut sim,
+        1,
+        "redlifeset",
+        vec![("value".into(), "2000".into())],
+    );
+    assert_eq!(sim.fighters[1].red_life, 1000, "red clamps at life max");
+
+    // Non-absolute additions scale by defence.
+    sim.fighters[1].red_life = 800;
+    sim.fighters[1].defence_mul = 2.0;
+    run(
+        &mut sim,
+        1,
+        "redlifeadd",
+        vec![("value".into(), "10".into())],
+    );
+    assert_eq!(sim.fighters[1].red_life, 805);
+
+    // TargetRedLifeAdd applies to the bound target.
+    sim.fighters[0].target = Some(1);
+    run(
+        &mut sim,
+        0,
+        "targetredlifeadd",
+        vec![
+            ("value".into(), "15".into()),
+            ("absolute".into(), "1".into()),
+        ],
+    );
+    assert_eq!(sim.fighters[1].red_life, 820);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

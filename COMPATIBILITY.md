@@ -61,11 +61,11 @@ Ikemen-GO alone as the runtime oracle.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + loop boundary and invalid AnimElemTime sentinel tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/Physics + StateNo/PrevStateNo/Time + P2/distances |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/xoff/yoff/hittime countdown/HitOver equivalence/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.*/fall.xvel fall.yvel + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/xoff/yoff/hittime countdown/HitOver equivalence/redlife/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.*/fall.xvel fall.yvel + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + SysVar + IsHelper(id)/ParentDist/RootDist axis-facing + ParentExist ancestry tests |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const/math/random + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Partial | `TeamMode` single/simul/turns + `IsHomeTeam` versus side semantics; tag/partner/simul teams out of scope |
-| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `IsAsserted(flag)`, `Score`, `ScoreTotal`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented; remaining Ikemen-only trigger families pending |
+| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `IsAsserted(flag)`, `Score`, `ScoreTotal`, `RedLife`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented; remaining Ikemen-only trigger families pending |
 
 ## 4. Controllers
 
@@ -83,7 +83,7 @@ Ikemen-GO alone as the runtime oracle.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd implemented; other Ikemen-only controllers pending |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd implemented; other Ikemen-only controllers pending |
 
 ## 5. Collision and combat
 
