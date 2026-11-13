@@ -202,7 +202,7 @@ missing redirect targets make the trigger false.
   `PlayerNo`, `PlayerIDExist(n)`, `PlayerIndexExist(n)`, `PlayerNoExist(n)`
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `TeamSide`, `TeamMode`, `IsHomeTeam`, `TimeRemaining`,
-  `TimeElapsed`, `TimeTotal`, `Score`, `ScoreTotal`
+  `TimeElapsed`, `TimeTotal`, `StageTime`, `Score`, `ScoreTotal`
 - Utility: `IsAsserted(flag)`, `Map(key)`, `Const`, `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Clamp`, `Lerp`, `Sign`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,

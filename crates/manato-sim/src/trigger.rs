@@ -920,6 +920,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "score"
             | "numplayer"
             | "localcoordx"
+            | "stagetime"
             | "localcoordy"
             | "playerno"
             | "scoretotal"
@@ -1072,6 +1073,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
             sim.score.get(f.side).copied().unwrap_or(0.0)
         }),
         "numplayer" => Value::Int(sim.fighters.iter().filter(|f| f.active).count() as i32),
+        "stagetime" => Value::Int(sim.bg_time as i32),
         "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
         "playerno" => Value::Int(f.slot as i32 + 1),

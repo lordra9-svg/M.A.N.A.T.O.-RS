@@ -5822,6 +5822,19 @@ fn ikemen_math_and_localcoord_expressions() {
 }
 
 #[test]
+fn stage_time_tracks_ticks_since_round_start() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let start = manato_sim::trigger::int(&sim, 0, "StageTime");
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "StageTime"), start + 3);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "StageTime"), start + 3);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
