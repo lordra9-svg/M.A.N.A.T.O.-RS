@@ -921,6 +921,10 @@ fn is_trigger_name(name: &str) -> bool {
             | "numplayer"
             | "localcoordx"
             | "stagetime"
+            | "teamsize"
+            | "teamleader"
+            | "memberno"
+            | "standby"
             | "localcoordy"
             | "playerno"
             | "scoretotal"
@@ -1074,6 +1078,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         }),
         "numplayer" => Value::Int(sim.fighters.iter().filter(|f| f.active).count() as i32),
         "stagetime" => Value::Int(sim.bg_time as i32),
+        // Single-member teams in the frozen scope.
+        "teamsize" => Value::Int(1),
+        "teamleader" => Value::Int(f.slot as i32 + 1),
+        "memberno" => Value::Int(1),
+        "standby" => Value::Bool(false),
         "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
         "playerno" => Value::Int(f.slot as i32 + 1),

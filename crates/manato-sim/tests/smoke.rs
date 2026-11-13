@@ -5938,6 +5938,20 @@ fn modify_hit_def_updates_active_fields() {
 }
 
 #[test]
+fn team_membership_triggers_for_single_member_teams() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TeamSize"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "TeamSize"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "TeamLeader"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "TeamLeader"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MemberNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "MemberNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Standby"), 0);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;
