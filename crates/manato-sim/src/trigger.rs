@@ -447,6 +447,28 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Int(anim_elem_no(anim, fighter.anim_time, time))
         }
+        "envshakevar" => {
+            let field = args
+                .first()
+                .map(|a| match a {
+                    Expr::Ident(s) => s.clone(),
+                    other => eval(sim, who, other).as_str(),
+                })
+                .unwrap_or_default()
+                .trim()
+                .to_ascii_lowercase();
+            let shake = &sim.env_shake;
+            match field.as_str() {
+                "time" => Value::Int(shake.time),
+                "freq" => Value::Float(shake.freq),
+                "ampl" => Value::Float(shake.ampl.abs()),
+                "dir" => Value::Float(shake.dir),
+                "phase" => Value::Float(shake.phase),
+                "diradd" => Value::Float(shake.diradd),
+                "decay" => Value::Float(shake.decay),
+                _ => Value::Int(0),
+            }
+        }
         "spritevar" => {
             let field = args
                 .first()

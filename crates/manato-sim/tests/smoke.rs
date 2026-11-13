@@ -1379,6 +1379,46 @@ fn zoom_controller_honors_stage_and_camera_bounds() {
 }
 
 #[test]
+fn env_shake_var_reads_active_shake() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "envshake".into(),
+        params: vec![
+            ("time".into(), "30".into()),
+            ("freq".into(), "45".into()),
+            ("ampl".into(), "-8".into()),
+            ("dir".into(), "10".into()),
+            ("phase".into(), "20".into()),
+            ("diradd".into(), "3".into()),
+            ("decay".into(), "1.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "EnvShakeVar(time)"), 30);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "EnvShakeVar(freq)"), 45.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "EnvShakeVar(ampl)"), 8.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "EnvShakeVar(dir)"), 10.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "EnvShakeVar(phase)"),
+        20.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "EnvShakeVar(diradd)"),
+        3.0
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "EnvShakeVar(decay)"), 1.5);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "EnvShakeVar(unknown)"), 0);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "EnvShakeVar(time)"), 29);
+}
+
+#[test]
 fn transform_clsn_scales_collision_boxes_per_tick() {
     let Some(mut sim) = fight_phase() else {
         return;

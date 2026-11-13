@@ -224,6 +224,7 @@ missing redirect targets make the trigger false.
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
   `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,
+  `EnvShakeVar(time|freq|ampl|dir|phase|diradd|decay)`,
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,
