@@ -644,6 +644,16 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         (fighter.pal_mul[2] + fighter.pal_add[2]).clamp(0.0, 1.0),
         (pose.alpha * fighter.pal_alpha * fighter.trans_alpha).clamp(0.0, 1.0),
     ];
+    let (scale, angle) = if fighter.angle_draw {
+        let angle = pose.angle + fighter.angle_draw_value.unwrap_or(fighter.draw_angle);
+        let scale = fighter
+            .angle_draw_scale
+            .map(|extra| Vec2::new(scale.x * extra.x, scale.y * extra.y))
+            .unwrap_or(scale);
+        (scale, angle)
+    } else {
+        (scale, pose.angle)
+    };
     draw_sprite(
         painter,
         atlas,
@@ -657,7 +667,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         pose.flip_v,
         pose.blend,
         tint,
-        pose.angle,
+        angle,
     );
 }
 

@@ -241,6 +241,12 @@ pub struct Fighter {
     pub shadow_offset: Vec2,
     pub shadow_xscale: Option<f32>,
     pub shadow_yscale: Option<f32>,
+    /// Persistent drawing angle set by `AngleSet`/`AngleAdd`/`AngleMul`.
+    pub draw_angle: f32,
+    /// Per-tick `AngleDraw` activation and overrides.
+    pub angle_draw: bool,
+    pub angle_draw_value: Option<f32>,
+    pub angle_draw_scale: Option<Vec2>,
     /// Per-tick `ModifyReflection` overrides; `None` uses the stage reflection.
     pub reflection_intensity: Option<i32>,
     pub reflection_color: Option<[u8; 3]>,
@@ -403,6 +409,10 @@ impl Fighter {
             shadow_offset: Vec2::ZERO,
             shadow_xscale: None,
             shadow_yscale: None,
+            draw_angle: 0.0,
+            angle_draw: false,
+            angle_draw_value: None,
+            angle_draw_scale: None,
             reflection_intensity: None,
             reflection_color: None,
             reflection_offset: Vec2::ZERO,

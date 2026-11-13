@@ -159,6 +159,41 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "camera" => camera(sim, who, control),
         "modifyshadow" => modify_shadow(sim, who, control),
         "modifyreflection" => modify_reflection(sim, who, control),
+        "angleset" => {
+            let value = num_param(sim, who, control, "value").unwrap_or(0.0);
+            sim.fighters[who].draw_angle = value;
+        }
+        "angleadd" => {
+            let value = num_param(sim, who, control, "value").unwrap_or(0.0);
+            sim.fighters[who].draw_angle += value;
+        }
+        "anglemul" => {
+            let value = num_param(sim, who, control, "value").unwrap_or(1.0);
+            sim.fighters[who].draw_angle *= value;
+        }
+        "angledraw" => {
+            let value = num_param(sim, who, control, "value");
+            let scale = control.get("scale").map(|raw| {
+                let mut parts = raw.split(',');
+                let x = parts
+                    .next()
+                    .and_then(|v| v.trim().parse::<f32>().ok())
+                    .unwrap_or(1.0);
+                let y = parts
+                    .next()
+                    .and_then(|v| v.trim().parse::<f32>().ok())
+                    .unwrap_or(x);
+                Vec2::new(x, y)
+            });
+            let fighter = &mut sim.fighters[who];
+            fighter.angle_draw = true;
+            if value.is_some() {
+                fighter.angle_draw_value = value;
+            }
+            if scale.is_some() {
+                fighter.angle_draw_scale = scale;
+            }
+        }
         "modifyhitdef" => {
             if let Some(hitdef) = sim.fighters[who].hitdef.as_mut() {
                 hitdef.apply_modifiers(control);

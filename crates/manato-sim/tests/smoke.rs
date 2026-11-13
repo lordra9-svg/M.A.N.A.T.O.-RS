@@ -6195,6 +6195,48 @@ fn modify_reflection_sets_per_tick_overrides() {
 }
 
 #[test]
+fn angle_controllers_track_persistent_and_per_tick_draw_state() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(&mut sim, "angleset", vec![("value".into(), "30".into())]);
+    assert_eq!(sim.fighters[0].draw_angle, 30.0);
+    run(&mut sim, "angleadd", vec![("value".into(), "15".into())]);
+    assert_eq!(sim.fighters[0].draw_angle, 45.0);
+    run(&mut sim, "anglemul", vec![("value".into(), "2".into())]);
+    assert_eq!(sim.fighters[0].draw_angle, 90.0);
+
+    run(
+        &mut sim,
+        "angledraw",
+        vec![("scale".into(), "2, 0.5".into())],
+    );
+    assert!(sim.fighters[0].angle_draw);
+    assert_eq!(sim.fighters[0].angle_draw_value, None);
+    assert_eq!(
+        sim.fighters[0].angle_draw_scale,
+        Some(manato_core::Vec2::new(2.0, 0.5))
+    );
+    run(&mut sim, "angledraw", vec![("value".into(), "-20".into())]);
+    assert_eq!(sim.fighters[0].angle_draw_value, Some(-20.0));
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.fighters[0].angle_draw, "per-tick activation");
+    assert_eq!(sim.fighters[0].angle_draw_value, None);
+    assert_eq!(sim.fighters[0].angle_draw_scale, None);
+    assert_eq!(sim.fighters[0].draw_angle, 90.0, "angle persists");
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

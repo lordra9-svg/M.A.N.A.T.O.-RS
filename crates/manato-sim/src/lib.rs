@@ -1138,6 +1138,9 @@ impl SimState {
             fighter.reflection_offset = Vec2::ZERO;
             fighter.reflection_xscale = None;
             fighter.reflection_yscale = None;
+            fighter.angle_draw = false;
+            fighter.angle_draw_value = None;
+            fighter.angle_draw_scale = None;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2025,6 +2028,10 @@ impl SimState {
             fighter.state_time = 0;
             fighter.anim_no = 0;
             fighter.prev_anim = 0;
+            fighter.draw_angle = 0.0;
+            fighter.angle_draw = false;
+            fighter.angle_draw_value = None;
+            fighter.angle_draw_scale = None;
             fighter.anim_clock = 0;
             fighter.anim_frame = 0;
             fighter.anim_time = 0;
@@ -2609,6 +2616,12 @@ impl SimState {
             h.write_f32(f.reflection_offset.y);
             h.write_f32(f.reflection_xscale.unwrap_or(0.0));
             h.write_f32(f.reflection_yscale.unwrap_or(0.0));
+            h.write_f32(f.draw_angle);
+            h.write_bool(f.angle_draw);
+            h.write_f32(f.angle_draw_value.unwrap_or(f32::NAN));
+            let draw_scale = f.angle_draw_scale.unwrap_or(Vec2::new(f32::NAN, f32::NAN));
+            h.write_f32(draw_scale.x);
+            h.write_f32(draw_scale.y);
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);
             h.write_i32(f.facing);

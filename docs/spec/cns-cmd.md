@@ -121,6 +121,7 @@ Required controller families for the approved matrix:
 - `GetHitVarSet` (modeled GetHitVar fields)
 - `MapSet`, `MapAdd`, `MapReset` (per-fighter string-keyed maps)
 - `Height` (per-tick top/bottom size offset)
+- `AngleSet`, `AngleAdd`, `AngleMul`, `AngleDraw` (2D draw angle/scale)
 - `Camera` (`view = fighting|follow|free`, `followid`, `pos`)
 - `ModifyHitDef` (overrides modeled fields of the active HitDef)
 - `ModifyReversalDef` (reversal attr/guardflag overrides)
