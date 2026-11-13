@@ -374,10 +374,6 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
 
 fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
     let reflection = &sim.assets.stage.reflection;
-    if reflection.intensity <= 0 {
-        return;
-    }
-    let alpha = (reflection.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.45;
     for (who, fighter) in sim
         .fighters
         .iter()
@@ -387,6 +383,20 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
         if !fighter.active {
             continue;
         }
+        let intensity = fighter.reflection_intensity.unwrap_or(reflection.intensity);
+        if intensity <= 0 {
+            continue;
+        }
+        let color = fighter.reflection_color.unwrap_or(reflection.color);
+        let alpha = (intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.45;
+        let xscale = fighter
+            .reflection_xscale
+            .filter(|value| *value > 0.0)
+            .unwrap_or(1.0);
+        let yscale = fighter
+            .reflection_yscale
+            .filter(|value| *value > 0.0)
+            .unwrap_or(1.0);
         let character = &sim.assets.characters[fighter.char_id];
         let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
             continue;
@@ -395,7 +405,7 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             continue;
         };
         let pose = Pose::from_frame(frame);
-        let mut anchor = sim.screen_pos(fighter.pos);
+        let mut anchor = sim.screen_pos(fighter.pos) + fighter.reflection_offset * sim.camera.scale;
         anchor.y = sim.ground_screen_y() * 2.0 - anchor.y;
         let base_scale = Vec2::new(
             character.constants.get_or("size.xscale", 1.0) * fighter.size_xscale,
@@ -410,16 +420,16 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             pose.offset,
             fighter.facing,
             Vec2::new(
-                base_scale.x * pose.scale.x * sim.camera.scale,
-                base_scale.y * pose.scale.y * sim.camera.scale,
+                base_scale.x * pose.scale.x * sim.camera.scale * xscale,
+                base_scale.y * pose.scale.y * sim.camera.scale * yscale,
             ),
             pose.flip_h,
             !pose.flip_v,
             pose.blend,
             [
-                reflection.color[0] as f32 / 255.0,
-                reflection.color[1] as f32 / 255.0,
-                reflection.color[2] as f32 / 255.0,
+                color[0] as f32 / 255.0,
+                color[1] as f32 / 255.0,
+                color[2] as f32 / 255.0,
                 alpha,
             ],
             pose.angle,

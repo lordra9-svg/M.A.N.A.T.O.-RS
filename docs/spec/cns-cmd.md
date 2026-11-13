@@ -124,7 +124,8 @@ Required controller families for the approved matrix:
 - `Camera` (`view = fighting|follow|free`, `followid`, `pos`)
 - `ModifyHitDef` (overrides modeled fields of the active HitDef)
 - `ModifyReversalDef` (reversal attr/guardflag overrides)
-- `ModifyShadow` (intensity/color/offset/xscale/yscale overrides)
+- `ModifyShadow`, `ModifyReflection`
+  (intensity/color/offset/xscale/yscale overrides)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

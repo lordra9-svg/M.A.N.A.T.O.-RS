@@ -6161,6 +6161,40 @@ fn character_metadata_and_stage_bg_triggers() {
 }
 
 #[test]
+fn modify_reflection_sets_per_tick_overrides() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "modifyreflection".into(),
+        params: vec![
+            ("intensity".into(), "96".into()),
+            ("color".into(), "30, 40, 50".into()),
+            ("offset".into(), "2, -3".into()),
+            ("xscale".into(), "0.75".into()),
+            ("yscale".into(), "1.25".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let fighter = &sim.fighters[0];
+    assert_eq!(fighter.reflection_intensity, Some(96));
+    assert_eq!(fighter.reflection_color, Some([30, 40, 50]));
+    assert_eq!(fighter.reflection_offset, manato_core::Vec2::new(2.0, -3.0));
+    assert_eq!(fighter.reflection_xscale, Some(0.75));
+    assert_eq!(fighter.reflection_yscale, Some(1.25));
+
+    sim.tick([PlayerInput::default(); 2]);
+    let fighter = &sim.fighters[0];
+    assert_eq!(fighter.reflection_intensity, None, "per-tick override");
+    assert_eq!(fighter.reflection_color, None);
+    assert_eq!(fighter.reflection_offset, manato_core::Vec2::ZERO);
+    assert_eq!(fighter.reflection_xscale, None);
+    assert_eq!(fighter.reflection_yscale, None);
+}
+
+#[test]
 fn hit_pause_time_reports_self_pause_only() {
     let Some(mut sim) = fight_phase() else {
         return;

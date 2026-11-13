@@ -1133,6 +1133,11 @@ impl SimState {
             fighter.shadow_offset = Vec2::ZERO;
             fighter.shadow_xscale = None;
             fighter.shadow_yscale = None;
+            fighter.reflection_intensity = None;
+            fighter.reflection_color = None;
+            fighter.reflection_offset = Vec2::ZERO;
+            fighter.reflection_xscale = None;
+            fighter.reflection_yscale = None;
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2596,6 +2601,14 @@ impl SimState {
             h.write_f32(f.shadow_offset.y);
             h.write_f32(f.shadow_xscale.unwrap_or(0.0));
             h.write_f32(f.shadow_yscale.unwrap_or(0.0));
+            h.write_i32(f.reflection_intensity.unwrap_or(-1));
+            for channel in f.reflection_color.unwrap_or([255; 3]) {
+                h.write_u8(channel);
+            }
+            h.write_f32(f.reflection_offset.x);
+            h.write_f32(f.reflection_offset.y);
+            h.write_f32(f.reflection_xscale.unwrap_or(0.0));
+            h.write_f32(f.reflection_yscale.unwrap_or(0.0));
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);
             h.write_i32(f.facing);
