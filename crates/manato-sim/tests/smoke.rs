@@ -1461,6 +1461,49 @@ fn env_shake_var_reads_active_shake() {
 }
 
 #[test]
+fn alpha_var_triggers_read_trans_alpha_pair() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let apply = |sim: &mut SimState, kind: &str, alpha: Option<&str>| -> (i32, i32) {
+        let mut params = vec![("trans".to_string(), kind.to_string())];
+        if let Some(alpha) = alpha {
+            params.push(("alpha".to_string(), alpha.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "trans".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        (
+            sim.fighters[0].trans_alpha_source,
+            sim.fighters[0].trans_alpha_dest,
+        )
+    };
+
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alpha.Source"), 255);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alpha.Dest"), 0);
+
+    assert_eq!(apply(&mut sim, "default", None), (255, 0));
+    assert_eq!(apply(&mut sim, "add", None), (255, 255));
+    assert_eq!(apply(&mut sim, "add1", None), (255, 128));
+    assert_eq!(apply(&mut sim, "sub", None), (255, 255));
+    assert_eq!(apply(&mut sim, "addalpha", None), (255, 0));
+
+    assert_eq!(apply(&mut sim, "addalpha", Some("64, 128")), (64, 128));
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alpha.Source"), 64);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Alpha.Dest"), 128);
+    assert!((sim.fighters[0].trans_alpha - 0.5).abs() < 0.001);
+
+    // A single alpha sets the source; the type default keeps the destination.
+    assert_eq!(apply(&mut sim, "addalpha", Some("64")), (64, 0));
+    // Raw values are clamped like the oracle.
+    assert_eq!(apply(&mut sim, "alpha", Some("300, -5")), (255, 0));
+}
+
+#[test]
 fn palfx_var_reads_effective_effect() {
     let Some(mut sim) = fight_phase() else {
         return;

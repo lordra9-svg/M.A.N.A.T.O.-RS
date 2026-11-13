@@ -1161,6 +1161,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "offset.x"
             | "offset.y"
             | "xshear"
+            | "alpha.source"
+            | "alpha.dest"
             | "win"
             | "consecutivewins"
             | "winko"
@@ -1530,6 +1532,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "offset.x" => Value::Float(f.draw_offset.x),
         "offset.y" => Value::Float(f.draw_offset.y),
         "xshear" => Value::Float(f.transform_x_shear),
+        "alpha.source" => Value::Int(f.trans_alpha_source),
+        "alpha.dest" => Value::Int(f.trans_alpha_dest),
         "winner" => Value::Int((sim.round.winner == Some(who)) as i32),
         "loser" => Value::Int((sim.round.winner == Some(other)) as i32),
         "hitpausetime" => Value::Int(f.hit.hit_pause_time),

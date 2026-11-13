@@ -575,6 +575,14 @@ fn trans(sim: &mut SimState, who: usize, control: &Controller) {
     let kind = str_param(control, "trans")
         .unwrap_or("default")
         .to_ascii_lowercase();
+    // Ikemen-GO's documented trans defaults, used by the raw
+    // `Alpha.Source`/`Alpha.Dest` triggers.
+    let (mut source, mut dest) = match kind.as_str() {
+        "add" => (255, 255),
+        "add1" => (255, 128),
+        "sub" | "subadd" | "sub1" => (255, 255),
+        _ => (255, 0),
+    };
     // `alpha` is either a single 0..255 value or a `source, dest` pair; the
     // destination byte (0..256) supplies opacity, matching explod trans.
     let alpha = control.get("alpha").map(|raw| {
@@ -583,14 +591,24 @@ fn trans(sim: &mut SimState, who: usize, control: &Controller) {
             .map(|part| trigger::num(sim, who, part.trim()))
             .collect();
         match parts.as_slice() {
-            [_, dest, ..] => (dest / 256.0).clamp(0.0, 1.0),
-            [src, ..] => (src / 255.0).clamp(0.0, 1.0),
+            [src, dst, ..] => {
+                source = *src as i32;
+                dest = *dst as i32;
+                (dst / 256.0).clamp(0.0, 1.0)
+            }
+            [src, ..] => {
+                source = *src as i32;
+                (src / 255.0).clamp(0.0, 1.0)
+            }
             [] => 1.0,
         }
     });
-    // Only `addalpha`/`alpha` use the alpha parameter; the blend-only variants
-    // stay fully opaque (`docs/spec/render.md` alpha semantics).
-    sim.fighters[who].trans_alpha = match kind.as_str() {
+    let fighter = &mut sim.fighters[who];
+    fighter.trans_alpha_source = source.clamp(0, 255);
+    fighter.trans_alpha_dest = dest.clamp(0, 255);
+    // Only `addalpha`/`alpha` use the alpha parameter for rendering; the
+    // blend-only variants stay fully opaque (`docs/spec/render.md` semantics).
+    fighter.trans_alpha = match kind.as_str() {
         "addalpha" | "alpha" => alpha.unwrap_or(1.0),
         _ => 1.0,
     };

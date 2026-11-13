@@ -2769,6 +2769,8 @@ impl SimState {
             h.write_bool(f.reversal.is_some());
             h.write_i32(f.reversal_time);
             h.write_f32(f.trans_alpha);
+            h.write_i32(f.trans_alpha_source);
+            h.write_i32(f.trans_alpha_dest);
             h.write_bool(f.after_image.is_some());
             if let Some(after) = &f.after_image {
                 h.write_i32(after.time);

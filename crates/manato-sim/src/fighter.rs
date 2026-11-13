@@ -303,7 +303,12 @@ pub struct Fighter {
     pub pal_mul: [f32; 3],
     pub pal_alpha: f32,
     pub pal_time: i32,
+    /// Destination alpha used by rendering (0..1).
     pub trans_alpha: f32,
+    /// Raw trans source/destination alpha bytes reported by
+    /// `Alpha.Source`/`Alpha.Dest` (0..255).
+    pub trans_alpha_source: i32,
+    pub trans_alpha_dest: i32,
     pub reversal: Option<HitDef>,
     pub reversal_time: i32,
     pub owner: Option<usize>,
@@ -467,6 +472,8 @@ impl Fighter {
             pal_alpha: 1.0,
             pal_time: 0,
             trans_alpha: 1.0,
+            trans_alpha_source: 255,
+            trans_alpha_dest: 0,
             reversal: None,
             reversal_time: 0,
             owner: None,
@@ -570,6 +577,8 @@ impl Fighter {
         self.draw_offset = Vec2::ZERO;
         self.hit_overrides = std::array::from_fn(|_| None);
         self.trans_alpha = 1.0;
+        self.trans_alpha_source = 255;
+        self.trans_alpha_dest = 0;
         self.reversal = None;
         self.reversal_time = 0;
         self.hit.hit_targets.clear();

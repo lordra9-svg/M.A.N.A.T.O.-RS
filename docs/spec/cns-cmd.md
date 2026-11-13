@@ -235,7 +235,7 @@ missing redirect targets make the trigger false.
   unmodeled),
   `Scale.X`, `Scale.Y` (1 unless `AngleDraw` is active), `Offset.X`,
   `Offset.Y` (current draw offset), `XShear` (current `TransformSprite`
-  shear),
+  shear), `Alpha.Source`, `Alpha.Dest` (raw trans alpha bytes, 0–255),
   `StageBGVar(id, index, field)`, `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
   `Const240p`, `Const480p`,
