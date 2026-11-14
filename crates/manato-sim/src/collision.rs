@@ -1061,6 +1061,20 @@ fn projectile_boxes(
     facing: i32,
     pos: Vec2,
 ) -> Vec<Rect> {
+    projectile_group_boxes(sim, owner, anim_no, time, facing, pos, true)
+}
+
+/// World-space collision boxes of one projectile animation group (`attack`
+/// selects Clsn1, otherwise Clsn2).
+fn projectile_group_boxes(
+    sim: &SimState,
+    owner: usize,
+    anim_no: i32,
+    time: i32,
+    facing: i32,
+    pos: Vec2,
+    attack: bool,
+) -> Vec<Rect> {
     let char = &sim.assets.characters[sim.fighters[owner].char_id];
     let Some(anim) = char.animation(anim_no) else {
         return Vec::new();
@@ -1071,8 +1085,8 @@ fn projectile_boxes(
     let Some(frame) = anim.frames.get(frame_idx) else {
         return Vec::new();
     };
-    frame
-        .clsn1
+    let boxes = if attack { &frame.clsn1 } else { &frame.clsn2 };
+    boxes
         .iter()
         .map(|b| {
             let mut r = b.rect();
@@ -1082,6 +1096,53 @@ fn projectile_boxes(
             r.translate(pos.x.round() as i32, pos.y.round() as i32)
         })
         .collect()
+}
+
+/// `ProjClsnOverlap(index, targetID, box)` support: whether the `index`-th
+/// projectile owned by `owner` overlaps the target's Clsn1 or Clsn2 boxes.
+/// Projectiles trade with either of their own collision groups. The target is
+/// a 1-based unique player ID.
+pub(crate) fn proj_clsn_overlap(
+    sim: &SimState,
+    owner: usize,
+    index: usize,
+    target: usize,
+    target_attack: bool,
+) -> bool {
+    let Some(projectile) = sim
+        .projectiles
+        .iter()
+        .filter(|projectile| projectile.owner == owner)
+        .nth(index)
+    else {
+        return false;
+    };
+    if projectile.status != crate::projectile::ProjectileStatus::Active {
+        return false;
+    }
+    let target_boxes = clsn_boxes(sim, target, target_attack);
+    if target_boxes.is_empty() {
+        return false;
+    }
+    let clsn1 = projectile_group_boxes(
+        sim,
+        owner,
+        projectile.anim,
+        projectile.time,
+        projectile.facing,
+        projectile.pos,
+        true,
+    );
+    let clsn2 = projectile_group_boxes(
+        sim,
+        owner,
+        projectile.anim,
+        projectile.time,
+        projectile.facing,
+        projectile.pos,
+        false,
+    );
+    any_overlap(&clsn1, &target_boxes) || any_overlap(&clsn2, &target_boxes)
 }
 
 #[cfg(test)]

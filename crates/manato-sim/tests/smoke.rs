@@ -1497,6 +1497,59 @@ fn clsn_overlap_checks_collision_boxes_between_players() {
 }
 
 #[test]
+fn projclsnoverlap_checks_projectile_boxes() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[1].facing = -1;
+
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("velocity".into(), "0,0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles.len(), 1);
+    // Kaen's projectile action 1500 has Clsn1 (-12,-58, 12,-34) and no Clsn2.
+    sim.projectiles[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.projectiles[0].time = 0;
+
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+    // Target ID is 1-based: P2 is 2.
+    assert_eq!(
+        int(&sim, "ProjClsnOverlap(0, 2, clsn2)"),
+        1,
+        "projectile Clsn1 overlaps P2's standing Clsn2"
+    );
+    // P2's standing animation has no Clsn1 boxes.
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 2, clsn1)"), 0);
+    // The size group is unmodeled.
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 2, size)"), 0);
+
+    // Out of range, self, invalid ID, and missing projectiles are false.
+    assert_eq!(int(&sim, "ProjClsnOverlap(9, 2, clsn2)"), 0);
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 1, clsn2)"), 0);
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 0, clsn2)"), 0);
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 99, clsn2)"), 0);
+
+    // Moving the target away ends the overlap.
+    sim.fighters[1].pos.x = 400.0;
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 2, clsn2)"), 0);
+
+    // A projectile that already left the active state does not overlap.
+    sim.fighters[1].pos.x = 0.0;
+    sim.projectiles[0].status = manato_sim::projectile::ProjectileStatus::Hit;
+    assert_eq!(int(&sim, "ProjClsnOverlap(0, 2, clsn2)"), 0);
+}
+
+#[test]
 fn clsnvar_reads_local_collision_edges() {
     let Some(mut sim) = fight_phase() else {
         return;

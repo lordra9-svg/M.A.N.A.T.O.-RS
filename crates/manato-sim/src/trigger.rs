@@ -1282,6 +1282,35 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 },
             }
         }
+        // `ProjClsnOverlap(index, targetID, box)` checks one of the fighter's
+        // projectiles against a target player's collision boxes. `index` is
+        // the 0-based position among the fighter's projectiles after the
+        // first matching projectile ID (`-1` selects every projectile), and
+        // `targetID` is a 1-based unique player ID.
+        "projclsnoverlap" => {
+            let index = arg_i32(sim, who, args, 0).max(0) as usize;
+            let target_id = arg_i32(sim, who, args, 1);
+            let group = key_at(sim, who, args, 2).to_ascii_lowercase();
+            let target_attack = match group.as_str() {
+                "clsn1" => true,
+                "clsn2" => false,
+                _ => return Value::Bool(false),
+            };
+            if target_id < 1 || target_id as usize > sim.fighters.len() {
+                return Value::Bool(false);
+            }
+            let target = target_id as usize - 1;
+            if target == who || !sim.fighters[target].active {
+                return Value::Bool(false);
+            }
+            Value::Bool(crate::collision::proj_clsn_overlap(
+                sim,
+                sim.root_of(who),
+                index,
+                target,
+                target_attack,
+            ))
+        }
         // `FightScreenState(...)` reports which round display window is
         // active; the engine has no separate fight-screen motif state.
         "fightscreenstate" => {

@@ -300,6 +300,10 @@ missing redirect targets make the trigger false.
   `BackEdgeDist`, `FrontEdgeDist`, `StageFrontEdgeDist`,
   `StageBackEdgeDist` (`StageBackEdge` deprecated alias)
 - Projectiles/explods/helpers: `NumProj`, `NumProjID`, `ProjVar(id, index, field)`,
+  `ProjClsnOverlap(index, targetID, box)` (0-based index among the fighter's
+  projectiles after the first matching projectile ID; 1-based unique target
+  ID; `clsn1`/`clsn2`; a projectile's Clsn1 or Clsn2 group may overlap, and
+  the unmodeled `size` group is false),
   `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`, `Index`,
   `ExplodVar(id, index, field)`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
