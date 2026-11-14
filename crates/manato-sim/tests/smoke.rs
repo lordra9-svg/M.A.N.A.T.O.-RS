@@ -1497,6 +1497,81 @@ fn clsn_overlap_checks_collision_boxes_between_players() {
 }
 
 #[test]
+fn bgmvar_reads_stage_music_definition() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/stages/training");
+    if !source.join("stage1.def").exists() {
+        eprintln!("skipping: bundled stage missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-bgmvar-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp stage dir");
+    for entry in std::fs::read_dir(&source).expect("read stage dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy stage file");
+        }
+    }
+    let def = dir.join("stage1.def");
+    let mut text = std::fs::read_to_string(&def).expect("read stage def");
+    text.push_str(
+        "\n[Music]\nbgmusic = stage1.def\nbgmvolume = 80\nbgmloopstart = 10\nbgmloopend = 200\n",
+    );
+    std::fs::write(&def, text).expect("patch stage def");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: project.join("content/chars/kaen/kaen.def"),
+        p2: project.join("content/chars/nival/nival.def"),
+        stage: def.clone(),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let sim = match SimState::load(&config) {
+        Ok(sim) => sim,
+        Err(error) => {
+            eprintln!("skipping: {error}");
+            return;
+        }
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    assert!(manato_sim::trigger::eval_str(&sim, 0, "BgmVar(filename)")
+        .as_str()
+        .ends_with("stage1.def"));
+    assert_eq!(num(&sim, "BgmVar(volume)"), 80.0);
+    assert_eq!(num(&sim, "BgmVar(loop)"), 1.0);
+    assert_eq!(num(&sim, "BgmVar(loopstart)"), 10.0);
+    assert_eq!(num(&sim, "BgmVar(loopend)"), 200.0);
+    assert_eq!(num(&sim, "BgmVar(freqmul)"), 1.0);
+    // No live stream is modeled.
+    for field in [
+        "position",
+        "length",
+        "samplerate",
+        "startposition",
+        "loopcount",
+    ] {
+        assert_eq!(num(&sim, &format!("BgmVar({field})")), 0.0, "{field}");
+    }
+    assert_eq!(num(&sim, "BgmVar(bogus)"), 0.0);
+
+    // Without a configured track there is no filename and no looping.
+    let Some(plain) = fight_phase() else {
+        return;
+    };
+    assert_eq!(
+        manato_sim::trigger::eval_str(&plain, 0, "BgmVar(filename)").as_str(),
+        ""
+    );
+    assert_eq!(num(&plain, "BgmVar(loop)"), 0.0);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn projclsnoverlap_checks_projectile_boxes() {
     let Some(mut sim) = fight_phase() else {
         return;

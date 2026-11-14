@@ -1311,6 +1311,29 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 target_attack,
             ))
         }
+        // `BgmVar(field)` reads the stage BGM definition. There is no live
+        // audio stream in the simulation, so position, length, samplerate,
+        // startposition, and loopcount read 0.
+        "bgmvar" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            let music = &sim.assets.stage.music;
+            match key.as_str() {
+                "filename" => Value::Str(
+                    music
+                        .path
+                        .as_ref()
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                ),
+                "volume" => Value::Int(music.volume),
+                "loopstart" => Value::Int(music.loop_start),
+                "loopend" => Value::Int(music.loop_end),
+                // Stage music loops whenever a track is configured.
+                "loop" => Value::Int(music.path.is_some() as i32),
+                "freqmul" => Value::Float(1.0),
+                _ => Value::Int(0),
+            }
+        }
         // `FightScreenState(...)` reports which round display window is
         // active; the engine has no separate fight-screen motif state.
         "fightscreenstate" => {
