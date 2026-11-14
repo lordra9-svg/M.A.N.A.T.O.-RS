@@ -24,6 +24,8 @@ Out of scope: stage shaders, video layers, 3D stages, and screenpack motifs.
 - Duplicate sections are preserved in order.
 - Unknown sections/keys are ignored with a warning.
 - `spr` resolves relative to the stage DEF, then through the data directories.
+- Paths in `spr` and `[Music] bgmusic` accept Windows backslashes; they are
+  normalized to `/` before resolution.
 
 ## 3. Info
 

@@ -35,12 +35,13 @@ Character state files are merged in this order:
 
 1. `stcommon`
 2. `cns`
-3. `st`
-4. `st1` … `st9`
-5. CMD file
+3. `st`, then `st0`, `st1`, … `stN` in natural numeric order (`st10` follows
+   `st9`)
+4. CMD file
 
 Later files override earlier definitions for the same state number. Controllers
 from the CMD file attach to its `[Statedef -1]` (or create a synthetic `-1`).
+DEF `[Files]` paths accept Windows backslashes as separators.
 
 ## 3. Statedef
 
@@ -488,7 +489,7 @@ move list and run before built-in movement.
 
 ## 9. Test plan
 
-- Parse/merge `stcommon`, `cns`, `st`, `st1`..`st9`, CMD.
+- Parse/merge `stcommon`, `cns`, `st`/`st0`..`stN`, CMD.
 - Statedef defaults and `U` semantics.
 - Controller execution order, persistent, ignorehitpause.
 - ChangeState same-tick continuation and 8-transition cap.

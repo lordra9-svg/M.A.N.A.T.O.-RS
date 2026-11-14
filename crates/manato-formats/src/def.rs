@@ -57,27 +57,40 @@ impl CharacterDef {
             .filter(|(w, h)| *w > 0.0 && *h > 0.0)
             .unwrap_or((320.0, 240.0));
 
-        let resolve = |key: &str| files_section.get(key).map(|v| dir.join(v.trim()));
+        let resolve = |key: &str| files_section.get(key).map(|v| resolve_path(&dir, v));
+        // `st`, `st0`, `st1`, … `stN` are merged in natural numeric order, so
+        // `st10` follows `st9` and numbers beyond 9 are supported.
+        let mut state_keys: Vec<(i64, &String)> = files_section
+            .iter()
+            .filter_map(|(key, value)| {
+                let suffix = key.strip_prefix("st")?;
+                let order = if suffix.is_empty() {
+                    -1
+                } else if suffix.chars().all(|c| c.is_ascii_digit()) {
+                    suffix.parse::<i64>().ok()?
+                } else {
+                    return None;
+                };
+                Some((order, value))
+            })
+            .collect();
+        state_keys.sort_by_key(|(order, _)| *order);
         let mut states = Vec::new();
-        for key in [
-            "st", "st1", "st2", "st3", "st4", "st5", "st6", "st7", "st8", "st9",
-        ] {
-            if let Some(v) = files_section.get(key) {
-                for part in v.split(',') {
-                    let p = dir.join(part.trim());
-                    if !p.as_os_str().is_empty() {
-                        states.push(p);
-                    }
+        for (_, value) in state_keys {
+            for part in value.split(',') {
+                let p = resolve_path(&dir, part);
+                if !part.trim().is_empty() {
+                    states.push(p);
                 }
             }
         }
         let mut common_states = Vec::new();
         if let Some(v) = files_section.get("stcommon") {
             for part in v.split(',') {
-                let p = dir.join(part.trim());
-                if !p.as_os_str().is_empty() {
-                    common_states.push(p);
+                if part.trim().is_empty() {
+                    continue;
                 }
+                common_states.push(resolve_path(&dir, part));
             }
         }
 
@@ -178,6 +191,12 @@ impl StageDefFile {
     }
 }
 
+/// Resolves a path from a DEF `[Files]` list. Windows backslashes are treated
+/// as separators so content authored on Windows loads on Unix.
+pub(crate) fn resolve_path(dir: &Path, raw: &str) -> PathBuf {
+    dir.join(raw.trim().replace('\\', "/"))
+}
+
 pub fn section_map(section: &crate::text::Section) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for e in &section.entries {
@@ -233,6 +252,69 @@ mod tests {
         assert_eq!(def.files.states.len(), 4, "st, st1 (two files), st2");
         assert_eq!(def.files.common_states.len(), 2);
         assert!(def.files.ai.as_ref().unwrap().ends_with("char.ai"));
+    }
+
+    #[test]
+    fn state_files_use_natural_order_beyond_st9() {
+        let path = temp_file(
+            "order.def",
+            "[Info]\nname = Order\n[Files]\nst = base.cns\n\
+             st10 = ten.cns\nst2 = two.cns\nst1 = one.cns\n\
+             st0 = zero.cns\nstcommon = common.cns\nstuff = ignored.cns\n",
+        );
+        let def = CharacterDef::load(&path).expect("parse def");
+        let names: Vec<String> = def
+            .files
+            .states
+            .iter()
+            .map(|path| {
+                path.file_name()
+                    .expect("file name")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(
+            names,
+            ["base.cns", "zero.cns", "one.cns", "two.cns", "ten.cns"],
+            "st, st0, st1, st2, st10 in natural order"
+        );
+        assert_eq!(def.files.common_states.len(), 1);
+        assert_eq!(
+            def.files.common_states[0]
+                .file_name()
+                .expect("name")
+                .to_string_lossy(),
+            "common.cns"
+        );
+    }
+
+    #[test]
+    fn normalizes_backslash_file_paths() {
+        let path = temp_file(
+            "win.def",
+            "[Info]\nname = Win\n[Files]\ncmd = sub\\win.cmd\n\
+             cns = sub\\win.cns\nst = sub\\base.cns\nst1 = sub\\extra.cns\n\
+             stcommon = sub\\common.cns\nsprite = sub\\win.sff\n\
+             anim = sub\\win.air\nsound = sub\\win.snd\nai = sub\\win.ai\n",
+        );
+        let def = CharacterDef::load(&path).expect("parse def");
+        let check = |path: &Option<PathBuf>, expected: &str| {
+            assert!(
+                path.as_ref().expect("path").ends_with(expected),
+                "expected {expected}, got {:?}",
+                path
+            );
+        };
+        check(&def.files.cmd, "sub/win.cmd");
+        check(&def.files.cns, "sub/win.cns");
+        check(&def.files.sprite, "sub/win.sff");
+        check(&def.files.anim, "sub/win.air");
+        check(&def.files.sound, "sub/win.snd");
+        check(&def.files.ai, "sub/win.ai");
+        assert!(def.files.states[0].ends_with("sub/base.cns"));
+        assert!(def.files.states[1].ends_with("sub/extra.cns"));
+        assert!(def.files.common_states[0].ends_with("sub/common.cns"));
     }
 
     #[test]

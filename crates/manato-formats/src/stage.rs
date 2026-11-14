@@ -187,7 +187,7 @@ impl BgScene {
             .unwrap_or_default();
         let mut sprites = SffFile::default();
         if !spr_name.is_empty() {
-            let candidate = def.dir.join(&spr_name);
+            let candidate = crate::def::resolve_path(&def.dir, &spr_name);
             if candidate.exists() {
                 sprites = SffFile::load(&candidate).with_context(|| {
                     format!("failed to load background SFF {}", candidate.display())
@@ -334,13 +334,13 @@ impl Stage {
             .unwrap_or_default();
         let mut sprites = SffFile::default();
         if !spr_name.is_empty() {
-            let candidate = def.dir.join(&spr_name);
+            let candidate = crate::def::resolve_path(&def.dir, &spr_name);
             if candidate.exists() {
                 sprites = SffFile::load(&candidate)
                     .with_context(|| format!("failed to load stage SFF {}", candidate.display()))?;
             } else {
                 for dir in data_dirs {
-                    let candidate = dir.join(&spr_name);
+                    let candidate = crate::def::resolve_path(dir, &spr_name);
                     if candidate.exists() {
                         sprites = SffFile::load(&candidate).unwrap_or_default();
                         break;
@@ -532,7 +532,7 @@ impl Stage {
             music: MusicDef {
                 path: music_map
                     .get("bgmusic")
-                    .map(|value| def.dir.join(value.trim()))
+                    .map(|value| crate::def::resolve_path(&def.dir, value))
                     .filter(|path| path.exists()),
                 volume: num(&music_map, "bgmvolume", 100.0) as i32,
                 loop_start: num(&music_map, "bgmloopstart", 0.0) as i32,
@@ -757,6 +757,26 @@ mod tests {
         assert!(!layer.visible);
         assert_eq!(layer.xscale, 2.0);
     }
+    #[test]
+    fn normalizes_backslash_music_paths() {
+        let dir = std::env::temp_dir().join(format!("manato-stage-path-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).expect("dirs");
+        std::fs::write(dir.join("sub/theme.ogg"), b"x").expect("music");
+        let def = dir.join("stage.def");
+        std::fs::write(
+            &def,
+            "[Info]\nname = Paths\n[Camera]\n[PlayerInfo]\n[BGdef]\n\
+             [Music]\nbgmusic = sub\\theme.ogg\nbgmvolume = 90\n",
+        )
+        .expect("write def");
+        let stage = Stage::load(&def, &[]).expect("stage load");
+        let music = stage.music.path.expect("music path");
+        assert!(music.ends_with("sub/theme.ogg"), "got {music:?}");
+        assert_eq!(stage.music.volume, 90);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn parses_layer_geometry_and_clipping() {
         let mut map = HashMap::new();
