@@ -1356,6 +1356,21 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         // `MotifState(field)` describes the front-end motif screens. During a
         // fight none of them are active, so every field reads false.
         "motifstate" => Value::Bool(false),
+        // `GameOption(key)` reads engine configuration (mugen.cfg) values.
+        // This engine has no external config file, so every query is
+        // undefined and reads false, matching Ikemen's `GetValue` error path.
+        "gameoption" => Value::Bool(false),
+        // `SoundVar(channel, field)` reads a persistent sound channel. The
+        // engine queues one-shot sound events without a channel registry, so
+        // no channel exists: numeric fields read 0 and `isplaying` is false.
+        "soundvar" => {
+            let field = key_at(sim, who, args, 1).to_ascii_lowercase();
+            if field == "isplaying" {
+                Value::Bool(false)
+            } else {
+                Value::Int(0)
+            }
+        }
         // `FightScreenVar(field)` reads the fight-screen motif (fight.def)
         // definition. Without a configured screenpack the built-in defaults
         // apply.
@@ -1519,6 +1534,12 @@ fn is_trigger_name(name: &str) -> bool {
             | "palfxvar"
             | "scale.x"
             | "scale.y"
+            | "scale.z"
+            | "xangle"
+            | "yangle"
+            | "winspecial"
+            | "winhyper"
+            | "airjumpcount"
             | "offset.x"
             | "offset.y"
             | "xshear"
@@ -1972,6 +1993,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         } else {
             1.0
         }),
+        // The renderer is 2D: there is no z scale or 3D angle.
+        "scale.z" => Value::Float(1.0),
+        "xangle" | "yangle" => Value::Float(0.0),
         "offset.x" => Value::Float(f.draw_offset.x),
         "offset.y" => Value::Float(f.draw_offset.y),
         "xshear" => Value::Float(f.transform_x_shear),
@@ -2031,6 +2055,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
                     .and_then(|history| history.last())
                     .is_some_and(|record| record.clutch),
         ),
+        // The engine does not classify special/hyper finishes, so these
+        // Ikemen-only win types never report true.
+        "winspecial" | "winhyper" => Value::Bool(false),
+        // Air jumps are not modeled, so the counter never advances.
+        "airjumpcount" => Value::Int(0),
         "decisiveround" => Value::Bool(
             !sim.is_helper(who) && sim.round.wins[who] as i32 + 1 >= sim.round.rounds_to_win as i32,
         ),

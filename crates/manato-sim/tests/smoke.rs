@@ -1497,6 +1497,41 @@ fn clsn_overlap_checks_collision_boxes_between_players() {
 }
 
 #[test]
+fn ikemen_zero_fallbacks_and_win_types() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+
+    // The renderer is 2D: unit z scale and zero 3D angles.
+    assert_eq!(num(&sim, "Scale.Z"), 1.0);
+    assert_eq!(num(&sim, "XAngle"), 0.0);
+    assert_eq!(num(&sim, "YAngle"), 0.0);
+    // No air-jump model and no special/hyper finish classification.
+    assert_eq!(int(&sim, "AirJumpCount"), 0);
+    assert_eq!(int(&sim, "WinSpecial"), 0);
+    assert_eq!(int(&sim, "WinHyper"), 0);
+
+    // A normal KO win does not become a special/hyper win.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(int(&sim, "Win"), 1);
+    assert_eq!(int(&sim, "WinSpecial"), 0);
+    assert_eq!(int(&sim, "WinHyper"), 0);
+
+    // No engine config file: every GameOption query is undefined (false).
+    assert_eq!(int(&sim, "GameOption(Options.GameSpeed)"), 0);
+    assert_eq!(int(&sim, "GameOption(Config.RoundTime)"), 0);
+
+    // No persistent sound channels: numeric fields read 0, isplaying false.
+    assert_eq!(int(&sim, "SoundVar(0, group)"), 0);
+    assert_eq!(int(&sim, "SoundVar(0, number)"), 0);
+    assert_eq!(int(&sim, "SoundVar(0, volumescale)"), 0);
+    assert_eq!(int(&sim, "SoundVar(0, isplaying)"), 0);
+}
+
+#[test]
 fn motifvar_and_motifstate_triggers() {
     let root = mugen_root();
     if !root

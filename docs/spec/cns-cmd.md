@@ -243,14 +243,16 @@ missing redirect targets make the trigger false.
   `PlayerID(1)` addresses P1 and `ID` reports the current fighter's own ID.
   `P5Name`–`P8Name` read empty because versus play has at most two slots.
 - Run order: `RunOrder` (1-based fighter vector position; P1, P2, then
-  helpers in spawn order) and `GroundAngle` (0 for the engine's flat
-  stages).
+  helpers in spawn order), `GroundAngle` (0 for the engine's flat stages),
+  and `AirJumpCount` (0: air jumps are not modeled). `XAngle`/`YAngle` are 0
+  and `Scale.Z` is 1 because the renderer is 2D.
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `IntroState`, `OutroState`,
   `FightScreenState(field)`, `FightScreenVar(field)` (fight-screen motif
   `info.*` fields and the `round.*`/`time.framespercount` timings from
   `fight.def`, with the built-in defaults when no screenpack is configured),
   `GameVar(field)`, `MatchOver`, `Winner`,
-  `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
+  `Loser`, `Win`, `WinKO`, `WinTime`, `WinSpecial`, `WinHyper`, `WinPerfect`,
+  `WinClutch`,
   `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `FirstAttack`, `TeamSide`,
   `TeamMode`, `IsHomeTeam`, `TeamSize`, `TeamLeader`,
   `MemberNo`, `Standby`, `TimeRemaining`, `TimeElapsed`, `TimeTotal`,
@@ -260,7 +262,12 @@ missing redirect targets make the trigger false.
   from the other side do not steal it, and it resets at the start of each
   round (and on `restart_match`); it is part of the rollback checksum.
 - Identity: `IsHost` (false; local play has no netplay host) and `GameMode`
-  (`"versus"`, the engine's match type)
+  (`"versus"`, the engine's match type). `WinSpecial`/`WinHyper` are always
+  false because special/hyper finishes are not classified. `GameOption(key)`
+  reads false for every key: there is no external engine config (`mugen.cfg`)
+  to query, matching Ikemen's `GetValue` error path. `SoundVar(channel, field)`
+  reads 0 for numeric fields and false for `isplaying` because the engine
+  queues one-shot sound events without a persistent channel registry.
 - Screenpack: `MotifVar(info.name|info.author|info.localcoord.x|info.localcoord.y)`
   reads `system.def`; other keys read `0`. `MotifState(field)` is false for
   every field because no front-end motif screen is active during a fight.
