@@ -1497,6 +1497,83 @@ fn clsn_overlap_checks_collision_boxes_between_players() {
 }
 
 #[test]
+fn motifvar_and_motifstate_triggers() {
+    let root = mugen_root();
+    if !root
+        .join("content/screenpacks/manato-grid/system.def")
+        .exists()
+    {
+        eprintln!("skipping: bundled screenpack not present");
+        return;
+    }
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: Some(PathBuf::from("content/screenpacks/manato-grid/system.def")),
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let sim = match SimState::load(&config) {
+        Ok(sim) => sim,
+        Err(error) => {
+            eprintln!("skipping: {error}");
+            return;
+        }
+    };
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "MotifVar(info.name)").as_str(),
+        "Manato Grid"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "MotifVar(info.author)").as_str(),
+        "M.A.N.A.T.O.-RS contributors"
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "MotifVar(info.localcoord.x)"),
+        320.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "MotifVar(info.localcoord.y)"),
+        240.0
+    );
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "MotifVar(bogus)"), 0.0);
+    // No front-end motif screen is active during a fight.
+    for field in [
+        "challenger",
+        "continuescreen",
+        "continueyes",
+        "continueno",
+        "demo",
+        "dialogue",
+        "menu",
+        "victoryscreen",
+        "winscreen",
+        "hiscore",
+    ] {
+        assert_eq!(
+            manato_sim::trigger::int(&sim, 0, &format!("MotifState({field})")),
+            0,
+            "{field}"
+        );
+    }
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MotifState(bogus)"), 0);
+
+    let Some(plain) = fight_phase() else {
+        return;
+    };
+    assert_eq!(
+        manato_sim::trigger::eval_str(&plain, 0, "MotifVar(info.name)").as_str(),
+        ""
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&plain, 0, "MotifVar(info.localcoord.x)"),
+        320.0
+    );
+}
+
+#[test]
 fn fightscreenvar_reads_fight_def_round_and_info() {
     let root = mugen_root();
     if !root

@@ -261,6 +261,9 @@ missing redirect targets make the trigger false.
   round (and on `restart_match`); it is part of the rollback checksum.
 - Identity: `IsHost` (false; local play has no netplay host) and `GameMode`
   (`"versus"`, the engine's match type)
+- Screenpack: `MotifVar(info.name|info.author|info.localcoord.x|info.localcoord.y)`
+  reads `system.def`; other keys read `0`. `MotifState(field)` is false for
+  every field because no front-end motif screen is active during a fight.
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
   `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,

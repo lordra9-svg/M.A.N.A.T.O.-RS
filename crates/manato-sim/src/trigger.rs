@@ -1334,6 +1334,28 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 _ => Value::Int(0),
             }
         }
+        // `MotifVar(field)` reads the screenpack motif (system.def) `[Info]`
+        // values. The engine has no full motif model, so other keys read 0.
+        "motifvar" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            let screenpack = sim.assets.screenpack.as_ref();
+            match key.as_str() {
+                "info.name" => Value::Str(screenpack.map(|sp| sp.name.clone()).unwrap_or_default()),
+                "info.author" => {
+                    Value::Str(screenpack.map(|sp| sp.author.clone()).unwrap_or_default())
+                }
+                "info.localcoord.x" => {
+                    Value::Int(screenpack.map(|sp| sp.localcoord.0).unwrap_or(320.0) as i32)
+                }
+                "info.localcoord.y" => {
+                    Value::Int(screenpack.map(|sp| sp.localcoord.1).unwrap_or(240.0) as i32)
+                }
+                _ => Value::Int(0),
+            }
+        }
+        // `MotifState(field)` describes the front-end motif screens. During a
+        // fight none of them are active, so every field reads false.
+        "motifstate" => Value::Bool(false),
         // `FightScreenVar(field)` reads the fight-screen motif (fight.def)
         // definition. Without a configured screenpack the built-in defaults
         // apply.
