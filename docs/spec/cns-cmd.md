@@ -209,17 +209,24 @@ missing redirect targets make the trigger false.
   `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
   `PrevMoveType`, `Ctrl`, `Physics`, `SelfStateNoExist(n)`,
-  `InCustomState`
+  `InCustomState`, `InRunState` (always false: the engine has no `RunState`
+  trigger, so no code ever runs under it)
 - Helpers: `IsHelper`, `HelperName` (helper display name; players read
   empty)
 - Combat: `Alive`, `Life`, `LifeMax`, `Power`, `GetHitVar`, `HitOver`,
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
-  `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,
+  `MoveHit`, `MoveGuarded`, `MoveCountered`, `MoveHitVar(field)`, `HitCount`,
+  `UniqHitCount`, `HitDefAttr`,
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
   `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`,
   `PowerMax`, `Attack`, `AttackMul`, `Defence`, `DefenceMul`, `GuardCount`,
   `Angle`, `HitOverridden`, `ClsnOverlap(box, playerID, box)` (Clsn1/Clsn2),
-  `ReversalDefAttr = attr` (matches the active `ReversalDef` attr)
+  `ReversalDefAttr = attr` (matches the active `ReversalDef` attr).
+  `MoveCountered` is set when the current hit connected while the defender
+  was attacking (`MoveType = A`) and is cleared by `MoveHitReset`.
+  `MoveHitVar(playerid|id|playerno|uniqhit)` reports the last unique target
+  (1-based; `id` is the deprecated alias) or the unique-target count; the
+  cornerpush/spark/power/frame/overridden fields are unmodeled and read 0.
 - Commands: `Command` (reads the active state bank's command list),
   `SelfCommand` (always reads the fighter's own command list even when a
   borrowed state bank is active)

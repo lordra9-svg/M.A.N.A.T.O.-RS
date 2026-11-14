@@ -11703,6 +11703,51 @@ fn ikemen_firstattack_identity_and_depth_triggers() {
 }
 
 #[test]
+fn ikemen_movecountered_and_movehitvar_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let int = |sim: &SimState, who: usize, text: &str| manato_sim::trigger::int(sim, who, text);
+
+    // No hit yet: every move-hit field is empty, and no code runs under
+    // `RunState`.
+    assert_eq!(int(&sim, 0, "MoveHitVar(playerid)"), 0);
+    assert_eq!(int(&sim, 0, "MoveHitVar(id)"), 0);
+    assert_eq!(int(&sim, 0, "MoveHitVar(playerno)"), 0);
+    assert_eq!(int(&sim, 0, "MoveHitVar(uniqhit)"), 0);
+    assert_eq!(int(&sim, 0, "MoveHitVar(sparkx)"), 0);
+    assert_eq!(int(&sim, 0, "MoveCountered"), 0);
+    assert_eq!(int(&sim, 0, "InRunState"), 0);
+
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    // A hit on a non-attacking defender is not a counter hit.
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Idle;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(int(&sim, 0, "MoveCountered"), 0);
+    // IDs are the 1-based fighter indices, so the target (P2) is 2.
+    assert_eq!(int(&sim, 0, "MoveHitVar(playerid)"), 2);
+    assert_eq!(int(&sim, 0, "MoveHitVar(id)"), 2);
+    assert_eq!(int(&sim, 0, "MoveHitVar(playerno)"), 2);
+    assert_eq!(int(&sim, 0, "MoveHitVar(uniqhit)"), 1);
+
+    // Hitting a defender that is attacking is a counter hit.
+    sim.fighters[1].move_type = manato_sim::fighter::MoveType::Attack;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(int(&sim, 0, "MoveCountered"), 1);
+
+    // `MoveHitReset` clears the counter flag.
+    let assets = sim.assets.clone();
+    let reset = manato_formats::Controller {
+        kind: "movehitreset".into(),
+        params: Vec::new(),
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    assert_eq!(int(&sim, 0, "MoveCountered"), 0);
+}
+
+#[test]
 fn inputtime_reports_held_and_released_counters() {
     use manato_core::{Buttons, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
     let Some(mut sim) = fight_phase() else {

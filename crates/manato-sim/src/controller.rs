@@ -132,6 +132,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].attack.move_contact = false;
             sim.fighters[who].attack.move_hit = false;
             sim.fighters[who].attack.move_guarded = false;
+            sim.fighters[who].attack.move_reversed = false;
+            sim.fighters[who].attack.counter_hit = false;
             sim.fighters[who].attack.hit_count = 0;
             sim.fighters[who].attack.uniq_hit_count = 0;
         }

@@ -104,6 +104,9 @@ pub struct AttackState {
     pub move_hit: bool,
     pub move_guarded: bool,
     pub move_reversed: bool,
+    /// `MoveCountered`: the current hit connected while the defender was
+    /// attacking (`MoveType = A`).
+    pub counter_hit: bool,
     pub guard_count: i32,
 }
 

@@ -392,11 +392,24 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         // Ikemen-GO's `InputTime(key)` reports the input buffer timer for a
         // direction or button: positive while held, negative while released.
         "inputtime" => {
-            let key = args
-                .first()
-                .map(|arg| eval(sim, who, arg).as_str())
-                .unwrap_or_default();
+            let key = call_key(sim, who, args);
             Value::Int(input_time(&sim.fighters[who], &key))
+        }
+        // `MoveHitVar(...)` exposes the current move's hit data. Our IDs are
+        // the 1-based fighter indices, so `playerid`/`id`/`playerno` all
+        // report the last unique target; `uniqhit` is the unique target
+        // count. Other fields (cornerpush, spark, power, frame, overridden)
+        // are unmodeled and read 0.
+        "movehitvar" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            let target = sim.fighters[who].hit.hit_targets.last().copied();
+            match key.as_str() {
+                "playerid" | "id" | "playerno" => {
+                    Value::Int(target.map(|index| index as i32 + 1).unwrap_or(0))
+                }
+                "uniqhit" => Value::Int(sim.fighters[who].hit.hit_targets.len() as i32),
+                _ => Value::Int(0),
+            }
         }
         // Ikemen-GO's `LocalCoord(x|y)` reports the character's localcoord.
         "localcoord" => {
@@ -1195,6 +1208,17 @@ fn axis_arg(sim: &SimState, who: usize, args: &[Expr]) -> String {
         .unwrap_or_default()
 }
 
+/// Reads a call argument that names a field (`MoveHitVar(playerid)`), keeping
+/// the raw identifier text even when the name also resolves as a trigger
+/// (`playerid`, `id`). Quoted or expression arguments fall back to evaluation.
+fn call_key(sim: &SimState, who: usize, args: &[Expr]) -> String {
+    match args.first() {
+        Some(Expr::Ident(name)) => name.clone(),
+        Some(other) => eval(sim, who, other).as_str(),
+        None => String::new(),
+    }
+}
+
 /// Axis-relative distance from `who` to `other`, as used by `ParentDist` and
 /// `RootDist`. A missing or unknown component (including no relation) is 0.
 fn relation_axis_distance(sim: &SimState, who: usize, other: usize, axis: &str) -> f32 {
@@ -1340,9 +1364,11 @@ fn is_trigger_name(name: &str) -> bool {
             | "lifemax"
             | "matchover"
             | "movecontact"
+            | "movecountered"
             | "moveguarded"
             | "movehit"
             | "movereversed"
+            | "inrunstate"
             | "movetype"
             | "numenemy"
             | "numexplod"
@@ -1523,6 +1549,12 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "movecontact" => Value::Bool(f.attack.move_contact),
         "movehit" => Value::Bool(f.attack.move_hit),
         "moveguarded" => Value::Bool(f.attack.move_guarded),
+        // Counter hit: the current hit connected against an attacking
+        // defender (`MoveType = A`).
+        "movecountered" => Value::Bool(f.attack.counter_hit),
+        // No `RunState` trigger exists in this engine, so no code ever runs
+        // under it.
+        "inrunstate" => Value::Bool(false),
         "hitcount" => Value::Int(f.attack.hit_count),
         "uniqhitcount" => Value::Int(f.attack.uniq_hit_count),
         "hitfall" => Value::Bool(f.hit.vars.fall),

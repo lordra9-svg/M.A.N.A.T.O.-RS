@@ -461,8 +461,11 @@ pub fn apply_hit_at(
     }
     if !guarding {
         // The first unguarded hit of the round claims `FirstAttack` for the
-        // attacker's team side.
+        // attacker's team side, and a hit on an attacking defender is a
+        // counter hit (`MoveCountered`).
         sim.first_attack.get_or_insert(sim.fighters[attacker].side);
+        let defender_attacking = sim.fighters[defender].move_type == MoveType::Attack;
+        sim.fighters[attacker].attack.counter_hit = defender_attacking;
     }
     if from_fighter && !guarding && hitdef.p1stateno >= 0 {
         let assets = sim.assets.clone();
