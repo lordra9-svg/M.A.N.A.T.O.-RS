@@ -159,8 +159,10 @@ Required controller families for the approved matrix:
 - `PalFX`, `RemapPal`, `Trans`
   `PalFX` models `add`/`sinadd`, `mul`/`sinmul` (0–256 units, 256 =
   identity), and `alpha` (0–1). `color`, `hue`, `invertall`, `invertblend`,
-  `sincolor`, and `sinhue` are unmodeled; the global `bg`/`all` PalFX layers
-  are not implemented.
+  `sincolor`, and `sinhue` are unmodeled.
+- `AllPalFX`, `BgPalFX` (global palette effects for character/effect sprites
+  and stage layers; model `add`, `mul`, `alpha`, and `time`, with the same
+  units as `PalFX`; color/hue/invert and sine variants are unmodeled)
 - `ForceFeedback`
 
 ### 4.4 Helpers

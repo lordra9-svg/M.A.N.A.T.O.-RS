@@ -48,6 +48,19 @@ fn blend_of(blend: BlendMode) -> Blend {
     }
 }
 
+/// Applies a global `AllPalFX`/`BgPalFX` to a sprite color.
+fn global_tint(color: [f32; 4], pal: &manato_sim::GlobalPalFx) -> [f32; 4] {
+    if !pal.active() {
+        return color;
+    }
+    [
+        (color[0] * pal.mul[0] + pal.add[0] / 255.0).clamp(0.0, 1.0),
+        (color[1] * pal.mul[1] + pal.add[1] / 255.0).clamp(0.0, 1.0),
+        (color[2] * pal.mul[2] + pal.add[2] / 255.0).clamp(0.0, 1.0),
+        (color[3] * pal.alpha).clamp(0.0, 1.0),
+    ]
+}
+
 pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     painter.clear();
     let stage = &sim.assets.stage;
@@ -308,7 +321,7 @@ fn draw_bg_layer(
                 pose.flip_h,
                 pose.flip_v,
                 blend,
-                [1.0, 1.0, 1.0, pose.alpha],
+                global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.bg_pal),
                 xscale * pose.scale.x,
                 yscale * pose.scale.y,
                 pose.angle,
@@ -358,7 +371,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         );
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
         let bank = bank::CHARACTER_BASE + projectile.owner as u8;
-        let color = [1.0, 1.0, 1.0, pose.alpha];
+        let color = global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.all_pal);
 
         if projectile.x_shear != 0.0
             || projectile.projection != manato_sim::ProjectionMode::Orthographic
@@ -678,17 +691,20 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
             ghost_pose.flip_h,
             ghost_pose.flip_v,
             if ghost.add { Blend::Add } else { Blend::Normal },
-            [1.0, 1.0, 1.0, ghost.alpha],
+            global_tint([1.0, 1.0, 1.0, ghost.alpha], &sim.all_pal),
             ghost_pose.angle,
         );
     }
 
-    let tint = [
-        (fighter.pal_mul[0] + fighter.pal_add[0] / 255.0).clamp(0.0, 1.0),
-        (fighter.pal_mul[1] + fighter.pal_add[1] / 255.0).clamp(0.0, 1.0),
-        (fighter.pal_mul[2] + fighter.pal_add[2] / 255.0).clamp(0.0, 1.0),
-        (pose.alpha * fighter.pal_alpha * fighter.trans_alpha).clamp(0.0, 1.0),
-    ];
+    let tint = global_tint(
+        [
+            (fighter.pal_mul[0] + fighter.pal_add[0] / 255.0).clamp(0.0, 1.0),
+            (fighter.pal_mul[1] + fighter.pal_add[1] / 255.0).clamp(0.0, 1.0),
+            (fighter.pal_mul[2] + fighter.pal_add[2] / 255.0).clamp(0.0, 1.0),
+            (pose.alpha * fighter.pal_alpha * fighter.trans_alpha).clamp(0.0, 1.0),
+        ],
+        &sim.all_pal,
+    );
     let (scale, angle) = if fighter.angle_draw {
         let angle = pose.angle + fighter.angle_draw_value.unwrap_or(fighter.draw_angle);
         let scale = fighter
@@ -850,7 +866,10 @@ fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
     let offset = Vec2::new(frame.offset.x, frame.offset.y);
     let flip_h = frame.flip_h ^ effect.flip_h;
     let flip_v = frame.flip_v ^ effect.flip_v;
-    let color = [1.0, 1.0, 1.0, (effect.alpha * pose.alpha).clamp(0.0, 1.0)];
+    let color = global_tint(
+        [1.0, 1.0, 1.0, (effect.alpha * pose.alpha).clamp(0.0, 1.0)],
+        &sim.all_pal,
+    );
     let angle = pose.angle + effect.angle;
 
     if effect.shadow && !effect.screen_space {
@@ -1184,6 +1203,29 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn global_tint_composes_mul_add_and_alpha() {
+        use manato_sim::GlobalPalFx;
+        // Inactive effects leave the color untouched.
+        let identity = GlobalPalFx::default();
+        assert_eq!(
+            global_tint([0.25, 0.5, 0.75, 0.5], &identity),
+            [0.25, 0.5, 0.75, 0.5]
+        );
+
+        let pal = GlobalPalFx {
+            add: [51.0, 0.0, 255.0],
+            mul: [0.5, 1.0, 0.0],
+            alpha: 0.5,
+            time: 10,
+        };
+        let color = global_tint([0.4, 0.4, 0.4, 0.8], &pal);
+        assert!((color[0] - (0.4 * 0.5 + 51.0 / 255.0)).abs() < 1e-5);
+        assert!((color[1] - 0.4).abs() < 1e-5);
+        assert!((color[2] - 1.0).abs() < 1e-5);
+        assert!((color[3] - 0.4).abs() < 1e-5);
+    }
 
     #[test]
     fn orthographic_zero_rotation_is_identity() {

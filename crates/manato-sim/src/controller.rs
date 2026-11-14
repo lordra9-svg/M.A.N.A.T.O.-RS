@@ -272,6 +272,14 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
         "modifystagebg" => modify_stage_bg(sim, who, control),
+        "allpalfx" => {
+            let pal = parse_global_pal(sim, who, control);
+            sim.all_pal = pal;
+        }
+        "bgpalfx" => {
+            let pal = parse_global_pal(sim, who, control);
+            sim.bg_pal = pal;
+        }
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1848,6 +1856,32 @@ fn shift_key(name: &str) -> Option<usize> {
         "s" => Some(10),
         _ => None,
     }
+}
+
+/// `AllPalFX`/`BgPalFX`: global palette effects. `add` uses 0–255 units,
+/// `mul` 0–256 (256 = identity), and `alpha` 0–1. `time = 0` disables the
+/// effect. Color/hue/invert and sine variants are not modeled.
+fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::GlobalPalFx {
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
+    let mut pal = crate::GlobalPalFx::default();
+    if time == 0 {
+        return pal;
+    }
+    pal.time = time;
+    if let Some(value) = control.get("add") {
+        if let Some(add) = parse_triplet(sim, who, value) {
+            pal.add = add;
+        }
+    }
+    if let Some(value) = control.get("mul") {
+        if let Some(mul) = parse_triplet(sim, who, value) {
+            pal.mul = [mul[0] / 256.0, mul[1] / 256.0, mul[2] / 256.0];
+        }
+    }
+    if let Some(value) = control.get("alpha") {
+        pal.alpha = trigger::num(sim, who, value).clamp(0.0, 1.0);
+    }
+    pal
 }
 
 /// `ModifyStageBG` subset: selects stage layers by `id` (`-1` = every id) and

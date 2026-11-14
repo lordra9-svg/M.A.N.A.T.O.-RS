@@ -648,6 +648,44 @@ impl Default for BarFill {
     }
 }
 
+/// Global palette effect used by `AllPalFX` and `BgPalFX`. `mul` is
+/// normalized (1.0 = identity), `add` stays in 0–255 units, and `alpha` is
+/// 0–1. `time = 0` means inactive.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GlobalPalFx {
+    pub add: [f32; 3],
+    pub mul: [f32; 3],
+    pub alpha: f32,
+    pub time: i32,
+}
+
+impl Default for GlobalPalFx {
+    fn default() -> Self {
+        Self {
+            add: [0.0; 3],
+            mul: [1.0; 3],
+            alpha: 1.0,
+            time: 0,
+        }
+    }
+}
+
+impl GlobalPalFx {
+    pub fn active(&self) -> bool {
+        self.time > 0
+    }
+
+    /// Ticks the remaining duration, resetting to identity on expiry.
+    pub fn tick(&mut self) {
+        if self.time > 0 {
+            self.time -= 1;
+            if self.time <= 0 {
+                *self = Self::default();
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SimState {
     pub assets: Arc<Assets>,
@@ -674,6 +712,11 @@ pub struct SimState {
     pub bg_time: f32,
     pub env_shake: EnvShake,
     pub env_color: Option<EnvColor>,
+    /// Global palette effect applied to every character/effect/projectile
+    /// sprite (`AllPalFX`).
+    pub all_pal: GlobalPalFx,
+    /// Palette effect applied to stage background layers (`BgPalFX`).
+    pub bg_pal: GlobalPalFx,
     pub stage_layers: Vec<StageLayerState>,
     pub options: MatchOptions,
     pub rng: Rng,
@@ -770,6 +813,8 @@ impl SimState {
             bg_time: 0.0,
             env_shake: EnvShake::default(),
             env_color: None,
+            all_pal: GlobalPalFx::default(),
+            bg_pal: GlobalPalFx::default(),
             stage_layers,
             options,
             rng: Rng::new(0x4D41_4E41_544F_5253),
@@ -2195,6 +2240,8 @@ impl SimState {
         self.pause_movetime = 0;
         self.env_shake = EnvShake::default();
         self.env_color = None;
+        self.all_pal = GlobalPalFx::default();
+        self.bg_pal = GlobalPalFx::default();
         if self.assets.stage.reset_bg {
             self.bg_time = 0.0;
             self.stage_layers = self
@@ -2407,6 +2454,8 @@ impl SimState {
     }
 
     fn update_effects(&mut self) {
+        self.all_pal.tick();
+        self.bg_pal.tick();
         if let Some(color) = self.env_color.as_mut() {
             if color.time > 0 {
                 color.time -= 1;
@@ -2716,6 +2765,16 @@ impl SimState {
             h.write_f32(color.color[2]);
             h.write_f32(color.color[3]);
             h.write_i32(color.time);
+        }
+        for pal in [&self.all_pal, &self.bg_pal] {
+            h.write_i32(pal.time);
+            for value in pal.add {
+                h.write_f32(value);
+            }
+            for value in pal.mul {
+                h.write_f32(value);
+            }
+            h.write_f32(pal.alpha);
         }
         for p in &self.projectiles {
             h.write_i32(p.owner as i32);

@@ -2405,6 +2405,77 @@ fn palfx_sinmul_oscillates_multiplier() {
 }
 
 #[test]
+fn allpalfx_and_bgpalfx_apply_globally() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    assert!(!sim.all_pal.active());
+    assert!(!sim.bg_pal.active());
+
+    run(
+        &mut sim,
+        "allpalfx",
+        vec![
+            ("add", "10, 20, 30"),
+            ("mul", "128, 64, 32"),
+            ("alpha", "0.5"),
+            ("time", "5"),
+        ],
+    );
+    assert_eq!(sim.all_pal.add, [10.0, 20.0, 30.0]);
+    assert_eq!(sim.all_pal.mul, [0.5, 0.25, 0.125]);
+    assert_eq!(sim.all_pal.alpha, 0.5);
+    assert_eq!(sim.all_pal.time, 5);
+    assert!(sim.all_pal.active());
+
+    // BgPalFX is an independent effect.
+    run(&mut sim, "bgpalfx", vec![("add", "1, 2, 3"), ("time", "3")]);
+    assert_eq!(sim.bg_pal.add, [1.0, 2.0, 3.0]);
+    assert_eq!(sim.all_pal.time, 5);
+
+    // Both count down each tick; the shorter effect resets to identity.
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.all_pal.time, 2);
+    assert_eq!(sim.bg_pal, manato_sim::GlobalPalFx::default());
+    for _ in 0..2 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.all_pal, manato_sim::GlobalPalFx::default());
+
+    // time = 0 disables immediately.
+    run(
+        &mut sim,
+        "allpalfx",
+        vec![("add", "50, 50, 50"), ("time", "5")],
+    );
+    assert!(sim.all_pal.active());
+    run(&mut sim, "allpalfx", vec![("time", "0")]);
+    assert_eq!(sim.all_pal, manato_sim::GlobalPalFx::default());
+
+    // The global effects participate in the rollback checksum.
+    let before = sim.checksum();
+    run(&mut sim, "allpalfx", vec![("time", "10")]);
+    assert_ne!(before, sim.checksum());
+    let before = sim.checksum();
+    run(&mut sim, "bgpalfx", vec![("time", "10")]);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn presentation_var_triggers_read_draw_state() {
     let Some(mut sim) = fight_phase() else {
         return;
