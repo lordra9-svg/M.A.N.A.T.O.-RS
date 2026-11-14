@@ -459,6 +459,11 @@ pub fn apply_hit_at(
             sim.fighters[defender].facing = hitdef.p2facing;
         }
     }
+    if !guarding {
+        // The first unguarded hit of the round claims `FirstAttack` for the
+        // attacker's team side.
+        sim.first_attack.get_or_insert(sim.fighters[attacker].side);
+    }
     if from_fighter && !guarding && hitdef.p1stateno >= 0 {
         let assets = sim.assets.clone();
         let attacker_char = sim.fighters[attacker].char_id;

@@ -235,10 +235,16 @@ missing redirect targets make the trigger false.
   stages).
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
-  `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `TeamSide`, `TeamMode`, `IsHomeTeam`,
-  `TeamSize`, `TeamLeader`,
+  `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `FirstAttack`, `TeamSide`,
+  `TeamMode`, `IsHomeTeam`, `TeamSize`, `TeamLeader`,
   `MemberNo`, `Standby`, `TimeRemaining`, `TimeElapsed`, `TimeTotal`,
   `StageTime`, `Score`, `ScoreTotal`
+  `FirstAttack` is true for the team side that landed the first unguarded
+  hit of the current round. Guarded contacts do not claim it, later hits
+  from the other side do not steal it, and it resets at the start of each
+  round (and on `restart_match`); it is part of the rollback checksum.
+- Identity: `IsHost` (false; local play has no netplay host) and `GameMode`
+  (`"versus"`, the engine's match type)
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
   `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,
@@ -250,6 +256,12 @@ missing redirect targets make the trigger false.
   `Scale.X`, `Scale.Y` (1 unless `AngleDraw` is active), `Offset.X`,
   `Offset.Y` (current draw offset), `XShear` (current `TransformSprite`
   shear), `Alpha.Source`, `Alpha.Dest` (raw trans alpha bytes, 0–255),
+  `InputTime(key)` (consecutive held ticks, or negative consecutive
+  released ticks; `B`/`F` are facing-relative while `U`/`D`/`L`/`R` are
+  absolute; buttons use `a`–`c`, `x`–`z`, `s`; the Ikemen-only
+  `d`/`w`/`m` buttons are unmodeled and read 0),
+  `TopBoundDist`, `TopBoundBodyDist`, `BotBoundDist`, `BotBoundBodyDist`
+  (0: the 2D renderer has no stage depth bounds),
   `StageBGVar(id, index, field)`, `StageVar(key)` (stage info strings,
   live camera bounds/follow/tension/cut/zoom values, and
   `playerinfo.leftbound`/`rightbound`; other keys are unmodeled and read

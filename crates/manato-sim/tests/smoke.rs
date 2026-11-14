@@ -11635,6 +11635,139 @@ fn ikemen_selfcommand_reversaldefattr_and_identity_triggers() {
 }
 
 #[test]
+fn ikemen_firstattack_identity_and_depth_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // No unguarded hit yet: neither side owns FirstAttack.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "FirstAttack"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "FirstAttack"), 0);
+
+    let hit = hitdef();
+    let origin = sim.fighters[0].pos;
+    // Guarded contacts do not claim FirstAttack.
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "FirstAttack"), 0);
+
+    // The first unguarded hit claims it for the attacker's side only.
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "FirstAttack"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "FirstAttack"), 0);
+
+    // A later unguarded hit by the other side does not steal the flag.
+    let origin2 = sim.fighters[1].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 1, 0, &hit, false, origin2, -1, true);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "FirstAttack"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "FirstAttack"), 0);
+
+    // FirstAttack participates in the rollback checksum.
+    let Some(other) = fight_phase() else {
+        return;
+    };
+    let before = other.checksum();
+    let mut claimed = other;
+    let origin = claimed.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut claimed, 0, 1, &hit, false, origin, 1, true);
+    assert_ne!(before, claimed.checksum());
+
+    // A new round clears the flag (`restart_match` re-runs round setup).
+    claimed.restart_match();
+    assert_eq!(manato_sim::trigger::int(&claimed, 0, "FirstAttack"), 0);
+    assert_eq!(manato_sim::trigger::int(&claimed, 1, "FirstAttack"), 0);
+
+    // Local play has no host and the engine runs versus matches.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IsHost"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "IsHost"), 0);
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "GameMode").as_str(),
+        "versus"
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "GameMode = \"versus\""),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "GameMode = \"arcade\""),
+        0
+    );
+
+    // The 2D renderer has no stage depth, so all bound distances are zero.
+    for name in [
+        "TopBoundDist",
+        "TopBoundBodyDist",
+        "BotBoundDist",
+        "BotBoundBodyDist",
+    ] {
+        assert_eq!(manato_sim::trigger::num(&sim, 0, name), 0.0, "{name}");
+    }
+}
+
+#[test]
+fn inputtime_reports_held_and_released_counters() {
+    use manato_core::{Buttons, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].history.clear();
+
+    // Three held ticks of absolute right: right and forward are +3, the
+    // opposite absolute direction and back are -3. Neutral accumulates as
+    // released because it was never held in this window.
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::new(DIR_RIGHT, 0), 0);
+    }
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+    assert_eq!(int(&sim, "InputTime(R)"), 3);
+    assert_eq!(int(&sim, "InputTime(F)"), 3);
+    assert_eq!(int(&sim, "InputTime(L)"), -3);
+    assert_eq!(int(&sim, "InputTime(B)"), -3);
+    assert_eq!(int(&sim, "InputTime(N)"), -3);
+
+    // Release: the right/forward counters go negative.
+    for _ in 0..2 {
+        sim.fighters[0].append_input(PlayerInput::default(), 0);
+    }
+    assert_eq!(int(&sim, "InputTime(R)"), -2);
+    assert_eq!(int(&sim, "InputTime(F)"), -2);
+
+    // Buttons use the same held/released counter.
+    sim.fighters[0].history.clear();
+    for _ in 0..2 {
+        sim.fighters[0].append_input(PlayerInput::new(0, Buttons::X), 0);
+    }
+    assert_eq!(int(&sim, "InputTime(x)"), 2);
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::default(), 0);
+    }
+    assert_eq!(int(&sim, "InputTime(x)"), -3);
+
+    // Facing-relative B/F follow the fighter's facing; L/R stay absolute.
+    sim.fighters[0].facing = -1;
+    sim.fighters[0].history.clear();
+    for _ in 0..2 {
+        sim.fighters[0].append_input(PlayerInput::new(DIR_LEFT, 0), 0);
+    }
+    assert_eq!(int(&sim, "InputTime(L)"), 2);
+    assert_eq!(int(&sim, "InputTime(R)"), -2);
+    assert_eq!(int(&sim, "InputTime(F)"), 2);
+    assert_eq!(int(&sim, "InputTime(B)"), -2);
+
+    // `U`/`D` are absolute and unaffected by facing.
+    sim.fighters[0].history.clear();
+    sim.fighters[0].append_input(PlayerInput::new(DIR_UP, 0), 0);
+    sim.fighters[0].append_input(PlayerInput::new(DIR_UP | DIR_DOWN, 0), 0);
+    assert_eq!(int(&sim, "InputTime(U)"), 2);
+    assert_eq!(int(&sim, "InputTime(D)"), 1);
+
+    // Unknown keys (including Ikemen-only d/w/m buttons) read 0.
+    assert_eq!(int(&sim, "InputTime(q)"), 0);
+    assert_eq!(int(&sim, "InputTime(d)"), 0);
+    assert_eq!(int(&sim, "InputTime(w)"), 0);
+    assert_eq!(int(&sim, "InputTime(m)"), 0);
+}
+
+#[test]
 fn hitdef_guard_dist_defaults_and_limits_guarding() {
     let Some(mut sim) = fight_phase() else {
         return;

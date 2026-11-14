@@ -650,6 +650,9 @@ pub struct SimState {
     pub frame: u64,
     /// Ticks since the match started (`FightTime`); not reset between rounds.
     pub match_time: i32,
+    /// Team side that landed the first unguarded hit of the round
+    /// (`FirstAttack`); `None` until it happens and reset each round.
+    pub first_attack: Option<usize>,
     /// Most recently assigned fighter index (`LastPlayerID`).
     pub last_player_id: i32,
     pub round: RoundState,
@@ -740,6 +743,7 @@ impl SimState {
             fighters,
             frame: 0,
             match_time: 0,
+            first_attack: None,
             last_player_id: 1,
             round: RoundState::new(options.rounds_to_win, options.round_time),
             camera: CameraState {
@@ -2017,6 +2021,7 @@ impl SimState {
         self.win_history = [Vec::new(), Vec::new()];
         self.finished = false;
         self.match_time = 0;
+        self.first_attack = None;
         self.last_player_id = 1;
         self.stage_camera = self.assets.stage.camera.clone();
         self.stage_left_bound = self.assets.stage.left_bound;
@@ -2126,6 +2131,7 @@ impl SimState {
         self.round.winner = None;
         self.round.time_over = false;
         self.round.display = format!("Round {}", self.round.number);
+        self.first_attack = None;
         self.effects.clear();
         self.projectiles.clear();
         self.combo = [ComboState::default(); 2];
@@ -2541,6 +2547,7 @@ impl SimState {
         let mut h = StateHasher::new();
         h.write_u64(self.frame);
         h.write_i32(self.match_time);
+        h.write_u8(self.first_attack.map(|s| s as u8 + 1).unwrap_or(0));
         h.write_i32(self.last_player_id);
         h.write_u32(self.round.number);
         h.write_u8(self.round.phase as u8);

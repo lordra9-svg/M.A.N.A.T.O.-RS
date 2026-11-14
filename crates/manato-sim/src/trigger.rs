@@ -4,10 +4,13 @@
 //! (`p2, life`, `enemy, stateno`, ...) switch the target fighter for the inner
 //! expression.
 
-use manato_core::{Dir8, Vec2, GAME_HEIGHT, GAME_WIDTH};
+use manato_core::{
+    Buttons, Dir8, Vec2, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP, GAME_HEIGHT, GAME_WIDTH,
+};
 use manato_formats::{CommandDef, Controller};
 
 use crate::expr::{BinOp, Expr, UnOp, Value};
+use crate::fighter::HistoryFrame;
 use crate::hitdef::HitAttr;
 use crate::SimState;
 
@@ -386,6 +389,15 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "acos" => Value::Float(arg_f32(sim, who, args, 0).clamp(-1.0, 1.0).acos()),
         "atan" => Value::Float(arg_f32(sim, who, args, 0).atan()),
         "atan2" => Value::Float(arg_f32(sim, who, args, 0).atan2(arg_f32(sim, who, args, 1))),
+        // Ikemen-GO's `InputTime(key)` reports the input buffer timer for a
+        // direction or button: positive while held, negative while released.
+        "inputtime" => {
+            let key = args
+                .first()
+                .map(|arg| eval(sim, who, arg).as_str())
+                .unwrap_or_default();
+            Value::Int(input_time(&sim.fighters[who], &key))
+        }
         // Ikemen-GO's `LocalCoord(x|y)` reports the character's localcoord.
         "localcoord" => {
             let axis = axis_arg(sim, who, args);
@@ -1281,6 +1293,13 @@ fn is_trigger_name(name: &str) -> bool {
             | "p8name"
             | "runorder"
             | "groundangle"
+            | "firstattack"
+            | "ishost"
+            | "gamemode"
+            | "topbounddist"
+            | "topboundbodydist"
+            | "botbounddist"
+            | "botboundbodydist"
             | "palno"
             | "parentdist"
             | "parentexist"
@@ -1542,6 +1561,16 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
         "playerno" => Value::Int(f.slot as i32 + 1),
+        "firstattack" => Value::Bool(sim.first_attack == Some(f.side)),
+        // Local play has no netplay host (`Char.isHost` returns false).
+        "ishost" => Value::Bool(false),
+        // The engine models a versus-style match.
+        "gamemode" => Value::Str("versus".to_string()),
+        // The renderer is 2D; stage depth (z) bounds are always zero, so the
+        // top/bottom bound distances read 0 and the body variants match.
+        "topbounddist" | "topboundbodydist" | "botbounddist" | "botboundbodydist" => {
+            Value::Float(0.0)
+        }
         // The engine updates fighters in creation order (P1, P2, helpers in
         // spawn order), so the 1-based vector position is the run order.
         "runorder" => Value::Int(who as i32 + 1),
@@ -2151,6 +2180,56 @@ pub fn command_active_self(sim: &SimState, who: usize, name: &str) -> bool {
         .commands
         .iter()
         .any(|c: &CommandDef| c.name.eq_ignore_ascii_case(&lower) && f.match_command(c))
+}
+
+/// `InputTime(key)`: the input buffer timer for a direction or button. The
+/// value is the number of consecutive held ticks (positive) or released
+/// ticks (negative), matching Ikemen-GO's `updateInputTime`.
+fn input_time(f: &crate::fighter::Fighter, key: &str) -> i32 {
+    let held = |frame: &HistoryFrame| -> Option<bool> {
+        match key {
+            "U" => Some(frame.input.dir & DIR_UP != 0),
+            "D" => Some(frame.input.dir & DIR_DOWN != 0),
+            "L" => Some(frame.input.dir & DIR_LEFT != 0),
+            "R" => Some(frame.input.dir & DIR_RIGHT != 0),
+            // `B`/`F` are facing-relative; `U`/`D`/`L`/`R` are absolute.
+            "B" => Some(frame.dir.is_back()),
+            "F" => Some(frame.dir.is_forward()),
+            "N" => Some(frame.input.dir & (DIR_UP | DIR_DOWN | DIR_LEFT | DIR_RIGHT) == 0),
+            _ => {
+                let button = match key {
+                    "a" => Buttons::A,
+                    "b" => Buttons::B,
+                    "c" => Buttons::C,
+                    "x" => Buttons::X,
+                    "y" => Buttons::Y,
+                    "z" => Buttons::Z,
+                    "s" => Buttons::START,
+                    // Ikemen-only d/w/m buttons are not modeled.
+                    _ => return None,
+                };
+                Some(frame.input.buttons & button != 0)
+            }
+        }
+    };
+    let Some(newest) = f.history.back() else {
+        return 0;
+    };
+    let Some(current) = held(newest) else {
+        return 0;
+    };
+    let mut count = 0i32;
+    for frame in f.history.iter().rev() {
+        match held(frame) {
+            Some(state) if state == current => count += 1,
+            _ => break,
+        }
+    }
+    if current {
+        count
+    } else {
+        -count
+    }
 }
 
 /// Absolute direction for a command relative to a facing (used by tests).
