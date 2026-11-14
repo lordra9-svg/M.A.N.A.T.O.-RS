@@ -218,14 +218,21 @@ missing redirect targets make the trigger false.
   `GuardBreak`, `GuardPoints`, `GuardPointsMax`, `Dizzy`, `DizzyPoints`,
   `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`,
   `PowerMax`, `Attack`, `AttackMul`, `Defence`, `DefenceMul`, `GuardCount`,
-  `Angle`, `HitOverridden`, `ClsnOverlap(box, playerID, box)` (Clsn1/Clsn2)
-- Commands: `Command`
+  `Angle`, `HitOverridden`, `ClsnOverlap(box, playerID, box)` (Clsn1/Clsn2),
+  `ReversalDefAttr = attr` (matches the active `ReversalDef` attr)
+- Commands: `Command` (reads the active state bank's command list),
+  `SelfCommand` (always reads the fighter's own command list even when a
+  borrowed state bank is active)
 - Opponent: `P2Dist`, `P2BodyDist`, `P2Life`, `P2StateNo`, `P2StateType`,
   `P2MoveType`, `NumEnemy`, `NumTarget`, `NumPartner`, `NumPlayer`,
   `PlayerNo`, `PlayerIDExist(n)`, `PlayerIndexExist(n)`, `PlayerNoExist(n)`,
   `LastPlayerID`, `ID` (and the `PlayerID` alias). Unique IDs are 1-based
   and assigned in fighter creation order (P1, P2, then each helper), so
   `PlayerID(1)` addresses P1 and `ID` reports the current fighter's own ID.
+  `P5Name`–`P8Name` read empty because versus play has at most two slots.
+- Run order: `RunOrder` (1-based fighter vector position; P1, P2, then
+  helpers in spawn order) and `GroundAngle` (0 for the engine's flat
+  stages).
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
   `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
   `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `TeamSide`, `TeamMode`, `IsHomeTeam`,
@@ -253,7 +260,8 @@ missing redirect targets make the trigger false.
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,
   `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Round`, `RandomRange`, `Exp`,
   `Ln`, `Log(base, value)`, `Sqrt`, `Pow`,
-  `AILevel`, `AILevelF`, `LocalCoordX`, `LocalCoordY`, `Pi`, `E`, `Float(x)`
+  `AILevel`, `AILevelF`, `LocalCoordX`, `LocalCoordY`, `LocalCoord(x|y)`,
+  `Pi`, `E`, `Float(x)`
   Trigonometric functions take and return radians, as in the M.U.G.E.N
   expression reference.
 - Bounds/edges: `LeftEdge`, `RightEdge`, `TopEdge`, `BottomEdge`,

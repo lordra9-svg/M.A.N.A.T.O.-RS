@@ -175,12 +175,18 @@ fn eval_binary(sim: &SimState, who: usize, op: BinOp, left: &Expr, right: &Expr)
     // `command = "name"` is a special string comparison.
     if let Expr::Ident(name) = left {
         let lower = name.to_ascii_lowercase();
-        if lower == "command" {
+        if lower == "command" || lower == "selfcommand" {
             let wanted = match right {
                 Expr::Str(s) => s.clone(),
                 _ => eval(sim, who, right).as_str(),
             };
-            let active = command_active(sim, who, &wanted);
+            // `Command` follows the active state bank; `SelfCommand` always
+            // reads the fighter's own command list.
+            let active = if lower == "selfcommand" {
+                command_active_self(sim, who, &wanted)
+            } else {
+                command_active(sim, who, &wanted)
+            };
             return Value::Bool(match op {
                 BinOp::Eq => active,
                 BinOp::Ne => !active,
@@ -191,6 +197,17 @@ fn eval_binary(sim: &SimState, who: usize, op: BinOp, left: &Expr, right: &Expr)
             if let Expr::List(items) = right {
                 let hitdef = sim.fighters[who].hitdef.clone().unwrap_or_default();
                 let ok = hitdefattr_matches(&hitdef.attr, sim, who, items);
+                return Value::Bool(if op == BinOp::Eq { ok } else { !ok });
+            }
+        }
+        if lower == "reversaldefattr" {
+            if let Expr::List(items) = right {
+                let attr = sim.fighters[who]
+                    .reversal
+                    .as_ref()
+                    .map(|reversal| reversal.attr.clone())
+                    .unwrap_or_default();
+                let ok = hitdefattr_matches(&attr, sim, who, items);
                 return Value::Bool(if op == BinOp::Eq { ok } else { !ok });
             }
         }
@@ -369,6 +386,12 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "acos" => Value::Float(arg_f32(sim, who, args, 0).clamp(-1.0, 1.0).acos()),
         "atan" => Value::Float(arg_f32(sim, who, args, 0).atan()),
         "atan2" => Value::Float(arg_f32(sim, who, args, 0).atan2(arg_f32(sim, who, args, 1))),
+        // Ikemen-GO's `LocalCoord(x|y)` reports the character's localcoord.
+        "localcoord" => {
+            let axis = axis_arg(sim, who, args);
+            let (x, y) = sim.assets.characters[sim.fighters[who].char_id].localcoord();
+            Value::Float(if axis.starts_with('y') { y } else { x })
+        }
         "clamp" => Value::Float(
             arg_f32(sim, who, args, 0)
                 .max(arg_f32(sim, who, args, 1))
@@ -931,7 +954,9 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             };
             Value::Float(sim.character(who).constants.get(&key).unwrap_or(0.0) * scale)
         }
-        "p3name" | "p4name" => Value::Str(String::new()),
+        "p3name" | "p4name" | "p5name" | "p6name" | "p7name" | "p8name" => {
+            Value::Str(String::new())
+        }
         "numproj" => Value::Int(
             sim.projectiles
                 .iter()
@@ -1250,6 +1275,12 @@ fn is_trigger_name(name: &str) -> bool {
             | "p2name"
             | "p3name"
             | "p4name"
+            | "p5name"
+            | "p6name"
+            | "p7name"
+            | "p8name"
+            | "runorder"
+            | "groundangle"
             | "palno"
             | "parentdist"
             | "parentexist"
@@ -1511,6 +1542,11 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
         "playerno" => Value::Int(f.slot as i32 + 1),
+        // The engine updates fighters in creation order (P1, P2, helpers in
+        // spawn order), so the 1-based vector position is the run order.
+        "runorder" => Value::Int(who as i32 + 1),
+        // Stages are flat in this engine; no slope is modeled.
+        "groundangle" => Value::Float(0.0),
         "scoretotal" => Value::Float(if f.owner.is_some() {
             0.0
         } else {
@@ -1706,7 +1742,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "camerapos" => Value::Float(sim.camera.x),
         "zoomvar" => Value::Float(sim.camera.scale),
         "hitvel" => Value::Float(f.hit.vars.x_vel),
-        "p3name" | "p4name" => Value::Str(String::new()),
+        "p3name" | "p4name" | "p5name" | "p6name" | "p7name" | "p8name" => {
+            Value::Str(String::new())
+        }
         "name" | "displayname" => Value::Str(sim.character(who).display_name().to_string()),
         "authorname" => Value::Str(sim.character(who).def.author.clone()),
         "numstagebg" => Value::Int(sim.stage_layers.len() as i32),
@@ -2092,6 +2130,24 @@ pub fn command_active(sim: &SimState, who: usize, name: &str) -> bool {
         _ => {}
     }
     sim.character(who)
+        .commands
+        .iter()
+        .any(|c: &CommandDef| c.name.eq_ignore_ascii_case(&lower) && f.match_command(c))
+}
+
+/// Like [`command_active`], but always reads the fighter's own command list
+/// instead of the state bank owner's (`SelfCommand`).
+pub fn command_active_self(sim: &SimState, who: usize, name: &str) -> bool {
+    let f = &sim.fighters[who];
+    let lower = name.trim().to_ascii_lowercase();
+    match lower.as_str() {
+        "holdfwd" => return f.relative_dir().is_forward(),
+        "holdback" => return f.relative_dir().is_back(),
+        "holdup" => return f.relative_dir().is_up(),
+        "holddown" => return f.relative_dir().is_down(),
+        _ => {}
+    }
+    sim.assets.characters[f.char_id]
         .commands
         .iter()
         .any(|c: &CommandDef| c.name.eq_ignore_ascii_case(&lower) && f.match_command(c))

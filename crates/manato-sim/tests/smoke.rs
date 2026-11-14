@@ -11534,6 +11534,107 @@ fn hitdefattr_inguarddist_and_canrecover_triggers() {
 }
 
 #[test]
+fn ikemen_selfcommand_reversaldefattr_and_identity_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+
+    // P5-P8 have no slot in versus play and read empty.
+    for name in ["P5Name", "P6Name", "P7Name", "P8Name"] {
+        assert_eq!(manato_sim::trigger::eval_str(&sim, 0, name).as_str(), "");
+    }
+
+    // Run order is the 1-based creation order: P1, P2, then helpers.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "RunOrder"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "RunOrder"), 2);
+    let control = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("stateno".into(), "0".into()),
+            ("id".into(), "9".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &control, &assets);
+    let helper = sim.fighters.len() - 1;
+    assert_eq!(manato_sim::trigger::int(&sim, helper, "RunOrder"), 3);
+
+    // Flat stages report no slope.
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "GroundAngle"), 0.0);
+
+    // `LocalCoord(x|y)` call form matches the character localcoord.
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "LocalCoord(x)"), 320.0);
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "LocalCoord(y)"), 240.0);
+
+    // ReversalDefAttr matches the current reversal HitDef attr.
+    let reversal = manato_formats::Controller {
+        kind: "reversaldef".into(),
+        params: vec![
+            ("reversal.attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("time".into(), "5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 1, &reversal, &assets);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "ReversalDefAttr = S, NA"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "ReversalDefAttr = S, SA"),
+        0
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "ReversalDefAttr = A, NA"),
+        0
+    );
+    sim.fighters[1].reversal = None;
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "ReversalDefAttr = S, NA"),
+        0
+    );
+
+    // `SelfCommand` reads the fighter's own command list even when the active
+    // state bank belongs to another character; `Command` follows the bank.
+    let motion = [
+        (manato_core::DIR_DOWN, 0),
+        (manato_core::DIR_DOWN | manato_core::DIR_RIGHT, 0),
+        (manato_core::DIR_RIGHT, 0),
+        (manato_core::DIR_RIGHT, manato_core::Buttons::X),
+    ];
+    for (dir, buttons) in motion {
+        sim.fighters[0].append_input(PlayerInput::new(dir, buttons), 0);
+    }
+    // P1 owns FirePalm; P2 (Nival) has FrostShard on the same motion.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "SelfCommand = \"FirePalm\""),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "SelfCommand = \"FrostShard\""),
+        0
+    );
+    sim.fighters[0].state_char_id = Some(1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command = \"FirePalm\""),
+        0,
+        "Command follows the borrowed P2 command bank"
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "SelfCommand = \"FirePalm\""),
+        1,
+        "SelfCommand keeps reading P1's own command list"
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command = \"FrostShard\""),
+        1
+    );
+}
+
+#[test]
 fn hitdef_guard_dist_defaults_and_limits_guarding() {
     let Some(mut sim) = fight_phase() else {
         return;
