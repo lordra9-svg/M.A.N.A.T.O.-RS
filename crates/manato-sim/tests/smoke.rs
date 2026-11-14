@@ -680,6 +680,82 @@ fn time_over_uses_remaining_life() {
 }
 
 #[test]
+fn intro_outro_fightscreen_and_gamevar_triggers() {
+    let Some(mut sim) = load(
+        "content/chars/kaen/kaen.def",
+        "content/chars/nival/nival.def",
+    ) else {
+        return;
+    };
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+
+    // A fresh match is in the intro: pre-intro is the first quarter of the
+    // 40-tick phase timer.
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Intro);
+    assert_eq!(sim.round.phase_timer, 40);
+    assert_eq!(int(&sim, "IntroState"), 1);
+    assert_eq!(int(&sim, "OutroState"), 0);
+    assert_eq!(int(&sim, "RoundState"), 0);
+    assert_eq!(int(&sim, "FightScreenState(rounddisplay)"), 1);
+    assert_eq!(int(&sim, "FightScreenState(fightdisplay)"), 0);
+    assert_eq!(int(&sim, "GameVar(introtime)"), 40);
+    assert_eq!(int(&sim, "GameVar(outrotime)"), 0);
+
+    // Player intros, round announcement, then fight called.
+    sim.round.phase_timer = 25;
+    assert_eq!(int(&sim, "IntroState"), 2);
+    sim.round.phase_timer = 8;
+    assert_eq!(int(&sim, "IntroState"), 3);
+    sim.round.phase_timer = 2;
+    assert_eq!(int(&sim, "IntroState"), 4);
+
+    // Two ticks later the fight starts.
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    assert_eq!(int(&sim, "IntroState"), 0);
+    assert_eq!(int(&sim, "OutroState"), 0);
+    assert_eq!(int(&sim, "GameVar(introtime)"), 0);
+    assert_eq!(int(&sim, "FightScreenState(fightdisplay)"), 1);
+    assert_eq!(int(&sim, "FightScreenState(rounddisplay)"), 0);
+
+    // A KO enters the KO window: win states are active with a winner, and
+    // the outro timer counts elapsed KO ticks.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(int(&sim, "OutroState"), 4);
+    assert_eq!(int(&sim, "FightScreenState(kodisplay)"), 1);
+    assert_eq!(int(&sim, "FightScreenState(fightdisplay)"), 0);
+    assert_eq!(int(&sim, "GameVar(outrotime)"), 0);
+    assert!(int(&sim, "GameVar(slowtime)") > 0);
+
+    sim.round.winner = None;
+    assert_eq!(int(&sim, "OutroState"), 3);
+    sim.round.winner = Some(0);
+    sim.round.phase_timer = 60;
+    assert_eq!(int(&sim, "GameVar(outrotime)"), 60);
+
+    // The match-over window reports RoundState 5 and win display.
+    sim.round.phase = manato_sim::RoundPhase::Over;
+    assert_eq!(int(&sim, "OutroState"), 5);
+    assert_eq!(int(&sim, "IntroState"), 0);
+    assert_eq!(int(&sim, "FightScreenState(windisplay)"), 1);
+    assert_eq!(int(&sim, "GameVar(outrotime)"), 120);
+
+    // Pause and SuperPause share one timer; persist options and hidden bars
+    // are not implemented.
+    sim.super_pause = 7;
+    assert_eq!(int(&sim, "GameVar(pausetime)"), 7);
+    assert_eq!(int(&sim, "GameVar(superpausetime)"), 7);
+    for key in ["persistlife", "persistmusic", "persistrounds", "hidebars"] {
+        assert_eq!(int(&sim, &format!("GameVar({key})")), 0, "{key}");
+    }
+    assert_eq!(int(&sim, "GameVar(bogus)"), 0);
+    assert_eq!(int(&sim, "FightScreenState(bogus)"), 0);
+}
+
+#[test]
 fn double_ko_is_a_draw() {
     let Some(mut sim) = fight_phase() else {
         return;

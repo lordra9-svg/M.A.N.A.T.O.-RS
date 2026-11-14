@@ -575,6 +575,9 @@ impl StageLayerState {
     }
 }
 
+/// Ticks the KO display window lasts before the next round (or match end).
+pub const KO_PHASE_TICKS: i32 = 120;
+
 /// Ticks a combo counter stays visible after the last hit.
 pub const COMBO_DISPLAY_TICKS: i32 = 60;
 
@@ -1724,7 +1727,7 @@ impl SimState {
                     self.round.winner = winner;
                     self.round.time_over = false;
                     self.round.phase = RoundPhase::Ko;
-                    self.round.phase_timer = 120;
+                    self.round.phase_timer = KO_PHASE_TICKS;
                     self.begin_ko_slowdown();
                     self.round.display = match winner {
                         Some(w) => format!("{} Wins", self.assets.characters[w].display_name()),
@@ -1753,7 +1756,7 @@ impl SimState {
                     self.round.winner = winner;
                     self.round.time_over = true;
                     self.round.phase = RoundPhase::Ko;
-                    self.round.phase_timer = 120;
+                    self.round.phase_timer = KO_PHASE_TICKS;
                     self.begin_ko_slowdown();
                     self.round.display = match winner {
                         Some(w) => format!(

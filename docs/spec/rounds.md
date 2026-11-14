@@ -157,6 +157,29 @@ Round/match triggers must reflect this state:
   cadence for its first frames.
 - Super pause and hit pause do not stop the round phase timer.
 
+### 10.1 Intro/Outro phase triggers
+
+The fight-screen motif's separate timing windows are not modeled. The
+Ikemen-only `IntroState`/`OutroState`, `FightScreenState(...)`, and
+`GameVar(...)` triggers therefore derive from the round phase:
+
+- `IntroState`: `0` outside `Intro`; inside `Intro`, the remaining phase
+  timer splits into `1` (pre-intro, > 30 ticks), `2` (player intros, > 10),
+  `3` (round announcement, > 5), and `4` (fight called, > 0).
+- `OutroState`: `0` in `Intro`/`Fight`; `4` in `Ko` when a winner exists
+  (win states), `3` in `Ko` with no winner (round lost, no win state), and
+  `5` in `Over` (match over).
+- `FightScreenState(field)`: `rounddisplay` is true in `Intro`,
+  `fightdisplay` in `Fight`, `kodisplay` in `Ko`, and `windisplay` in
+  `Over`; other fields are false.
+- `GameVar(field)`: `introtime` is the remaining intro ticks, `outrotime`
+  the elapsed KO ticks (`KO_PHASE_TICKS` once the match is over),
+  `pausetime`/`superpausetime` the shared pause timer (`Pause` and
+  `SuperPause` use one timer here), and `slowtime` the remaining KO
+  slowdown. `persistlife`, `persistmusic`, `persistrounds`, and `hidebars`
+  read false because persisted-match options and bar hiding are not
+  implemented; unknown fields read `0`.
+
 ## 11. Error handling
 
 - Missing win/KO states fall back to leaving the fighter in place.

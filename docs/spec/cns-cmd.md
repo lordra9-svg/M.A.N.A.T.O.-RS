@@ -245,7 +245,8 @@ missing redirect targets make the trigger false.
 - Run order: `RunOrder` (1-based fighter vector position; P1, P2, then
   helpers in spawn order) and `GroundAngle` (0 for the engine's flat
   stages).
-- Round: `RoundNo`, `RoundsExisted`, `RoundState`, `MatchOver`, `Winner`,
+- Round: `RoundNo`, `RoundsExisted`, `RoundState`, `IntroState`, `OutroState`,
+  `FightScreenState(field)`, `GameVar(field)`, `MatchOver`, `Winner`,
   `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
   `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `FirstAttack`, `TeamSide`,
   `TeamMode`, `IsHomeTeam`, `TeamSize`, `TeamLeader`,

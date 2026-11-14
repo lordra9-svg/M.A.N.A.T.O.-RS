@@ -1282,6 +1282,40 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 },
             }
         }
+        // `FightScreenState(...)` reports which round display window is
+        // active; the engine has no separate fight-screen motif state.
+        "fightscreenstate" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            Value::Bool(match key.as_str() {
+                "fightdisplay" => sim.round.phase == crate::RoundPhase::Fight,
+                "kodisplay" => sim.round.phase == crate::RoundPhase::Ko,
+                "rounddisplay" => sim.round.phase == crate::RoundPhase::Intro,
+                "windisplay" => sim.round.phase == crate::RoundPhase::Over,
+                _ => false,
+            })
+        }
+        // `GameVar(...)` reads engine-wide timers. `Pause` and `SuperPause`
+        // share one timer here, and the persisted-match options are not
+        // implemented, so the persist flags read false and bars stay visible.
+        "gamevar" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            match key.as_str() {
+                "introtime" => Value::Int(if sim.round.phase == crate::RoundPhase::Intro {
+                    sim.round.phase_timer.max(0)
+                } else {
+                    0
+                }),
+                "outrotime" => Value::Int(match sim.round.phase {
+                    crate::RoundPhase::Ko => (crate::KO_PHASE_TICKS - sim.round.phase_timer).max(0),
+                    crate::RoundPhase::Over => crate::KO_PHASE_TICKS,
+                    _ => 0,
+                }),
+                "pausetime" | "superpausetime" => Value::Int(sim.super_pause.max(0)),
+                "slowtime" => Value::Int(sim.round.slow_timer.max(0)),
+                "persistlife" | "persistmusic" | "persistrounds" | "hidebars" => Value::Bool(false),
+                _ => Value::Int(0),
+            }
+        }
         _ => Value::Int(0),
     }
 }
@@ -1511,6 +1545,8 @@ fn is_trigger_name(name: &str) -> bool {
             | "roundno"
             | "roundsexisted"
             | "roundstate"
+            | "introstate"
+            | "outrostate"
             | "displayname"
             | "authorname"
             | "numstagebg"
@@ -1724,6 +1760,30 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "roundno" => Value::Int(sim.round.number as i32),
         "roundsexisted" => Value::Int(sim.round.number.saturating_sub(1) as i32),
         "roundstate" => Value::Int(sim.round.roundstate_code()),
+        // Ikemen-only phase triggers. The engine does not model the fight
+        // screen motif's separate timing windows, so both derive from the
+        // round phase (`docs/spec/rounds.md`, "Intro/Outro phase triggers").
+        "introstate" => Value::Int(match sim.round.phase {
+            crate::RoundPhase::Intro => {
+                let left = sim.round.phase_timer.max(0);
+                if left > 30 {
+                    1
+                } else if left > 10 {
+                    2
+                } else if left > 5 {
+                    3
+                } else {
+                    4
+                }
+            }
+            _ => 0,
+        }),
+        "outrostate" => Value::Int(match sim.round.phase {
+            crate::RoundPhase::Ko if sim.round.winner.is_some() => 4,
+            crate::RoundPhase::Ko => 3,
+            crate::RoundPhase::Over => 5,
+            _ => 0,
+        }),
         "roundtime" => Value::Int(sim.round.seconds()),
         "timeremaining" => Value::Int(sim.round.seconds()),
         "timetotal" => Value::Int(sim.round.round_time),
