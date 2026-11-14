@@ -83,6 +83,12 @@ impl AnimFrame {
     pub fn alpha(&self) -> f32 {
         self.src_alpha as f32 / 255.0
     }
+
+    /// Whether the frame defines a transparency/blend. A plain frame is
+    /// `Normal` with full source alpha and zero destination alpha.
+    pub fn has_transparency(&self) -> bool {
+        self.blend != BlendMode::Normal || self.src_alpha != 255 || self.dst_alpha != 0
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -109,6 +115,10 @@ pub struct FramePose {
     pub offset: Vec2,
     pub scale: Vec2,
     pub angle: f32,
+    /// Interpolated source alpha in 0–255 units.
+    pub src_alpha: f32,
+    /// Interpolated destination alpha in 0–255 units.
+    pub dst_alpha: f32,
 }
 
 impl Animation {
@@ -130,6 +140,8 @@ impl Animation {
             offset: frame.offset,
             scale: frame.scale,
             angle: frame.angle,
+            src_alpha: frame.src_alpha as f32,
+            dst_alpha: frame.dst_alpha as f32,
         };
         // Infinite/zero-length frames and single-frame actions do not
         // interpolate.
@@ -158,6 +170,12 @@ impl Animation {
         }
         if self.interpolate_angle.contains(&next) {
             pose.angle += (target.angle - frame.angle) * progress;
+        }
+        // Alpha interpolates only from a frame that actually has a blend,
+        // matching Ikemen-GO's `curtrans != TransNone` guard.
+        if self.interpolate_blend.contains(&next) && frame.has_transparency() {
+            pose.src_alpha += (target.src_alpha as f32 - frame.src_alpha as f32) * progress;
+            pose.dst_alpha += (target.dst_alpha as f32 - frame.dst_alpha as f32) * progress;
         }
         Some(pose)
     }
@@ -694,6 +712,46 @@ Clsn2: 1
         assert_eq!(pose.frame, 1);
         assert!((pose.offset.x - 10.0).abs() < 1e-5);
         assert!((pose.offset.y - 5.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn pose_at_interpolates_blend_alphas() {
+        let text = "[Begin Action 0]\n\
+                    0,0, 0,0, 4, , a1\n\
+                    Interpolate Blend\n\
+                    0,1, 0,0, 4, , as64d32\n";
+        let anim = &parse_air_str(text)[0];
+        let frame0 = &anim.frames[0];
+        assert!(frame0.has_transparency());
+        assert_eq!(anim.interpolate_blend, vec![1]);
+
+        // Frame 0 start keeps its own alpha values.
+        let pose = anim.pose_at(0).expect("pose");
+        assert_eq!(pose.src_alpha, 255.0);
+        assert_eq!(pose.dst_alpha, 128.0);
+
+        // Halfway to the marked frame.
+        let pose = anim.pose_at(2).expect("pose");
+        assert!((pose.src_alpha - 159.5).abs() < 1e-5);
+        assert!((pose.dst_alpha - 80.0).abs() < 1e-5);
+
+        // The marked frame then uses its own values.
+        let pose = anim.pose_at(4).expect("pose");
+        assert_eq!(pose.src_alpha, 64.0);
+        assert_eq!(pose.dst_alpha, 32.0);
+    }
+
+    #[test]
+    fn pose_at_blend_requires_current_frame_transparency() {
+        let text = "[Begin Action 0]\n\
+                    0,0, 0,0, 4\n\
+                    Interpolate Blend\n\
+                    0,1, 0,0, 4, , a1\n";
+        let anim = &parse_air_str(text)[0];
+        assert!(!anim.frames[0].has_transparency());
+        let pose = anim.pose_at(2).expect("pose");
+        assert_eq!(pose.src_alpha, 255.0);
+        assert_eq!(pose.dst_alpha, 0.0);
     }
 
     #[test]

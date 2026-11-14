@@ -31,7 +31,7 @@ Ikemen-GO alone as the runtime oracle.
 | F-02 | DEF character/stage | Required | Required | Partial | Bundled/stock + localcoord, file-list, palette-map, and stage metadata tests |
 | F-03 | CNS states/controllers | Required | Required | Partial | Execution tests incl. fall controllers, EnvColor, Gravity, HitAdd, MoveHitReset |
 | F-04 | CMD commands | Required | Required | Partial | Defaults/prefixes/charge/steptime + `buffer.hitpause`/`buffer.pauseend` tests |
-| F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; offset/scale/angle interpolation rendered for fighters, projectiles, explods, and stage BG animations; blend interpolation pending |
+| F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; offset/scale/angle/blend-alpha interpolation rendered for fighters, projectiles, explods, and stage BG animations |
 | F-06 | SFF v1 | Required | Required | Partial | PCX palette/reuse + EOF zero-length link chain tests |
 | F-07 | SFF v2 | Required | Required | Partial | Link chains, palette links/group-index, tdata flag, depth fallback, RLE8/5/LZ5 |
 | F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo and signed 24-bit conversion |

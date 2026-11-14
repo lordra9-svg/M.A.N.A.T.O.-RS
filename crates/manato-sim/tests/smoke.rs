@@ -13047,6 +13047,23 @@ fn animation_pose_matches_current_frame_without_interpolation_markers() {
 }
 
 #[test]
+fn air_blend_interpolation_produces_midframe_alpha() {
+    let text = "[Begin Action 0]\n\
+                0,0, 0,0, 4, , a1\n\
+                Interpolate Blend\n\
+                0,1, 0,0, 4, , as64d32\n";
+    let anim = &manato_formats::air::parse_air_str(text)[0];
+    let pose = anim.pose_at(2).expect("pose");
+    assert!((pose.src_alpha - 159.5).abs() < 1e-4);
+    assert!((pose.dst_alpha - 80.0).abs() < 1e-4);
+    // Frame 1 has no blend marker toward the loop start, so it stays static.
+    let pose = anim.pose_at(6).expect("pose");
+    assert_eq!(pose.frame, 1);
+    assert_eq!(pose.src_alpha, 64.0);
+    assert_eq!(pose.dst_alpha, 32.0);
+}
+
+#[test]
 fn animation_time_loop_and_invalid_elem_edges() {
     let Some(mut sim) = fight_phase() else {
         return;

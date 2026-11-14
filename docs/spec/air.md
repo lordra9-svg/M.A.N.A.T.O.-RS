@@ -167,7 +167,10 @@ toward the marked frame over the preceding frame's duration:
   Ikemen-GO.
 - Infinite and zero-duration frames do not interpolate. Progress is 0 at the
   frame start and reaches 1 at its end.
-- `blend` markers are preserved, but alpha interpolation is not rendered yet.
+- `blend`: when the current frame defines a transparency, source and
+  destination alpha lerp toward the marked frame. Frames without a
+  transparency stay opaque, matching Ikemen-GO's `curtrans != TransNone`
+  guard.
 
 `Animation::pose_at` (clock-based) and `Animation::interpolated_pose`
 (frame-index-based) expose the result; the fighter, projectile, explod, and

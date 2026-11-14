@@ -39,12 +39,13 @@ impl Pose {
         }
     }
 
-    /// Pose from a frame plus interpolated offset/scale/angle.
+    /// Pose from a frame plus interpolated offset/scale/angle/alpha.
     fn from_pose(frame: &AnimFrame, pose: &manato_formats::FramePose) -> Self {
         Self {
             offset: pose.offset,
             scale: pose.scale,
             angle: pose.angle,
+            alpha: (pose.src_alpha / 255.0).clamp(0.0, 1.0),
             ..Self::from_frame(frame)
         }
     }
@@ -1261,6 +1262,21 @@ mod tests {
         // Sprite/flip/blend/alpha still come from the current frame.
         assert!(!pose.flip_h);
         assert_eq!(pose.blend, Blend::Normal);
+    }
+
+    #[test]
+    fn pose_interpolates_air_blend_alpha() {
+        let text = "[Begin Action 0]\n\
+                    0,0, 0,0, 4, , a1\n\
+                    Interpolate Blend\n\
+                    0,1, 0,0, 4, , as64d32\n";
+        let anim = &manato_formats::air::parse_air_str(text)[0];
+        let interpolated = anim.pose_at(2).expect("pose");
+        let frame = &anim.frames[interpolated.frame];
+        let pose = Pose::from_pose(frame, &interpolated);
+        assert!((pose.alpha - 159.5 / 255.0).abs() < 1e-5);
+        // Blend type still comes from the current frame.
+        assert_eq!(pose.blend, Blend::Add);
     }
 
     #[test]
