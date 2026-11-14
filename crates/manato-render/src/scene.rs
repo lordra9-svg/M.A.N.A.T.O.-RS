@@ -213,9 +213,12 @@ fn draw_bg_layer(
         state.offset.x + sin_offset(state.sin_x) + cos_offset(state.cos_x),
         state.offset.y + sin_offset(state.sin_y) + cos_offset(state.cos_y),
     );
+    let start = state.start.unwrap_or(layer.start);
+    let delta = state.delta.unwrap_or(layer.delta);
+    let scale = state.scale.unwrap_or(Vec2::new(1.0, 1.0));
     let base = Vec2::new(
-        layer.start.x - camera.x * layer.delta.x + camera.shake.x + motion.x,
-        layer.start.y - camera.y * layer.delta.y + camera.shake.y + motion.y,
+        start.x - camera.x * delta.x + camera.shake.x + motion.x,
+        start.y - camera.y * delta.y + camera.shake.y + motion.y,
     );
 
     let action = state.action.or(layer.action);
@@ -260,23 +263,20 @@ fn draw_bg_layer(
     let _ = anim;
 
     let blend = blend_of(layer.trans);
-    let (w, h) = (
-        sprite.width as f32 * layer.xscale,
-        sprite.height as f32 * layer.yscale,
-    );
+    let xscale = layer.xscale * scale.x;
+    let yscale = layer.yscale * scale.y;
+    let (w, h) = (sprite.width as f32 * xscale, sprite.height as f32 * yscale);
     let base_left = base.x
         + if pose.flip_h {
-            pose.offset.x
-                - (sprite.width as f32 * layer.xscale - sprite.axis_x as f32 * layer.xscale)
+            pose.offset.x - (sprite.width as f32 * xscale - sprite.axis_x as f32 * xscale)
         } else {
-            pose.offset.x - sprite.axis_x as f32 * layer.xscale
+            pose.offset.x - sprite.axis_x as f32 * xscale
         };
     let base_top = base.y
         + if pose.flip_v {
-            pose.offset.y
-                - (sprite.height as f32 * layer.yscale - sprite.axis_y as f32 * layer.yscale)
+            pose.offset.y - (sprite.height as f32 * yscale - sprite.axis_y as f32 * yscale)
         } else {
-            pose.offset.y - sprite.axis_y as f32 * layer.yscale
+            pose.offset.y - sprite.axis_y as f32 * yscale
         };
     let step_x = w + layer.tile_spacing.0 as f32;
     let step_y = h + layer.tile_spacing.1 as f32;
@@ -309,8 +309,8 @@ fn draw_bg_layer(
                 pose.flip_v,
                 blend,
                 [1.0, 1.0, 1.0, pose.alpha],
-                layer.xscale * pose.scale.x,
-                layer.yscale * pose.scale.y,
+                xscale * pose.scale.x,
+                yscale * pose.scale.y,
                 pose.angle,
             );
         }

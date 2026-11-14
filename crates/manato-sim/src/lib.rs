@@ -546,7 +546,7 @@ impl Default for EnvShake {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StageLayerState {
     pub offset: Vec2,
     pub velocity: Vec2,
@@ -557,6 +557,10 @@ pub struct StageLayerState {
     pub action: Option<i32>,
     pub visible: bool,
     pub enabled: bool,
+    /// Runtime `ModifyStageBG` overrides; `None` uses the layer definition.
+    pub start: Option<Vec2>,
+    pub delta: Option<Vec2>,
+    pub scale: Option<Vec2>,
 }
 
 impl StageLayerState {
@@ -571,6 +575,9 @@ impl StageLayerState {
             action: layer.action,
             visible: layer.visible,
             enabled: layer.enabled,
+            start: None,
+            delta: None,
+            scale: None,
         }
     }
 }
@@ -2686,6 +2693,22 @@ impl SimState {
             h.write_f32(layer.velocity.y);
             h.write_bool(layer.visible);
             h.write_bool(layer.enabled);
+            h.write_i32(layer.action.unwrap_or(i32::MIN));
+            h.write_bool(layer.start.is_some());
+            if let Some(start) = layer.start {
+                h.write_f32(start.x);
+                h.write_f32(start.y);
+            }
+            h.write_bool(layer.delta.is_some());
+            if let Some(delta) = layer.delta {
+                h.write_f32(delta.x);
+                h.write_f32(delta.y);
+            }
+            h.write_bool(layer.scale.is_some());
+            if let Some(scale) = layer.scale {
+                h.write_f32(scale.x);
+                h.write_f32(scale.y);
+            }
         }
         if let Some(color) = self.env_color {
             h.write_f32(color.color[0]);
@@ -3197,6 +3220,9 @@ mod stage_tests {
             action: None,
             visible: true,
             enabled: true,
+            start: None,
+            delta: None,
+            scale: None,
         }
     }
 

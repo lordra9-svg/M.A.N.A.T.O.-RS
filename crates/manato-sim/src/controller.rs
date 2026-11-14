@@ -271,6 +271,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
+        "modifystagebg" => modify_stage_bg(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1846,6 +1847,73 @@ fn shift_key(name: &str) -> Option<usize> {
         "z" => Some(9),
         "s" => Some(10),
         _ => None,
+    }
+}
+
+/// `ModifyStageBG` subset: selects stage layers by `id` (`-1` = every id) and
+/// `index` (`-1` = every layer), then overrides `actionno`, `velocity.x/y`,
+/// `delta.x/y`, `start.x/y`, and `scalestart`. `pos`, `layerno`, `spriteno`,
+/// `trans`, angles, shear, projection, and shaders are not modeled.
+fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(-1);
+    let index = int_param(sim, who, control, "index").unwrap_or(-1);
+    let targets: Vec<usize> = sim
+        .assets
+        .stage
+        .layers
+        .iter()
+        .enumerate()
+        .filter(|(position, layer)| {
+            (id < 0 || layer.id == id) && (index < 0 || *position as i32 == index)
+        })
+        .map(|(position, _)| position)
+        .collect();
+    if targets.is_empty() {
+        return;
+    }
+    let action = int_param(sim, who, control, "actionno");
+    let velocity_x = num_param(sim, who, control, "velocity.x");
+    let velocity_y = num_param(sim, who, control, "velocity.y");
+    let delta_x = num_param(sim, who, control, "delta.x");
+    let delta_y = num_param(sim, who, control, "delta.y");
+    let start_x = num_param(sim, who, control, "start.x");
+    let start_y = num_param(sim, who, control, "start.y");
+    let scale = control.get_pair("scalestart");
+    for position in targets {
+        let base = &sim.assets.stage.layers[position];
+        let state = &mut sim.stage_layers[position];
+        if let Some(action) = action {
+            state.action = Some(action);
+        }
+        if let Some(value) = velocity_x {
+            state.velocity.x = value;
+        }
+        if let Some(value) = velocity_y {
+            state.velocity.y = value;
+        }
+        if delta_x.is_some() || delta_y.is_some() {
+            let mut value = state.delta.unwrap_or(base.delta);
+            if let Some(x) = delta_x {
+                value.x = x;
+            }
+            if let Some(y) = delta_y {
+                value.y = y;
+            }
+            state.delta = Some(value);
+        }
+        if start_x.is_some() || start_y.is_some() {
+            let mut value = state.start.unwrap_or(base.start);
+            if let Some(x) = start_x {
+                value.x = x;
+            }
+            if let Some(y) = start_y {
+                value.y = y;
+            }
+            state.start = Some(value);
+        }
+        if let Some(scale) = scale {
+            state.scale = Some(Vec2::new(scale.0, scale.1));
+        }
     }
 }
 

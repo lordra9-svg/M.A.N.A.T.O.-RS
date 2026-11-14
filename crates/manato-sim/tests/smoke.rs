@@ -1857,6 +1857,67 @@ fn overrideclsn_replaces_adds_and_deletes_boxes() {
 }
 
 #[test]
+fn modifystagebg_overrides_layer_state() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let modify = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "modifystagebg".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    assert!(sim.stage_layers.len() >= 2);
+
+    // A single layer by index.
+    modify(
+        &mut sim,
+        vec![
+            ("index", "0"),
+            ("actionno", "1"),
+            ("velocity.x", "2"),
+            ("velocity.y", "3"),
+            ("delta.x", "0.5"),
+            ("start.x", "10"),
+            ("start.y", "20"),
+            ("scalestart", "0.5, 0.25"),
+        ],
+    );
+    let layer = sim.stage_layers[0].clone();
+    assert_eq!(layer.action, Some(1));
+    assert_eq!(layer.velocity, manato_core::Vec2::new(2.0, 3.0));
+    assert_eq!(layer.delta, Some(manato_core::Vec2::new(0.5, 1.0)));
+    assert_eq!(layer.start, Some(manato_core::Vec2::new(10.0, 20.0)));
+    assert_eq!(layer.scale, Some(manato_core::Vec2::new(0.5, 0.25)));
+
+    // A different index leaves the first layer alone.
+    let before = sim.stage_layers[0].clone();
+    modify(&mut sim, vec![("index", "1"), ("delta.y", "0")]);
+    assert_eq!(sim.stage_layers[0], before);
+    assert_eq!(
+        sim.stage_layers[1].delta,
+        Some(manato_core::Vec2::new(1.0, 0.0))
+    );
+
+    // id = -1, index = -1 applies to every layer.
+    modify(&mut sim, vec![("velocity.y", "9")]);
+    assert!(sim.stage_layers.iter().all(|layer| layer.velocity.y == 9.0));
+
+    // Unknown targets are a no-op.
+    let before: Vec<_> = sim.stage_layers.clone();
+    modify(&mut sim, vec![("index", "99"), ("velocity.x", "7")]);
+    assert_eq!(sim.stage_layers, before);
+    modify(&mut sim, vec![("id", "12345"), ("velocity.x", "7")]);
+    assert_eq!(sim.stage_layers, before);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;
