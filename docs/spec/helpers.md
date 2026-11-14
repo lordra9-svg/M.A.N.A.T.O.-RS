@@ -67,6 +67,9 @@ size.xscale / size.yscale
 Spawn rules:
 
 - The helper uses the owner’s `char_id` and sprite/animation/sound banks.
+- `name` sets the helper’s display name. The default is
+  `"<owner's character name>'s helper"`, matching Ikemen-GO; `HelperName`
+  reports it and reads empty for players.
 - Position is relative to `postype`; `pos.x` is facing-relative.
 - Facing defaults to the owner’s facing.
 - `stateno` is entered immediately.

@@ -1271,6 +1271,11 @@ fn is_trigger_name(name: &str) -> bool {
             | "hitdefattr"
             | "hitbyattr"
             | "helperindex"
+            | "helpername"
+            | "animplayerno"
+            | "spriteplayerno"
+            | "incustomstate"
+            | "incustomanim"
             | "id"
             | "hitfall"
             | "hitvel"
@@ -1524,6 +1529,15 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "teamside" => Value::Int(f.side as i32 + 1),
         "playerid" => Value::Int(who as i32 + 1),
         "id" => Value::Int(who as i32 + 1),
+        // Ikemen-GO reports the 1-based player number owning the animation
+        // bank. This engine decodes sprites from the same bank, so both
+        // triggers report that bank's owner.
+        "animplayerno" | "spriteplayerno" => {
+            Value::Int(f.anim_char_id.unwrap_or(f.char_id) as i32 + 1)
+        }
+        "helpername" => Value::Str(f.helper_name.clone().unwrap_or_default()),
+        "incustomstate" => Value::Bool(f.state_char_id.is_some_and(|id| id != f.char_id)),
+        "incustomanim" => Value::Bool(f.anim_char_id.is_some_and(|id| id != f.char_id)),
         "ishelper" => Value::Int(sim.is_helper(who) as i32),
         "numenemy" => Value::Int(1),
         "numexplod" => Value::Int(

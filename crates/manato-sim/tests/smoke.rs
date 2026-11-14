@@ -14800,6 +14800,90 @@ fn changeanim2_reads_another_players_animation_bank() {
 }
 
 #[test]
+fn ikemen_custom_bank_and_helper_name_triggers() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let p1_name = assets.characters[0].name().to_string();
+
+    // Players report empty helper names and their own animation bank.
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "HelperName").as_str(),
+        ""
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimPlayerNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "AnimPlayerNo"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SpritePlayerNo"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InCustomAnim"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InCustomState"), 0);
+
+    // Default helper name follows Ikemen-GO: "<owner's name>'s helper".
+    let spawn = |sim: &mut SimState, name: Option<&str>| {
+        let mut params = vec![
+            ("stateno".to_string(), "0".to_string()),
+            ("id".to_string(), "7".to_string()),
+            ("removetime".to_string(), "-1".to_string()),
+        ];
+        if let Some(name) = name {
+            params.push(("name".to_string(), name.to_string()));
+        }
+        let control = manato_formats::Controller {
+            kind: "helper".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+        sim.fighters.len() - 1
+    };
+    let helper = spawn(&mut sim, None);
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, helper, "HelperName").as_str(),
+        format!("{p1_name}'s helper")
+    );
+    let named = spawn(&mut sim, Some("Shadow"));
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, named, "HelperName").as_str(),
+        "Shadow"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "Helper(7), HelperName").as_str(),
+        format!("{p1_name}'s helper")
+    );
+
+    // ChangeAnim2 borrows P2's bank and marks the animation as custom.
+    let control = manato_formats::Controller {
+        kind: "changeanim2".into(),
+        params: vec![
+            ("value".into(), "0".into()),
+            ("readplayerid".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InCustomAnim"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimPlayerNo"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "SpritePlayerNo"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InCustomState"), 0);
+
+    // Plain ChangeAnim returns to the own bank and clears the flag.
+    let control = manato_formats::Controller {
+        kind: "changeanim".into(),
+        params: vec![("value".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "InCustomAnim"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimPlayerNo"), 1);
+
+    // A borrowed state bank is a custom state.
+    sim.fighters[1].state_char_id = Some(0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "InCustomState"), 1);
+    sim.fighters[1].state_char_id = None;
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "InCustomState"), 0);
+}
+
+#[test]
 fn sysvars_persist_across_rounds_and_pauses() {
     let Some(mut sim) = fight_phase() else {
         return;

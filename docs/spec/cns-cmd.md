@@ -202,11 +202,16 @@ missing redirect targets make the trigger false.
 
 - Time/animation: `Time`, `Anim`, `PrevAnim`, `AnimElem`, `AnimElemNo`,
   `AnimElemTime`, `AnimTime`, `AnimExist`, `SelfAnimExist`, `AnimLength`,
-  `AnimLoopCount`
+  `AnimLoopCount`, `AnimPlayerNo`, `SpritePlayerNo` (1-based owner of the
+  animation/sprite bank; sprites and animations share one bank here),
+  `InCustomAnim`
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
-  `PrevMoveType`, `Ctrl`, `Physics`, `SelfStateNoExist(n)`
+  `PrevMoveType`, `Ctrl`, `Physics`, `SelfStateNoExist(n)`,
+  `InCustomState`
+- Helpers: `IsHelper`, `HelperName` (helper display name; players read
+  empty)
 - Combat: `Alive`, `Life`, `LifeMax`, `Power`, `GetHitVar`, `HitOver`,
   `HitShakeOver`, `HitPauseTime`, `CanRecover`, `InGuardDist`, `MoveContact`,
   `MoveHit`, `MoveGuarded`, `HitCount`, `UniqHitCount`, `HitDefAttr`,

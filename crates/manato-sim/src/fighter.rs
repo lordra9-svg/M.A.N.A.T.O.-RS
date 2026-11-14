@@ -315,6 +315,8 @@ pub struct Fighter {
     pub parent: Option<usize>,
     pub root: Option<usize>,
     pub helper_id: i32,
+    /// Display name of a helper (`HelperName`); `None` for players.
+    pub helper_name: Option<String>,
     pub helper_remove_time: i32,
     pub helper_destroy: bool,
     /// `keyctrl` bits for helpers: 1 = state -1, 2 = state -2, 4 = state -3.
@@ -480,6 +482,7 @@ impl Fighter {
             parent: None,
             root: None,
             helper_id: 0,
+            helper_name: None,
             helper_remove_time: -1,
             helper_destroy: false,
             keyctrl: 7,
