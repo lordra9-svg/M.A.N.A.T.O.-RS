@@ -193,6 +193,8 @@ Supported redirect prefixes:
 - `parent`, `root`
 - `helper`, `target`, `partner`, `enemy`, `enemynear`
 - `playerid`, `playerindex`, `helperindex`
+- `player(n)` (1-based player slot: `player(1)` is P1, `player(2)` is P2;
+  out-of-range slots fall back to the current fighter)
 - `stateowner`
 
 A redirect applies to the following trigger or expression term. Invalid or
@@ -288,6 +290,7 @@ missing redirect targets make the trigger false.
   `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Round`, `RandomRange`, `Exp`,
   `Ln`, `Log(base, value)`, `Sqrt`, `Pow`,
   `AILevel`, `AILevelF`, `LocalCoordX`, `LocalCoordY`, `LocalCoord(x|y)`,
+  `Analog(axis)` (always 0: the engine samples digital input only),
   `Pi`, `E`, `Float(x)`
   Trigonometric functions take and return radians, as in the M.U.G.E.N
   expression reference.

@@ -1539,6 +1539,37 @@ fn stageconst_reads_stage_constant_section() {
 }
 
 #[test]
+fn analog_and_player_redirects() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // Digital-only input: every analog axis reads centered.
+    for axis in [
+        "leftx",
+        "lefty",
+        "rightx",
+        "righty",
+        "lefttrigger",
+        "righttrigger",
+    ] {
+        assert_eq!(
+            manato_sim::trigger::num(&sim, 0, &format!("Analog({axis})")),
+            0.0,
+            "{axis}"
+        );
+    }
+
+    // `Player(n)` is 1-based: Player(1) = P1, Player(2) = P2.
+    sim.fighters[0].life = 654;
+    sim.fighters[1].life = 321;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Player(1), Life"), 654);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Player(2), Life"), 321);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "Player(1), Life"), 654);
+    // Out-of-range slots fall back to the current fighter.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Player(3), Life"), 654);
+}
+
+#[test]
 fn env_shake_var_reads_active_shake() {
     let Some(mut sim) = fight_phase() else {
         return;

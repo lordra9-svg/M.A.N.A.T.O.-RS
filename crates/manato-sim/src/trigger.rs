@@ -114,6 +114,18 @@ fn redirect_target(sim: &SimState, who: usize, name: &str) -> usize {
             return who;
         }
     }
+    if let Some(rest) = lower.strip_prefix("player(") {
+        if let Some(value) = rest
+            .strip_suffix(')')
+            .and_then(|value| value.parse::<usize>().ok())
+        {
+            // `Player(n)` is 1-based; versus play has two player slots.
+            if value >= 1 && value <= sim.fighters.len().min(2) {
+                return value - 1;
+            }
+            return who;
+        }
+    }
     if lower == "enemy" || lower == "enemynear" || lower.starts_with("enemy(") {
         return sim.other(who);
     }
@@ -350,6 +362,9 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             Value::Float(value)
         }
         // `StageConst(key)` reads the stage DEF `[Constants]` section.
+        // `Analog(axis)` reads an analog stick axis. This engine samples
+        // digital inputs only, so every axis reads centered (0).
+        "analog" => Value::Int(0),
         "stageconst" => {
             let key = call_key(sim, who, args).to_ascii_lowercase();
             match sim.assets.stage.constants.get(&key) {
