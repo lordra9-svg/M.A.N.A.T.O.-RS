@@ -155,9 +155,23 @@ semantics and update the tests.
 
 ## 7. Interpolation
 
-`interpolate offset|scale|angle|blend` marks the frame where interpolation
-begins. Rendering interpolation is a separate renderer concern; the parser must
-preserve the marker positions.
+`interpolate offset|scale|angle|blend` is recorded against the index of the
+frame that follows the marker. During the preceding frame, rendering blends
+toward the marked frame over the preceding frame's duration:
+
+- `offset`: the current frame's offset moves linearly toward the next frame's
+  offset.
+- `scale`: the x/y scale lerps between the two frames.
+- `angle`: the angle lerps between the two frames.
+- At the last frame the interpolation target is `loopstart`, matching
+  Ikemen-GO.
+- Infinite and zero-duration frames do not interpolate. Progress is 0 at the
+  frame start and reaches 1 at its end.
+- `blend` markers are preserved, but alpha interpolation is not rendered yet.
+
+`Animation::pose_at` (clock-based) and `Animation::interpolated_pose`
+(frame-index-based) expose the result; the fighter, projectile, explod, and
+stage-BG renderers use them.
 
 ## 8. Error handling
 

@@ -16,7 +16,7 @@ pub mod snd;
 pub mod stage;
 pub mod text;
 
-pub use air::{AnimFrame, Animation, CollisionBox};
+pub use air::{AnimFrame, Animation, CollisionBox, FramePose};
 pub use character::{Character, EffectsBank};
 pub use cmd::{CmdFile, CommandDef, CommandStep};
 pub use cns::{Constants, Controller, StateDef, StateFile};

@@ -13027,6 +13027,26 @@ fn round_reset_carries_power_and_removes_helpers() {
 }
 
 #[test]
+fn animation_pose_matches_current_frame_without_interpolation_markers() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let character = &sim.assets.characters[sim.fighters[0].char_id];
+    let anim = character.animation(0).expect("standing animation");
+    assert!(anim.interpolate_offset.is_empty());
+    assert!(anim.interpolate_scale.is_empty());
+    assert!(anim.interpolate_angle.is_empty());
+    for time in 0..anim.total_time().max(1) {
+        let (frame_idx, _) = anim.frame_at(time).expect("frame");
+        let pose = anim.pose_at(time).expect("pose");
+        assert_eq!(pose.frame, frame_idx);
+        assert_eq!(pose.offset, anim.frames[frame_idx].offset);
+        assert_eq!(pose.scale, anim.frames[frame_idx].scale);
+        assert_eq!(pose.angle, anim.frames[frame_idx].angle);
+    }
+}
+
+#[test]
 fn animation_time_loop_and_invalid_elem_edges() {
     let Some(mut sim) = fight_phase() else {
         return;

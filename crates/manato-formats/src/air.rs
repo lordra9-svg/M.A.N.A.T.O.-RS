@@ -98,7 +98,70 @@ pub struct Animation {
     pub copy_action: Option<i32>,
 }
 
+/// Draw parameters for one animation frame with `Interpolate` markers
+/// applied. `offset`, `scale`, and `angle` blend toward the next frame over
+/// the current frame's duration.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FramePose {
+    pub frame: usize,
+    /// Elapsed ticks inside the frame.
+    pub elapsed: i32,
+    pub offset: Vec2,
+    pub scale: Vec2,
+    pub angle: f32,
+}
+
 impl Animation {
+    /// Pose for the frame at `elapsed`, applying interpolation markers.
+    pub fn pose_at(&self, elapsed: i32) -> Option<FramePose> {
+        let (frame, frame_time) = self.frame_at(elapsed)?;
+        self.interpolated_pose(frame, frame_time)
+    }
+
+    /// Pose for a known frame index and elapsed ticks inside it. A marker
+    /// recorded before the following frame blends `offset`/`scale`/`angle`
+    /// from this frame toward that frame; the last frame blends toward
+    /// `loop_start`, matching Ikemen-GO.
+    pub fn interpolated_pose(&self, frame_index: usize, elapsed: i32) -> Option<FramePose> {
+        let frame = self.frames.get(frame_index)?;
+        let mut pose = FramePose {
+            frame: frame_index,
+            elapsed,
+            offset: frame.offset,
+            scale: frame.scale,
+            angle: frame.angle,
+        };
+        // Infinite/zero-length frames and single-frame actions do not
+        // interpolate.
+        if frame.duration <= 0 || elapsed <= 0 || self.frames.len() < 2 {
+            return Some(pose);
+        }
+        let next = if frame_index + 1 < self.frames.len() {
+            frame_index + 1
+        } else {
+            self.loop_start.min(self.frames.len().saturating_sub(1))
+        };
+        let Some(target) = self.frames.get(next) else {
+            return Some(pose);
+        };
+        let progress = (elapsed as f32 / frame.duration as f32).clamp(0.0, 1.0);
+        if progress <= 0.0 {
+            return Some(pose);
+        }
+        if self.interpolate_offset.contains(&next) {
+            pose.offset.x += (target.offset.x - frame.offset.x) * progress;
+            pose.offset.y += (target.offset.y - frame.offset.y) * progress;
+        }
+        if self.interpolate_scale.contains(&next) {
+            pose.scale.x += (target.scale.x - frame.scale.x) * progress;
+            pose.scale.y += (target.scale.y - frame.scale.y) * progress;
+        }
+        if self.interpolate_angle.contains(&next) {
+            pose.angle += (target.angle - frame.angle) * progress;
+        }
+        Some(pose)
+    }
+
     pub fn total_time(&self) -> i32 {
         self.frames.iter().fold(0, |acc, frame| {
             acc.saturating_add(frame.effective_duration())
@@ -571,22 +634,87 @@ Clsn2: 1
     }
 
     #[test]
-    fn records_interpolation_markers_per_directive() {
-        let text = "[Begin Action 0]\n0,0, 0,0, 2\n\
-                    Interpolate Offset\nInterpolate Scale\n\
-                    Interpolate Angle\nInterpolate Blend\n\
-                    0,1, 0,0, 2\n0,2, 0,0, 2\n";
-        let animation = &parse_air_str(text)[0];
-        assert_eq!(animation.frames.len(), 3);
-        assert_eq!(animation.interpolate_offset, vec![1]);
-        assert_eq!(animation.interpolate_scale, vec![1]);
-        assert_eq!(animation.interpolate_angle, vec![1]);
-        assert_eq!(animation.interpolate_blend, vec![1]);
+    fn pose_at_interpolates_marked_offset_scale_angle() {
+        let text = "[Begin Action 0]\n\
+                    0,0, 0,0, 4, , , 1,1, 0\n\
+                    Interpolate Offset\nInterpolate Scale\nInterpolate Angle\n\
+                    0,1, 8,16, 4, , , 2,2, 90\n\
+                    0,2, 8,16, 4\n";
+        let anim = &parse_air_str(text)[0];
 
-        let text = "[Begin Action 0]\n0,0, 0,0, 2\n0,1, 0,0, 2\n\
-                    interpolate offset\n0,2, 0,0, 2\n";
-        let animation = &parse_air_str(text)[0];
-        assert_eq!(animation.interpolate_offset, vec![2]);
-        assert!(animation.interpolate_scale.is_empty());
+        // Frame 0 start: untouched values.
+        let pose = anim.pose_at(0).expect("pose");
+        assert_eq!(pose.frame, 0);
+        assert_eq!(pose.offset, Vec2::ZERO);
+        assert_eq!(pose.scale, Vec2::new(1.0, 1.0));
+        assert_eq!(pose.angle, 0.0);
+
+        // Halfway through frame 0: halfway toward frame 1.
+        let pose = anim.pose_at(2).expect("pose");
+        assert_eq!(pose.frame, 0);
+        assert!((pose.offset.x - 4.0).abs() < 1e-5);
+        assert!((pose.offset.y - 8.0).abs() < 1e-5);
+        assert!((pose.scale.x - 1.5).abs() < 1e-5);
+        assert!((pose.scale.y - 1.5).abs() < 1e-5);
+        assert!((pose.angle - 45.0).abs() < 1e-5);
+
+        // Frame 1 start: its own values.
+        let pose = anim.pose_at(4).expect("pose");
+        assert_eq!(pose.frame, 1);
+        assert_eq!(pose.offset, Vec2::new(8.0, 16.0));
+        assert_eq!(pose.scale, Vec2::new(2.0, 2.0));
+        assert_eq!(pose.angle, 90.0);
+
+        // Frame 1 has no marker for frame 2, so values stay fixed.
+        let pose = anim.pose_at(6).expect("pose");
+        assert_eq!(pose.frame, 1);
+        assert_eq!(pose.offset, Vec2::new(8.0, 16.0));
+        assert_eq!(pose.scale, Vec2::new(2.0, 2.0));
+        assert_eq!(pose.angle, 90.0);
+    }
+
+    #[test]
+    fn pose_at_wraps_last_frame_interpolation_to_loop_start() {
+        // The marker before frame 0 applies when the last frame walks to the
+        // loop start.
+        let text = "[Begin Action 0]\nloopstart\n\
+                    Interpolate Offset\n\
+                    0,0, 0,0, 2\n\
+                    0,1, 20,10, 2\n";
+        let anim = &parse_air_str(text)[0];
+        assert_eq!(anim.loop_start, 0);
+        assert_eq!(anim.interpolate_offset, vec![0]);
+
+        let pose = anim.pose_at(2).expect("pose");
+        assert_eq!(pose.frame, 1);
+        assert_eq!(pose.elapsed, 0);
+        assert_eq!(pose.offset, Vec2::new(20.0, 10.0));
+
+        let pose = anim.pose_at(3).expect("pose");
+        assert_eq!(pose.frame, 1);
+        assert!((pose.offset.x - 10.0).abs() < 1e-5);
+        assert!((pose.offset.y - 5.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn pose_at_without_markers_or_for_infinite_frames_is_static() {
+        let text = "[Begin Action 0]\n\
+                    0,0, 4,6, 4, , , 1,1, 0\n\
+                    0,1, 8,10, 4, , , 2,2, 90\n";
+        let anim = &parse_air_str(text)[0];
+        let pose = anim.pose_at(2).expect("pose");
+        assert_eq!(pose.frame, 0);
+        assert_eq!(pose.offset, Vec2::new(4.0, 6.0));
+        assert_eq!(pose.scale, Vec2::new(1.0, 1.0));
+        assert_eq!(pose.angle, 0.0);
+
+        let text = "[Begin Action 0]\n\
+                    Interpolate Scale\n\
+                    0,0, 0,0, -1, , , 1,1, 0\n\
+                    0,1, 0,0, 4, , , 2,2, 90\n";
+        let anim = &parse_air_str(text)[0];
+        let pose = anim.pose_at(3).expect("pose");
+        assert_eq!(pose.frame, 0);
+        assert_eq!(pose.scale, Vec2::new(1.0, 1.0));
     }
 }

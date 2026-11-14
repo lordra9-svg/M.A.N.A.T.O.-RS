@@ -38,6 +38,16 @@ impl Pose {
             angle: frame.angle,
         }
     }
+
+    /// Pose from a frame plus interpolated offset/scale/angle.
+    fn from_pose(frame: &AnimFrame, pose: &manato_formats::FramePose) -> Self {
+        Self {
+            offset: pose.offset,
+            scale: pose.scale,
+            angle: pose.angle,
+            ..Self::from_frame(frame)
+        }
+    }
 }
 
 fn blend_of(blend: BlendMode) -> Blend {
@@ -237,15 +247,14 @@ fn draw_bg_layer(
     let action = state.action.or(layer.action);
     let (sprite, pose, anim) = if let Some(action) = action {
         if let Some(anim) = stage.animations.get(&action) {
-            let frame_idx = anim
-                .frame_at(sim.bg_time as i32)
-                .map(|(i, _)| i)
-                .unwrap_or(0);
-            let frame = anim.frames.get(frame_idx);
-            let (group, index, pose) = match frame {
-                Some(f) => (f.group, f.index, Pose::from_frame(f)),
-                None => return,
+            let Some(interpolated) = anim.pose_at(sim.bg_time as i32) else {
+                return;
             };
+            let Some(frame) = anim.frames.get(interpolated.frame) else {
+                return;
+            };
+            let (group, index) = (frame.group, frame.index);
+            let pose = Pose::from_pose(frame, &interpolated);
             let Some(sprite) = stage.sprites.get(group, index) else {
                 return;
             };
@@ -353,16 +362,16 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         let Some(anim) = char.animation(projectile.anim) else {
             continue;
         };
-        let Some((frame_idx, _)) = anim.frame_at(projectile.time) else {
+        let Some(interpolated) = anim.pose_at(projectile.time) else {
             continue;
         };
-        let Some(frame) = anim.frames.get(frame_idx) else {
+        let Some(frame) = anim.frames.get(interpolated.frame) else {
             continue;
         };
         let Some(sprite) = char.sprites.get(frame.group, frame.index) else {
             continue;
         };
-        let pose = Pose::from_frame(frame);
+        let pose = Pose::from_pose(frame, &interpolated);
         let zoom = sim.camera.scale;
         let anchor = sim.screen_pos(projectile.pos);
         let scale = Vec2::new(
@@ -641,7 +650,11 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         return;
     }
     let character: &Character = &sim.assets.characters[fighter.char_id];
-    let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
+    let anim_character = sim.anim_character(who);
+    let Some(anim) = anim_character.animation(fighter.anim_no) else {
+        return;
+    };
+    let Some(frame) = anim.frames.get(fighter.anim_frame) else {
         return;
     };
     let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
@@ -654,14 +667,17 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         character.constants.get_or("size.xscale", 1.0) * fighter.size_xscale,
         character.constants.get_or("size.yscale", 1.0) * fighter.size_yscale,
     );
-    let pose = Pose::from_frame(frame);
+    let elapsed = fighter.anim_elem_time(anim_character, fighter.anim_elem());
+    let pose = anim
+        .interpolated_pose(fighter.anim_frame, elapsed)
+        .map(|interpolated| Pose::from_pose(frame, &interpolated))
+        .unwrap_or_else(|| Pose::from_frame(frame));
     let zoom = sim.camera.scale;
     let scale = Vec2::new(
         base_scale.x * pose.scale.x * zoom,
         base_scale.y * pose.scale.y * zoom,
     );
 
-    let anim_character = sim.anim_character(who);
     for ghost in &fighter.after_images {
         let Some(anim) = anim_character.animation(ghost.anim_no) else {
             continue;
@@ -834,10 +850,10 @@ fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
     } else {
         effect.time + start
     };
-    let Some((frame_idx, _)) = anim.frame_at(time) else {
+    let Some(interpolated) = anim.pose_at(time) else {
         return;
     };
-    let Some(frame) = anim.frames.get(frame_idx) else {
+    let Some(frame) = anim.frames.get(interpolated.frame) else {
         return;
     };
     let Some(sprite) = effect_sprite(sim, effect, frame.group, frame.index) else {
@@ -1225,6 +1241,26 @@ mod tests {
         assert!((color[1] - 0.4).abs() < 1e-5);
         assert!((color[2] - 1.0).abs() < 1e-5);
         assert!((color[3] - 0.4).abs() < 1e-5);
+    }
+
+    #[test]
+    fn pose_interpolates_air_markers() {
+        let text = "[Begin Action 0]\n\
+                    0,0, 0,0, 4, , , 1,1, 0\n\
+                    Interpolate Offset\nInterpolate Scale\nInterpolate Angle\n\
+                    0,1, 8,16, 4, , , 2,2, 90\n";
+        let anim = &manato_formats::air::parse_air_str(text)[0];
+        let interpolated = anim.pose_at(2).expect("pose");
+        let frame = &anim.frames[interpolated.frame];
+        let pose = Pose::from_pose(frame, &interpolated);
+        assert!((pose.offset.x - 4.0).abs() < 1e-5);
+        assert!((pose.offset.y - 8.0).abs() < 1e-5);
+        assert!((pose.scale.x - 1.5).abs() < 1e-5);
+        assert!((pose.scale.y - 1.5).abs() < 1e-5);
+        assert!((pose.angle - 45.0).abs() < 1e-5);
+        // Sprite/flip/blend/alpha still come from the current frame.
+        assert!(!pose.flip_h);
+        assert_eq!(pose.blend, Blend::Normal);
     }
 
     #[test]
