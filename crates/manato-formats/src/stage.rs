@@ -265,6 +265,9 @@ pub struct Stage {
     pub music: MusicDef,
     pub sprites: SffFile,
     pub animations: HashMap<i32, Animation>,
+    /// Raw `[Constants]` values (`StageConst(key)`); numeric values parse on
+    /// read and other values are returned as strings.
+    pub constants: HashMap<String, String>,
     pub layers: Vec<BgLayer>,
     pub bg_ctrls: Vec<BgCtrl>,
     pub path: PathBuf,
@@ -301,6 +304,18 @@ impl Stage {
                         sprites = SffFile::load(&candidate).unwrap_or_default();
                         break;
                     }
+                }
+            }
+        }
+
+        let mut constants = HashMap::new();
+        for section in &def.text.sections {
+            if section.kind() == "constants" {
+                for entry in &section.entries {
+                    constants.insert(
+                        entry.key.trim().to_ascii_lowercase(),
+                        entry.value.trim().to_string(),
+                    );
                 }
             }
         }
@@ -469,6 +484,7 @@ impl Stage {
             },
             sprites,
             animations,
+            constants,
             layers,
             bg_ctrls,
             path: path.to_path_buf(),

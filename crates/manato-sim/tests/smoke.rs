@@ -1484,6 +1484,61 @@ fn animelemvar_reads_current_frame_properties() {
 }
 
 #[test]
+fn stageconst_reads_stage_constant_section() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/stages/training");
+    if !source.join("stage1.def").exists() {
+        eprintln!("skipping: bundled stage missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-stageconst-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp stage dir");
+    for entry in std::fs::read_dir(&source).expect("read stage dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy stage file");
+        }
+    }
+    let def = dir.join("stage1.def");
+    let mut text = std::fs::read_to_string(&def).expect("read stage def");
+    text.push_str("\n[Constants]\nstage.test = 7\nstage.name = \"Arena\"\n");
+    std::fs::write(&def, text).expect("patch stage def");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: project.join("content/chars/kaen/kaen.def"),
+        p2: project.join("content/chars/nival/nival.def"),
+        stage: def.clone(),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let sim = match SimState::load(&config) {
+        Ok(sim) => sim,
+        Err(error) => {
+            eprintln!("skipping: {error}");
+            return;
+        }
+    };
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageConst(stage.test)"),
+        7.0
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "StageConst(stage.name)").as_str(),
+        "Arena"
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "StageConst(missing)"),
+        0.0
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn env_shake_var_reads_active_shake() {
     let Some(mut sim) = fight_phase() else {
         return;

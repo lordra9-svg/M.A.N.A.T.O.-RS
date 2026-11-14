@@ -349,6 +349,20 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let value = sim.character(who).constants.get(&key).unwrap_or(0.0);
             Value::Float(value)
         }
+        // `StageConst(key)` reads the stage DEF `[Constants]` section.
+        "stageconst" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            match sim.assets.stage.constants.get(&key) {
+                Some(raw) => {
+                    let trimmed = raw.trim();
+                    match trimmed.parse::<f32>() {
+                        Ok(value) => Value::Float(value),
+                        Err(_) => Value::Str(trimmed.trim_matches('"').to_string()),
+                    }
+                }
+                None => Value::Int(0),
+            }
+        }
         "ifelse" | "cond" => {
             if args.len() >= 3 && eval(sim, who, &args[0]).truthy() {
                 eval(sim, who, &args[1])

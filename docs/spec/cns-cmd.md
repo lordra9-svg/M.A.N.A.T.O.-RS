@@ -280,6 +280,8 @@ missing redirect targets make the trigger false.
   `playerinfo.leftbound`/`rightbound`; other keys are unmodeled and read
   as `0`), `Name`, `DisplayName`, `AuthorName`,
   `NumStageBG(id)` (`id < 0` counts every layer), `Const`,
+  `StageConst(key)` (stage DEF `[Constants]` values; numeric values read as
+  numbers, other values as strings, missing keys as `0`),
   `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Cond`, `Clamp`, `Lerp`, `Sign`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,
