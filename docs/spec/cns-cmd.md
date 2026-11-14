@@ -258,6 +258,9 @@ missing redirect targets make the trigger false.
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
   `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,
+  `AnimElemVar(field)` (current animation-frame fields: `alphadest`,
+  `alphasource`, `angle`, `group`, `hflip`, `vflip`, `image`, `time`,
+  `xoffset`, `yoffset`, `xscale`, `yscale`, `numclsn1`, `numclsn2`),
   `EnvShakeVar(time|freq|ampl|dir|phase|diradd|decay)`,
   `PalfxVar(time|add.r|add.g|add.b|mul.r|mul.g|mul.b)` (reads the effective
   local `PalFX`; `add` is 0–255, `mul` is 0–256 with 256 as identity, and

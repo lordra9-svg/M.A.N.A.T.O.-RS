@@ -545,6 +545,33 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                     .any(|left| b.iter().any(|right| left.intersects(*right))),
             )
         }
+        // `AnimElemVar(field)` reports properties of the current animation
+        // frame (Ikemen-GO `AnimFrame` fields).
+        "animelemvar" => {
+            let field = call_key(sim, who, args).to_ascii_lowercase();
+            let fighter = &sim.fighters[who];
+            let character = sim.anim_character(who);
+            let Some(frame) = fighter.current_frame(character) else {
+                return Value::Int(0);
+            };
+            match field.as_str() {
+                "alphadest" => Value::Int(frame.dst_alpha as i32),
+                "alphasource" => Value::Int(frame.src_alpha as i32),
+                "angle" => Value::Float(frame.angle),
+                "group" => Value::Int(frame.group),
+                "hflip" => Value::Bool(frame.flip_h),
+                "vflip" => Value::Bool(frame.flip_v),
+                "image" => Value::Int(frame.index),
+                "time" => Value::Int(fighter.anim_elem_time(character, fighter.anim_elem())),
+                "xoffset" => Value::Int(frame.offset.x as i32),
+                "yoffset" => Value::Int(frame.offset.y as i32),
+                "xscale" => Value::Float(frame.scale.x),
+                "yscale" => Value::Float(frame.scale.y),
+                "numclsn1" => Value::Int(frame.clsn1.len() as i32),
+                "numclsn2" => Value::Int(frame.clsn2.len() as i32),
+                _ => Value::Int(0),
+            }
+        }
         // `ClsnVar(group, index, field)` reports a local collision-box edge
         // for the current animation frame. Clsn1/Clsn2 are modeled; the
         // `size`/`dummy` groups are not, and a missing box reads 0.

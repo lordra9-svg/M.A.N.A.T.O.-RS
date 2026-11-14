@@ -1456,6 +1456,34 @@ fn clsnvar_reads_local_collision_edges() {
 }
 
 #[test]
+fn animelemvar_reads_current_frame_properties() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // Kaen action 0 frame 1: group 0, image 1, zero offset, 8-tick duration.
+    sim.fighters[0].anim_frame = 1;
+    sim.fighters[0].anim_time = 12;
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    assert_eq!(num(&sim, "AnimElemVar(group)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(image)"), 1.0);
+    assert_eq!(num(&sim, "AnimElemVar(time)"), 4.0);
+    assert_eq!(num(&sim, "AnimElemVar(xoffset)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(yoffset)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(xscale)"), 1.0);
+    assert_eq!(num(&sim, "AnimElemVar(yscale)"), 1.0);
+    assert_eq!(num(&sim, "AnimElemVar(angle)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(hflip)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(vflip)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(numclsn1)"), 0.0);
+    assert_eq!(num(&sim, "AnimElemVar(numclsn2)"), 1.0);
+    // Opaque frame: source alpha 255, destination alpha 0.
+    assert_eq!(num(&sim, "AnimElemVar(alphasource)"), 255.0);
+    assert_eq!(num(&sim, "AnimElemVar(alphadest)"), 0.0);
+    // Unknown fields read 0.
+    assert_eq!(num(&sim, "AnimElemVar(bogus)"), 0.0);
+}
+
+#[test]
 fn env_shake_var_reads_active_shake() {
     let Some(mut sim) = fight_phase() else {
         return;
