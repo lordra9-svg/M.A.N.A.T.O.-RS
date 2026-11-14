@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use manato_core::{Buttons, Dir8, PlayerInput, Rect, Vec2};
+use manato_core::{Buttons, Dir8, PlayerInput, Rect, Vec2, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
 use manato_formats::{Animation, Character, CommandDef, CommandStep, StateDef};
 
 use crate::expr::Value;
@@ -276,6 +276,9 @@ pub struct Fighter {
     /// Per-tick `OverrideClsn` entries. Groups 1–4 mirror Ikemen (Clsn1,
     /// Clsn2, size, dummy); only the first two affect this engine.
     pub clsn_overrides: [Vec<ClsnOverride>; 4],
+    /// Per-tick `ShiftInput` key remapping. Index 0–3 are U/D/L/R, 4–10 are
+    /// a/b/c/x/y/z/s. `None` disables the source key.
+    pub input_shift: Vec<(usize, Option<usize>)>,
     /// Per-tick `ModifyReflection` overrides; `None` uses the stage reflection.
     pub reflection_intensity: Option<i32>,
     pub reflection_color: Option<[u8; 3]>,
@@ -456,6 +459,7 @@ impl Fighter {
             transform_projection: crate::ProjectionMode::Orthographic,
             clsn_transforms: [Vec::new(), Vec::new()],
             clsn_overrides: std::array::from_fn(|_| Vec::new()),
+            input_shift: Vec::new(),
             reflection_intensity: None,
             reflection_color: None,
             reflection_offset: Vec2::ZERO,
@@ -546,7 +550,58 @@ impl Fighter {
         self.history.back().map(|h| h.input).unwrap_or_default()
     }
 
+    /// Applies per-tick `ShiftInput` mappings to a raw input frame. Unmapped
+    /// keys pass through; a `None` target disables the source key.
+    fn apply_input_shift(&self, input: PlayerInput) -> PlayerInput {
+        if self.input_shift.is_empty() {
+            return input;
+        }
+        const KEYS: [u8; 11] = [
+            DIR_UP,
+            DIR_DOWN,
+            DIR_LEFT,
+            DIR_RIGHT,
+            Buttons::A,
+            Buttons::B,
+            Buttons::C,
+            Buttons::X,
+            Buttons::Y,
+            Buttons::Z,
+            Buttons::START,
+        ];
+        let mut out = PlayerInput::default();
+        for (index, mask) in KEYS.iter().enumerate() {
+            let active = if index < 4 {
+                input.dir & mask != 0
+            } else {
+                input.buttons & mask != 0
+            };
+            if !active {
+                continue;
+            }
+            let target = match self
+                .input_shift
+                .iter()
+                .rev()
+                .find(|(source, _)| *source == index)
+            {
+                Some((_, target)) => *target,
+                None => Some(index),
+            };
+            let Some(target) = target else {
+                continue;
+            };
+            if target < 4 {
+                out.dir |= KEYS[target];
+            } else if target < KEYS.len() {
+                out.buttons |= KEYS[target];
+            }
+        }
+        out
+    }
+
     pub fn append_input(&mut self, input: PlayerInput, pause_bits: u8) {
+        let input = self.apply_input_shift(input);
         let prev = self.history.back().copied();
         let dir = Dir8::relative(input, self.facing);
         let prev_dir = prev.map(|p| p.dir).unwrap_or(Dir8::Neutral);

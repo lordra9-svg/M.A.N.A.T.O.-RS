@@ -270,6 +270,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformsprite" => transform_sprite(sim, who, control),
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
+        "shiftinput" => shift_input(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1767,6 +1768,60 @@ fn override_clsn(sim: &mut SimState, who: usize, control: &Controller) {
             overrides[(group - 1) as usize].push(crate::fighter::ClsnOverride { index, rect });
         }
         _ => {}
+    }
+}
+
+/// `ShiftInput`: per-tick key remapping applied to the next input frame.
+/// `input = none, output = none` clears every mapping; an `output` of `none`
+/// disables the source key.
+fn shift_input(sim: &mut SimState, who: usize, control: &Controller) {
+    let input_name = control
+        .get("input")
+        .map(|value| value.trim())
+        .unwrap_or_default();
+    let output_name = control
+        .get("output")
+        .map(|value| value.trim())
+        .unwrap_or_default();
+    let source = shift_key(input_name);
+    let target = if output_name.eq_ignore_ascii_case("none") {
+        Some(None)
+    } else {
+        shift_key(output_name).map(Some)
+    };
+    let shifts = &mut sim.fighters[who].input_shift;
+    let Some(source) = source else {
+        if matches!(target, Some(None)) {
+            shifts.clear();
+        }
+        return;
+    };
+    let Some(target) = target else {
+        return;
+    };
+    if let Some(entry) = shifts.iter_mut().find(|(key, _)| *key == source) {
+        entry.1 = target;
+    } else {
+        shifts.push((source, target));
+    }
+}
+
+/// `ShiftInput` key indices: 0–3 U/D/L/R, 4–10 a/b/c/x/y/z/s. The
+/// Ikemen-only d/w/m buttons have no input bits here and are unmapped.
+fn shift_key(name: &str) -> Option<usize> {
+    match name {
+        "U" => Some(0),
+        "D" => Some(1),
+        "L" => Some(2),
+        "R" => Some(3),
+        "a" => Some(4),
+        "b" => Some(5),
+        "c" => Some(6),
+        "x" => Some(7),
+        "y" => Some(8),
+        "z" => Some(9),
+        "s" => Some(10),
+        _ => None,
     }
 }
 

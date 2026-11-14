@@ -1180,6 +1180,7 @@ impl SimState {
             for overrides in &mut fighter.clsn_overrides {
                 overrides.clear();
             }
+            fighter.input_shift.clear();
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2740,6 +2741,11 @@ impl SimState {
                         h.write_f32(value);
                     }
                 }
+            }
+            h.write_u32(f.input_shift.len() as u32);
+            for (source, target) in &f.input_shift {
+                h.write_u32(*source as u32);
+                h.write_i32(target.map(|value| value as i32).unwrap_or(-1));
             }
             h.write_f32(f.vel.x);
             h.write_f32(f.vel.y);

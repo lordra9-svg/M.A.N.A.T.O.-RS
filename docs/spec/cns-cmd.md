@@ -136,6 +136,11 @@ Required controller families for the approved matrix:
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a
   new box; `ClsnVar` and hit detection see the result)
+- `ShiftInput` (per-tick key remap, applied to the next input frame:
+  `input`/`output` accept `U`/`D`/`L`/`R` and `a`–`c`, `x`–`z`, `s`;
+  `output = none` disables the source, `input = none, output = none` clears
+  all mappings. `B`/`F` and the unmodeled `d`/`w`/`m` buttons are not
+  accepted)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

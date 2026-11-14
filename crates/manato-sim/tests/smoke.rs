@@ -1857,6 +1857,100 @@ fn overrideclsn_replaces_adds_and_deletes_boxes() {
 }
 
 #[test]
+fn shiftinput_remaps_next_frame_inputs() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let shift = |sim: &mut SimState, input: &str, output: &str| {
+        let control = manato_formats::Controller {
+            kind: "shiftinput".into(),
+            params: vec![
+                ("input".into(), input.into()),
+                ("output".into(), output.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let last_input = |sim: &SimState| sim.fighters[0].history.back().unwrap().input;
+
+    // a -> b.
+    shift(&mut sim, "a", "b");
+    sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::A), 0);
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::B,
+        manato_core::Buttons::B
+    );
+    assert_eq!(last_input(&sim).buttons & manato_core::Buttons::A, 0);
+
+    // Unmapped keys pass through alongside the remapped key.
+    shift(&mut sim, "a", "b");
+    sim.fighters[0].append_input(
+        PlayerInput::new(0, manato_core::Buttons::X | manato_core::Buttons::A),
+        0,
+    );
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::X,
+        manato_core::Buttons::X
+    );
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::B,
+        manato_core::Buttons::B
+    );
+    assert_eq!(last_input(&sim).buttons & manato_core::Buttons::A, 0);
+
+    // Directions remap too: L -> R.
+    shift(&mut sim, "L", "R");
+    sim.fighters[0].append_input(PlayerInput::new(manato_core::DIR_LEFT, 0), 0);
+    assert_eq!(
+        last_input(&sim).dir & manato_core::DIR_RIGHT,
+        manato_core::DIR_RIGHT
+    );
+    assert_eq!(last_input(&sim).dir & manato_core::DIR_LEFT, 0);
+
+    // output = none disables the source key.
+    shift(&mut sim, "x", "none");
+    sim.fighters[0].append_input(
+        PlayerInput::new(0, manato_core::Buttons::X | manato_core::Buttons::Y),
+        0,
+    );
+    assert_eq!(last_input(&sim).buttons & manato_core::Buttons::X, 0);
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::Y,
+        manato_core::Buttons::Y
+    );
+
+    // input = none, output = none clears every mapping.
+    shift(&mut sim, "none", "none");
+    sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::X), 0);
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::X,
+        manato_core::Buttons::X
+    );
+
+    // A mapping applies to the following tick and resets afterwards.
+    shift(&mut sim, "x", "y");
+    sim.tick([
+        PlayerInput::new(0, manato_core::Buttons::X),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::Y,
+        manato_core::Buttons::Y
+    );
+    assert_eq!(last_input(&sim).buttons & manato_core::Buttons::X, 0);
+    sim.tick([
+        PlayerInput::new(0, manato_core::Buttons::X),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::X,
+        manato_core::Buttons::X
+    );
+}
+
+#[test]
 fn projclsnoverlap_checks_projectile_boxes() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -12387,7 +12481,7 @@ fn ikemen_movecountered_and_movehitvar_triggers() {
 
 #[test]
 fn inputtime_reports_held_and_released_counters() {
-    use manato_core::{Buttons, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+    use manato_core::{DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
     let Some(mut sim) = fight_phase() else {
         return;
     };
@@ -12417,7 +12511,7 @@ fn inputtime_reports_held_and_released_counters() {
     // Buttons use the same held/released counter.
     sim.fighters[0].history.clear();
     for _ in 0..2 {
-        sim.fighters[0].append_input(PlayerInput::new(0, Buttons::X), 0);
+        sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::X), 0);
     }
     assert_eq!(int(&sim, "InputTime(x)"), 2);
     for _ in 0..3 {
