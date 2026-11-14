@@ -272,6 +272,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
         "modifystagebg" => modify_stage_bg(sim, who, control),
+        "modifybgctrl" => modify_bg_ctrl(sim, who, control),
         "allpalfx" => {
             let pal = parse_global_pal(sim, who, control);
             sim.all_pal = pal;
@@ -1949,6 +1950,106 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
             state.scale = Some(Vec2::new(scale.0, scale.1));
         }
     }
+}
+
+/// `ModifyBGCtrl` subset: matches controllers by their `sctrlid` and updates
+/// the run window (`time = start[, end[, loop]]`), `value`, and `x`/`y`.
+/// Palette/shader parameters are not modeled. Stage controllers without an
+/// `sctrlid` use id 0, matching Ikemen's default.
+fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    let times = int_param_list(sim, who, control, "time", 3);
+    let values = int_param_list(sim, who, control, "value", 3);
+    let x = num_param(sim, who, control, "x");
+    let y = num_param(sim, who, control, "y");
+    if times.is_empty() && values.is_empty() && x.is_none() && y.is_none() {
+        return;
+    }
+    for ctrl in &mut sim.bg_ctrls {
+        if ctrl.controller.get_i32("sctrlid").unwrap_or(0) != id {
+            continue;
+        }
+        if let Some(Some(value)) = times.first() {
+            ctrl.start = *value;
+        }
+        if let Some(Some(value)) = times.get(1) {
+            ctrl.end = *value;
+        }
+        if let Some(Some(value)) = times.get(2) {
+            ctrl.loop_period = *value;
+        }
+        if !values.is_empty() {
+            let mut current: Vec<i32> = ctrl
+                .controller
+                .get("value")
+                .map(|raw| {
+                    raw.split(',')
+                        .map(|part| part.trim().parse::<i32>().unwrap_or(0))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if current.is_empty() {
+                current.push(0);
+            }
+            // Preserve the original component count unless more are supplied.
+            current.resize(current.len().max(values.len()), 0);
+            for (index, value) in values.iter().enumerate() {
+                if let Some(value) = value {
+                    current[index] = *value;
+                }
+            }
+            let text = current
+                .iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            controller_set_param(&mut ctrl.controller, "value", text);
+        }
+        if let Some(x) = x {
+            controller_set_param(&mut ctrl.controller, "x", x.to_string());
+        }
+        if let Some(y) = y {
+            controller_set_param(&mut ctrl.controller, "y", y.to_string());
+        }
+    }
+}
+
+/// Sets or inserts one controller parameter.
+fn controller_set_param(control: &mut manato_formats::Controller, key: &str, value: String) {
+    if let Some(entry) = control
+        .params
+        .iter_mut()
+        .find(|(existing, _)| existing == key)
+    {
+        entry.1 = value;
+    } else {
+        control.params.push((key.to_string(), value));
+    }
+}
+
+/// Reads up to `max` comma-separated integer expressions from a parameter,
+/// preserving gaps for empty entries.
+fn int_param_list(
+    sim: &SimState,
+    who: usize,
+    control: &Controller,
+    key: &str,
+    max: usize,
+) -> Vec<Option<i32>> {
+    let Some(raw) = control.get(key) else {
+        return Vec::new();
+    };
+    raw.split(',')
+        .take(max)
+        .map(|part| {
+            let text = part.trim();
+            if text.is_empty() {
+                None
+            } else {
+                Some(trigger::num(sim, who, text).round() as i32)
+            }
+        })
+        .collect()
 }
 
 /// `TransformSprite` subset: x-shear, focal length, and projection.

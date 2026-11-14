@@ -124,7 +124,32 @@ pub struct BgLayer {
 #[derive(Debug, Clone)]
 pub struct BgCtrl {
     pub layer: usize,
+    /// First active tick (`time` first value).
+    pub start: i32,
+    /// Last active tick (`time` second value); equals `start` when omitted.
+    pub end: i32,
+    /// Repeat period (`time` third value); `-1` disables looping.
+    pub loop_period: i32,
     pub controller: Controller,
+}
+
+impl BgCtrl {
+    /// Whether the controller runs at stage tick `time`, following Ikemen's
+    /// `bgCtrlAction` window rules.
+    pub fn active_at(&self, time: i32) -> bool {
+        if self.start < 0 || (self.loop_period >= 0 && self.start >= self.loop_period) {
+            return false;
+        }
+        if time < self.start {
+            return false;
+        }
+        if self.loop_period > 0 {
+            let end = self.end.min(self.loop_period) - self.start;
+            (time - self.start) % self.loop_period <= end
+        } else {
+            time <= self.end
+        }
+    }
 }
 
 /// A standalone background scene used by screenpack motifs (title, select).
@@ -197,8 +222,24 @@ impl BgScene {
                         .find(|(key, _)| key == "type")
                         .map(|(_, value)| value.to_ascii_lowercase())
                         .unwrap_or_else(|| "null".into());
+                    let (start, end, loop_period) = params
+                        .iter()
+                        .find(|(key, _)| key == "time")
+                        .map(|(_, value)| {
+                            let mut parts = value
+                                .split(',')
+                                .map(|part| part.trim().parse::<i32>().unwrap_or(0));
+                            let start = parts.next().unwrap_or(0);
+                            let end = parts.next().unwrap_or(start);
+                            let loop_period = parts.next().unwrap_or(-1);
+                            (start, end, loop_period)
+                        })
+                        .unwrap_or((0, 0, -1));
                     bg_ctrls.push(BgCtrl {
                         layer,
+                        start,
+                        end,
+                        loop_period,
                         controller: Controller {
                             kind,
                             params,
@@ -347,8 +388,24 @@ impl Stage {
                         .find(|(key, _)| key == "type")
                         .map(|(_, value)| value.to_ascii_lowercase())
                         .unwrap_or_else(|| "null".into());
+                    let (start, end, loop_period) = params
+                        .iter()
+                        .find(|(key, _)| key == "time")
+                        .map(|(_, value)| {
+                            let mut parts = value
+                                .split(',')
+                                .map(|part| part.trim().parse::<i32>().unwrap_or(0));
+                            let start = parts.next().unwrap_or(0);
+                            let end = parts.next().unwrap_or(start);
+                            let loop_period = parts.next().unwrap_or(-1);
+                            (start, end, loop_period)
+                        })
+                        .unwrap_or((0, 0, -1));
                     bg_ctrls.push(BgCtrl {
                         layer,
+                        start,
+                        end,
+                        loop_period,
                         controller: Controller {
                             kind,
                             params,

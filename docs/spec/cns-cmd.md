@@ -134,6 +134,9 @@ Required controller families for the approved matrix:
   `velocity.x/y`, `delta.x/y`, `start.x/y`, and `scalestart`; `pos`,
   `layerno`, `spriteno`, `trans`, angles, shear, projection, and shaders are
   not modeled)
+- `ModifyBGCtrl` (matches stage controllers by `sctrlid` and updates the
+  `time = start[, end[, loop]]` window, `value`, and `x`/`y`; palette and
+  shader parameters are not modeled)
 - `TransformSprite` (xshear/focallength/projection subset)
 - `TransformClsn` (per-tick Clsn1/Clsn2 scale subset; angle/pivot unmodeled)
 - `OverrideClsn` (per-tick box replacement: `group` 0 clears all, -1 targets

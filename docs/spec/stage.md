@@ -253,6 +253,13 @@ Required controller types:
 Triggers use the same expression engine as characters. Controllers run once per
 tick per matching layer.
 
+`time = start[, end[, loop]]` controls the run window (Ikemen's
+`bgCtrlAction`): a controller is active when the stage tick is at least
+`start` and either at most `end` (no loop) or within `end - start` of each
+`loop`-tick period. `loop` defaults to `-1`; a negative `start` or
+`start >= loop` disables the controller. `ModifyBGCtrl` can retime and
+re-parameterize controllers at runtime by `sctrlid`.
+
 ## 13. Error handling
 
 - Missing SFF: log and render a solid background.

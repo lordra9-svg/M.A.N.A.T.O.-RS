@@ -739,6 +739,8 @@ pub struct SimState {
     pub score: [f32; 2],
     /// Score banked from completed rounds, per team side.
     pub score_rounds: [f32; 2],
+    /// Live stage BG controllers; `ModifyBGCtrl` edits this copy.
+    pub bg_ctrls: Vec<manato_formats::BgCtrl>,
 }
 
 impl SimState {
@@ -785,6 +787,7 @@ impl SimState {
             .iter()
             .map(StageLayerState::from_layer)
             .collect();
+        let bg_ctrls = assets.stage.bg_ctrls.clone();
         let stage_camera = assets.stage.camera.clone();
         let stage_left_bound = assets.stage.left_bound;
         let stage_right_bound = assets.stage.right_bound;
@@ -830,6 +833,7 @@ impl SimState {
             actions: [Vec::new(), Vec::new()],
             score: [0.0; 2],
             score_rounds: [0.0; 2],
+            bg_ctrls,
         };
         state.start_round();
         state
@@ -1112,7 +1116,7 @@ impl SimState {
         let round_no = self.round.number;
         let round_state = self.round.roundstate_code();
         update_bg_states(
-            &self.assets.stage.bg_ctrls,
+            &self.bg_ctrls,
             &mut self.stage_layers,
             bg_time,
             round_no,
@@ -2244,6 +2248,7 @@ impl SimState {
         self.bg_pal = GlobalPalFx::default();
         if self.assets.stage.reset_bg {
             self.bg_time = 0.0;
+            self.bg_ctrls = self.assets.stage.bg_ctrls.clone();
             self.stage_layers = self
                 .assets
                 .stage
@@ -2776,6 +2781,28 @@ impl SimState {
             }
             h.write_f32(pal.alpha);
         }
+        h.write_u32(self.bg_ctrls.len() as u32);
+        for control in &self.bg_ctrls {
+            h.write_u32(control.layer as u32);
+            h.write_i32(control.start);
+            h.write_i32(control.end);
+            h.write_i32(control.loop_period);
+            for byte in control.controller.kind.bytes() {
+                h.write_u8(byte);
+            }
+            h.write_u8(0);
+            h.write_u32(control.controller.params.len() as u32);
+            for (key, value) in &control.controller.params {
+                for byte in key.bytes() {
+                    h.write_u8(byte);
+                }
+                h.write_u8(0);
+                for byte in value.bytes() {
+                    h.write_u8(byte);
+                }
+                h.write_u8(0);
+            }
+        }
         for p in &self.projectiles {
             h.write_i32(p.owner as i32);
             h.write_i32(p.id);
@@ -3028,7 +3055,10 @@ pub fn update_bg_states(
     for (index, state) in states.iter_mut().enumerate() {
         state.offset.x += state.velocity.x;
         state.offset.y += state.velocity.y;
-        for control in controls.iter().filter(|control| control.layer == index) {
+        for control in controls
+            .iter()
+            .filter(|control| control.layer == index && control.active_at(bg_time))
+        {
             if !stage_controller_met(bg_time, round_no, round_state, state, &control.controller) {
                 continue;
             }

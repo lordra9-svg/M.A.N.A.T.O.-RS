@@ -3715,6 +3715,150 @@ fn mid_fill_drains_after_delay() {
 }
 
 #[test]
+fn bgctrl_time_windows_and_loops() {
+    use manato_formats::{BgCtrl, Controller};
+
+    let ctrl = |start: i32, end: i32, loop_period: i32| BgCtrl {
+        layer: 0,
+        start,
+        end,
+        loop_period,
+        controller: Controller {
+            kind: "visible".into(),
+            params: vec![("value".into(), "0".into())],
+            line: 0,
+        },
+    };
+
+    // One-shot window: active only between start and end inclusive.
+    let one_shot = ctrl(5, 5, -1);
+    assert!(!one_shot.active_at(4));
+    assert!(one_shot.active_at(5));
+    assert!(!one_shot.active_at(6));
+
+    // Looping window: 0..=2 of every 5 ticks.
+    let looping = ctrl(0, 2, 5);
+    for time in [0, 1, 2, 5, 6, 7, 10] {
+        assert!(looping.active_at(time), "tick {time} should be active");
+    }
+    for time in [3, 4, 8, 9] {
+        assert!(!looping.active_at(time), "tick {time} should be inactive");
+    }
+
+    // Negative start and start >= loop period never run.
+    assert!(!ctrl(-1, 5, -1).active_at(0));
+    assert!(!ctrl(5, 10, 5).active_at(5));
+
+    // Integration: the layer is only hidden inside the window.
+    let layer = manato_formats::stage::BgLayer {
+        visible: true,
+        enabled: true,
+        ..Default::default()
+    };
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let controls = [ctrl(2, 3, -1)];
+    manato_sim::update_bg_states(&controls, &mut states, 1, 1, 0);
+    assert!(states[0].visible);
+    manato_sim::update_bg_states(&controls, &mut states, 2, 1, 0);
+    assert!(!states[0].visible);
+    manato_sim::update_bg_states(&controls, &mut states, 4, 1, 0);
+    assert!(
+        !states[0].visible,
+        "the hidden state persists outside the window"
+    );
+}
+
+#[test]
+fn modifybgctrl_updates_runtime_stage_controllers() {
+    use manato_formats::{BgCtrl, Controller};
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let make = |sctrlid: &str, value: &str| BgCtrl {
+        layer: 0,
+        start: 0,
+        end: 1_000_000,
+        loop_period: -1,
+        controller: Controller {
+            kind: "visible".into(),
+            params: vec![
+                ("type".into(), "visible".into()),
+                ("sctrlid".into(), sctrlid.into()),
+                ("trigger1".into(), "1".into()),
+                ("value".into(), value.into()),
+            ],
+            line: 0,
+        },
+    };
+    sim.bg_ctrls.push(make("7", "1"));
+    sim.bg_ctrls.push(make("8", "1"));
+    sim.bg_ctrls.push(make("0", "1"));
+
+    let run = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "modifybgctrl".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let find = |sim: &SimState, id: &str| {
+        sim.bg_ctrls
+            .iter()
+            .find(|ctrl| ctrl.controller.get("sctrlid") == Some(id))
+            .expect("controller")
+            .clone()
+    };
+
+    run(
+        &mut sim,
+        vec![
+            ("id", "7"),
+            ("time", "5, 10, -1"),
+            ("value", "0"),
+            ("x", "3"),
+            ("y", "4"),
+        ],
+    );
+    let modified = find(&sim, "7");
+    assert_eq!(modified.start, 5);
+    assert_eq!(modified.end, 10);
+    assert_eq!(modified.loop_period, -1);
+    assert_eq!(modified.controller.get("value"), Some("0"));
+    assert_eq!(modified.controller.get("x"), Some("3"));
+    assert_eq!(modified.controller.get("y"), Some("4"));
+
+    // Other controller ids are untouched.
+    let untouched = find(&sim, "8");
+    assert_eq!(untouched.start, 0);
+    assert_eq!(untouched.end, 1_000_000);
+    assert_eq!(untouched.controller.get("value"), Some("1"));
+
+    // id defaults to 0, matching controllers without an explicit sctrlid.
+    run(&mut sim, vec![("value", "0")]);
+    assert_eq!(find(&sim, "0").controller.get("value"), Some("0"));
+
+    // The runtime controller list drives the stage: an always-active visible=0
+    // controller hides layer 0 on the next tick.
+    run(
+        &mut sim,
+        vec![("id", "7"), ("time", "0, 1000, -1"), ("value", "0")],
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.stage_layers[0].visible);
+
+    // Modifications participate in the rollback checksum.
+    let before = sim.checksum();
+    run(&mut sim, vec![("id", "7"), ("value", "1")]);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn bg_controllers_update_screen_backgrounds() {
     use manato_formats::{BgCtrl, Controller};
 
@@ -3726,6 +3870,9 @@ fn bg_controllers_update_screen_backgrounds() {
     let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
     let controls = [BgCtrl {
         layer: 0,
+        start: 0,
+        end: 1_000_000,
+        loop_period: -1,
         controller: Controller {
             kind: "visible".into(),
             params: vec![("value".into(), "0".into())],
@@ -10500,6 +10647,9 @@ fn stage_bg_controllers_drive_layers() {
 
     let ctrl = |kind: &str, params: Vec<(&str, &str)>, trigger: &str| BgCtrl {
         layer: 0,
+        start: 0,
+        end: 1_000_000,
+        loop_period: -1,
         controller: Controller {
             kind: kind.into(),
             params: {

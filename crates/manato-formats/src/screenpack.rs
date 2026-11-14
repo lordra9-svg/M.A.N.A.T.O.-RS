@@ -797,8 +797,24 @@ impl ScreenBg {
                     .find(|(key, _)| key == "type")
                     .map(|(_, value)| value.to_ascii_lowercase())
                     .unwrap_or_else(|| "null".into());
+                let (start, end, loop_period) = params
+                    .iter()
+                    .find(|(key, _)| key == "time")
+                    .map(|(_, value)| {
+                        let mut parts = value
+                            .split(',')
+                            .map(|part| part.trim().parse::<i32>().unwrap_or(0));
+                        let start = parts.next().unwrap_or(0);
+                        let end = parts.next().unwrap_or(start);
+                        let loop_period = parts.next().unwrap_or(-1);
+                        (start, end, loop_period)
+                    })
+                    .unwrap_or((0, 0, -1));
                 bg_ctrls.push(BgCtrl {
                     layer,
+                    start,
+                    end,
+                    loop_period,
                     controller: crate::cns::Controller {
                         kind,
                         params,
