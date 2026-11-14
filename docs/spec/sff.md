@@ -67,7 +67,10 @@ At least 32 bytes:
 Rules:
 
 - `next_offset == 0` or `next_offset <= current_offset` ends the chain.
-- Sprite data starts at `current_offset + subheader_size`.
+- Sprite data starts at `current_offset + subheader_size` and runs for
+  `data_length` bytes. Alignment padding between the declared data end and the
+  next header is not part of the payload. If the declared data overlaps the
+  next header, it is trimmed at that header.
 - If `data_length == 0` or the data is empty, the sprite is a link:
   copy the sprite at `link_index`, then override group, index, axis.
 - Otherwise decode the PCX payload.
@@ -96,7 +99,10 @@ RLE stream starts at byte 128. For each scanline of `bytes_per_line` bytes:
 
 - `byte & 0xC0 == 0xC0` → run of `byte & 0x3F`, next byte is the value.
 - Otherwise the byte is a literal pixel.
-- Runs must not cross a scanline boundary.
+- A run longer than the remaining scanline bytes is clamped to the line end
+  rather than rejected.
+- `bytes_per_line` is raised to at least `width` when the header value is
+  smaller.
 
 Copy the first `width` bytes of each decoded scanline into the tight indexed
 buffer; discard padding.

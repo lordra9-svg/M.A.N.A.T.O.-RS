@@ -157,8 +157,11 @@ impl SffFile {
             if data_start >= data.len() {
                 break;
             }
+            // Payload length comes from `data_length`. Only trim when the
+            // declared data overlaps the next header; alignment padding after
+            // the data must not be treated as part of the PCX payload.
             let mut data_end = data_start.saturating_add(data_len).min(data.len());
-            if next > data_start && next <= data.len() {
+            if next > data_start && next < data_end {
                 data_end = next;
             }
             let payload = &data[data_start..data_end];
@@ -1021,6 +1024,33 @@ mod tests {
         assert_eq!(&sprite.rgba[0..4], &[1, 1, 1, 255]);
         assert_eq!(sff.get(1, 1).map(|s| (s.width, s.height)), Some((1, 1)));
     }
+    #[test]
+    fn v1_palette_ignores_padding_outside_declared_data() {
+        let mut palette = vec![[0u8, 0, 0]; 256];
+        // 0x0C in the palette RGB would confuse a backwards marker scan if
+        // the trailing padding were included in the payload.
+        palette[0] = [12, 0, 0];
+        palette[1] = [90, 80, 70];
+        let payload = pcx(&[1], 1, 1, Some(&palette));
+
+        let mut data = vec![0u8; 32];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 1;
+        data[20..24].copy_from_slice(&1u32.to_le_bytes());
+        data[24..28].copy_from_slice(&32u32.to_le_bytes());
+        data[28..32].copy_from_slice(&32u32.to_le_bytes());
+
+        let padding = [0u8; 4];
+        let data_start = 32u32 + 32;
+        let next = data_start + payload.len() as u32 + padding.len() as u32;
+        data.extend_from_slice(&v1_sprite(next, 1, 1, false, &payload));
+        data.extend_from_slice(&padding);
+
+        let sff = SffFile::from_bytes(&data).expect("parse v1 padded payload");
+        let sprite = sff.get(1, 1).expect("sprite");
+        assert_eq!(&sprite.rgba[0..4], &[90, 80, 70, 255]);
+    }
+
     #[derive(Clone)]
     struct V2Node {
         group: u16,
@@ -1257,26 +1287,6 @@ mod tests {
         data.extend_from_slice(&v1_link(0, 0, 7, 99, 0, 0));
 
         let sff = SffFile::from_bytes(&data).expect("parse v1 links");
-        for (label, at) in [
-            ("base", base_offset),
-            ("direct", direct_offset),
-            ("chain", chain_offset),
-        ] {
-            let at = at as usize;
-            eprintln!(
-                "{label} next={} len={} group={} index={} link={}",
-                u32::from_le_bytes(data[at..at + 4].try_into().unwrap()),
-                u32::from_le_bytes(data[at + 4..at + 8].try_into().unwrap()),
-                u16::from_le_bytes(data[at + 12..at + 14].try_into().unwrap()),
-                u16::from_le_bytes(data[at + 14..at + 16].try_into().unwrap()),
-                u16::from_le_bytes(data[at + 16..at + 18].try_into().unwrap())
-            );
-        }
-        eprintln!(
-            "count={} len={}",
-            u32::from_le_bytes(data[20..24].try_into().unwrap()),
-            data.len()
-        );
         let base = sff.get(0, 0).expect("base");
         assert_eq!(base.rgba, [90, 80, 70, 255].repeat(2));
 
