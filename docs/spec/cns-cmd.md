@@ -153,10 +153,10 @@ Required controller families for the approved matrix:
 - `MakeDust`, `GameMakeAnim`
 - `AfterImage`, `AfterImageTime`
 - `PalFX`, `RemapPal`, `Trans`
-  `PalFX` models `add`/`sinadd` in 0–255 units, `mul` in 0–256 units
-  (256 = identity), and `alpha` in 0–1. `color`, `hue`, `invertall`,
-  `invertblend`, `sinmul`, `sincolor`, and `sinhue` are unmodeled; the
-  global `bg`/`all` PalFX layers are not implemented.
+  `PalFX` models `add`/`sinadd`, `mul`/`sinmul` (0–256 units, 256 =
+  identity), and `alpha` (0–1). `color`, `hue`, `invertall`, `invertblend`,
+  `sincolor`, and `sinhue` are unmodeled; the global `bg`/`all` PalFX layers
+  are not implemented.
 - `ForceFeedback`
 
 ### 4.4 Helpers

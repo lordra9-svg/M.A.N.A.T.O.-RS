@@ -2286,6 +2286,64 @@ fn palfx_var_reads_effective_effect() {
 }
 
 #[test]
+fn palfx_sinmul_oscillates_multiplier() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("mul".into(), "256, 256, 256".into()),
+            ("sinmul".into(), "256, 0, 0, 4".into()),
+            ("time".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    // At cycle 0 the sine is 0, so the base multiplier applies.
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.r)"), 256);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.g)"), 256);
+
+    // Cycle 1: sin(2π/4) = 1, so mul.r = 1 + 1 = 2 (512 in 0..256 units).
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.r)"), 512);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.g)"), 256);
+
+    // Cycle 2: sin(π) ≈ 0, back to the base multiplier.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_mul[0] - 1.0).abs() < 0.01);
+
+    // Cycle 3: sin(3π/2) = -1, so mul.r = 0.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].pal_mul[0].abs() < 0.01);
+
+    // A negative period reverses the oscillation direction.
+    let negative = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("mul".into(), "256, 256, 256".into()),
+            ("sinmul".into(), "256, 0, 0, -4".into()),
+            ("time".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &negative, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].pal_mul[0].abs() < 0.01);
+
+    // Turning PalFX off clears the oscillating multiplier.
+    let off = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![("time".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &off, &assets);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(mul.r)"), 256);
+}
+
+#[test]
 fn presentation_var_triggers_read_draw_state() {
     let Some(mut sim) = fight_phase() else {
         return;

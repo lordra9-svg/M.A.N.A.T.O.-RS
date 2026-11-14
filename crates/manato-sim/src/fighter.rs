@@ -320,6 +320,12 @@ pub struct Fighter {
     pub pal_sin_period: i32,
     pub pal_cycle: i32,
     pub pal_mul: [f32; 3],
+    /// Base multiplier before the `sinmul` oscillation.
+    pub pal_base_mul: [f32; 3],
+    pub pal_sinmul: [f32; 3],
+    /// `sinmul` cycle length in ticks; 0 disables the oscillation.
+    pub pal_sinmul_period: i32,
+    pub pal_sinmul_cycle: i32,
     pub pal_alpha: f32,
     pub pal_time: i32,
     /// Destination alpha used by rendering (0..1).
@@ -492,6 +498,10 @@ impl Fighter {
             pal_sin_period: 0,
             pal_cycle: 0,
             pal_mul: [1.0, 1.0, 1.0],
+            pal_base_mul: [1.0, 1.0, 1.0],
+            pal_sinmul: [0.0, 0.0, 0.0],
+            pal_sinmul_period: 0,
+            pal_sinmul_cycle: 0,
             pal_alpha: 1.0,
             pal_time: 0,
             trans_alpha: 1.0,

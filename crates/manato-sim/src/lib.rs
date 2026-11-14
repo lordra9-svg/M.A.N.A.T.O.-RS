@@ -1346,13 +1346,24 @@ impl SimState {
                 fighter.pal_cycle = 0;
                 fighter.pal_mul = [1.0, 1.0, 1.0];
                 fighter.pal_alpha = 1.0;
-            } else if fighter.pal_sin_period > 0 {
-                fighter.pal_cycle += 1;
-                let phase = std::f32::consts::TAU * fighter.pal_cycle as f32
-                    / fighter.pal_sin_period as f32;
-                for axis in 0..3 {
-                    fighter.pal_add[axis] =
-                        fighter.pal_base_add[axis] + phase.sin() * fighter.pal_sinadd[axis];
+            } else {
+                if fighter.pal_sin_period > 0 {
+                    fighter.pal_cycle += 1;
+                    let phase = std::f32::consts::TAU * fighter.pal_cycle as f32
+                        / fighter.pal_sin_period as f32;
+                    for axis in 0..3 {
+                        fighter.pal_add[axis] =
+                            fighter.pal_base_add[axis] + phase.sin() * fighter.pal_sinadd[axis];
+                    }
+                }
+                if fighter.pal_sinmul_period > 0 {
+                    fighter.pal_sinmul_cycle += 1;
+                    let phase = std::f32::consts::TAU * fighter.pal_sinmul_cycle as f32
+                        / fighter.pal_sinmul_period as f32;
+                    for axis in 0..3 {
+                        fighter.pal_mul[axis] =
+                            fighter.pal_base_mul[axis] + phase.sin() * fighter.pal_sinmul[axis];
+                    }
                 }
             }
         }
@@ -2118,6 +2129,10 @@ impl SimState {
             fighter.pal_sin_period = 0;
             fighter.pal_cycle = 0;
             fighter.pal_mul = [1.0, 1.0, 1.0];
+            fighter.pal_base_mul = [1.0, 1.0, 1.0];
+            fighter.pal_sinmul = [0.0, 0.0, 0.0];
+            fighter.pal_sinmul_period = 0;
+            fighter.pal_sinmul_cycle = 0;
             fighter.pal_alpha = 1.0;
             fighter.pal_time = 0;
             fighter.target = None;
@@ -2823,6 +2838,22 @@ impl SimState {
             h.write_f32(f.pal_mul[2]);
             h.write_f32(f.pal_alpha);
             h.write_i32(f.pal_time);
+            for value in f.pal_base_add {
+                h.write_f32(value);
+            }
+            for value in f.pal_sinadd {
+                h.write_f32(value);
+            }
+            h.write_i32(f.pal_sin_period);
+            h.write_i32(f.pal_cycle);
+            for value in f.pal_base_mul {
+                h.write_f32(value);
+            }
+            for value in f.pal_sinmul {
+                h.write_f32(value);
+            }
+            h.write_i32(f.pal_sinmul_period);
+            h.write_i32(f.pal_sinmul_cycle);
             h.write_bool(f.gravity.is_some());
             if let Some(gravity) = f.gravity {
                 h.write_f32(gravity);

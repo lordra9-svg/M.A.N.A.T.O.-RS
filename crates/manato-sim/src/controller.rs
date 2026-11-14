@@ -658,6 +658,10 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
         fighter.pal_sin_period = 0;
         fighter.pal_cycle = 0;
         fighter.pal_mul = [1.0; 3];
+        fighter.pal_base_mul = [1.0; 3];
+        fighter.pal_sinmul = [0.0; 3];
+        fighter.pal_sinmul_period = 0;
+        fighter.pal_sinmul_cycle = 0;
         fighter.pal_alpha = 1.0;
         fighter.pal_time = 0;
         return;
@@ -682,11 +686,31 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
             sim.fighters[who].pal_add = sim.fighters[who].pal_base_add;
         }
     }
+    if let Some(value) = control.get("sinmul") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() >= 3 {
+            let period = parts.get(3).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            // Ikemen's `sinmul` uses the same 0–256 units as `mul`.
+            sim.fighters[who].pal_sinmul = [
+                parts[0] / 256.0 * side,
+                parts[1] / 256.0 * side,
+                parts[2] / 256.0 * side,
+            ];
+            sim.fighters[who].pal_sinmul_period = period.abs();
+            sim.fighters[who].pal_sinmul_cycle = 0;
+            sim.fighters[who].pal_mul = sim.fighters[who].pal_base_mul;
+        }
+    }
     if let Some(value) = control.get("mul") {
         if let Some(mul) = parse_triplet(sim, who, value) {
             // `PalFX` documents `mul` in 0..256 units with 256 as identity;
             // store the normalized multiplier used by rendering and triggers.
             sim.fighters[who].pal_mul = [mul[0] / 256.0, mul[1] / 256.0, mul[2] / 256.0];
+            sim.fighters[who].pal_base_mul = sim.fighters[who].pal_mul;
         }
     }
     if let Some(value) = control.get("alpha") {

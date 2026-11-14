@@ -733,6 +733,10 @@ pub fn apply_hit_at(
             f.pal_sin_period = 0;
             f.pal_cycle = 0;
             f.pal_mul = hitdef.palfx_mul;
+            f.pal_base_mul = hitdef.palfx_mul;
+            f.pal_sinmul = [0.0; 3];
+            f.pal_sinmul_period = 0;
+            f.pal_sinmul_cycle = 0;
             f.pal_alpha = 1.0;
             f.pal_time = hitdef.palfx_time;
         }
