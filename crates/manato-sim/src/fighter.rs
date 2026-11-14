@@ -13,6 +13,16 @@ pub struct ClsnTransform {
     pub scale: Vec2,
 }
 
+/// One `OverrideClsn` entry. A zero rect deletes matching boxes; otherwise
+/// the rect replaces boxes (`index < 0` for every box) or adds a new box when
+/// `index` is past the end.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClsnOverride {
+    pub index: i32,
+    /// Normalized `(x1, y1, x2, y2)` in local coordinates.
+    pub rect: [f32; 4],
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StateType {
     #[default]
@@ -263,6 +273,9 @@ pub struct Fighter {
     pub transform_projection: crate::ProjectionMode,
     /// Per-tick `TransformClsn` entries for Clsn1/Clsn2.
     pub clsn_transforms: [Vec<ClsnTransform>; 2],
+    /// Per-tick `OverrideClsn` entries. Groups 1–4 mirror Ikemen (Clsn1,
+    /// Clsn2, size, dummy); only the first two affect this engine.
+    pub clsn_overrides: [Vec<ClsnOverride>; 4],
     /// Per-tick `ModifyReflection` overrides; `None` uses the stage reflection.
     pub reflection_intensity: Option<i32>,
     pub reflection_color: Option<[u8; 3]>,
@@ -442,6 +455,7 @@ impl Fighter {
             transform_focal_length: 2048.0,
             transform_projection: crate::ProjectionMode::Orthographic,
             clsn_transforms: [Vec::new(), Vec::new()],
+            clsn_overrides: std::array::from_fn(|_| Vec::new()),
             reflection_intensity: None,
             reflection_color: None,
             reflection_offset: Vec2::ZERO,
@@ -836,6 +850,59 @@ impl Fighter {
             (self.pos.x + front).round() as i32,
             self.pos.y.round() as i32,
         )
+    }
+
+    /// Local collision boxes for `group` (0 = Clsn1, 1 = Clsn2) after
+    /// `OverrideClsn` entries. `TransformClsn` scaling is applied later by
+    /// [`Self::world_clsn_box`] or by the `ClsnVar` trigger.
+    pub fn local_clsn_boxes(
+        &self,
+        char: &Character,
+        group: usize,
+    ) -> Vec<manato_formats::CollisionBox> {
+        let attack = group == 0;
+        let mut boxes: Vec<manato_formats::CollisionBox> = self
+            .current_frame(char)
+            .map(|frame| {
+                if attack {
+                    frame.clsn1.clone()
+                } else {
+                    frame.clsn2.clone()
+                }
+            })
+            .unwrap_or_default();
+        for entry in &self.clsn_overrides[group] {
+            // An all-zero rect deletes boxes.
+            if entry.rect.iter().all(|value| *value == 0.0) {
+                if entry.index < 0 {
+                    boxes.clear();
+                } else if (entry.index as usize) < boxes.len() {
+                    boxes.remove(entry.index as usize);
+                }
+                continue;
+            }
+            let rect = Rect::new(
+                entry.rect[0].round() as i32,
+                entry.rect[1].round() as i32,
+                entry.rect[2].round() as i32,
+                entry.rect[3].round() as i32,
+            )
+            .normalized();
+            let bx = manato_formats::CollisionBox {
+                x1: rect.x1,
+                y1: rect.y1,
+                x2: rect.x2,
+                y2: rect.y2,
+            };
+            if entry.index < 0 {
+                boxes.fill(bx);
+            } else if (entry.index as usize) >= boxes.len() {
+                boxes.push(bx);
+            } else {
+                boxes[entry.index as usize] = bx;
+            }
+        }
+        boxes
     }
 
     /// Converts an animation-local collision box to world space.

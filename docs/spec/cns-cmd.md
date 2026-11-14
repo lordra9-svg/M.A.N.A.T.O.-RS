@@ -132,6 +132,10 @@ Required controller families for the approved matrix:
 - `ModifyStageVar` (camera bounds/framing/zoom and player-info bounds subset)
 - `TransformSprite` (xshear/focallength/projection subset)
 - `TransformClsn` (per-tick Clsn1/Clsn2 scale subset; angle/pivot unmodeled)
+- `OverrideClsn` (per-tick box replacement: `group` 0 clears all, -1 targets
+  every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
+  boxes, `index < 0` replaces every box, and an index past the end appends a
+  new box; `ClsnVar` and hit detection see the result)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

@@ -145,12 +145,9 @@ fn juggle_allows(
 
 pub(crate) fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> {
     let fighter = &sim.fighters[who];
-    let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
-        return Vec::new();
-    };
-    let boxes = if attack { &frame.clsn1 } else { &frame.clsn2 };
     let group = usize::from(!attack);
-    boxes
+    fighter
+        .local_clsn_boxes(sim.anim_character(who), group)
         .iter()
         .enumerate()
         .map(|(index, b)| fighter.world_clsn_box(b, group, index))

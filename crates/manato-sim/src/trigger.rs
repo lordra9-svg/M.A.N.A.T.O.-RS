@@ -614,16 +614,14 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let index = arg_i32(sim, who, args, 1).max(0) as usize;
             let field = key_at(sim, who, args, 2).to_ascii_lowercase();
             let fighter = &sim.fighters[who];
-            let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
-                return Value::Int(0);
-            };
-            let boxes = if attack { &frame.clsn1 } else { &frame.clsn2 };
+            let group_index = usize::from(!attack);
+            let boxes = fighter.local_clsn_boxes(sim.anim_character(who), group_index);
             let Some(bx) = boxes.get(index) else {
                 return Value::Int(0);
             };
             // `TransformClsn` scaling applies to the local box as well.
             let mut scale = Vec2::new(1.0, 1.0);
-            for transform in &fighter.clsn_transforms[usize::from(!attack)] {
+            for transform in &fighter.clsn_transforms[group_index] {
                 if transform.index < 0 || transform.index as usize == index {
                     scale.x *= transform.scale.x;
                     scale.y *= transform.scale.y;

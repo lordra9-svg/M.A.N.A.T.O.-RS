@@ -1177,6 +1177,9 @@ impl SimState {
             fighter.transform_projection = crate::ProjectionMode::Orthographic;
             fighter.clsn_transforms[0].clear();
             fighter.clsn_transforms[1].clear();
+            for overrides in &mut fighter.clsn_overrides {
+                overrides.clear();
+            }
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2727,6 +2730,15 @@ impl SimState {
                     h.write_i32(transform.index);
                     h.write_f32(transform.scale.x);
                     h.write_f32(transform.scale.y);
+                }
+            }
+            for overrides in &f.clsn_overrides {
+                h.write_u32(overrides.len() as u32);
+                for entry in overrides {
+                    h.write_i32(entry.index);
+                    for value in entry.rect {
+                        h.write_f32(value);
+                    }
                 }
             }
             h.write_f32(f.vel.x);

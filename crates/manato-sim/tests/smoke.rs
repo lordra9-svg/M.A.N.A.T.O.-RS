@@ -1745,6 +1745,118 @@ fn bgmvar_reads_stage_music_definition() {
 }
 
 #[test]
+fn overrideclsn_replaces_adds_and_deletes_boxes() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(0.0, 0.0);
+    sim.fighters[1].facing = -1;
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, group: &str, index: &str, rect: &str| {
+        let control = manato_formats::Controller {
+            kind: "overrideclsn".into(),
+            params: vec![
+                ("group".into(), group.into()),
+                ("index".into(), index.into()),
+                ("rect".into(), rect.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+
+    // Kaen's standing Clsn2 box is (-14, 0, 14, -70).
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), -70.0);
+
+    // Replace box 0 of Clsn2.
+    run(&mut sim, "2", "0", "-20,-80,20,0");
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -20.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, top)"), -80.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 20.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), 0.0);
+
+    // Group 0 clears every override.
+    run(&mut sim, "0", "0", "0,0,0,0");
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -14.0);
+
+    // index < 0 replaces every box.
+    run(&mut sim, "2", "-1", "-5,-5,5,5");
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -5.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 5.0);
+
+    // An all-zero rect deletes boxes.
+    run(&mut sim, "2", "0", "0,0,0,0");
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), 0.0);
+    assert_eq!(
+        num(&sim, "AnimElemVar(numclsn2)"),
+        1.0,
+        "the animation frame is unchanged"
+    );
+
+    // An index past the end appends a box.
+    run(&mut sim, "0", "0", "0,0,0,0");
+    run(&mut sim, "2", "5", "30,-60,40,-30");
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 1, back)"), 30.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 1, top)"), -60.0);
+
+    // Group -1 applies to every group, including empty Clsn1 lists.
+    run(&mut sim, "0", "0", "0,0,0,0");
+    run(&mut sim, "-1", "0", "-8,-8,8,8");
+    assert_eq!(num(&sim, "ClsnVar(clsn1, 0, back)"), -8.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn1, 0, front)"), 8.0);
+
+    // Overrides are applied before TransformClsn scaling.
+    run(&mut sim, "0", "0", "0,0,0,0");
+    run(&mut sim, "2", "0", "-10,-10,10,10");
+    let control = manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params: vec![
+            ("group".into(), "2".into()),
+            ("scale".into(), "2, 0.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -20.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 20.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, top)"), -5.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), 5.0);
+
+    // Invalid groups are a no-op.
+    run(&mut sim, "0", "0", "0,0,0,0");
+    let clear_transforms = manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params: vec![("group".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &clear_transforms, &assets);
+    run(&mut sim, "9", "0", "-99,-99,99,99");
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -14.0);
+
+    // Collision detection honours overrides: P2's box moved away no longer
+    // overlaps P1's.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 1, clsn2)"),
+        1
+    );
+    run(&mut sim, "2", "0", "200,0,220,-70");
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 1, clsn2)"),
+        0
+    );
+    run(&mut sim, "0", "0", "0,0,0,0");
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ClsnOverlap(clsn2, 1, clsn2)"),
+        1
+    );
+}
+
+#[test]
 fn projclsnoverlap_checks_projectile_boxes() {
     let Some(mut sim) = fight_phase() else {
         return;

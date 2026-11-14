@@ -269,6 +269,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "modifystagevar" => modify_stage_var(sim, who, control),
         "transformsprite" => transform_sprite(sim, who, control),
         "transformclsn" => transform_clsn(sim, who, control),
+        "overrideclsn" => override_clsn(sim, who, control),
         "gamemakeanim" => game_make_anim(sim, who, control),
         "pause" => pause(sim, who, control),
         "superpause" => super_pause(sim, who, control, assets),
@@ -1724,6 +1725,46 @@ fn transform_clsn(sim: &mut SimState, who: usize, control: &Controller) {
         }
         1..=2 => {
             transforms[(group - 1) as usize].push(crate::fighter::ClsnTransform { index, scale });
+        }
+        _ => {}
+    }
+}
+
+/// `OverrideClsn`: per-tick collision-box replacement. Group 0 clears all
+/// groups, -1 applies to every group, and 1–4 selects Clsn1, Clsn2, size, or
+/// dummy. A zero rect deletes boxes; otherwise `index < 0` replaces every
+/// box and an index past the end appends a new one.
+fn override_clsn(sim: &mut SimState, who: usize, control: &Controller) {
+    let group = int_param(sim, who, control, "group").unwrap_or(0);
+    let index = int_param(sim, who, control, "index").unwrap_or(0);
+    let rect = control
+        .get("rect")
+        .map(|raw| {
+            let mut parts = raw
+                .split(',')
+                .map(|value| value.trim().parse::<f32>().unwrap_or(0.0));
+            let x1 = parts.next().unwrap_or(0.0);
+            let y1 = parts.next().unwrap_or(0.0);
+            let x2 = parts.next().unwrap_or(x1);
+            let y2 = parts.next().unwrap_or(y1);
+            [x1.min(x2), y1.min(y2), x1.max(x2), y1.max(y2)]
+        })
+        .unwrap_or([0.0; 4]);
+    let overrides = &mut sim.fighters[who].clsn_overrides;
+    match group {
+        0 => {
+            for entries in overrides.iter_mut() {
+                entries.clear();
+            }
+        }
+        -1 => {
+            let entry = crate::fighter::ClsnOverride { index, rect };
+            for entries in overrides.iter_mut() {
+                entries.push(entry);
+            }
+        }
+        1..=4 => {
+            overrides[(group - 1) as usize].push(crate::fighter::ClsnOverride { index, rect });
         }
         _ => {}
     }
