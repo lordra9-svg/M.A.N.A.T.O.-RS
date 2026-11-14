@@ -1497,6 +1497,67 @@ fn clsn_overlap_checks_collision_boxes_between_players() {
 }
 
 #[test]
+fn fightscreenvar_reads_fight_def_round_and_info() {
+    let root = mugen_root();
+    if !root
+        .join("content/screenpacks/manato-grid/system.def")
+        .exists()
+    {
+        eprintln!("skipping: bundled screenpack not present");
+        return;
+    }
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: Some(PathBuf::from("content/screenpacks/manato-grid/system.def")),
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let sim = match SimState::load(&config) {
+        Ok(sim) => sim,
+        Err(error) => {
+            eprintln!("skipping: {error}");
+            return;
+        }
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    let text = |sim: &SimState, text: &str| manato_sim::trigger::eval_str(sim, 0, text).as_str();
+
+    assert_eq!(text(&sim, "FightScreenVar(info.name)"), "Manato Grid");
+    assert_eq!(
+        text(&sim, "FightScreenVar(info.author)"),
+        "M.A.N.A.T.O.-RS contributors"
+    );
+    assert_eq!(num(&sim, "FightScreenVar(info.localcoord.x)"), 320.0);
+    assert_eq!(num(&sim, "FightScreenVar(info.localcoord.y)"), 240.0);
+    // Parsed [Round] values.
+    assert_eq!(num(&sim, "FightScreenVar(round.ctrl.time)"), 30.0);
+    assert_eq!(num(&sim, "FightScreenVar(round.start.waittime)"), 20.0);
+    assert_eq!(num(&sim, "FightScreenVar(round.slow.time)"), 60.0);
+    // Missing [Round] keys use the engine defaults.
+    assert_eq!(num(&sim, "FightScreenVar(round.over.wintime)"), 45.0);
+    assert_eq!(num(&sim, "FightScreenVar(round.over.hittime)"), 10.0);
+    assert_eq!(num(&sim, "FightScreenVar(round.over.waittime)"), 45.0);
+    assert_eq!(num(&sim, "FightScreenVar(round.over.time)"), 210.0);
+    assert_eq!(num(&sim, "FightScreenVar(round.callfight.time)"), 60.0);
+    assert_eq!(num(&sim, "FightScreenVar(time.framespercount)"), 60.0);
+    assert_eq!(num(&sim, "FightScreenVar(bogus)"), 0.0);
+
+    // Without a screenpack the built-in fight-screen defaults apply.
+    let Some(plain) = fight_phase() else {
+        return;
+    };
+    assert_eq!(text(&plain, "FightScreenVar(info.name)"), "");
+    assert_eq!(num(&plain, "FightScreenVar(info.localcoord.x)"), 320.0);
+    assert_eq!(num(&plain, "FightScreenVar(info.localcoord.y)"), 240.0);
+    assert_eq!(num(&plain, "FightScreenVar(round.ctrl.time)"), 30.0);
+    assert_eq!(num(&plain, "FightScreenVar(round.start.waittime)"), 90.0);
+    assert_eq!(num(&plain, "FightScreenVar(time.framespercount)"), 60.0);
+}
+
+#[test]
 fn bgmvar_reads_stage_music_definition() {
     let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let project = project.canonicalize().unwrap_or(project);

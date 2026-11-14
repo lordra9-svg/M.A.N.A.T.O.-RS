@@ -246,7 +246,10 @@ missing redirect targets make the trigger false.
   helpers in spawn order) and `GroundAngle` (0 for the engine's flat
   stages).
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `IntroState`, `OutroState`,
-  `FightScreenState(field)`, `GameVar(field)`, `MatchOver`, `Winner`,
+  `FightScreenState(field)`, `FightScreenVar(field)` (fight-screen motif
+  `info.*` fields and the `round.*`/`time.framespercount` timings from
+  `fight.def`, with the built-in defaults when no screenpack is configured),
+  `GameVar(field)`, `MatchOver`, `Winner`,
   `Loser`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `WinClutch`,
   `DecisiveRound`, `ConsecutiveWins`, `FightTime`, `FirstAttack`, `TeamSide`,
   `TeamMode`, `IsHomeTeam`, `TeamSize`, `TeamLeader`,

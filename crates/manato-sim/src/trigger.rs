@@ -1334,6 +1334,36 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 _ => Value::Int(0),
             }
         }
+        // `FightScreenVar(field)` reads the fight-screen motif (fight.def)
+        // definition. Without a configured screenpack the built-in defaults
+        // apply.
+        "fightscreenvar" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            let fight = sim.assets.screenpack.as_ref().map(|sp| &sp.fight);
+            let round = fight.map(|f| f.round.clone()).unwrap_or_default();
+            match key.as_str() {
+                "info.name" => Value::Str(fight.map(|f| f.name.clone()).unwrap_or_default()),
+                "info.author" => Value::Str(fight.map(|f| f.author.clone()).unwrap_or_default()),
+                "info.localcoord.x" => {
+                    Value::Int(fight.map(|f| f.localcoord.0).unwrap_or(320.0) as i32)
+                }
+                "info.localcoord.y" => {
+                    Value::Int(fight.map(|f| f.localcoord.1).unwrap_or(240.0) as i32)
+                }
+                "round.ctrl.time" => Value::Int(round.ctrl_time),
+                "round.over.hittime" => Value::Int(round.over_hittime),
+                "round.over.time" => Value::Int(round.over_time),
+                "round.over.waittime" => Value::Int(round.over_waittime),
+                "round.over.wintime" => Value::Int(round.over_wintime),
+                "round.slow.time" => Value::Int(round.slow_time),
+                "round.start.waittime" => Value::Int(round.start_waittime),
+                "round.callfight.time" => Value::Int(round.callfight_time),
+                "time.framespercount" => {
+                    Value::Int(fight.map(|f| f.time.framespercount).unwrap_or(60))
+                }
+                _ => Value::Int(0),
+            }
+        }
         // `FightScreenState(...)` reports which round display window is
         // active; the engine has no separate fight-screen motif state.
         "fightscreenstate" => {

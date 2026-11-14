@@ -165,6 +165,8 @@ pub struct TimeDef {
     pub top: Layer,
     pub counter: TextDef,
     pub displaytime: i32,
+    /// Frames per displayed timer count (`time.framespercount`).
+    pub framespercount: i32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -224,6 +226,13 @@ pub struct RoundDef {
     pub to_time: i32,
     pub win_time: i32,
     pub win2_time: i32,
+    /// `over.*` outcome windows and the hardcoded-style `callfight.time`.
+    pub over_waittime: i32,
+    pub over_hittime: i32,
+    pub over_wintime: i32,
+    pub over_forcewintime: i32,
+    pub over_time: i32,
+    pub callfight_time: i32,
     pub dko_showdraw: bool,
     pub elements: BTreeMap<String, Element>,
     /// Ticks of KO slow-motion (`slow.time`).
@@ -247,6 +256,12 @@ impl Default for RoundDef {
             to_time: 30,
             win_time: 45,
             win2_time: 45,
+            over_waittime: 45,
+            over_hittime: 10,
+            over_wintime: 45,
+            over_forcewintime: 900,
+            over_time: 210,
+            callfight_time: 60,
             dko_showdraw: false,
             elements: BTreeMap::new(),
             slow_time: 60,
@@ -1023,6 +1038,7 @@ fn parse_time(map: &HashMap<String, String>, prefix: &str) -> TimeDef {
             &format!("{prefix}counter.displaytime"),
             int(map, &format!("{prefix}displaytime"), 0),
         ),
+        framespercount: int(map, &format!("{prefix}framespercount"), 60),
     }
 }
 
@@ -1117,6 +1133,12 @@ fn parse_round(map: &HashMap<String, String>) -> RoundDef {
         to_time: int(map, "to.time", 30),
         win_time: int(map, "win.time", 45),
         win2_time: int(map, "win2.time", 45),
+        over_waittime: int(map, "over.waittime", 45).max(1),
+        over_hittime: int(map, "over.hittime", 10).max(1),
+        over_wintime: int(map, "over.wintime", 45).max(1),
+        over_forcewintime: int(map, "over.forcewintime", 900).max(1),
+        over_time: int(map, "over.time", 210).max(1),
+        callfight_time: int(map, "callfight.time", 60).max(1),
         dko_showdraw: flag(map, "dko.showdraw", false),
         elements,
         slow_time: int(map, "slow.time", 60),
