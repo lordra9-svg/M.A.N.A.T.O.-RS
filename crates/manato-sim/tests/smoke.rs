@@ -1421,6 +1421,41 @@ fn clsn_overlap_checks_collision_boxes_between_players() {
 }
 
 #[test]
+fn clsnvar_reads_local_collision_edges() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+
+    // Kaen's standing Clsn2 box is (-14, 0, 14, -70).
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, top)"), 0.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), -70.0);
+
+    // Missing boxes, empty groups, and the unmodeled size/dummy groups read 0.
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 5, back)"), 0.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn1, 0, back)"), 0.0);
+    assert_eq!(num(&sim, "ClsnVar(size, 0, back)"), 0.0);
+    assert_eq!(num(&sim, "ClsnVar(dummy, 0, back)"), 0.0);
+
+    // `TransformClsn` scaling applies to the local edges too.
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params: vec![
+            ("group".into(), "2".into()),
+            ("scale".into(), "2, 0.5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -28.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 28.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), -35.0);
+}
+
+#[test]
 fn env_shake_var_reads_active_shake() {
     let Some(mut sim) = fight_phase() else {
         return;

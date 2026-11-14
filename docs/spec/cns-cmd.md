@@ -221,6 +221,9 @@ missing redirect targets make the trigger false.
   `DizzyPointsMax`, `RedLife`, `ComboCount`, `ReceivedHits`, `ReceivedDamage`,
   `PowerMax`, `Attack`, `AttackMul`, `Defence`, `DefenceMul`, `GuardCount`,
   `Angle`, `HitOverridden`, `ClsnOverlap(box, playerID, box)` (Clsn1/Clsn2),
+  `ClsnVar(group, index, field)` (local Clsn1/Clsn2 box edge: `back`, `top`,
+  `front`, `bottom`; affected by `TransformClsn`; the `size`/`dummy` groups
+  and missing boxes read 0),
   `ReversalDefAttr = attr` (matches the active `ReversalDef` attr).
   `MoveCountered` is set when the current hit connected while the defender
   was attacking (`MoveType = A`) and is cleared by `MoveHitReset`.

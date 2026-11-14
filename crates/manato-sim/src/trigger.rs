@@ -545,6 +545,46 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                     .any(|left| b.iter().any(|right| left.intersects(*right))),
             )
         }
+        // `ClsnVar(group, index, field)` reports a local collision-box edge
+        // for the current animation frame. Clsn1/Clsn2 are modeled; the
+        // `size`/`dummy` groups are not, and a missing box reads 0.
+        "clsnvar" => {
+            let group = call_key(sim, who, args).to_ascii_lowercase();
+            let attack = match group.as_str() {
+                "clsn1" => true,
+                "clsn2" => false,
+                _ => return Value::Int(0),
+            };
+            let index = arg_i32(sim, who, args, 1).max(0) as usize;
+            let field = key_at(sim, who, args, 2).to_ascii_lowercase();
+            let fighter = &sim.fighters[who];
+            let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
+                return Value::Int(0);
+            };
+            let boxes = if attack { &frame.clsn1 } else { &frame.clsn2 };
+            let Some(bx) = boxes.get(index) else {
+                return Value::Int(0);
+            };
+            // `TransformClsn` scaling applies to the local box as well.
+            let mut scale = Vec2::new(1.0, 1.0);
+            for transform in &fighter.clsn_transforms[usize::from(!attack)] {
+                if transform.index < 0 || transform.index as usize == index {
+                    scale.x *= transform.scale.x;
+                    scale.y *= transform.scale.y;
+                }
+            }
+            let x1 = (bx.x1 as f32 * scale.x).round();
+            let y1 = (bx.y1 as f32 * scale.y).round();
+            let x2 = (bx.x2 as f32 * scale.x).round();
+            let y2 = (bx.y2 as f32 * scale.y).round();
+            Value::Float(match field.as_str() {
+                "back" => x1,
+                "top" => y1,
+                "front" => x2,
+                "bottom" => y2,
+                _ => 0.0,
+            })
+        }
         "envshakevar" => {
             let field = args
                 .first()
@@ -1213,6 +1253,15 @@ fn axis_arg(sim: &SimState, who: usize, args: &[Expr]) -> String {
 /// (`playerid`, `id`). Quoted or expression arguments fall back to evaluation.
 fn call_key(sim: &SimState, who: usize, args: &[Expr]) -> String {
     match args.first() {
+        Some(Expr::Ident(name)) => name.clone(),
+        Some(other) => eval(sim, who, other).as_str(),
+        None => String::new(),
+    }
+}
+
+/// Like [`call_key`] but for the `index`-th argument.
+fn key_at(sim: &SimState, who: usize, args: &[Expr], index: usize) -> String {
+    match args.get(index) {
         Some(Expr::Ident(name)) => name.clone(),
         Some(other) => eval(sim, who, other).as_str(),
         None => String::new(),
