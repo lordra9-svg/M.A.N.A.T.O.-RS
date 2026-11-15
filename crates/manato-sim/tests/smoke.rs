@@ -10529,6 +10529,65 @@ fn statedef_defaults_apply_type_physics_anim_and_ctrl() {
 }
 
 #[test]
+fn statedef_juggle_persists_when_omitted() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("common.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-juggle-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let text = std::fs::read_to_string(&common).expect("read common.cns");
+    let patched = text.replace(
+        "[Statedef 10]\ntype    = C",
+        "[Statedef 10]\ntype    = C\njuggle  = 4",
+    );
+    std::fs::write(&common, patched).expect("patch common.cns");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: dir.join("kaen.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let char_id = sim.fighters[1].char_id;
+    assert_eq!(sim.fighters[1].juggle, 0);
+
+    // An explicit Statedef juggle overrides the previous value.
+    sim.fighters[1].juggle = 9;
+    sim.fighters[1].enter_state(10, &assets.characters[char_id], false);
+    assert_eq!(sim.fighters[1].juggle, 4);
+
+    // Omitting `juggle` keeps the previous value instead of resetting to 0.
+    sim.fighters[1].enter_state(20, &assets.characters[char_id], false);
+    assert_eq!(sim.fighters[1].juggle, 4);
+
+    // Re-entering the state re-applies its explicit juggle value.
+    sim.fighters[1].enter_state(10, &assets.characters[char_id], false);
+    assert_eq!(sim.fighters[1].juggle, 4);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn throw_whiff_guard_bind_and_drop_semantics() {
     let Some(mut sim) = fight_phase() else {
         return;

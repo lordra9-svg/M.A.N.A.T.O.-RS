@@ -71,7 +71,8 @@ Defaults:
 - `anim` unchanged
 - `velset` unchanged
 - `poweradd = 0`
-- `juggle = 0`
+- `juggle`: unchanged when omitted; an attack state without the parameter
+  reuses the previous value (set `juggle = 0` explicitly to clear it)
 - `sprpriority = 0`
 - `facep2 = 0`
 - `hitdefpersist = 0`: the active HitDef and its per-activation hit

@@ -705,10 +705,11 @@ impl Fighter {
         if number == 0 || number == 52 {
             self.juggle_points = char.constants.get_or("data.airjuggle", 15.0) as i32;
         }
-        self.juggle = char
-            .state(number)
-            .and_then(|state| state.get_i32("juggle"))
-            .unwrap_or(0);
+        if let Some(state) = char.state(number) {
+            if let Some(juggle) = state.get_i32("juggle") {
+                self.juggle = juggle;
+            }
+        }
         if number == 5070 || number == 5100 {
             let up = char.constants.get_or("data.fall.defence_up", 50.0);
             self.fall_defence_mul *= (up + 100.0) / 100.0;
