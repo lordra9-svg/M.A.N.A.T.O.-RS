@@ -873,8 +873,25 @@ fn hit_override(sim: &mut SimState, who: usize, control: &Controller) {
 fn life_add(sim: &mut SimState, who: usize, control: &Controller) {
     let value = int_param(sim, who, control, "value").unwrap_or(0);
     let kill = int_param(sim, who, control, "kill").unwrap_or(1) != 0;
+    let absolute = int_param(sim, who, control, "absolute").unwrap_or(0) != 0;
     let fighter = &mut sim.fighters[who];
-    fighter.life = (fighter.life.saturating_add(value)).clamp(0, fighter.life_max);
+    let mut add = value as f32;
+    // Damage (negative values) goes through final defence unless absolute.
+    // Healing is never scaled, matching M.U.G.E.N.
+    if !absolute && add < 0.0 {
+        add /= fighter.defence_mul.max(0.01);
+        // At least one point of damage regardless of defence.
+        if add > -1.0 {
+            add = -1.0;
+        }
+    }
+    let add = add.round() as i32;
+    let previous = fighter.life;
+    fighter.life = (fighter.life.saturating_add(add)).clamp(0, fighter.life_max);
+    if add < 0 {
+        let applied = (previous - fighter.life).max(0);
+        fighter.received_damage = fighter.received_damage.saturating_add(applied);
+    }
     if !kill && fighter.life <= 0 {
         fighter.life = 1;
     }

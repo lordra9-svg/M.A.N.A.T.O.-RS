@@ -99,6 +99,9 @@ Required controller families for the approved matrix:
 - `CtrlSet`, `StateTypeSet`, `MoveTypeSet`, `Turn`
 - `VarSet`, `VarAdd`, `VarRangeSet`, `VarRandom`
 - `PowerAdd`, `PowerSet`, `LifeAdd`, `LifeSet`
+  `LifeAdd` scales negative values by final defence unless `absolute = 1`,
+  always deals at least 1 point of damage, leaves healing unscaled, and adds
+  the applied damage to `ReceivedDamage`.
 - `DefenceMulSet`, `AttackMulSet`
 - `SprPriority`, `Width`, `ScreenBound`, `PlayerPush`
 - `AssertSpecial`

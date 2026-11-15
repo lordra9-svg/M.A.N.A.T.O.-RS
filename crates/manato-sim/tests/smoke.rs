@@ -13674,6 +13674,45 @@ fn life_add_and_set_kill_semantics() {
 }
 
 #[test]
+fn lifeadd_scales_damage_by_defence_unless_absolute() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let add = |sim: &mut SimState, value: &str, absolute: &str| {
+        let control = manato_formats::Controller {
+            kind: "lifeadd".into(),
+            params: vec![
+                ("value".into(), value.into()),
+                ("absolute".into(), absolute.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    sim.fighters[0].life = 1000;
+    sim.fighters[0].defence_mul = 2.0;
+    sim.fighters[0].received_damage = 0;
+    add(&mut sim, "-100", "0");
+    assert_eq!(sim.fighters[0].life, 950, "damage is halved by defence");
+    assert_eq!(sim.fighters[0].received_damage, 50);
+
+    add(&mut sim, "-100", "1");
+    assert_eq!(sim.fighters[0].life, 850, "absolute bypasses defence");
+    assert_eq!(sim.fighters[0].received_damage, 150);
+
+    // At least one point of damage despite extreme defence.
+    sim.fighters[0].defence_mul = 1000.0;
+    add(&mut sim, "-10", "0");
+    assert_eq!(sim.fighters[0].life, 849);
+
+    // Healing ignores defence and clamps to the maximum.
+    add(&mut sim, "200", "0");
+    assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
+}
+
+#[test]
 fn target_vel_add_and_bind_variants() {
     let Some(mut sim) = fight_phase() else {
         return;
