@@ -2285,6 +2285,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         removal_ticks: 0,
         rem_velocity: Vec2::new(rem_velocity.0, rem_velocity.1),
         hits,
+        hits_max: hits,
         hitdef,
     });
     if let Some(raw) = control.get("projsnd") {

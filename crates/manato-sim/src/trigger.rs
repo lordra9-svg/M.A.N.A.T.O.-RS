@@ -2240,6 +2240,24 @@ fn explod_var(sim: &SimState, effect: &crate::Effect, field: &str) -> Value {
         "animelem" => Value::Int(position.map(|(elem, _)| elem).unwrap_or(0)),
         "animelemtime" => Value::Int(position.map(|(_, time)| time).unwrap_or(0)),
         "animtime" => Value::Int(anim.map(|anim| clock - anim.total_time()).unwrap_or(0)),
+        "animloopcount" => Value::Int(
+            anim.filter(|anim| anim.total_time() > 0)
+                .map(|anim| clock / anim.total_time())
+                .unwrap_or(0),
+        ),
+        "animplayerno" | "spriteplayerno" => Value::Int(match effect.source {
+            crate::EffectSource::Character(char_id) => char_id as i32 + 1,
+            _ => 0,
+        }),
+        "bindid" => Value::Int(effect.bind_target.map(|id| id as i32 + 1).unwrap_or(0)),
+        "drawpal.group" | "drawpal.index" => Value::Int(0),
+        "friction.x" | "friction.y" | "friction.z" => Value::Int(0),
+        "teamside" => Value::Int(
+            sim.fighters
+                .get(effect.owner)
+                .map(|f| f.side as i32 + 1)
+                .unwrap_or(0),
+        ),
         "animprefix" => Value::Str("s".into()),
         "facing" => Value::Float(effect.facing as f32),
         "id" => Value::Int(effect.id),
@@ -2295,6 +2313,12 @@ fn projectile_var(
         "projstagebound" => Value::Float(projectile.stage_bound),
         "projedgebound" => Value::Float(projectile.edge_bound),
         "projhits" => Value::Int(projectile.hits),
+        "projhitsmax" => Value::Int(projectile.hits_max),
+        "remvelocity.x" => Value::Float(projectile.rem_velocity.x),
+        "remvelocity.y" => Value::Float(projectile.rem_velocity.y),
+        "remvelocity.z" => Value::Int(0),
+        "teamside" => Value::Int(sim.fighters[projectile.owner].side as i32 + 1),
+        "supermovetime" => Value::Int(0),
         "projremove" => Value::Bool(projectile.remove_on_hits_exhausted),
         "projremanim" => Value::Int(projectile.rem_anim),
         "projhitanim" => Value::Int(projectile.hit_anim),

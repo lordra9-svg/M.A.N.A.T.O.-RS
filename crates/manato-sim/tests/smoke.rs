@@ -3226,6 +3226,35 @@ fn explod_var_reports_active_effect_fields() {
     assert_eq!(num(&sim, "ExplodVar(3, 0, angle.x)"), 15.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, angle.y)"), 10.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, xshear)"), 0.25);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, animplayerno)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, spriteplayerno)"),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, teamside)"),
+        sim.fighters[0].side as i32 + 1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, animloopcount)"),
+        0
+    );
+    // Explods default to binding to their owner, so `bindid` reports it.
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, bindid)"),
+        effect.bind_target.map(|id| id as i32 + 1).unwrap_or(0)
+    );
+    // No draw palette or friction is active.
+    for field in ["drawpal.group", "drawpal.index", "friction.x", "friction.y"] {
+        assert_eq!(
+            manato_sim::trigger::int(&sim, 0, &format!("ExplodVar(3, 0, {field})")),
+            0,
+            "{field}"
+        );
+    }
 
     assert_eq!(manato_sim::trigger::int(&sim, 0, "ExplodVar(-1, 0, id)"), 3);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "ExplodVar(-1, 0, id)"), 0);
@@ -3310,6 +3339,8 @@ fn proj_var_reports_active_projectile_fields() {
             ("projedgebound".into(), "20".into()),
             ("projshadow".into(), "10, 20, 30".into()),
             ("projmisstime".into(), "6".into()),
+            ("projhits".into(), "3".into()),
+            ("remvelocity".into(), "4, -5".into()),
         ],
         line: 0,
     };
@@ -3374,6 +3405,20 @@ fn proj_var_reports_active_projectile_fields() {
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projmisstime)"),
         6
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projhits)"),
+        3
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, projhitsmax)"),
+        3
+    );
+    assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.x)"), 4.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.y)"), -5.0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
+        sim.fighters[0].side as i32 + 1
     );
 
     // `id < 0` matches any projectile; missing id/index and unknown fields
@@ -9337,6 +9382,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         removal_ticks: 0,
         rem_velocity: manato_core::Vec2::ZERO,
         hits: 2,
+        hits_max: 2,
         hitdef,
     });
     let start = sim.fighters[1].life;

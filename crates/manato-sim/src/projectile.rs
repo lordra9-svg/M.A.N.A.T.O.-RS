@@ -74,6 +74,8 @@ pub struct Projectile {
     pub rem_velocity: Vec2,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
+    /// Initial hit allowance (`projhitsmax`).
+    pub hits_max: i32,
     pub hitdef: HitDef,
 }
 
