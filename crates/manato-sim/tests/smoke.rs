@@ -10769,6 +10769,52 @@ fn projectile_velocity_and_acceleration_follow_facing() {
 }
 
 #[test]
+fn projectile_defaults_priority_and_accepts_anim_zero() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // `projanim = 0` is a valid action and omitted priority defaults to 1.
+    spawn(&mut sim, vec![("projanim", "0"), ("removetime", "30")]);
+    assert_eq!(sim.projectiles.len(), 1);
+    assert_eq!(sim.projectiles[0].anim, 0);
+    assert_eq!(sim.projectiles[0].priority, 1);
+    assert_eq!(sim.projectiles[0].priority_points, 1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(0, 0, projpriority)"),
+        1
+    );
+
+    // Explicit values still win.
+    spawn(
+        &mut sim,
+        vec![
+            ("projanim", "1500"),
+            ("projpriority", "5"),
+            ("removetime", "30"),
+        ],
+    );
+    assert_eq!(sim.projectiles.len(), 2);
+    assert_eq!(sim.projectiles[1].priority, 5);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjVar(0, 1, projpriority)"),
+        5
+    );
+}
+
+#[test]
 fn super_pause_and_hit_pause_freeze_effects_with_move_time() {
     let Some(mut sim) = fight_phase() else {
         return;

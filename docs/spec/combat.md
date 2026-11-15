@@ -495,6 +495,9 @@ timed stun.
 ## 10. Projectile and helper hits
 
 - Projectiles carry their own HitDef and hit target list.
+- `projpriority` defaults to `1` and seeds the clash-point counter.
+- `projanim = 0` is a valid animation; only missing or negative animations are
+  rejected.
 - Projectile hits use the projectile position for spark placement.
 - When a projectile exhausts its hits it plays `projhitanim`; when its
   `removetime`/bounds end it plays `projremanim`. `-1` removes it immediately.

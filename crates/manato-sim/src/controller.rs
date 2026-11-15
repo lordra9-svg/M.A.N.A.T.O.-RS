@@ -2136,7 +2136,7 @@ fn remove_explod(sim: &mut SimState, who: usize, control: &Controller) {
 fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let char = char_of(assets, sim, who);
     let anim = int_param(sim, who, control, "projanim").unwrap_or(0);
-    if anim <= 0 || char.animation(anim).is_none() {
+    if anim < 0 || char.animation(anim).is_none() {
         log::warn!("projectile uses missing animation {anim}");
         return;
     }
@@ -2165,7 +2165,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let id = int_param(sim, who, control, "projid")
         .or_else(|| int_param(sim, who, control, "id"))
         .unwrap_or(0);
-    let priority = int_param(sim, who, control, "projpriority").unwrap_or(0);
+    let priority = int_param(sim, who, control, "projpriority").unwrap_or(1);
     let remove_on_hits_exhausted = int_param(sim, who, control, "projremove").unwrap_or(1) != 0;
     let shadow = parse_shadow(sim, who, control, "projshadow").unwrap_or([0; 3]);
     let scale = control.get_pair("projscale").unwrap_or((1.0, 1.0));
