@@ -504,6 +504,13 @@ timed stun.
 ## 10. Projectile and helper hits
 
 - Projectiles carry their own HitDef and hit target list.
+- Projectiles trade with each other when their Clsn2 boxes overlap. Each
+  clash spends one priority point when the projectile has more points than
+  its opponent, otherwise one hit. A projectile whose hits reach zero enters
+  `projcancelanim` (velocity replaced by `remvelocity`, acceleration cleared);
+  with `projcancelanim = -1` it is removed immediately. Owners observe the
+  clash through `ProjCancelTime(id)`, which reports ticks since the cancellation
+  (`-1` when no matching cancellation happened).
 - `projpriority` defaults to `1` and seeds the clash-point counter.
 - `projanim = 0` is a valid animation; only missing or negative animations are
   rejected.

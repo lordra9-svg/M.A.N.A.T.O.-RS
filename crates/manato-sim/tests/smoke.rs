@@ -2225,6 +2225,66 @@ fn assertanalogvector_feeds_the_analog_trigger() {
 }
 
 #[test]
+fn projectile_clashes_cancel_both_and_report_projcanceltime() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, who: usize, id: &str| {
+        let control = manato_formats::Controller {
+            kind: "projectile".into(),
+            params: vec![
+                ("projanim".into(), "0".into()),
+                ("id".into(), id.into()),
+                ("projhits".into(), "1".into()),
+                ("projpriority".into(), "0".into()),
+                ("projcancelanim".into(), "0".into()),
+                ("removetime".into(), "60".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, who, &control, &assets);
+    };
+    spawn(&mut sim, 0, "3");
+    spawn(&mut sim, 1, "4");
+    assert_eq!(sim.projectiles.len(), 2);
+    // Put both projectiles at the same point so their Clsn2 boxes overlap.
+    for projectile in &mut sim.projectiles {
+        projectile.pos = manato_core::Vec2::ZERO;
+        projectile.time = 0;
+    }
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjCancelTime(0)"),
+        -1,
+        "no clash yet"
+    );
+
+    // Both projectiles sit at the same spot with an overlapping Clsn2.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.projectiles[0].status,
+        manato_sim::projectile::ProjectileStatus::Cancel
+    );
+    assert_eq!(
+        sim.projectiles[1].status,
+        manato_sim::projectile::ProjectileStatus::Cancel
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjCancelTime(0)"), 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "ProjCancelTime(4)"), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "ProjCancelTime(99)"),
+        -1,
+        "a non-matching id reads -1"
+    );
+
+    // Both removal animations finish and the projectiles disappear.
+    for _ in 0..120 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.projectiles.is_empty());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

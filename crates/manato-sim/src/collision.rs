@@ -1161,6 +1161,100 @@ pub(crate) fn proj_clsn_overlap(
     any_overlap(&clsn1, &target_boxes) || any_overlap(&clsn2, &target_boxes)
 }
 
+/// Resolves projectile-vs-projectile trades. Projectiles trade with their
+/// Clsn2 boxes; each clash consumes a priority point when the projectile has
+/// more points than its opponent, otherwise a hit. A projectile that runs out
+/// of hits enters its `projcancelanim`.
+pub fn resolve_projectile_clashes(sim: &mut SimState) {
+    use crate::projectile::ProjectileStatus;
+
+    let count = sim.projectiles.len();
+    let mut cancelled = vec![false; count];
+    for i in 0..count {
+        for j in (i + 1)..count {
+            if sim.projectiles[i].owner == sim.projectiles[j].owner
+                || sim.projectiles[i].status != ProjectileStatus::Active
+                || sim.projectiles[j].status != ProjectileStatus::Active
+                || sim.projectiles[i].hits < 0
+                || sim.projectiles[j].hits < 0
+            {
+                continue;
+            }
+            let boxes = |sim: &SimState, projectile: &crate::projectile::Projectile| {
+                projectile_group_boxes(
+                    sim,
+                    projectile.owner,
+                    projectile.anim,
+                    projectile.time,
+                    projectile.facing,
+                    projectile.pos,
+                    false,
+                )
+            };
+            let (left, right) = (&sim.projectiles[i], &sim.projectiles[j]);
+            let boxes_a = boxes(sim, left);
+            let boxes_b = boxes(sim, right);
+            if boxes_a.is_empty() || boxes_b.is_empty() || !any_overlap(&boxes_a, &boxes_b) {
+                continue;
+            }
+            let priority_a = left.priority_points;
+            let priority_b = right.priority_points;
+            {
+                let a = &mut sim.projectiles[i];
+                if priority_a > priority_b {
+                    a.priority_points -= 1;
+                } else {
+                    a.hits -= 1;
+                }
+                if a.hits <= 0 {
+                    cancelled[i] = true;
+                }
+            }
+            {
+                let b = &mut sim.projectiles[j];
+                if priority_b > priority_a {
+                    b.priority_points -= 1;
+                } else {
+                    b.hits -= 1;
+                }
+                if b.hits <= 0 {
+                    cancelled[j] = true;
+                }
+            }
+        }
+    }
+
+    for index in 0..count {
+        if !cancelled[index] {
+            continue;
+        }
+        let owner = sim.projectiles[index].owner;
+        let cancel_anim = sim.projectiles[index].cancel_anim;
+        let animation = sim
+            .assets
+            .characters
+            .get(sim.fighters[owner].char_id)
+            .and_then(|character| character.animation(cancel_anim));
+        let total = animation
+            .map(|animation| animation.total_time())
+            .unwrap_or(0);
+        let projectile = &mut sim.projectiles[index];
+        projectile.status = ProjectileStatus::Cancel;
+        projectile.vel = projectile.rem_velocity;
+        projectile.accel = manato_core::Vec2::ZERO;
+        if cancel_anim < 0 || total <= 0 {
+            projectile.removal_ticks = 0;
+        } else {
+            projectile.anim = cancel_anim;
+            projectile.anim_loop_time = total;
+            projectile.removal_ticks = total;
+            projectile.time = 0;
+        }
+        sim.fighters[owner].proj_cancel_time = 0;
+        sim.fighters[owner].proj_cancel_id = projectile.id;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::field_reassign_with_default)]

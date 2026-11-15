@@ -940,6 +940,7 @@ impl SimState {
                 &mut fighter.proj_contact_time,
                 &mut fighter.proj_hit_time,
                 &mut fighter.proj_guarded_time,
+                &mut fighter.proj_cancel_time,
             ] {
                 if *timer >= 0 {
                     *timer = timer.saturating_add(1);
@@ -1071,6 +1072,7 @@ impl SimState {
             }
         }
         collision::resolve_projectiles(self);
+        collision::resolve_projectile_clashes(self);
         {
             let characters = &self.assets.characters;
             let fighters = &self.fighters;
@@ -2295,6 +2297,8 @@ impl SimState {
             fighter.received_damage = 0;
             fighter.proj_contact_time = -1;
             fighter.proj_hit_time = -1;
+            fighter.proj_cancel_time = -1;
+            fighter.proj_cancel_id = -1;
             fighter.proj_guarded_time = -1;
             fighter.state_changed = false;
             fighter.enter_state(0, char, false);
@@ -3118,6 +3122,8 @@ impl SimState {
             h.write_i32(f.received_damage);
             h.write_i32(f.proj_contact_time);
             h.write_i32(f.proj_hit_time);
+            h.write_i32(f.proj_cancel_time);
+            h.write_i32(f.proj_cancel_id);
             h.write_i32(f.proj_guarded_time);
             for &v in &f.vars {
                 h.write_i32(v);

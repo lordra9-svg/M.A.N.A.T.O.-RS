@@ -375,6 +375,11 @@ pub struct Fighter {
     pub proj_hit_time: i32,
     /// Ticks since the last guarded projectile hit (`-1` = never).
     pub proj_guarded_time: i32,
+    /// Ticks since a projectile clash cancelled one of this fighter's
+    /// projectiles (`-1` = never).
+    pub proj_cancel_time: i32,
+    /// ID of the cancelled projectile (`-1` = none).
+    pub proj_cancel_id: i32,
     /// Hits taken while in the current hitstun (`combo` tracking).
     pub received_hits: i32,
     /// Damage taken while in the current hitstun.
@@ -547,6 +552,8 @@ impl Fighter {
             proj_contact_time: -1,
             proj_hit_time: -1,
             proj_guarded_time: -1,
+            proj_cancel_time: -1,
+            proj_cancel_id: -1,
             received_hits: 0,
             received_damage: 0,
             state_changed: false,

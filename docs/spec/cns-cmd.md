@@ -376,7 +376,7 @@ missing redirect targets make the trigger false.
   ID; `clsn1`/`clsn2`; a projectile's Clsn1 or Clsn2 group may overlap, and
   the unmodeled `size` group is false),
   `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`, `Index`,
-  `ExplodVar(id, index, field)`, `ProjHit`,
+  `ExplodVar(id, index, field)`, `ProjCancelTime(id)`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`

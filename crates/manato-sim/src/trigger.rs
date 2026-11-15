@@ -1192,6 +1192,15 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "projcontacttime" => Value::Int(sim.fighters[who].proj_contact_time),
         "projhittime" => Value::Int(sim.fighters[who].proj_hit_time),
         "projguardedtime" => Value::Int(sim.fighters[who].proj_guarded_time),
+        "projcanceltime" => {
+            let id = arg_i32(sim, who, args, 0);
+            let fighter = &sim.fighters[who];
+            if fighter.proj_cancel_time < 0 || (id > 0 && id != fighter.proj_cancel_id) {
+                Value::Int(-1)
+            } else {
+                Value::Int(fighter.proj_cancel_time)
+            }
+        }
         "projcontact" => Value::Bool(sim.fighters[who].proj_contact_time >= 0),
         "projhit" => Value::Bool(sim.fighters[who].proj_hit_time >= 0),
         "projguarded" => Value::Bool(sim.fighters[who].proj_guarded_time >= 0),
@@ -1705,6 +1714,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "numprojid"
             | "projcontact"
             | "projcontacttime"
+            | "projcanceltime"
             | "projguarded"
             | "projguardedtime"
             | "projhit"
@@ -1836,6 +1846,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "projcontacttime" => Value::Int(f.proj_contact_time),
         "projhittime" => Value::Int(f.proj_hit_time),
         "projguardedtime" => Value::Int(f.proj_guarded_time),
+        "projcanceltime" => Value::Int(f.proj_cancel_time),
         "projcontact" => Value::Bool(f.proj_contact_time >= 0),
         "projhit" => Value::Bool(f.proj_hit_time >= 0),
         "projguarded" => Value::Bool(f.proj_guarded_time >= 0),
