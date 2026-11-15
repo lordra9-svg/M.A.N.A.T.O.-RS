@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: System dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev musl-tools
+
+      - name: Build glibc binary
+        run: cargo build --release -p manato-app
+
+      - name: Build musl binary
+        run: cargo build --release -p manato-app --target x86_64-unknown-linux-musl --no-default-features
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp target/release/manato dist/manato-linux-x86_64
+          cp target/x86_64-unknown-linux-musl/release/manato dist/manato-linux-x86_64-musl
+          cp LICENSE README.md dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: manato-linux-x86_64
+          path: dist/*
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release -p manato-app
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/release/manato.exe dist/manato-windows-x86_64.exe
+          Copy-Item LICENSE, README.md dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: manato-windows-x86_64
+          path: dist/*
+
+  publish:
+    needs: [linux, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

@@ -16,12 +16,12 @@ means for M.A.N.A.T.O.-RS and drives the clean-room rewrite order.
 ### Frozen scope decisions
 
 Approved scope is the fight screen plus title/select, `.fnt` v1/v2, explod
-perspective, and Ikemen-only zoom. The following rows are therefore `N/A`
-for manato and must not be implemented without a new scope approval:
-F-12 (storyboards), R-04 (turns/team/tag), R-05 (continue/survival/arcade),
-V-09 (custom shaders), and N-03 (spectators/lobby). X-06 and X-07 are also
-`N/A`: no Ikemen test content is shipped, and the clean-room policy uses
-Ikemen-GO alone as the runtime oracle.
+perspective, and Ikemen-only zoom. The project owner has since **expanded the
+scope** to include F-12 (storyboards), R-04 (turns/team/tag), R-05
+(continue/survival/arcade), V-09 (custom shaders), and N-03
+(spectators/lobby); those rows now carry `Partial` and are pending
+implementation. X-06 and X-07 remain `N/A`: no Ikemen test content is
+shipped, and the clean-room policy uses Ikemen-GO alone as the runtime oracle.
 
 ## Remaining work
 
@@ -37,7 +37,12 @@ deliberate, not scheduling gaps:
 | Asset reload / serialization | C-13, R-06 | `MatchRestart`, `SaveState`/`LoadState`, and `SaveFile`/`LoadFile` need reloadable assets and a serialized simulation state. |
 | Audio streaming | A-03, T-08 | `PlayBGM`/`ModifyBGM` and live `BgmVar`/`SoundVar` fields need a streaming BGM engine; the mixer currently plays decoded one-shots. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/`ModifyBGCtrl3D` and non-zero Z fields need a depth renderer; the engine is strictly 2D. |
-| Custom-state helpers | C-13 | `AssertCommand`/`AssertInput`/`AssertAnalogVector` and `ChangeMovelist` belong to Ikemen custom-state/movelist machinery that is out of the frozen scope. |
+| Custom-state movelists | C-13 | `ChangeMovelist` needs multiple parsed command lists per character; only one CMD list is modeled. |
+| Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
+| Team/tag flow | R-04 |`Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
+| Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
+| Custom shaders | V-09 | `ShaderSet` needs a wgpu pipeline/shader registry. |
+| Spectators/lobby | N-03 | Spectator transport and lobby state need a netplay session layer. |
 | Debug-only helpers | C-13 | Clipboard, console-print, and assert controllers are authoring aids rather than engine behavior. |
 
 Oracle-only rows (`F-09`, `K-01`..`K-09`, `V-05`, `V-08`, `A-01`, `A-03`,
@@ -64,8 +69,8 @@ priority details.
 | F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo, signed 16/24/32-bit, and float conversion + header-offset validation + truncated-entry skip |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl types + `time` windows/loops + ModifyBGCtrl retiming + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
-| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards are out of scope (F-12) |
-| F-12 | Storyboards | Required | Required | N/A | Out of the approved frozen rendering scope (fight screen + title/select only) |
+| F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards tracked by F-12 |
+| F-12 | Storyboards | Required | Required | Partial | In scope by owner decision; not implemented yet |
 | F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation is out of the frozen scope |
 
 ## 2. State machine
@@ -92,7 +97,7 @@ priority details.
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + ExplodVar(id, index, field) incl. animplayerno/bindid/loopcount/teamside + ProjVar(id, index, field) incl. projhitsmax/remvelocity/teamside + HelperVar + Index + SysVar + ID/PlayerID 1-based unique IDs + IsHelper(id)/ParentDist/RootDist axis-facing + ParentExist ancestry tests |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const incl. 1080p + radian trig/asin/acos/atan2 + Clamp/Lerp/Sign/Round/RandomRange + Cond/E/Ln/Log(base,value) + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel + old-style TimeMod |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Partial | `TeamMode` single/simul/turns + `IsHomeTeam` versus side semantics; tag/partner/simul teams out of scope |
-| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `PrevAnim`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `ConsecutiveWins`, `EnvShakeVar`, `FightTime`, `HelperIndexExist`, `IkemenVersion`, `MugenVersion`, `LastPlayerID`, `HitDefVar`, `SpriteVar`, `StageBGVar`, `StageVar`, `NumStageBG(id)`, `IsAsserted(flag)`, `LocalCoordX/Y`, `Map`, `Name`, `DisplayName`, `AuthorName`, `NumStageBG`, `NumPlayer`, `PlayerNo`, `PlayerIDExist`, `PlayerIndexExist`, `PlayerNoExist`, `PalfxVar`, `Scale.X/Y`, `Offset.X/Y`, `XShear`, `Alpha.Source/Dest`, `Pi`, `Float`, `AILevelF`, `AnimPlayerNo`, `SpritePlayerNo`, `HelperName`, `InCustomState`, `InCustomAnim`, `SelfCommand`, `ReversalDefAttr`, `P5Name`–`P8Name`, `RunOrder`, `GroundAngle`, `LocalCoord(x|y)`, `FirstAttack`, `IsHost`, `GameMode`, `InputTime(key)`, `MoveCountered`, `MoveHitVar(playerid|id|playerno|uniqhit)`, `InRunState`, `ClsnVar(group, index, field)`, `AnimElemVar(field)`, `StageConst(key)`, `Analog(axis)`, `IntroState`, `OutroState`, `FightScreenState(field)`, `FightScreenVar(field)`, `MotifVar(field)`, `MotifState(field)`, `GameVar(field)`, `ProjClsnOverlap(index, targetID, box)`, `BgmVar(field)`, `GameOption(key)`, `SoundVar(channel, field)`, `WinSpecial`, `WinHyper`, `AirJumpCount`, `XAngle`, `YAngle`, `Scale.Z`, `Player(n)` redirect, `TopBoundDist`, `TopBoundBodyDist`, `BotBoundDist`, `BotBoundBodyDist`, `TeamSize`, `TeamLeader`, `MemberNo`, `Standby`, `Score`, `ScoreTotal`, `RedLife`, `ReceivedHits`, `ReceivedDamage`, `SelfStateNoExist`, `StageTime`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented (single-member teams); `NumText`/`Text` await a text-object pipeline, `ProjCancelTime` awaits projectile clash resolution, and `Shader` is out of scope (V-09) |
+| T-08 | Ikemen-only triggers | N/A | Ikemen | Partial | `AnimLength`, `AnimLoopCount`, `PrevAnim`, `SprPriority`, `PrevStateType`, `PrevMoveType`, `StageFrontEdgeDist`, `StageBackEdgeDist`, `ComboCount`, `ConsecutiveWins`, `EnvShakeVar`, `FightTime`, `HelperIndexExist`, `IkemenVersion`, `MugenVersion`, `LastPlayerID`, `HitDefVar`, `SpriteVar`, `StageBGVar`, `StageVar`, `NumStageBG(id)`, `IsAsserted(flag)`, `LocalCoordX/Y`, `Map`, `Name`, `DisplayName`, `AuthorName`, `NumStageBG`, `NumPlayer`, `PlayerNo`, `PlayerIDExist`, `PlayerIndexExist`, `PlayerNoExist`, `PalfxVar`, `Scale.X/Y`, `Offset.X/Y`, `XShear`, `Alpha.Source/Dest`, `Pi`, `Float`, `AILevelF`, `AnimPlayerNo`, `SpritePlayerNo`, `HelperName`, `InCustomState`, `InCustomAnim`, `SelfCommand`, `ReversalDefAttr`, `P5Name`–`P8Name`, `RunOrder`, `GroundAngle`, `LocalCoord(x|y)`, `FirstAttack`, `IsHost`, `GameMode`, `InputTime(key)`, `MoveCountered`, `MoveHitVar(playerid|id|playerno|uniqhit)`, `InRunState`, `ClsnVar(group, index, field)`, `AnimElemVar(field)`, `StageConst(key)`, `Analog(axis)`, `IntroState`, `OutroState`, `FightScreenState(field)`, `FightScreenVar(field)`, `MotifVar(field)`, `MotifState(field)`, `GameVar(field)`, `ProjClsnOverlap(index, targetID, box)`, `BgmVar(field)`, `GameOption(key)`, `SoundVar(channel, field)`, `WinSpecial`, `WinHyper`, `AirJumpCount`, `XAngle`, `YAngle`, `Scale.Z`, `Player(n)` redirect, `TopBoundDist`, `TopBoundBodyDist`, `BotBoundDist`, `BotBoundBodyDist`, `TeamSize`, `TeamLeader`, `MemberNo`, `Standby`, `Score`, `ScoreTotal`, `RedLife`, `ReceivedHits`, `ReceivedDamage`, `SelfStateNoExist`, `StageTime`, `TimeRemaining`, `TimeElapsed`, `TimeTotal` implemented (single-member teams); `NumText`/`Text` await a text-object pipeline, `ProjCancelTime` awaits projectile clash resolution, and `Shader` awaits the V-09 shader pipeline |
 
 ## 4. Controllers
 
@@ -110,7 +115,7 @@ priority details.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow + TimerFreeze round-clock freeze |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time) implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 N/A), tagin/tagout (R-04 N/A), ShaderSet (V-09 N/A), RunState, RemapSprite (decoded-RGBA architecture), Text/ModifyText/RemoveText (text pipeline), ModifyBGM/PlayBGM (no BGM engine), 3D/depth controllers, MatchRestart/save/load (asset reload/serialization), and debug-only clipboard/console/assert helpers |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), ShaderSet (V-09 pending), RunState, RemapSprite (decoded-RGBA architecture), Text/ModifyText/RemoveText (text pipeline), ModifyBGM/PlayBGM (no BGM engine), 3D/depth controllers, MatchRestart/save/load (asset reload/serialization), and debug-only clipboard/console/assert helpers |
 
 ## 5. Collision and combat
 
@@ -133,8 +138,8 @@ priority details.
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
 | R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw + RoundsWon/LoseKO/LoseTime + timer freeze/clamp |
 | R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay + Win/WinKO/WinTime/WinPerfect/WinClutch/DecisiveRound triggers + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
-| R-04 | Turns/team/tag modes | Required | Ikemen | N/A | Out of the approved frozen scope; single/simul round structure only |
-| R-05 | Continue/survival/arcade | Required | Required | N/A | Out of the approved frozen scope; single-match flow only |
+| R-04 | Turns/team/tag modes | Required | Ikemen | Partial | In scope by owner decision; stories/turns/tag flow not implemented yet |
+| R-05 | Continue/survival/arcade | Required | Required | Partial | In scope by owner decision; continue/survival/arcade flow not implemented yet |
 | R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + `restart_match` API and R-key reset |
 
 ## 7. Rendering
@@ -147,9 +152,9 @@ priority details.
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Win-icon kind/perfect/cap + combo refresh + delayed fills + guard points/bar rendering with hide-at-zero + red-life bar layer from red_life/life_max + guard-crush drain/window; custom guard-break effects pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile shear/perspective rendering + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
-| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards are out of scope |
+| V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | N/A | Out of the approved frozen rendering scope |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | In scope by owner decision; shader pipelines not implemented yet |
 
 ## 8. Audio
 
@@ -171,7 +176,7 @@ priority details.
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
 | N-02 | P2P input exchange | Required | Required | Partial | Localhost GGRS loopback test; internet/latency matrix pending |
-| N-03 | Spectators/lobby | N/A | Ikemen | N/A | Out of the approved frozen scope; two-player rollback only |
+| N-03 | Spectators/lobby | N/A | Ikemen | Partial | In scope by owner decision; spectator/lobby transport not implemented yet |
 
 ## 10. Acceptance content
 

@@ -1222,8 +1222,19 @@ impl SimState {
                     fighter.helper_destroy = true;
                 }
             }
-            // AssertSpecial is a per-tick assertion; states must re-assert it.
+            // `AssertCommand` keeps a command active for its remaining ticks.
+            if !fighter.asserted_commands.is_empty() {
+                for (_, time) in &mut fighter.asserted_commands {
+                    if *time > 0 {
+                        *time -= 1;
+                    }
+                }
+                fighter.asserted_commands.retain(|(_, time)| *time > 0);
+            }
+            // AssertSpecial and AssertInput are per-tick assertions.
             fighter.assert_flags = 0;
+            fighter.asserted_input = PlayerInput::default();
+            fighter.analog_axes = [0.0; 6];
             // `Width`/`Height` are per-tick overrides: Ikemen resets them
             // before the state controllers run each tick.
             fighter.width_override = None;
@@ -2253,6 +2264,9 @@ impl SimState {
             fighter.extra_exec = [Vec::new(), Vec::new(), Vec::new()];
             fighter.pos_freeze = 0;
             fighter.assert_flags = 0;
+            fighter.asserted_commands.clear();
+            fighter.asserted_input = PlayerInput::default();
+            fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;
             fighter.player_push = true;
             fighter.gravity = None;
@@ -3074,6 +3088,17 @@ impl SimState {
             h.write_i32(f.juggle_points);
             h.write_i32(f.juggle);
             h.write_f32(f.fall_defence_mul);
+            h.write_u32(f.asserted_commands.len() as u32);
+            for (name, time) in &f.asserted_commands {
+                h.write_u32(name.len() as u32);
+                h.write_bytes(name.as_bytes());
+                h.write_i32(*time);
+            }
+            h.write_u8(f.asserted_input.dir);
+            h.write_u8(f.asserted_input.buttons);
+            for axis in f.analog_axes {
+                h.write_f32(axis);
+            }
             h.write_bool(f.target_bind.is_some());
             if let Some(bind) = f.target_bind {
                 h.write_f32(bind.offset.x);

@@ -271,6 +271,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
+        "assertcommand" => assert_command(sim, who, control),
+        "assertinput" => assert_input(sim, who, control),
+        "assertanalogvector" => assert_analog_vector(sim, who, control),
         "modifystagebg" => modify_stage_bg(sim, who, control),
         "modifybgctrl" => modify_bg_ctrl(sim, who, control),
         "allpalfx" => {
@@ -1877,6 +1880,107 @@ fn override_clsn(sim: &mut SimState, who: usize, control: &Controller) {
             overrides[(group - 1) as usize].push(crate::fighter::ClsnOverride { index, rect });
         }
         _ => {}
+    }
+}
+
+/// `AssertCommand`: keeps a named command active for `buffertime` ticks
+/// (`time` is accepted as an alias). An empty name selects the first command
+/// in the fighter's list, matching the random-selection fallback closely
+/// enough for deterministic content.
+fn assert_command(sim: &mut SimState, who: usize, control: &Controller) {
+    let mut name = control
+        .get("name")
+        .map(|value| value.trim().trim_matches('"').to_string())
+        .unwrap_or_default();
+    let time = int_param(sim, who, control, "buffertime")
+        .or_else(|| int_param(sim, who, control, "time"))
+        .unwrap_or(1);
+    if time == 0 {
+        return;
+    }
+    if name.is_empty() {
+        let Some(command) = sim.character(who).commands.first() else {
+            return;
+        };
+        name = command.name.clone();
+    }
+    let fighter = &mut sim.fighters[who];
+    if let Some(entry) = fighter
+        .asserted_commands
+        .iter_mut()
+        .find(|(existing, _)| existing.eq_ignore_ascii_case(&name))
+    {
+        entry.1 = time;
+    } else {
+        fighter.asserted_commands.push((name, time));
+    }
+}
+
+/// `AssertInput`: merges directional/button bits into the next input frame.
+/// `flag` accepts `U`/`D`/`L`/`R`, `a`–`c`, `x`–`z`, and `s`; `flag.B` and
+/// `flag.F` add back/forward relative to the fighter's facing.
+fn assert_input(sim: &mut SimState, who: usize, control: &Controller) {
+    use manato_core::{Buttons, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
+    let facing = sim.fighters[who].facing;
+    let mut dir = 0u8;
+    let mut buttons = 0u8;
+    for (key, value) in &control.params {
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim().trim_matches('"');
+        if key == "flag"
+            || key
+                .strip_prefix("flag")
+                .is_some_and(|n| n.parse::<u8>().is_ok())
+        {
+            if value.eq_ignore_ascii_case("B") {
+                dir |= if facing >= 0 { DIR_LEFT } else { DIR_RIGHT };
+            } else if value.eq_ignore_ascii_case("F") {
+                dir |= if facing >= 0 { DIR_RIGHT } else { DIR_LEFT };
+            } else {
+                for ch in value.chars() {
+                    match ch.to_ascii_uppercase() {
+                        'U' => dir |= DIR_UP,
+                        'D' => dir |= DIR_DOWN,
+                        'L' => dir |= DIR_LEFT,
+                        'R' => dir |= DIR_RIGHT,
+                        _ => {
+                            if let Some(button) = Buttons::from_letter(ch) {
+                                buttons |= button;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let fighter = &mut sim.fighters[who];
+    fighter.asserted_input.dir |= dir;
+    fighter.asserted_input.buttons |= buttons;
+}
+
+/// `AssertAnalogVector`: sets the six analog axes read by `Analog(...)` for
+/// the next tick. Values are clamped like Ikemen (sticks -1..1, triggers
+/// 0..1).
+fn assert_analog_vector(sim: &mut SimState, who: usize, control: &Controller) {
+    let values = [
+        control.get("leftx"),
+        control.get("lefty"),
+        control.get("rightx"),
+        control.get("righty"),
+        control.get("lefttrigger"),
+        control.get("righttrigger"),
+    ]
+    .map(|raw| raw.map(|raw| trigger::num(sim, who, raw)));
+    let axes = &mut sim.fighters[who].analog_axes;
+    for (index, value) in values.into_iter().enumerate() {
+        let Some(value) = value else {
+            continue;
+        };
+        axes[index] = if index < 4 {
+            value.clamp(-1.0, 1.0)
+        } else {
+            value.clamp(0.0, 1.0)
+        };
     }
 }
 

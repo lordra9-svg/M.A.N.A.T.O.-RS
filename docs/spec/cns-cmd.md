@@ -161,6 +161,14 @@ Required controller families for the approved matrix:
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a
   new box; `ClsnVar` and hit detection see the result)
+- `AssertCommand` (keeps a command name active for `buffertime` ticks; an
+  empty name selects the character's first command; `time` is an alias)
+- `AssertInput` (merges `flag`/`flag2..8` bits — `U`/`D`/`L`/`R`,
+  `a`–`c`, `x`–`z`, `s`, and facing-relative `B`/`F` — into the next input
+  frame)
+- `AssertAnalogVector` (sets `leftx`/`lefty`/`rightx`/`righty`/
+  `lefttrigger`/`righttrigger` for `Analog(...)`; sticks clamp to -1..1 and
+  triggers to 0..1)
 - `ShiftInput` (per-tick key remap, applied to the next input frame:
   `input`/`output` accept `U`/`D`/`L`/`R` and `a`–`c`, `x`–`z`, `s`;
   `output = none` disables the source, `input = none, output = none` clears
@@ -353,7 +361,8 @@ missing redirect targets make the trigger false.
   `Acos`, `Atan`, `Atan2`, `Rad`, `Deg`, `Round`, `RandomRange`, `Exp`,
   `Ln`, `Log(base, value)`, `Sqrt`, `Pow`,
   `AILevel`, `AILevelF`, `LocalCoordX`, `LocalCoordY`, `LocalCoord(x|y)`,
-  `Analog(axis)` (always 0: the engine samples digital input only),
+  `Analog(axis)` (reads the axes set by `AssertAnalogVector`; 0 when not
+  asserted),
   `Pi`, `E`, `Float(x)`
   Trigonometric functions take and return radians, as in the M.U.G.E.N
   expression reference.

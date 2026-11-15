@@ -2061,6 +2061,170 @@ fn modifystagebg_overrides_layer_state() {
 }
 
 #[test]
+fn assertcommand_holds_a_command_active_for_its_duration() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let assert = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "assertcommand".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let active = |sim: &SimState, name: &str| {
+        manato_sim::trigger::int(sim, 0, &format!("Command = \"{name}\"")) == 1
+    };
+
+    assert!(!active(&sim, "x"), "no input yet");
+    assert(&mut sim, vec![("name", "x"), ("buffertime", "2")]);
+    assert!(active(&sim, "x"), "asserted immediately");
+
+    // Ticks at the start of the next update; the command survives one tick.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(active(&sim, "x"));
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!active(&sim, "x"), "expires after buffertime");
+
+    // `time` is accepted as an alias; an empty name selects the first
+    // command in the character's list.
+    let first = sim.assets.characters[sim.fighters[0].char_id]
+        .commands
+        .first()
+        .map(|command| command.name.clone());
+    let Some(first) = first else {
+        return;
+    };
+    assert(&mut sim, vec![("time", "3")]);
+    assert!(active(&sim, &first), "empty name asserts the first command");
+    assert!(
+        !active(&sim, "definitely_missing"),
+        "unknown names stay inactive"
+    );
+
+    // The assertion is part of the rollback checksum.
+    assert(&mut sim, vec![("name", "x"), ("buffertime", "5")]);
+    let before = sim.checksum();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
+fn assertinput_merges_bits_into_the_next_frame() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let assert = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "assertinput".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let last = |sim: &SimState| sim.fighters[0].history.back().unwrap().input;
+
+    sim.fighters[0].facing = 1;
+    assert(&mut sim, vec![("flag", "F"), ("flag2", "x")]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        last(&sim).dir & manato_core::DIR_RIGHT,
+        manato_core::DIR_RIGHT
+    );
+    assert_eq!(
+        last(&sim).buttons & manato_core::Buttons::X,
+        manato_core::Buttons::X
+    );
+
+    // Per-tick: without re-asserting, the bits are gone next tick.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(last(&sim).dir, 0);
+    assert_eq!(last(&sim).buttons, 0);
+
+    // Flipped facing turns `F` into screen-left and `B` into screen-right.
+    sim.fighters[0].facing = -1;
+    assert(&mut sim, vec![("flag", "F")]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        last(&sim).dir & manato_core::DIR_LEFT,
+        manato_core::DIR_LEFT
+    );
+
+    sim.fighters[0].facing = -1;
+    assert(&mut sim, vec![("flag", "B")]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        last(&sim).dir & manato_core::DIR_RIGHT,
+        manato_core::DIR_RIGHT
+    );
+
+    // Explicit directions and buttons also merge with real input.
+    assert(&mut sim, vec![("flag", "U"), ("flag2", "a")]);
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_DOWN, manato_core::Buttons::B),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(last(&sim).dir, manato_core::DIR_UP | manato_core::DIR_DOWN);
+    assert_eq!(
+        last(&sim).buttons,
+        manato_core::Buttons::A | manato_core::Buttons::B
+    );
+}
+
+#[test]
+fn assertanalogvector_feeds_the_analog_trigger() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    assert_eq!(num(&sim, "Analog(leftx)"), 0.0);
+
+    let control = manato_formats::Controller {
+        kind: "assertanalogvector".into(),
+        params: vec![
+            ("leftx".into(), "-2".into()),
+            ("lefty".into(), "0.5".into()),
+            ("rightx".into(), "0.25".into()),
+            ("lefttrigger".into(), "2".into()),
+            ("righttrigger".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(num(&sim, "Analog(leftx)"), -1.0, "stick clamps to -1");
+    assert_eq!(num(&sim, "Analog(lefty)"), 0.5);
+    assert_eq!(num(&sim, "Analog(rightx)"), 0.25);
+    assert_eq!(num(&sim, "Analog(righty)"), 0.0);
+    assert_eq!(num(&sim, "Analog(lefttrigger)"), 1.0, "trigger clamps to 1");
+    assert_eq!(
+        num(&sim, "Analog(righttrigger)"),
+        0.0,
+        "trigger clamps to 0"
+    );
+    assert_eq!(num(&sim, "Analog(bogus)"), 0.0);
+
+    // Per-tick: the axes reset on the next tick unless re-asserted.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(num(&sim, "Analog(leftx)"), 0.0);
+
+    // The axes participate in the rollback checksum.
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let before = sim.checksum();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

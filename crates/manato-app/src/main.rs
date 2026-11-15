@@ -1,5 +1,7 @@
 //! M.A.N.A.T.O.-RS command line runner and window.
 
+#![cfg_attr(not(feature = "gamepad"), allow(dead_code))]
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -1018,6 +1020,7 @@ struct App {
     surface: Option<wgpu::Surface<'static>>,
     surface_config: Option<wgpu::SurfaceConfiguration>,
     keys: HashSet<KeyCode>,
+    #[cfg(feature = "gamepad")]
     gamepads: Option<gilrs::Gilrs>,
     pad_nav: [bool; 6],
     last_tick: Instant,
@@ -1047,6 +1050,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         audio.backend_name(),
         audio.sample_rate()
     );
+    #[cfg(feature = "gamepad")]
     let gamepads = match gilrs::Gilrs::new() {
         Ok(gilrs) => {
             let count = gilrs.gamepads().count();
@@ -1071,6 +1075,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         surface: None,
         surface_config: None,
         keys: HashSet::new(),
+        #[cfg(feature = "gamepad")]
         gamepads,
         pad_nav: [false; 6],
         last_tick: Instant::now(),
@@ -1468,6 +1473,7 @@ impl App {
         Ok(())
     }
 
+    #[cfg(feature = "gamepad")]
     fn poll_pad_menu(&mut self) {
         if self
             .frontend
@@ -1490,15 +1496,25 @@ impl App {
         }
     }
 
+    #[cfg(not(feature = "gamepad"))]
+    fn poll_pad_menu(&mut self) {}
+
     fn gamepad_inputs(&self) -> [PlayerInput; 2] {
-        let mut pads = [PlayerInput::default(); 2];
-        let Some(gilrs) = &self.gamepads else {
-            return pads;
-        };
-        for (index, (_, pad)) in gilrs.gamepads().enumerate().take(2) {
-            pads[index] = pad_input(&pad);
+        #[cfg(feature = "gamepad")]
+        {
+            let mut pads = [PlayerInput::default(); 2];
+            let Some(gilrs) = &self.gamepads else {
+                return pads;
+            };
+            for (index, (_, pad)) in gilrs.gamepads().enumerate().take(2) {
+                pads[index] = pad_input(&pad);
+            }
+            pads
         }
-        pads
+        #[cfg(not(feature = "gamepad"))]
+        {
+            [PlayerInput::default(); 2]
+        }
     }
 
     fn step(&mut self) {
@@ -1831,6 +1847,7 @@ fn pad_input_from(dpad: [bool; 4], stick: (f32, f32), buttons: [bool; 7]) -> Pla
     PlayerInput::new(dir, bits)
 }
 
+#[cfg(feature = "gamepad")]
 fn pad_input(pad: &gilrs::Gamepad<'_>) -> PlayerInput {
     let dpad = [
         pad.is_pressed(gilrs::Button::DPadUp),

@@ -392,9 +392,21 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             Value::Float(value)
         }
         // `StageConst(key)` reads the stage DEF `[Constants]` section.
-        // `Analog(axis)` reads an analog stick axis. This engine samples
-        // digital inputs only, so every axis reads centered (0).
-        "analog" => Value::Int(0),
+        // `Analog(axis)` reads the axes set by `AssertAnalogVector`; without
+        // an assertion every axis reads centered (0).
+        "analog" => {
+            let key = call_key(sim, who, args).to_ascii_lowercase();
+            let index = match key.as_str() {
+                "leftx" => 0,
+                "lefty" => 1,
+                "rightx" => 2,
+                "righty" => 3,
+                "lefttrigger" => 4,
+                "righttrigger" => 5,
+                _ => return Value::Float(0.0),
+            };
+            Value::Float(sim.fighters[who].analog_axes[index])
+        }
         "stageconst" => {
             let key = call_key(sim, who, args).to_ascii_lowercase();
             match sim.assets.stage.constants.get(&key) {
@@ -2562,6 +2574,12 @@ pub fn command_active(sim: &SimState, who: usize, name: &str) -> bool {
         "holdup" => return f.relative_dir().is_up(),
         "holddown" => return f.relative_dir().is_down(),
         _ => {}
+    }
+    if f.asserted_commands
+        .iter()
+        .any(|(name, time)| *time > 0 && name.eq_ignore_ascii_case(&lower))
+    {
+        return true;
     }
     sim.character(who)
         .commands

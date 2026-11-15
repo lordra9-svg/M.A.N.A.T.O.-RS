@@ -7,3 +7,5 @@ screenshots/
 
 __pycache__/
 *.pyc
+
+/dist

@@ -8,7 +8,11 @@ authors.workspace = true
 description = "M.A.N.A.T.O.-RS executable"
 
 [features]
-default = []
+default = ["gamepad"]
+# Gamepad support (gilrs; requires libudev on Linux, xinput on Windows).
+# Static musl builds use --no-default-features because libudev is not
+# available as a static library.
+gamepad = ["dep:gilrs"]
 # Real audio output (requires ALSA development headers on Linux).
 audio = ["manato-audio/cpal-backend"]
 
@@ -27,7 +31,7 @@ anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true
 winit.workspace = true
-gilrs.workspace = true
+gilrs = { workspace = true, optional = true }
 wgpu.workspace = true
 pollster.workspace = true
 serde.workspace = true

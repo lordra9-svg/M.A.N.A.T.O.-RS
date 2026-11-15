@@ -302,6 +302,12 @@ pub struct Fighter {
     pub extra_exec: [Vec<u32>; 3],
     pub pos_freeze: i32,
     pub assert_flags: u32,
+    /// `AssertCommand` entries: command name and remaining ticks.
+    pub asserted_commands: Vec<(String, i32)>,
+    /// `AssertInput` bits merged into the next input frame.
+    pub asserted_input: PlayerInput,
+    /// `AssertAnalogVector` axes: left X/Y, right X/Y, left/right trigger.
+    pub analog_axes: [f32; 6],
     pub face_p2_pending: bool,
     pub player_push: bool,
     pub gravity: Option<f32>,
@@ -492,6 +498,9 @@ impl Fighter {
             extra_exec: [Vec::new(), Vec::new(), Vec::new()],
             pos_freeze: 0,
             assert_flags: 0,
+            asserted_commands: Vec::new(),
+            asserted_input: PlayerInput::default(),
+            analog_axes: [0.0; 6],
             face_p2_pending: false,
             player_push: true,
             gravity: None,
@@ -624,7 +633,11 @@ impl Fighter {
     }
 
     pub fn append_input(&mut self, input: PlayerInput, pause_bits: u8) {
-        let input = self.apply_input_shift(input);
+        let merged = PlayerInput::new(
+            input.dir | self.asserted_input.dir,
+            input.buttons | self.asserted_input.buttons,
+        );
+        let input = self.apply_input_shift(merged);
         let prev = self.history.back().copied();
         let dir = Dir8::relative(input, self.facing);
         let prev_dir = prev.map(|p| p.dir).unwrap_or(Dir8::Neutral);
