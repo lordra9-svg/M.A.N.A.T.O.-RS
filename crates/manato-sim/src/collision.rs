@@ -726,7 +726,7 @@ pub fn apply_hit_at(
         f.ctrl = false;
         f.attack = Default::default();
         f.hitdef = None;
-        if hitdef.palfx_time > 0 {
+        if hitdef.palfx_time > 0 && !guarding {
             f.pal_add = hitdef.palfx_add;
             f.pal_base_add = hitdef.palfx_add;
             f.pal_sinadd = [0.0; 3];
@@ -945,7 +945,8 @@ pub fn apply_hit_at(
         };
     }
     // An explicit HitDef envshake wins over the generic heavy-hit kick.
-    if hitdef.envshake_time > 0 {
+    // Guarded contacts do not trigger HitDef palfx/envshake effects.
+    if !guarding && hitdef.envshake_time > 0 {
         let mut phase = hitdef.envshake_phase;
         if phase.is_nan() {
             phase = if hitdef.envshake_freq >= 90.0 {

@@ -5559,7 +5559,7 @@ fn hitdef_envshake_applies_on_successful_hits() {
     assert_eq!(sim.env_shake.phase, 45.0);
     assert_eq!(sim.env_shake.decay, 1.0);
 
-    // Guarded contacts also count as successful hits for envshake.
+    // Guarded contacts do not trigger the HitDef envshake.
     let Some(mut sim) = fight_phase() else {
         return;
     };
@@ -5570,7 +5570,7 @@ fn hitdef_envshake_applies_on_successful_hits() {
     hit.envshake_phase = 45.0;
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
-    assert_eq!(sim.env_shake.time, 8);
+    assert_eq!(sim.env_shake.time, 0);
 
     // The omitted phase follows the EnvShake frequency rule.
     let Some(mut sim) = fight_phase() else {
@@ -5653,7 +5653,7 @@ fn hitdef_palfx_applies_to_target() {
     assert_eq!(manato_sim::trigger::int(&sim, 1, "PalfxVar(mul.g)"), 256);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "PalfxVar(add.r)"), 32);
 
-    // Guarded contacts also apply the target palette effect.
+    // Guarded contacts do not apply HitDef palette or shake effects.
     let Some(mut sim) = fight_phase() else {
         return;
     };
@@ -5665,6 +5665,8 @@ fn hitdef_palfx_applies_to_target() {
             ("palfx.time".into(), "6".into()),
             ("palfx.mul".into(), "128, 256, 64".into()),
             ("palfx.add".into(), "32, 0, 8".into()),
+            ("envshake.time".into(), "9".into()),
+            ("envshake.ampl".into(), "-4".into()),
         ],
         line: 0,
     };
@@ -5672,8 +5674,33 @@ fn hitdef_palfx_applies_to_target() {
     let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].pal_time, 0);
+    assert_eq!(sim.fighters[1].pal_mul, [1.0; 3]);
+    assert_eq!(sim.env_shake.time, 0);
+
+    // The same HitDef applies both effects on an unguarded hit.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("palfx.time".into(), "6".into()),
+            ("palfx.mul".into(), "128, 256, 64".into()),
+            ("envshake.time".into(), "9".into()),
+            ("envshake.ampl".into(), "-4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let parsed = sim.fighters[0].hitdef.clone().expect("hitdef");
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &parsed, false, origin, 1, true);
     assert_eq!(sim.fighters[1].pal_time, 6);
     assert_eq!(sim.fighters[1].pal_mul, [0.5, 1.0, 0.25]);
+    assert_eq!(sim.env_shake.time, 9);
 
     // palfx.time = 0 leaves an existing effect untouched.
     let Some(mut sim) = fight_phase() else {

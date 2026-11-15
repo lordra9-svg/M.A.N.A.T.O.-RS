@@ -448,11 +448,12 @@ timed stun.
 - `GetHitVar(down.recover)` reports whether fast liedown recovery is allowed.
 - `GetHitVar(fall.kill)` reports whether fall damage may KO (`1`/`0`).
 - A HitDef `palfx.time` above zero replaces the defender’s palette effect
-  with `palfx.add`/`palfx.mul` for that many ticks on any successful contact,
-  guarded or unguarded. `palfx.time = 0` leaves an existing effect untouched.
-- A HitDef `envshake.time` above zero starts the screen shake on any
-  successful contact, guarded or unguarded, using its explicit
-  freq/ampl/phase. It overrides the generic heavy-hit camera kick.
+  with `palfx.add`/`palfx.mul` for that many ticks on an unguarded successful
+  hit; guarded contacts do not apply it. `palfx.time = 0` leaves an existing
+  effect untouched.
+- A HitDef `envshake.time` above zero starts the screen shake on an unguarded
+  successful hit, using its explicit freq/ampl/phase; guarded contacts do not
+  trigger it. It overrides the generic heavy-hit camera kick.
 - `GetHitVar(fall.envshake.time|freq|ampl|phase)` reports the stored
   fall-impact shake. On landing, the engine applies that shake, and a
   `FallEnvShake` controller consumes the same values and clears the time so it
