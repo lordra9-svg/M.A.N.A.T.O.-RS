@@ -349,6 +349,15 @@ pub struct Fighter {
     /// `helpertype = player` lets states -3/-2 run like a player.
     pub helper_type_player: bool,
     pub target: Option<usize>,
+    /// Persistent `BindToRoot`/`BindToParent`/`BindToTarget` state. The
+    /// anchor moves and this entity follows while `bind_time` runs; `-1`
+    /// binds forever.
+    pub bind_anchor: Option<usize>,
+    pub bind_time: i32,
+    pub bind_offset: Vec2,
+    /// `BindToRoot`/`BindToParent` facing: 1 = face the anchor, -1 = face
+    /// away, 0 = leave facing alone.
+    pub bind_facing: i32,
     /// `VictoryQuote` index; `-1` selects a default quote.
     pub win_quote: i32,
     /// Per-fighter `Map()` storage; deterministic ordering for rollback.
@@ -519,6 +528,10 @@ impl Fighter {
             keyctrl: 7,
             helper_type_player: false,
             target: None,
+            bind_anchor: None,
+            bind_time: 0,
+            bind_offset: Vec2::ZERO,
+            bind_facing: 0,
             win_quote: -1,
             map: BTreeMap::new(),
             pal_remap: None,

@@ -502,6 +502,140 @@ fn helper_spawn_bind_and_remove() {
 }
 
 #[test]
+fn bindtoroot_and_parent_follow_the_anchor_until_time_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "helper".into(),
+        params: vec![
+            ("type".into(), "Helper".into()),
+            ("stateno".into(), "0".into()),
+            ("id".into(), "3".into()),
+            ("pos".into(), "10,0".into()),
+            ("postype".into(), "p1".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    let helper = 2;
+    assert_eq!(sim.fighters.len(), 3);
+
+    sim.fighters[0].pos = manato_core::Vec2::new(100.0, 0.0);
+    sim.fighters[0].facing = 1;
+    let bind = manato_formats::Controller {
+        kind: "bindtoroot".into(),
+        params: vec![
+            ("type".into(), "BindToRoot".into()),
+            ("time".into(), "2".into()),
+            ("pos".into(), "5,0".into()),
+            ("facing".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper, &bind, &assets);
+    assert_eq!(sim.fighters[helper].pos.x, 105.0);
+    assert_eq!(sim.fighters[helper].facing, 1);
+
+    // The helper follows the moving root and mirrors its facing.
+    sim.fighters[0].pos = manato_core::Vec2::new(200.0, 0.0);
+    sim.fighters[0].facing = -1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[helper].pos.x, 195.0);
+    assert_eq!(sim.fighters[helper].facing, -1);
+    assert_eq!(sim.fighters[helper].bind_time, 1);
+
+    // The last bind tick still follows, then clears.
+    sim.fighters[0].pos = manato_core::Vec2::new(-40.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[helper].pos.x,
+        sim.fighters[0].pos.x + 5.0 * sim.fighters[0].facing as f32
+    );
+    assert!(sim.fighters[helper].bind_anchor.is_none());
+
+    // No longer bound: moving the root does not move the helper.
+    let resting = sim.fighters[helper].pos;
+    sim.fighters[0].pos = manato_core::Vec2::new(300.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[helper].pos, resting);
+
+    // BindToParent with facing = -1 faces away from the anchor and `time = 0`
+    // clears the bind.
+    let away = manato_formats::Controller {
+        kind: "bindtoparent".into(),
+        params: vec![
+            ("type".into(), "BindToParent".into()),
+            ("time".into(), "-1".into()),
+            ("pos".into(), "0,-20".into()),
+            ("facing".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    sim.fighters[0].facing = 1;
+    manato_sim::controller::execute(&mut sim, helper, &away, &assets);
+    assert_eq!(sim.fighters[helper].facing, -1);
+    sim.fighters[0].facing = -1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[helper].facing, 1);
+    assert_eq!(sim.fighters[helper].pos.y, sim.fighters[0].pos.y - 20.0);
+
+    let clear = manato_formats::Controller {
+        kind: "bindtoparent".into(),
+        params: vec![
+            ("type".into(), "BindToParent".into()),
+            ("time".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, helper, &clear, &assets);
+    assert!(sim.fighters[helper].bind_anchor.is_none());
+    let resting = sim.fighters[helper].pos;
+    sim.fighters[0].pos = manato_core::Vec2::new(-250.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[helper].pos, resting);
+}
+
+#[test]
+fn bindtotarget_follows_the_target_until_time_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].target = Some(1);
+    let bind = manato_formats::Controller {
+        kind: "bindtotarget".into(),
+        params: vec![
+            ("type".into(), "BindToTarget".into()),
+            ("time".into(), "2".into()),
+            ("pos".into(), "20,5".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bind, &assets);
+    let expected = sim.fighters[1].pos.x + 20.0 * sim.fighters[1].facing as f32;
+    assert_eq!(sim.fighters[0].pos.x, expected);
+    assert_eq!(sim.fighters[0].pos.y, sim.fighters[1].pos.y + 5.0);
+    assert_eq!(sim.fighters[0].bind_time, 2);
+
+    sim.fighters[1].pos = manato_core::Vec2::new(240.0, 10.0);
+    sim.tick([PlayerInput::default(); 2]);
+    let expected = sim.fighters[1].pos.x + 20.0 * sim.fighters[1].facing as f32;
+    assert_eq!(sim.fighters[0].pos.x, expected);
+    assert_eq!(sim.fighters[0].pos.y, sim.fighters[1].pos.y + 5.0);
+    assert_eq!(sim.fighters[0].bind_time, 1);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].bind_anchor.is_none());
+    let resting_x = sim.fighters[0].pos.x;
+    sim.fighters[1].pos = manato_core::Vec2::new(-200.0, 0.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.x, resting_x);
+}
+
+#[test]
 fn helper_hitdef_damages_player() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

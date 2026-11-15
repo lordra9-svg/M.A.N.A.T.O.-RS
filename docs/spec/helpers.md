@@ -98,7 +98,12 @@ animation clock, and physics.
 
 - `BindToRoot`: position relative to the root player.
 - `BindToParent`: position relative to the parent entity.
-- `BindToTarget`: position relative to the owner’s current target.
+- `BindToTarget`: position relative to the owner's current target.
+- Binds are persistent: `pos` is re-applied every tick relative to the
+  anchor's position and facing, and `time` (default `1`; `-1` binds forever)
+  counts down. `time = 0` clears the bind.
+- `BindToRoot`/`BindToParent` accept `facing = 1|-1` to face the anchor or
+  away from it each tick; `BindToTarget` does not change facing.
 - `ParentVarSet/Add`: write to the parent’s `vars`.
 - `RootVarSet/Add`: write to the root player’s `vars`.
 - `helper(id)` redirect: first helper with matching `helper_id`.
@@ -143,6 +148,8 @@ animation clock, and physics.
 - Helper runs state controllers and expires by `removetime`.
 - `DestroySelf` removes a helper.
 - `BindToRoot`/`BindToParent` update position.
+- Persistent binds follow a moving anchor, honor `time`/`facing`, and clear on
+  `time = 0` or expiry; `BindToTarget` follows the current target.
 - `ParentVarSet`/`RootVarSet` mutate the correct variables.
 - `helper(0), stateno` and `root, life` redirects.
 - Helper HitDef damages a player.

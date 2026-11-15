@@ -744,10 +744,34 @@ fn bind_to(sim: &mut SimState, who: usize, control: &Controller, target: BindTar
     if anchor == who {
         return;
     }
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
     let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
-    let facing = sim.fighters[anchor].facing;
+    let facing = match target {
+        // BindToTarget has no facing parameter; it never changes facing.
+        BindTarget::Target => 0,
+        _ => int_param(sim, who, control, "facing")
+            .unwrap_or(0)
+            .clamp(-1, 1),
+    };
+    if time == 0 {
+        let fighter = &mut sim.fighters[who];
+        fighter.bind_anchor = None;
+        fighter.bind_time = 0;
+        fighter.bind_facing = 0;
+        return;
+    }
+    let anchor_facing = sim.fighters[anchor].facing;
     let base = sim.fighters[anchor].pos;
-    sim.fighters[who].pos = Vec2::new(base.x + px * facing as f32, base.y + py);
+    let fighter = &mut sim.fighters[who];
+    fighter.bind_anchor = Some(anchor);
+    fighter.bind_time = time;
+    fighter.bind_offset = Vec2::new(px, py);
+    fighter.bind_facing = facing;
+    // Apply immediately so the position changes on the controller's tick.
+    fighter.pos = Vec2::new(base.x + px * anchor_facing as f32, base.y + py);
+    if facing != 0 {
+        fighter.facing = anchor_facing * facing.signum();
+    }
 }
 
 fn helper(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {

@@ -1003,6 +1003,7 @@ impl SimState {
         if run_gameplay {
             self.update_gameplay();
             self.update_target_binds();
+            self.update_entity_binds();
         }
         self.update_round();
         self.update_camera();
@@ -1771,6 +1772,45 @@ impl SimState {
         }
     }
 
+    /// Applies persistent `BindToRoot`/`BindToParent`/`BindToTarget`
+    /// bindings, following the anchor and stepping the bind timer.
+    fn update_entity_binds(&mut self) {
+        if self.super_pause > 0 {
+            return;
+        }
+        for who in 0..self.fighters.len() {
+            let Some(anchor) = self.fighters[who].bind_anchor else {
+                continue;
+            };
+            if anchor >= self.fighters.len() || anchor == who || !self.fighters[anchor].active {
+                let fighter = &mut self.fighters[who];
+                fighter.bind_anchor = None;
+                fighter.bind_time = 0;
+                fighter.bind_facing = 0;
+                continue;
+            }
+            if self.fighters[who].hit.hit_pause > 0 {
+                continue;
+            }
+            let anchor_facing = self.fighters[anchor].facing;
+            let base = self.fighters[anchor].pos;
+            let offset = self.fighters[who].bind_offset;
+            let facing = self.fighters[who].bind_facing;
+            let fighter = &mut self.fighters[who];
+            fighter.pos = Vec2::new(base.x + offset.x * anchor_facing as f32, base.y + offset.y);
+            if facing != 0 {
+                fighter.facing = anchor_facing * facing.signum();
+            }
+            if fighter.bind_time > 0 {
+                fighter.bind_time -= 1;
+                if fighter.bind_time == 0 {
+                    fighter.bind_anchor = None;
+                    fighter.bind_facing = 0;
+                }
+            }
+        }
+    }
+
     fn update_round(&mut self) {
         match self.round.phase {
             RoundPhase::Intro => {
@@ -2194,6 +2234,10 @@ impl SimState {
             fighter.target = None;
             fighter.win_quote = -1;
             fighter.target_bind = None;
+            fighter.bind_anchor = None;
+            fighter.bind_time = 0;
+            fighter.bind_offset = Vec2::ZERO;
+            fighter.bind_facing = 0;
             fighter.received_hits = 0;
             fighter.received_damage = 0;
             fighter.proj_contact_time = -1;
@@ -2984,6 +3028,14 @@ impl SimState {
                 h.write_f32(bind.offset.x);
                 h.write_f32(bind.offset.y);
                 h.write_i32(bind.time);
+            }
+            h.write_bool(f.bind_anchor.is_some());
+            if let Some(anchor) = f.bind_anchor {
+                h.write_u32(anchor as u32);
+                h.write_i32(f.bind_time);
+                h.write_f32(f.bind_offset.x);
+                h.write_f32(f.bind_offset.y);
+                h.write_i32(f.bind_facing);
             }
             h.write_bool(f.hit.guarding);
             h.write_i32(f.received_hits);
