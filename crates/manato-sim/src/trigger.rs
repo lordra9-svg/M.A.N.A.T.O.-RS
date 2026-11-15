@@ -1172,8 +1172,21 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 let dx = (b.pos.x - a.pos.x).abs();
                 Value::Float((dx - a.width_front - b.width_back).max(0.0))
             } else {
-                let dy = (b.pos.y - a.pos.y).abs();
-                Value::Float((dy - a.height).max(0.0))
+                // M.U.G.E.N characters get the signed axis difference for
+                // P2BodyDist Y (same as P2Dist Y); Ikemen characters use the
+                // body gap approximation.
+                let ikemen = sim.assets.characters[sim.fighters[who].char_id]
+                    .def
+                    .info
+                    .get("ikemenversion")
+                    .and_then(|value| value.trim().parse::<f32>().ok())
+                    .is_some_and(|version| version > 0.0);
+                if ikemen {
+                    let dy = (b.pos.y - a.pos.y).abs();
+                    Value::Float((dy - a.height).max(0.0))
+                } else {
+                    Value::Float(b.pos.y - a.pos.y)
+                }
             }
         }
         "p2dist" => {

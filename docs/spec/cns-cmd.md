@@ -281,6 +281,9 @@ missing redirect targets make the trigger false.
   and assigned in fighter creation order (P1, P2, then each helper), so
   `PlayerID(1)` addresses P1 and `ID` reports the current fighter's own ID.
   `P5Name`–`P8Name` read empty because versus play has at most two slots.
+  For M.U.G.E.N-version characters `P2BodyDist Y` equals the signed axis
+  difference reported by `P2Dist Y`; Ikemen-version characters use a body-gap
+  approximation.
 - Run order: `RunOrder` (1-based fighter vector position; P1, P2, then
   helpers in spawn order), `GroundAngle` (0 for the engine's flat stages),
   and `AirJumpCount` (0: air jumps are not modeled). `XAngle`/`YAngle` are 0

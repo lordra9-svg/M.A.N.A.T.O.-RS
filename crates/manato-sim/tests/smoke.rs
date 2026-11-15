@@ -14884,15 +14884,20 @@ fn distance_and_edge_triggers_track_facing_and_position() {
 
     let a = &sim.fighters[0];
     let expected_body_x = (50.0 - a.width_front - sim.fighters[1].width_back).max(0.0);
-    let expected_body_y = (30.0 - a.height).max(0.0);
     assert_eq!(
         manato_sim::trigger::num(&sim, 0, "P2BodyDist X"),
         expected_body_x
     );
+    // M.U.G.E.N characters report the signed Y-axis difference for
+    // P2BodyDist Y, matching P2Dist Y.
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "P2BodyDist Y"), -30.0);
     assert_eq!(
         manato_sim::trigger::num(&sim, 0, "P2BodyDist Y"),
-        expected_body_y
+        manato_sim::trigger::num(&sim, 0, "P2Dist Y")
     );
+    sim.fighters[1].pos.y = 20.0;
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "P2BodyDist Y"), 20.0);
+    sim.fighters[1].pos.y = -30.0;
 
     // Screen distance is the difference after camera mapping.
     let screen_a = sim.screen_pos(sim.fighters[0].pos);
