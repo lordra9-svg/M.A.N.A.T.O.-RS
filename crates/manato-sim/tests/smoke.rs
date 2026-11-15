@@ -13772,6 +13772,48 @@ fn air_blend_interpolation_produces_midframe_alpha() {
 }
 
 #[test]
+fn animexist_follows_animation_bank_and_selfanimexist_own_bank() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let own_only = (0..5000).find(|number| {
+        assets.characters[0].animation(*number).is_some()
+            && assets.characters[1].animation(*number).is_none()
+    });
+    let other_only = (0..5000).find(|number| {
+        assets.characters[1].animation(*number).is_some()
+            && assets.characters[0].animation(*number).is_none()
+    });
+    let (Some(own_only), Some(other_only)) = (own_only, other_only) else {
+        eprintln!("skipping: no unique animations in the roster");
+        return;
+    };
+
+    // P1 borrows P2's state and animation banks.
+    sim.fighters[0].state_char_id = Some(1);
+    sim.fighters[0].anim_char_id = Some(1);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, &format!("AnimExist({own_only})")),
+        0,
+        "AnimExist follows the borrowed animation bank"
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, &format!("SelfAnimExist({own_only})")),
+        1,
+        "SelfAnimExist keeps the fighter's own bank"
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, &format!("AnimExist({other_only})")),
+        1
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, &format!("SelfAnimExist({other_only})")),
+        0
+    );
+}
+
+#[test]
 fn animation_time_loop_and_invalid_elem_edges() {
     let Some(mut sim) = fight_phase() else {
         return;

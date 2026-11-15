@@ -58,7 +58,7 @@ Ikemen-GO alone as the runtime oracle.
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + AnimElemNo look-ahead/wrap + loop boundary and invalid AnimElemTime sentinel tests |
+| T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + AnimElemNo look-ahead/wrap + loop boundary and invalid AnimElemTime sentinel + AnimExist animation-bank vs SelfAnimExist own-bank tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/Physics + StateNo/PrevStateNo/Time + P2/distances |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry test |
 | T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/xoff/yoff/hittime countdown/HitOver equivalence/redlife/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.*/fall.xvel fall.yvel + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) + PowerMax/Attack/AttackMul/Defence/DefenceMul/GuardCount/Angle/HitOverridden/ClsnOverlap |

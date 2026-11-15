@@ -505,9 +505,19 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let elem = arg_i32(sim, who, args, 0);
             Value::Int(sim.fighters[who].anim_elem_time(sim.anim_character(who), elem))
         }
-        "animexist" | "selfanimexist" => {
+        // `AnimExist` follows the animation bank (`AnimPlayerNo`);
+        // `SelfAnimExist` always checks the fighter's own animations.
+        "animexist" => {
             let n = arg_i32(sim, who, args, 0);
-            Value::Bool(sim.character(who).animation(n).is_some())
+            Value::Bool(sim.anim_character(who).animation(n).is_some())
+        }
+        "selfanimexist" => {
+            let n = arg_i32(sim, who, args, 0);
+            Value::Bool(
+                sim.assets.characters[sim.fighters[who].char_id]
+                    .animation(n)
+                    .is_some(),
+            )
         }
         "isasserted" => {
             let name = args

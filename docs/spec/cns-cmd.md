@@ -244,6 +244,8 @@ missing redirect targets make the trigger false.
   `AnimLoopCount`, `AnimPlayerNo`, `SpritePlayerNo` (1-based owner of the
   animation/sprite bank; sprites and animations share one bank here),
   `InCustomAnim`
+  `AnimExist` follows the animation bank owner (`AnimPlayerNo`), while
+  `SelfAnimExist` always checks the fighter's own character animations.
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
