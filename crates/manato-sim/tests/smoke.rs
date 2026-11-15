@@ -4345,6 +4345,70 @@ fn noko_assert_prevents_ko_until_cleared() {
 }
 
 #[test]
+fn timerfreeze_assert_stops_the_round_timer() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("common.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-timerfreeze-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let text = std::fs::read_to_string(&common).expect("read common.cns");
+    let patched = text.replace(
+        "[Statedef 10]",
+        "[State 0, Test TimerFreeze]\ntype = AssertSpecial\ntrigger1 = var(59) = 0\nflag = timerfreeze\n\n[Statedef 10]",
+    );
+    std::fs::write(&common, patched).expect("patch common.cns");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: dir.join("kaen.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    for _ in 0..50 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+    let timer = sim.round.timer;
+    assert!(timer > 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 1, "IsAsserted(timerfreeze)"),
+        1
+    );
+
+    for _ in 0..5 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.round.timer, timer, "TimerFreeze stops the round clock");
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+
+    // Clearing the trigger condition lets the timer run again.
+    sim.fighters[1].vars[59] = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.timer, timer - 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn nokosnd_flag_suppresses_round_end_sounds() {
     let Some(mut sim) = fight_phase() else {
         return;

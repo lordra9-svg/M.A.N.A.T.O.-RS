@@ -1288,6 +1288,8 @@ pub const ASSERT_GLOBALNOSHADOW: u32 = 1 << 16;
 pub const ASSERT_NOBARDISPLAY: u32 = 1 << 17;
 pub const ASSERT_ROUNDNOTOVER: u32 = 1 << 18;
 pub const ASSERT_NOHARDCODEDKEYS: u32 = 1 << 19;
+/// `TimerFreeze`: the round timer stops counting down while asserted.
+pub const ASSERT_TIMERFREEZE: u32 = 1 << 20;
 
 /// Maps an `AssertSpecial`/`IsAsserted` flag name to its bit.
 pub fn assert_flag(name: &str) -> u32 {
@@ -1312,6 +1314,7 @@ pub fn assert_flag(name: &str) -> u32 {
         "nobardisplay" => ASSERT_NOBARDISPLAY,
         "roundnotover" => ASSERT_ROUNDNOTOVER,
         "nohardcodedkeys" => ASSERT_NOHARDCODEDKEYS,
+        "timerfreeze" => ASSERT_TIMERFREEZE,
         _ => 0,
     }
 }

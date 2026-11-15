@@ -1822,7 +1822,12 @@ impl SimState {
                 }
             }
             RoundPhase::Fight => {
-                self.round.timer -= 1;
+                let timer_frozen = self.fighters.iter().any(|fighter| {
+                    fighter.active && fighter.assert_flags & fighter::ASSERT_TIMERFREEZE != 0
+                });
+                if !timer_frozen {
+                    self.round.timer -= 1;
+                }
                 let dead: Vec<usize> = (0..2)
                     .filter(|&i| {
                         self.fighters[i].life <= 0
@@ -1853,7 +1858,7 @@ impl SimState {
                         self.fighters[w].power = (self.fighters[w].power + 200.0).min(MAX_POWER);
                         self.enter_win_pose(w);
                     }
-                } else if self.round.timer <= 0 {
+                } else if !timer_frozen && self.round.timer <= 0 {
                     self.round.timer = 0;
                     let life0 = self.fighters[0].life.max(0);
                     let life1 = self.fighters[1].life.max(0);

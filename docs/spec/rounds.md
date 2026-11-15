@@ -146,6 +146,9 @@ Round/match triggers must reflect this state:
   whole seconds.
 - `AssertSpecial` flags `NoKOSlow`, `NoKOSnd`, `NoKo`, `NoMusic`, and
   `NoBarDisplay` are honored by the round flow and renderer where applicable.
+- `TimerFreeze` stops the round clock while any active fighter asserts it;
+  KO checks still run and the timer resumes when the flag is no longer
+  asserted.
 - `RoundNotOver` delays the next phase while asserted.
 - `RoundState` changes are observable by `[Statedef -2]` and `[Statedef -3]`.
 
