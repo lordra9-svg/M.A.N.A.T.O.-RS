@@ -3329,6 +3329,10 @@ fn update_exec_counter(
         counters[index] = 1;
         return true;
     }
+    // Negative values run on every matching tick in Ikemen-GO.
+    if persistent < 0 {
+        return true;
+    }
     // Ikemen executes on the first matching tick, then skips `N - 1`
     // matching ticks (counter holds the remaining skip count).
     let period = persistent as u32;

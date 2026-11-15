@@ -9684,7 +9684,9 @@ fn persistent_and_ignorehitpause_control_execution() {
          \n[State 900, Normal]\ntype = VarAdd\ntrigger1 = 1\nv = 1\nvalue = 10\npersistent = 1\n\
          \n[State 900, Paused]\ntype = VarAdd\ntrigger1 = 1\nv = 2\nvalue = 100\npersistent = 1\nignorehitpause = 1\n\
          \n[Statedef 901]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
-         \n[State 901, Periodic]\ntype = VarAdd\ntrigger1 = 1\nv = 3\nvalue = 1\npersistent = 3\n",
+         \n[State 901, Periodic]\ntype = VarAdd\ntrigger1 = 1\nv = 3\nvalue = 1\npersistent = 3\n\
+         \n[Statedef 902]\ntype = S\nphysics = S\nanim = 0\nctrl = 0\n\
+         \n[State 902, Always]\ntype = VarAdd\ntrigger1 = 1\nv = 4\nvalue = 1\npersistent = -1\n",
     );
     std::fs::write(&common, text).expect("patch common.cns");
 
@@ -9739,6 +9741,13 @@ fn persistent_and_ignorehitpause_control_execution() {
         sim.tick([PlayerInput::default(); 2]);
     }
     assert_eq!(sim.fighters[0].vars[3], 3);
+
+    // Negative persistent values run on every matching tick.
+    sim.fighters[0].enter_state(902, &assets.characters[0], false);
+    for _ in 0..3 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].vars[4], 3);
 
     let _ = std::fs::remove_dir_all(&dir);
 }

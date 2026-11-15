@@ -201,6 +201,7 @@ Ikemen-only extensions.
 - `persistent = 1` runs every tick the trigger is true.
 - `persistent = 0` runs once per state entry.
 - `persistent = N > 1` runs once every N matching ticks.
+- Negative `persistent` values run on every matching tick (Ikemen-GO).
 - `ignorehitpause = 1` allows the controller to run during hit pause.
 - Missing or malformed parameters use the documented defaults; unknown
   parameters are logged and ignored.

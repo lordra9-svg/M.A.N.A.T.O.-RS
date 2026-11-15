@@ -48,7 +48,7 @@ Ikemen-GO alone as the runtime oracle.
 | S-01 | Statedef defaults/type/physics | Required | Required | Partial | Statedef type/physics/anim/ctrl/sprpriority defaults + juggle persistence + hitdefpersist/movehitpersist/hitcountpersist tests |
 | S-02 | ChangeState/ChangeAnim | Required | Required | Partial | State round-trips + ctrl/anim overrides + ChangeState continue + ChangeAnim elem/elemtime + ChangeAnim2 bank |
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/Physics controller tests + first-letter/quoted type names + `U` unchanged (no separate MoveTypeSet controller in either target) |
-| S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + ignorehitpause |
+| S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + negative persistent every tick + ignorehitpause |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick + KO lock + helper keyctrl/helpertype gating |
 | S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer + hold pseudo-commands (diagonals/facing) tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
