@@ -34,7 +34,7 @@ Ikemen-GO alone as the runtime oracle.
 | F-05 | AIR animations/Clsn | Required | Required | Partial | AIR parser: Clsn, SubAdd/AS/SS, scale/angle, interpolate markers; offset/scale/angle/blend-alpha interpolation rendered for fighters, projectiles, explods, and stage BG animations |
 | F-06 | SFF v1 | Required | Required | Partial | PCX palette/reuse + EOF zero-length link chain + declared data-length payload bounds (alignment padding excluded) tests |
 | F-07 | SFF v2 | Required | Required | Partial | Link chains, palette links/group-index, tdata flag, depth fallback, RLE8/5/LZ5, PNG8/24/32, minor2 palette alpha, missing-palette fallback, truncated-PNG safety |
-| F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo and signed 24-bit conversion |
+| F-08 | SND | Required | Required | Partial | Parser tests + unsigned 8-bit mono/stereo, signed 16/24/32-bit, and float conversion + header-offset validation + truncated-entry skip |
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl types + `time` windows/loops + ModifyBGCtrl retiming + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
 | F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards are out of scope (F-12) |

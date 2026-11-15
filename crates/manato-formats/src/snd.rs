@@ -53,7 +53,16 @@ impl SoundBank {
             bail!("not an Elecbyte sound file");
         }
         let count = u32_at(data, 16) as usize;
-        let mut offset = u32_at(data, 20) as usize;
+        let offset = u32_at(data, 20) as usize;
+        if count > 0 {
+            if offset < 24 || offset >= data.len() {
+                bail!("sound subheader offset out of bounds");
+            }
+            if slice(data, offset, 16).is_none() {
+                bail!("truncated sound subheader");
+            }
+        }
+        let mut offset = offset;
         let mut bank = Self::default();
 
         for _ in 0..count.min(65_535) {
@@ -66,9 +75,13 @@ impl SoundBank {
             let index = u16_at(header, 10) as i32;
 
             let start = offset.saturating_add(16);
-            let end = start.saturating_add(length).min(data.len());
-            if end > start {
-                let payload = &data[start..end];
+            let declared_end = start.saturating_add(length);
+            if length == 0 {
+                log::warn!("empty sound entry {group},{index}; skipping");
+            } else if declared_end > data.len() {
+                log::warn!("truncated sound entry {group},{index}; skipping");
+            } else {
+                let payload = &data[start..declared_end];
                 match decode_wav(payload, group, index) {
                     Ok(sound) => {
                         if bank.by_key.contains_key(&(group, index)) {
@@ -306,5 +319,118 @@ mod tests {
         let bank = SoundBank::from_bytes(&data).expect("bank");
         let sound = bank.get(3, 4).expect("sound");
         assert_eq!(sound.samples, [0, 1, 32767, -32768]);
+    }
+
+    fn wav_i32(samples: &[i32], channels: u16, rate: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut writer = hound::WavWriter::new(
+                Cursor::new(&mut out),
+                hound::WavSpec {
+                    channels,
+                    sample_rate: rate,
+                    bits_per_sample: 32,
+                    sample_format: hound::SampleFormat::Int,
+                },
+            )
+            .unwrap();
+            for sample in samples {
+                writer.write_sample(*sample).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+        out
+    }
+
+    fn wav_f32(samples: &[f32], channels: u16, rate: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut writer = hound::WavWriter::new(
+                Cursor::new(&mut out),
+                hound::WavSpec {
+                    channels,
+                    sample_rate: rate,
+                    bits_per_sample: 32,
+                    sample_format: hound::SampleFormat::Float,
+                },
+            )
+            .unwrap();
+            for sample in samples {
+                writer.write_sample(*sample).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+        out
+    }
+
+    #[test]
+    fn converts_signed_32_bit_and_float_samples() {
+        let int_data = bank(&[(5, 6, wav_i32(&[0, 1 << 16, i32::MAX, i32::MIN], 1, 44_100))]);
+        let sounds = SoundBank::from_bytes(&int_data).expect("32-bit bank");
+        let sound = sounds.get(5, 6).expect("sound");
+        assert_eq!(sound.samples, [0, 1, 32767, -32768]);
+
+        let float_data = bank(&[(7, 8, wav_f32(&[0.0, 0.5, -0.5, 2.0, -2.0], 1, 48_000))]);
+        let sounds = SoundBank::from_bytes(&float_data).expect("float bank");
+        let sound = sounds.get(7, 8).expect("sound");
+        assert_eq!(sound.samples, [0, 16383, -16383, 32767, -32767]);
+    }
+
+    #[test]
+    fn rejects_out_of_bounds_first_subheader() {
+        let mut data = vec![0u8; 24];
+        data[..12].copy_from_slice(b"ElecbyteSnd\0");
+        data[16..20].copy_from_slice(&1u32.to_le_bytes());
+        data[20..24].copy_from_slice(&999_999u32.to_le_bytes());
+        assert!(SoundBank::from_bytes(&data).is_err());
+    }
+
+    #[test]
+    fn rejects_truncated_first_subheader() {
+        let mut data = vec![0u8; 32];
+        data[..12].copy_from_slice(b"ElecbyteSnd\0");
+        data[16..20].copy_from_slice(&1u32.to_le_bytes());
+        data[20..24].copy_from_slice(&28u32.to_le_bytes());
+        assert!(SoundBank::from_bytes(&data).is_err());
+    }
+
+    #[test]
+    fn empty_bank_is_ok() {
+        let mut data = vec![0u8; 24];
+        data[..12].copy_from_slice(b"ElecbyteSnd\0");
+        data[16..20].copy_from_slice(&0u32.to_le_bytes());
+        let bank = SoundBank::from_bytes(&data).expect("empty bank");
+        assert!(bank.sounds.is_empty());
+    }
+
+    #[test]
+    fn skips_truncated_entry_and_keeps_later_sounds() {
+        let second = wav(&[7, 8], 1, 8_000);
+        let mut data = vec![0u8; 24];
+        data[..12].copy_from_slice(b"ElecbyteSnd\0");
+        data[16..20].copy_from_slice(&2u32.to_le_bytes());
+        data[20..24].copy_from_slice(&24u32.to_le_bytes());
+
+        // First entry claims more data than the file holds.
+        let mut first = vec![0u8; 16];
+        first[0..4].copy_from_slice(&44u32.to_le_bytes());
+        first[4..8].copy_from_slice(&1000u32.to_le_bytes());
+        first[8..10].copy_from_slice(&0u16.to_le_bytes());
+        first[10..12].copy_from_slice(&0u16.to_le_bytes());
+        data.extend_from_slice(&first);
+        data.extend_from_slice(&[0u8; 4]);
+
+        // Second entry is valid.
+        let mut second_header = vec![0u8; 16];
+        second_header[4..8].copy_from_slice(&(second.len() as u32).to_le_bytes());
+        second_header[8..10].copy_from_slice(&1u16.to_le_bytes());
+        second_header[10..12].copy_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&second_header);
+        data.extend_from_slice(&second);
+
+        let bank = SoundBank::from_bytes(&data).expect("bank");
+        assert_eq!(bank.sounds.len(), 1);
+        assert_eq!(bank.get(1, 1).expect("second sound").samples, [7, 8]);
+        assert!(bank.get(0, 0).is_none());
     }
 }

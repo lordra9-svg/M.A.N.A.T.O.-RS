@@ -83,7 +83,10 @@ explicitly enabled and documented.
 ## 6. Error handling
 
 - Reject invalid signatures, truncated headers, and out-of-bounds offsets.
-- Skip a single corrupt sound and continue with the rest of the bank.
+  A declared first-subheader offset outside the file, or a truncated first
+  subheader, fails the bank load.
+- Later empty or truncated entries are skipped with a warning; the chain
+  continues through `next_offset`.
 - Do not panic on malformed WAV data.
 - Log a warning for duplicate keys, truncated entries, and undecodable WAVs.
 
