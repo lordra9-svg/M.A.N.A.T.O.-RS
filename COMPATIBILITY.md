@@ -47,8 +47,8 @@ M.U.G.E.N binary oracle. Closing them requires either a documented engine
 decision or an approved Ikemen-GO runtime comparison.
 
 Smaller open edge cases are tracked in the row's Verification column. The
-next candidates are stage-BG `pos`/`layerno`/`spriteno` overrides, `PalFX`
-color/hue/invert parameters, and audio channel priority details.
+next candidates are `PalFX` color/hue/invert parameters and audio channel
+priority details.
 
 ## 1. Content formats
 
