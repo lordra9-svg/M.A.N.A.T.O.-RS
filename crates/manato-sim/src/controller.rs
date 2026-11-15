@@ -381,8 +381,9 @@ fn change_anim(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         return;
     };
     let elem = int_param(sim, who, control, "elem");
+    let elemtime = int_param(sim, who, control, "elemtime").unwrap_or(0);
     let char = char_of(assets, sim, who);
-    sim.fighters[who].set_anim(value, char, elem);
+    sim.fighters[who].set_anim_at(value, char, elem, elemtime);
 }
 
 /// `ChangeAnim2`: like `ChangeAnim`, but the animation is read from another
@@ -392,12 +393,13 @@ fn change_anim2(sim: &mut SimState, who: usize, control: &Controller, assets: &c
         return;
     };
     let elem = int_param(sim, who, control, "elem");
+    let elemtime = int_param(sim, who, control, "elemtime").unwrap_or(0);
     let player = int_param(sim, who, control, "readplayerid")
         .map(|id| id.clamp(0, 1) as usize)
         .unwrap_or_else(|| sim.root_of(who));
     let anim_char_id = sim.fighters[player].char_id;
     let anim_char = &assets.characters[anim_char_id];
-    sim.fighters[who].set_anim_from(value, anim_char, elem, anim_char_id);
+    sim.fighters[who].set_anim_from_at(value, anim_char, elem, elemtime, anim_char_id);
 }
 
 fn vel_set(sim: &mut SimState, who: usize, control: &Controller) {

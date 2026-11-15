@@ -1104,10 +1104,10 @@ fn changeanim_elem_selects_start_frame() {
     assert_eq!(sim.fighters[0].anim_frame, 0);
     assert_eq!(sim.fighters[0].anim_time, 0);
 
-    // Out-of-range elements clamp to the last frame (durations 3+4=7).
+    // Out-of-range elements reset to the first frame with no elapsed time.
     manato_sim::controller::execute(&mut sim, 0, &anim(Some("99")), &assets);
-    assert_eq!(sim.fighters[0].anim_frame, 2);
-    assert_eq!(sim.fighters[0].anim_time, 7);
+    assert_eq!(sim.fighters[0].anim_frame, 0);
+    assert_eq!(sim.fighters[0].anim_time, 0);
 
     // Omitting elem starts at the first frame.
     manato_sim::controller::execute(&mut sim, 0, &anim(None), &assets);
@@ -16391,6 +16391,63 @@ fn changeanim2_reads_another_players_animation_bank() {
     change(&mut sim, "changeanim", None);
     assert_eq!(sim.fighters[0].anim_char_id, None);
     assert_eq!(sim.anim_character(0).name(), assets.characters[0].name());
+}
+
+#[test]
+fn changeanim_elemtime_offsets_the_selected_element() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let change = |sim: &mut SimState, elem: &str, elemtime: &str| {
+        let control = manato_formats::Controller {
+            kind: "changeanim".into(),
+            params: vec![
+                ("value".into(), "0".into()),
+                ("elem".into(), elem.into()),
+                ("elemtime".into(), elemtime.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Element 2 starts at tick 8; elemtime 3 moves three ticks into it.
+    change(&mut sim, "2", "3");
+    assert_eq!(sim.fighters[0].anim_frame, 1);
+    assert_eq!(sim.fighters[0].anim_time, 11);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(2)"), 3);
+
+    // elemtime beyond the element duration is ignored.
+    change(&mut sim, "2", "99");
+    assert_eq!(sim.fighters[0].anim_frame, 1);
+    assert_eq!(sim.fighters[0].anim_time, 8);
+
+    // A negative elemtime resets to the element start.
+    change(&mut sim, "2", "-2");
+    assert_eq!(sim.fighters[0].anim_time, 8);
+
+    // An invalid element starts at the first frame.
+    change(&mut sim, "99", "3");
+    assert_eq!(sim.fighters[0].anim_frame, 0);
+    assert_eq!(sim.fighters[0].anim_time, 0);
+
+    // ChangeAnim2 carries elemtime through a borrowed animation bank.
+    let control = manato_formats::Controller {
+        kind: "changeanim2".into(),
+        params: vec![
+            ("value".into(), "0".into()),
+            ("readplayerid".into(), "1".into()),
+            ("elem".into(), "2".into()),
+            ("elemtime".into(), "4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.fighters[0].anim_char_id, Some(1));
+    assert_eq!(sim.fighters[0].anim_frame, 1);
+    assert_eq!(sim.fighters[0].anim_time, 12);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AnimElemTime(2)"), 4);
 }
 
 #[test]

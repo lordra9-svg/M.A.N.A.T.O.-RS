@@ -789,6 +789,13 @@ impl Fighter {
     }
 
     pub fn set_anim(&mut self, number: i32, char: &Character, elem: Option<i32>) {
+        self.set_anim_at(number, char, elem, 0);
+    }
+
+    /// `ChangeAnim`/`ChangeAnim2` with Ikemen's `elemtime` offset inside the
+    /// selected element. An invalid element starts at the first frame; a
+    /// negative or out-of-duration `elemtime` resets to 0.
+    pub fn set_anim_at(&mut self, number: i32, char: &Character, elem: Option<i32>, elemtime: i32) {
         self.anim_char_id = None;
         self.prev_anim = self.anim_no;
         self.anim_no = number;
@@ -798,13 +805,21 @@ impl Fighter {
         self.anim_looped = 0;
         if let Some(e) = elem {
             if let Some(anim) = char.animation(number) {
-                let idx = ((e - 1).max(0) as usize).min(anim.frames.len().saturating_sub(1));
-                let start = anim.frames[..idx]
-                    .iter()
-                    .fold(0i32, |acc, f| acc.saturating_add(f.effective_duration()));
-                self.anim_frame = idx;
-                self.anim_clock = start;
-                self.anim_time = start;
+                if !anim.frames.is_empty() {
+                    let valid_elem = e >= 1 && (e as usize) <= anim.frames.len();
+                    let idx = if valid_elem { (e - 1) as usize } else { 0 };
+                    let mut offset = if valid_elem { elemtime } else { 0 };
+                    let frame = &anim.frames[idx];
+                    if offset < 0 || (frame.duration != -1 && offset >= frame.duration) {
+                        offset = 0;
+                    }
+                    let start = anim.frames[..idx]
+                        .iter()
+                        .fold(0i32, |acc, f| acc.saturating_add(f.effective_duration()));
+                    self.anim_frame = idx;
+                    self.anim_clock = start.saturating_add(offset);
+                    self.anim_time = start.saturating_add(offset);
+                }
             }
         }
         if char.animation(number).is_none() && number >= 0 {
@@ -861,7 +876,18 @@ impl Fighter {
         elem: Option<i32>,
         anim_char_id: usize,
     ) {
-        self.set_anim(number, anim_char, elem);
+        self.set_anim_from_at(number, anim_char, elem, 0, anim_char_id);
+    }
+
+    pub fn set_anim_from_at(
+        &mut self,
+        number: i32,
+        anim_char: &Character,
+        elem: Option<i32>,
+        elemtime: i32,
+        anim_char_id: usize,
+    ) {
+        self.set_anim_at(number, anim_char, elem, elemtime);
         self.anim_char_id = Some(anim_char_id);
     }
 
