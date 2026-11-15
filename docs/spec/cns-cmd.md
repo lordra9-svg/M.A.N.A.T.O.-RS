@@ -112,6 +112,10 @@ Required controller families for the approved matrix:
 - `TargetBind`, `TargetState`, `TargetFacing`, `TargetLifeAdd`,
   `TargetPowerAdd`, `TargetVelSet`, `TargetVelAdd`
 - `Pause`, `SuperPause`
+  `Pause` models `time` and `movetime`. `SuperPause` models `time` (default
+  30), `movetime`, `poweradd`, and `sound`; `darken`/`brightness`, the `anim`
+  effect, `pausebg`, `endcmbuftime`, `p2defmul`, and `unhittable` are not
+  modeled (hit resolution is already frozen for the pause duration).
 - `EnvShake`, `FallEnvShake`
 - `GuardPointsAdd`, `GuardPointsSet`, `GuardBreakSet`
 - `DizzyPointsAdd`, `DizzyPointsSet`, `DizzySet`

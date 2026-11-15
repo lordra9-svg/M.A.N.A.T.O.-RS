@@ -9651,6 +9651,39 @@ fn state_and_animation_controllers_round_trip() {
 }
 
 #[test]
+fn superpause_defaults_time_and_adds_power() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].power = 100.0;
+
+    // An omitted `time` defaults to 30 ticks.
+    let control = manato_formats::Controller {
+        kind: "superpause".into(),
+        params: vec![("poweradd".into(), "250".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.super_pause, 30);
+    assert_eq!(sim.fighters[0].power, 350.0);
+
+    // `poweradd` clamps at the power cap.
+    sim.fighters[0].power = manato_sim::MAX_POWER - 10.0;
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.fighters[0].power, manato_sim::MAX_POWER);
+
+    // An explicit time of 0 still disables the pause.
+    let off = manato_formats::Controller {
+        kind: "superpause".into(),
+        params: vec![("time".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &off, &assets);
+    assert_eq!(sim.super_pause, 0);
+}
+
+#[test]
 fn pause_superpause_and_envshake_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -3074,13 +3074,17 @@ fn pause(sim: &mut SimState, who: usize, control: &Controller) {
 }
 
 fn super_pause(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
-    let time = int_param(sim, who, control, "time").unwrap_or(0).max(0);
+    // Ikemen-GO and M.U.G.E.N default an omitted SuperPause time to 30 ticks.
+    let time = int_param(sim, who, control, "time").unwrap_or(30).max(0);
     let movetime = int_param(sim, who, control, "movetime").unwrap_or(0);
     sim.super_pause = time;
     sim.super_pause_move_time = movetime;
     // Like `Pause`, the superpausing fighter may act for `movetime` ticks.
     sim.pause_mover = Some(who);
     sim.pause_movetime = if movetime > time { 0 } else { movetime.max(0) };
+    if let Some(value) = int_param(sim, who, control, "poweradd") {
+        sim.fighters[who].power = clamp(sim.fighters[who].power + value as f32, 0.0, MAX_POWER);
+    }
     if let Some(raw) = param(control, "sound") {
         let mut parts = raw.split(',');
         let group = parts
