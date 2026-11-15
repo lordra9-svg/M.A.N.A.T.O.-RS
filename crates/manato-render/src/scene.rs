@@ -78,10 +78,16 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     let hide_bg = sim.background_hidden();
     let hide_fg = sim.foreground_hidden();
 
+    let effective_layer_no = |index: usize, layer: &manato_formats::stage::BgLayer| {
+        sim.stage_layers
+            .get(index)
+            .and_then(|state| state.layer_no)
+            .unwrap_or(layer.layer_no)
+    };
     for (index, layer) in stage
         .render_layers()
         .enumerate()
-        .filter(|(_, layer)| layer.layer_no < 0 && !hide_bg)
+        .filter(|(index, layer)| effective_layer_no(*index, layer) < 0 && !hide_bg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
@@ -94,7 +100,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     for (index, layer) in stage
         .render_layers()
         .enumerate()
-        .filter(|(_, layer)| layer.layer_no == 0 && !hide_bg)
+        .filter(|(index, layer)| effective_layer_no(*index, layer) == 0 && !hide_bg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
@@ -132,7 +138,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     for (index, layer) in stage
         .render_layers()
         .enumerate()
-        .filter(|(_, layer)| layer.layer_no > 0 && !hide_fg)
+        .filter(|(index, layer)| effective_layer_no(*index, layer) > 0 && !hide_fg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
             painter.set_scissor(layer_scissor(layer));
@@ -233,9 +239,10 @@ fn draw_bg_layer(
             0.0
         }
     };
+    let pos = state.pos.unwrap_or(Vec2::ZERO);
     let motion = Vec2::new(
-        state.offset.x + sin_offset(state.sin_x) + cos_offset(state.cos_x),
-        state.offset.y + sin_offset(state.sin_y) + cos_offset(state.cos_y),
+        state.offset.x + pos.x + sin_offset(state.sin_x) + cos_offset(state.cos_x),
+        state.offset.y + pos.y + sin_offset(state.sin_y) + cos_offset(state.cos_y),
     );
     let start = state.start.unwrap_or(layer.start);
     let delta = state.delta.unwrap_or(layer.delta);
@@ -263,7 +270,7 @@ fn draw_bg_layer(
         } else {
             return;
         }
-    } else if let Some((group, index)) = layer.sprite {
+    } else if let Some((group, index)) = state.sprite.or(layer.sprite) {
         let Some(sprite) = stage.sprites.get(group, index) else {
             return;
         };
@@ -273,7 +280,7 @@ fn draw_bg_layer(
                 offset: Vec2::ZERO,
                 flip_h: false,
                 flip_v: false,
-                blend: blend_of(layer.trans),
+                blend: blend_of(state.trans.unwrap_or(layer.trans)),
                 scale: Vec2::new(1.0, 1.0),
                 alpha: 1.0,
                 angle: 0.0,
@@ -285,7 +292,7 @@ fn draw_bg_layer(
     };
     let _ = anim;
 
-    let blend = blend_of(layer.trans);
+    let blend = blend_of(state.trans.unwrap_or(layer.trans));
     let xscale = layer.xscale * scale.x;
     let yscale = layer.yscale * scale.y;
     let (w, h) = (sprite.width as f32 * xscale, sprite.height as f32 * yscale);

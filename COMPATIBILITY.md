@@ -23,6 +23,33 @@ V-09 (custom shaders), and N-03 (spectators/lobby). X-06 and X-07 are also
 `N/A`: no Ikemen test content is shipped, and the clean-room policy uses
 Ikemen-GO alone as the runtime oracle.
 
+## Remaining work
+
+No row is `Missing` or `TBD`. Every remaining `Partial` is either implemented
+with residual edge cases or blocked on a missing subsystem. The blockers are
+deliberate, not scheduling gaps:
+
+| Blocker | Rows | Reason |
+| --- | --- | --- |
+| Text pipeline | T-08, C-13 | `Text`/`NumText`/`ModifyText`/`RemoveText` need a text-object and render layer; no such subsystem exists. |
+| Decoded-RGBA sprites | C-07, C-13 | `RemapPal`/`RemapSprite` and `AfterImage remappal` need retained indexed pixels and palettes; sprites are decoded to RGBA at load time. |
+| Projectile clashes | T-08, C-04 | `ProjCancelTime` and projectile priority-point trading need a clash-resolution pass. |
+| Asset reload / serialization | C-13, R-06 | `MatchRestart`, `SaveState`/`LoadState`, and `SaveFile`/`LoadFile` need reloadable assets and a serialized simulation state. |
+| Audio streaming | A-03, T-08 | `PlayBGM`/`ModifyBGM` and live `BgmVar`/`SoundVar` fields need a streaming BGM engine; the mixer currently plays decoded one-shots. |
+| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/`ModifyBGCtrl3D` and non-zero Z fields need a depth renderer; the engine is strictly 2D. |
+| Custom-state helpers | C-13 | `AssertCommand`/`AssertInput`/`AssertAnalogVector` and `ChangeMovelist` belong to Ikemen custom-state/movelist machinery that is out of the frozen scope. |
+| Debug-only helpers | C-13 | Clipboard, console-print, and assert controllers are authoring aids rather than engine behavior. |
+
+Oracle-only rows (`F-09`, `K-01`..`K-09`, `V-05`, `V-08`, `A-01`, `A-03`,
+`A-04`, `R-01`..`R-06`, and the remaining `S-`/`T-` rows) are implemented and
+covered by engine tests; they stay `Partial` because X-07 forbids asserting a
+M.U.G.E.N binary oracle. Closing them requires either a documented engine
+decision or an approved Ikemen-GO runtime comparison.
+
+Smaller open edge cases are tracked in the row's Verification column. The
+next candidates are stage-BG `pos`/`layerno`/`spriteno` overrides, `PalFX`
+color/hue/invert parameters, and audio channel priority details.
+
 ## 1. Content formats
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
@@ -83,7 +110,7 @@ Ikemen-GO alone as the runtime oracle.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow + TimerFreeze round-clock freeze |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time) implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 N/A), tagin/tagout (R-04 N/A), ShaderSet (V-09 N/A), RunState, RemapSprite (decoded-RGBA architecture), Text/ModifyText/RemoveText (text pipeline), ModifyBGM/PlayBGM (no BGM engine), 3D/depth controllers, MatchRestart/save/load (asset reload/serialization), and debug-only clipboard/console/assert helpers |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time) implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 N/A), tagin/tagout (R-04 N/A), ShaderSet (V-09 N/A), RunState, RemapSprite (decoded-RGBA architecture), Text/ModifyText/RemoveText (text pipeline), ModifyBGM/PlayBGM (no BGM engine), 3D/depth controllers, MatchRestart/save/load (asset reload/serialization), and debug-only clipboard/console/assert helpers |
 
 ## 5. Collision and combat
 

@@ -1989,6 +1989,13 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
     let start_x = num_param(sim, who, control, "start.x");
     let start_y = num_param(sim, who, control, "start.y");
     let scale = control.get_pair("scalestart");
+    let pos_x = num_param(sim, who, control, "pos.x");
+    let pos_y = num_param(sim, who, control, "pos.y");
+    let layer_no = int_param(sim, who, control, "layerno");
+    let sprite = control
+        .get_pair("spriteno")
+        .map(|(group, index)| (group as i32, index as i32));
+    let trans = control.get("trans").and_then(parse_trans_mode);
     for position in targets {
         let base = &sim.assets.stage.layers[position];
         let state = &mut sim.stage_layers[position];
@@ -2024,7 +2031,39 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
         if let Some(scale) = scale {
             state.scale = Some(Vec2::new(scale.0, scale.1));
         }
+        if pos_x.is_some() || pos_y.is_some() {
+            let mut value = state.pos.unwrap_or(Vec2::ZERO);
+            if let Some(x) = pos_x {
+                value.x = x;
+            }
+            if let Some(y) = pos_y {
+                value.y = y;
+            }
+            state.pos = Some(value);
+        }
+        if let Some(layer_no) = layer_no {
+            state.layer_no = Some(layer_no);
+        }
+        if let Some(sprite) = sprite {
+            state.sprite = Some(sprite);
+        }
+        if let Some(trans) = trans {
+            state.trans = Some(trans);
+        }
     }
+}
+
+/// Parses `ModifyStageBG trans = src, dst, type` (0 normal, 1 add, 2 sub,
+/// 3 subadd). The alpha values are not modeled for stage layers.
+fn parse_trans_mode(raw: &str) -> Option<manato_formats::air::BlendMode> {
+    use manato_formats::air::BlendMode;
+    let kind = raw.split(',').nth(2)?.trim().parse::<i32>().ok()?;
+    Some(match kind {
+        1 => BlendMode::Add,
+        2 => BlendMode::Sub,
+        3 => BlendMode::SubAdd,
+        _ => BlendMode::Normal,
+    })
 }
 
 /// `ModifyBGCtrl` subset: matches controllers by their `sctrlid` and updates

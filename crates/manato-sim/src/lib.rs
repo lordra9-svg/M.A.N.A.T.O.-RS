@@ -561,6 +561,14 @@ pub struct StageLayerState {
     pub start: Option<Vec2>,
     pub delta: Option<Vec2>,
     pub scale: Option<Vec2>,
+    /// `pos` offset added on top of the layer's start (`None` = zero).
+    pub pos: Option<Vec2>,
+    /// `layerno` override used for render ordering.
+    pub layer_no: Option<i32>,
+    /// `spriteno` override for normal (non-animated) layers.
+    pub sprite: Option<(i32, i32)>,
+    /// `trans` blend override.
+    pub trans: Option<manato_formats::air::BlendMode>,
 }
 
 impl StageLayerState {
@@ -578,6 +586,10 @@ impl StageLayerState {
             start: None,
             delta: None,
             scale: None,
+            pos: None,
+            layer_no: None,
+            sprite: None,
+            trans: None,
         }
     }
 }
@@ -2834,6 +2846,18 @@ impl SimState {
                 h.write_f32(scale.x);
                 h.write_f32(scale.y);
             }
+            h.write_bool(layer.pos.is_some());
+            if let Some(pos) = layer.pos {
+                h.write_f32(pos.x);
+                h.write_f32(pos.y);
+            }
+            h.write_i32(layer.layer_no.unwrap_or(i32::MIN));
+            h.write_bool(layer.sprite.is_some());
+            if let Some((group, index)) = layer.sprite {
+                h.write_i32(group);
+                h.write_i32(index);
+            }
+            h.write_u8(layer.trans.map(|t| t as u8).unwrap_or(255));
         }
         if let Some(color) = self.env_color {
             h.write_f32(color.color[0]);
@@ -3395,6 +3419,10 @@ mod stage_tests {
             start: None,
             delta: None,
             scale: None,
+            pos: None,
+            layer_no: None,
+            sprite: None,
+            trans: None,
         }
     }
 

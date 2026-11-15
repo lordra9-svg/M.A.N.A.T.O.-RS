@@ -149,9 +149,9 @@ Required controller families for the approved matrix:
 - `ExplodBindTime` (rebind matching explods by id)
 - `ModifyStageVar` (camera bounds/framing/zoom and player-info bounds subset)
 - `ModifyStageBG` (selects layers by `id`/`index`, then overrides `actionno`,
-  `velocity.x/y`, `delta.x/y`, `start.x/y`, and `scalestart`; `pos`,
-  `layerno`, `spriteno`, `trans`, angles, shear, projection, and shaders are
-  not modeled)
+  `velocity.x/y`, `delta.x/y`, `start.x/y`, `scalestart`, `pos.x/y`,
+  `layerno`, `spriteno`, and `trans` (numeric add/sub/subadd type); angles,
+  shear, projection, and shaders are not modeled)
 - `ModifyBGCtrl` (matches stage controllers by `sctrlid` and updates the
   `time = start[, end[, loop]]` window, `value`, and `x`/`y`; palette and
   shader parameters are not modeled)

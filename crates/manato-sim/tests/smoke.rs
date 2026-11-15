@@ -2021,6 +2021,11 @@ fn modifystagebg_overrides_layer_state() {
             ("start.x", "10"),
             ("start.y", "20"),
             ("scalestart", "0.5, 0.25"),
+            ("pos.x", "4"),
+            ("pos.y", "5"),
+            ("layerno", "-1"),
+            ("spriteno", "2, 3"),
+            ("trans", "0, 0, 1"),
         ],
     );
     let layer = sim.stage_layers[0].clone();
@@ -2029,6 +2034,10 @@ fn modifystagebg_overrides_layer_state() {
     assert_eq!(layer.delta, Some(manato_core::Vec2::new(0.5, 1.0)));
     assert_eq!(layer.start, Some(manato_core::Vec2::new(10.0, 20.0)));
     assert_eq!(layer.scale, Some(manato_core::Vec2::new(0.5, 0.25)));
+    assert_eq!(layer.pos, Some(manato_core::Vec2::new(4.0, 5.0)));
+    assert_eq!(layer.layer_no, Some(-1));
+    assert_eq!(layer.sprite, Some((2, 3)));
+    assert_eq!(layer.trans, Some(manato_formats::air::BlendMode::Add));
 
     // A different index leaves the first layer alone.
     let before = sim.stage_layers[0].clone();
