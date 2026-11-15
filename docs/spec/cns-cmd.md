@@ -97,6 +97,8 @@ Required controller families for the approved matrix:
 - `VelSet`, `VelAdd`, `VelMul`
 - `PosSet`, `PosAdd`, `PosFreeze`
 - `ChangeState`, `SelfState`, `ChangeAnim`, `ChangeAnim2`
+  `ChangeState`/`SelfState` accept `continue`; with `continue = 1` the
+  remaining controllers in the current block still run after the transition.
   `ChangeAnim`/`ChangeAnim2` accept `value`, the 1-based `elem`, and
   `elemtime` (ticks into that element). An invalid element resets to the
   first frame with `elemtime = 0`; a negative or out-of-duration `elemtime`

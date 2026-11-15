@@ -10588,6 +10588,69 @@ fn statedef_juggle_persists_when_omitted() {
 }
 
 #[test]
+fn changestate_continue_runs_remaining_controllers() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("common.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-continue-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let common = dir.join("common.cns");
+    let mut text = std::fs::read_to_string(&common).expect("read common.cns");
+    text.push_str(
+        "\n[Statedef 30]\ntype = S\nphysics = S\nanim = 0\n\
+         \n[State 30, Change]\ntype = ChangeState\ntrigger1 = 1\nvalue = 10\ncontinue = 1\n\
+         \n[State 30, Mark]\ntype = VarSet\ntrigger1 = 1\nv = 1\nvalue = 42\n\
+         \n[Statedef 31]\ntype = S\nphysics = S\nanim = 0\n\
+         \n[State 31, Change]\ntype = ChangeState\ntrigger1 = 1\nvalue = 10\n\
+         \n[State 31, Mark]\ntype = VarSet\ntrigger1 = 1\nv = 1\nvalue = 42\n",
+    );
+    std::fs::write(&common, text).expect("patch common.cns");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: PathBuf::from("content/chars/kaen/kaen.def"),
+        p2: dir.join("kaen.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let char_id = sim.fighters[1].char_id;
+
+    // `continue = 1` lets the following VarSet run on the old state's block.
+    sim.fighters[1].vars[1] = 0;
+    sim.fighters[1].enter_state(30, &assets.characters[char_id], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].state_no, 10);
+    assert_eq!(sim.fighters[1].vars[1], 42);
+
+    // Without `continue`, the remaining controllers are skipped.
+    sim.fighters[1].vars[1] = 0;
+    sim.fighters[1].enter_state(31, &assets.characters[char_id], false);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].state_no, 10);
+    assert_eq!(sim.fighters[1].vars[1], 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn throw_whiff_guard_bind_and_drop_semantics() {
     let Some(mut sim) = fight_phase() else {
         return;

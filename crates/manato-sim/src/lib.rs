@@ -1486,10 +1486,21 @@ impl SimState {
                 continue;
             }
             let before = self.fighters[who].state_no;
+            // Ikemen's `continue = 1` lets the remaining controllers of the
+            // current block run after a ChangeState/SelfState.
+            let continue_after_change = matches!(
+                control.kind.trim().to_ascii_lowercase().as_str(),
+                "changestate" | "selfstate"
+            ) && control
+                .get("continue")
+                .map(|raw| trigger::num(self, who, raw) != 0.0)
+                .unwrap_or(false);
             controller::execute(self, who, control, &assets);
             if self.fighters[who].state_no != before {
                 changed = true;
-                break;
+                if !continue_after_change {
+                    break;
+                }
             }
         }
         changed

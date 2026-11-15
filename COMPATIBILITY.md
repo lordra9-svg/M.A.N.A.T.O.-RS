@@ -46,7 +46,7 @@ Ikemen-GO alone as the runtime oracle.
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | S-01 | Statedef defaults/type/physics | Required | Required | Partial | Statedef type/physics/anim/ctrl/sprpriority defaults + juggle persistence + hitdefpersist/movehitpersist/hitcountpersist tests |
-| S-02 | ChangeState/ChangeAnim | Required | Required | Partial | State round-trips + ctrl/anim overrides + ChangeAnim elem + ChangeAnim2 bank |
+| S-02 | ChangeState/ChangeAnim | Required | Required | Partial | State round-trips + ctrl/anim overrides + ChangeState continue + ChangeAnim elem/elemtime + ChangeAnim2 bank |
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/MoveType/Physics controller and trigger test |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + ignorehitpause |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick + KO lock + helper keyctrl/helpertype gating |
