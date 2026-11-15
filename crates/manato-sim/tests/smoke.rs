@@ -10242,6 +10242,103 @@ fn command_hold_button_prefix_matches_held_input() {
 }
 
 #[test]
+fn mugen_hold_commands_keep_a_one_tick_buffer() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cmd").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+
+    // Copies kaen and appends a hold-only command with an explicit 10-tick
+    // buffer, optionally marking the character as Ikemen-version.
+    let build = |tag: &str, ikemen: bool| -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("manato-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp character dir");
+        for entry in std::fs::read_dir(&source).expect("read character dir") {
+            let entry = entry.expect("dir entry");
+            if entry.file_type().expect("file type").is_file() {
+                std::fs::copy(entry.path(), dir.join(entry.file_name()))
+                    .expect("copy character file");
+            }
+        }
+        let cmd = dir.join("kaen.cmd");
+        let mut text = std::fs::read_to_string(&cmd).expect("read kaen.cmd");
+        text.push_str(
+            "\n[Command]\nname = \"hold_x\"\ncommand = /x\ntime = 10\nbuffer.time = 10\n",
+        );
+        std::fs::write(&cmd, text).expect("patch kaen.cmd");
+        if ikemen {
+            let def = dir.join("kaen.def");
+            let text = std::fs::read_to_string(&def).expect("read kaen.def");
+            let text = text.replace(
+                "mugenversion = 1.0",
+                "mugenversion = 1.0\nikemenversion = 1.0",
+            );
+            std::fs::write(&def, text).expect("patch kaen.def");
+        }
+        dir
+    };
+
+    let load = |dir: &PathBuf| {
+        let config = MatchConfig {
+            mugen_root: project.clone(),
+            p1: dir.join("kaen.def"),
+            p2: PathBuf::from("content/chars/nival/nival.def"),
+            stage: PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 2,
+            round_time: 99,
+        };
+        let mut options = MatchOptions::default();
+        options.ai_level = 0;
+        SimState::new(
+            std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+            options,
+        )
+    };
+    let active = |sim: &SimState| manato_sim::trigger::int(sim, 0, "Command = \"hold_x\"") == 1;
+
+    // M.U.G.E.N-version: the hold-only quirk forces `buffer.time` to 1, so the
+    // command is gone shortly after release.
+    let mugen_dir = build("mugen-holdbuf", false);
+    let mut sim = load(&mugen_dir);
+    sim.fighters[0].history.clear();
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::X), 0);
+    }
+    assert!(active(&sim), "held /x matches");
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::default(), 0);
+    }
+    assert!(
+        !active(&sim),
+        "M.U.G.E.N hold-only commands use a 1-tick buffer"
+    );
+
+    // Ikemen-version keeps the explicit 10-tick buffer.
+    let ikemen_dir = build("ikemen-holdbuf", true);
+    let mut sim = load(&ikemen_dir);
+    sim.fighters[0].history.clear();
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::X), 0);
+    }
+    assert!(active(&sim));
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::default(), 0);
+    }
+    assert!(
+        active(&sim),
+        "Ikemen-version characters keep their explicit buffer.time"
+    );
+
+    let _ = std::fs::remove_dir_all(&mugen_dir);
+    let _ = std::fs::remove_dir_all(&ikemen_dir);
+}
+
+#[test]
 fn hold_pseudo_commands_follow_facing_and_diagonals() {
     let Some(mut sim) = fight_phase() else {
         return;

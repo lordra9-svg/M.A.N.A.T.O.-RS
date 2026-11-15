@@ -117,12 +117,26 @@ impl Character {
         }
         let quotes = parse_quotes(&merged.constants);
 
+        // M.U.G.E.N-version characters get Ikemen's command compatibility
+        // quirks; Ikemen-version characters keep the strict per-key parsing.
+        let mut commands = cmd.commands;
+        let ikemen_version = def
+            .info
+            .get("ikemenversion")
+            .and_then(|value| value.trim().parse::<f32>().ok())
+            .unwrap_or(0.0);
+        if ikemen_version <= 0.0 {
+            for command in &mut commands {
+                command.apply_mugen_command_quirks();
+            }
+        }
+
         Ok(Self {
             def,
             constants: merged.constants,
             quotes,
             states,
-            commands: cmd.commands,
+            commands,
             animations,
             sprites,
             sounds,

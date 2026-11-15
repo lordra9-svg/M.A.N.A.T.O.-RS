@@ -36,6 +36,16 @@ pub struct CommandStep {
     pub charge_time: i32,
 }
 
+impl CommandStep {
+    /// True when the step only contains held (`/`) keys.
+    pub fn is_hold_only(&self) -> bool {
+        (self.dir.is_some() || self.buttons != 0 || self.or_buttons != 0)
+            && (self.dir.is_none() || self.hold)
+            && (self.buttons == 0 || self.button_hold)
+            && (self.or_buttons == 0 || self.button_hold)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct CommandDef {
     pub name: String,
@@ -50,6 +60,30 @@ pub struct CommandDef {
     pub buffer_pauseend: bool,
     pub buffer_shared: bool,
     pub line: usize,
+}
+
+impl CommandDef {
+    /// M.U.G.E.N-version compatibility quirks from Ikemen's
+    /// `ApplyBackwardCompatibility`: `/` propagates to every key in a non-OR
+    /// step, and commands made only of `/` steps keep a 1-tick buffer.
+    pub fn apply_mugen_command_quirks(&mut self) {
+        for step in &mut self.steps {
+            if step.or_buttons != 0 {
+                continue;
+            }
+            if step.hold || step.button_hold {
+                if step.dir.is_some() {
+                    step.hold = true;
+                }
+                if step.buttons != 0 {
+                    step.button_hold = true;
+                }
+            }
+        }
+        if !self.steps.is_empty() && self.steps.iter().all(CommandStep::is_hold_only) {
+            self.buffer_time = 1;
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -219,7 +253,7 @@ fn parse_step(raw: &str) -> Option<CommandStep> {
     };
 
     let mut step = CommandStep::default();
-    for part in parts {
+    for part in parts.iter().copied() {
         if part.is_empty() {
             continue;
         }
@@ -249,6 +283,19 @@ fn parse_step(raw: &str) -> Option<CommandStep> {
             // Unknown token: keep parsing other parts.
             let _ = prefix;
         }
+    }
+
+    // An OR step is hold-only only when every key carries `/`; a mixed
+    // `x|/y` must not be forced into the hold-only buffer rule.
+    if or_logic && step.or_buttons != 0 {
+        let all_hold = parts
+            .iter()
+            .filter(|part| !part.trim().is_empty())
+            .all(|part| {
+                let mut probe = CommandStep::default();
+                matches!(parse_prefix(part, &mut probe), Some((prefix, _)) if prefix.contains('/'))
+            });
+        step.button_hold = all_hold;
     }
 
     if step.dir.is_none() && step.buttons == 0 && step.or_buttons == 0 {
@@ -348,6 +395,52 @@ mod tests {
         assert!(step.hold);
         assert_eq!(step.buttons, Buttons::A);
         assert!(!step.button_hold, "only the prefixed key is held");
+    }
+
+    #[test]
+    fn applies_mugen_command_quirks() {
+        let mut hold = CommandDef {
+            name: "hold".into(),
+            steps: vec![parse_step("/B+a").unwrap()],
+            time: 15,
+            step_time: -1,
+            buffer_time: 10,
+            ..CommandDef::default()
+        };
+        hold.apply_mugen_command_quirks();
+        assert!(hold.steps[0].hold);
+        assert!(
+            hold.steps[0].button_hold,
+            "slash propagates to every key in the step"
+        );
+        assert_eq!(
+            hold.buffer_time, 1,
+            "hold-only commands use a 1-tick buffer"
+        );
+
+        let mut press = CommandDef {
+            name: "press".into(),
+            steps: vec![parse_step("x").unwrap()],
+            time: 15,
+            step_time: -1,
+            buffer_time: 10,
+            ..CommandDef::default()
+        };
+        press.apply_mugen_command_quirks();
+        assert_eq!(press.buffer_time, 10);
+
+        // A mixed OR step is not hold-only, so its buffer stays untouched.
+        let mut mixed = CommandDef {
+            name: "mixed".into(),
+            steps: vec![parse_step("x|/y").unwrap()],
+            time: 15,
+            step_time: -1,
+            buffer_time: 10,
+            ..CommandDef::default()
+        };
+        assert!(!mixed.steps[0].is_hold_only());
+        mixed.apply_mugen_command_quirks();
+        assert_eq!(mixed.buffer_time, 10);
     }
 
     #[test]

@@ -442,6 +442,18 @@ buffer.time = 1
 - `[Defaults]` entries `command.time`, `command.steptime`, and
   `command.buffer.time` override the defaults for all commands.
 
+M.U.G.E.N-version characters (no `ikemenversion` above zero) get Ikemen-GO's
+backward-compatibility quirks (`ApplyBackwardCompatibility`):
+
+- In a non-OR step, a `/` on any key propagates to every direction and button
+  in that step (`/B+a` behaves like `/B+/a`).
+- A command whose every step is hold-only (`/`) keeps `buffer.time = 1`
+  regardless of the declared value. This stops held commands from remaining
+  active for the full buffer after release.
+
+Ikemen-version characters keep the strict per-key prefix parsing and their
+declared buffers.
+
 ### 6.2 Command symbols
 
 Directions: `U`, `D`, `B`, `F`, `L`, `R`, `N`, `UB`, `UF`, `DB`, `DF`,
