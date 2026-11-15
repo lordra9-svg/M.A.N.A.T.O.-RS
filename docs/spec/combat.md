@@ -237,7 +237,11 @@ applied when a `HitDef` controller omits the parameter:
 `GetHitVar(type|groundtype|airtype)` reports the M.U.G.E.N/Ikemen-GO type
 codes: `0` None, `1` High, `2` Low, `3` Trip. `GetHitVar(type)` returns the
 air type when the defender was airborne at contact and the ground type
-otherwise.
+otherwise. `GetHitVar(ground.animtype)`, `GetHitVar(air.animtype)`, and
+`GetHitVar(fall.animtype)` report the HitDef's three reaction banks, while
+`GetHitVar(animtype)` reports the selected reaction. `GetHitVar(zoff|zvel|
+zaccel|fall.zvel|xveladd|yveladd)` read `0`: the simulation is 2D and the
+velocity-add accumulators are not modeled.
 
 `GetHitVar(ctrltime)` follows the observable Ikemen-GO value: guarded ground
 contacts report `guard.ctrltime`, guarded air contacts report

@@ -611,6 +611,9 @@ pub fn apply_hit_at(
         f.sprite_priority = hitdef.p2sprpriority;
         f.hit.vars.ground_type = hitdef.ground_type.code();
         f.hit.vars.air_type = hitdef.air_type.code();
+        f.hit.vars.ground_anim_type = hitdef.anim_type.code();
+        f.hit.vars.air_anim_type = hitdef.air_anim_type.code();
+        f.hit.vars.fall_anim_type = hitdef.fall_anim_type.code();
         f.hit.vars.hit_type = if defender_airborne {
             hitdef.air_type.code()
         } else {

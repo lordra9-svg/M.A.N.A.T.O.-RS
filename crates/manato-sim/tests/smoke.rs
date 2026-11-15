@@ -5092,6 +5092,57 @@ fn hitdef_kill_and_guard_kill_control_ko() {
 }
 
 #[test]
+fn gethitvar_reports_reaction_anim_types_and_zero_depth_fields() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("animtype".into(), "Back".into()),
+            ("air.animtype".into(), "DiagUp".into()),
+            ("fall.animtype".into(), "Up".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+
+    // Grounded hit: base type selected, all three banks reported separately.
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 1, text);
+    assert_eq!(int(&sim, "GetHitVar(animtype)"), 2);
+    assert_eq!(int(&sim, "GetHitVar(ground.animtype)"), 3);
+    assert_eq!(int(&sim, "GetHitVar(air.animtype)"), 5);
+    assert_eq!(int(&sim, "GetHitVar(fall.animtype)"), 4);
+
+    // Airborne hit selects the air reaction type but keeps the banks.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    sim.fighters[1].pos.y = -20.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(int(&sim, "GetHitVar(animtype)"), 5);
+
+    // 2D engine and unused accumulators read zero, not undefined.
+    for field in ["zoff", "zvel", "zaccel", "fall.zvel", "xveladd", "yveladd"] {
+        assert_eq!(
+            manato_sim::trigger::num(&sim, 1, &format!("GetHitVar({field})")),
+            0.0,
+            "{field}"
+        );
+    }
+}
+
+#[test]
 fn hitdef_air_fall_defaults_and_applies_to_air_hits() {
     let parse = |sim: &mut SimState, assets: &manato_sim::Assets, params: Vec<(String, String)>| {
         let control = manato_formats::Controller {

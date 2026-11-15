@@ -821,6 +821,12 @@ impl HitDef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GetHitVars {
     pub anim_type: i32,
+    /// `GetHitVar(ground.animtype)` — the HitDef's base reaction type.
+    pub ground_anim_type: i32,
+    /// `GetHitVar(air.animtype)` — the airborne reaction type.
+    pub air_anim_type: i32,
+    /// `GetHitVar(fall.animtype)` — the falling reaction type.
+    pub fall_anim_type: i32,
     pub ground_type: i32,
     pub air_type: i32,
     /// Selected hit type for this contact: air type when the defender was
@@ -871,6 +877,9 @@ impl Default for GetHitVars {
     fn default() -> Self {
         Self {
             anim_type: 0,
+            ground_anim_type: 0,
+            air_anim_type: 0,
+            fall_anim_type: 0,
             ground_type: 0,
             air_type: 0,
             hit_type: 0,
@@ -912,12 +921,18 @@ impl GetHitVars {
     pub fn get(&self, key: &str) -> Value {
         match key.trim().to_ascii_lowercase().as_str() {
             "animtype" => Value::Int(self.anim_type),
+            "ground.animtype" => Value::Int(self.ground_anim_type),
+            "air.animtype" => Value::Int(self.air_anim_type),
+            "fall.animtype" => Value::Int(self.fall_anim_type),
             "groundtype" => Value::Int(self.ground_type),
             "airtype" => Value::Int(self.air_type),
             "type" => Value::Int(self.hit_type),
             "xvel" => Value::Float(self.x_vel),
             "xoff" => Value::Float(self.x_off),
             "yoff" => Value::Float(self.y_off),
+            // The renderer and simulation are 2D, so depth and the
+            // documented-but-unused velocity-add accumulators read zero.
+            "zoff" | "zvel" | "zaccel" | "fall.zvel" | "xveladd" | "yveladd" => Value::Float(0.0),
             "yvel" => Value::Float(self.y_vel),
             "yaccel" => Value::Float(self.y_accel),
             "hittime" => Value::Int(self.hittime),
