@@ -202,6 +202,10 @@ compressed stream. Indexed formats map indices through the selected palette
 node. Format 0 depth 8 also maps through the palette. Format 0 depth 24/32 is
 BGR(A) and is converted directly to RGBA.
 
+A missing, out-of-range, or broken palette node falls back to palette 0,
+matching Ikemen-GO's palette clamping; an index outside the selected palette
+reads as transparent.
+
 ### 4.5 RLE8
 
 ```
@@ -269,15 +273,17 @@ Use the `png` crate for zlib/IDAT handling; do not reimplement PNG filtering.
 - Bounds-check every offset and length before slicing.
 - Log and skip a single bad sprite/palette rather than aborting the whole file
   when the header is otherwise valid.
+- A missing or broken palette node falls back to palette 0; a sprite index
+  outside that palette reads as transparent.
 - Preserve declaration order; `get(group, index)` returns the first sprite with
   that key.
 
 ## 6. Test plan
 
 - Existing unit tests: RLE8 round-trip, LZ5 literal run, v2 indexed prefix.
-- Synthetic v2 PNG32 and PNG8 sprites.
+- Synthetic v2 PNG8/PNG32 sprites and truncated PNG payloads.
 - Linked sprite copy and axis override.
-- Palette link and minor2 alpha behavior.
+- Palette link, minor2 alpha behavior, and missing-palette fallback.
 - Truncated RLE8/LZ5/PNG payloads.
 - Bundled character/stage SFFs.
 - Stock KFM and Ryu SFFs when available.

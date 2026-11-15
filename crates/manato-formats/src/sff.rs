@@ -253,9 +253,12 @@ impl SffFile {
                     .push(Sprite::blank(group, index, width, height, axis_x, axis_y));
                 continue;
             };
+            // Missing or broken palette nodes fall back to palette 0, matching
+            // Ikemen-GO's out-of-range palette clamping.
             let palette = palettes
                 .get(palette_header)
                 .and_then(|p| p.as_deref())
+                .or_else(|| palettes.first().and_then(|p| p.as_deref()))
                 .unwrap_or(&[]);
 
             let rgba = match format {
@@ -1227,14 +1230,16 @@ mod tests {
     }
 
     #[test]
-    fn v2_missing_palette_falls_back_to_transparent() {
-        let mut sprite = node(0, 0, 0, Some(rle8_payload(&[1, 2])));
+    fn v2_missing_palette_falls_back_to_first_palette() {
+        let payload = [&(2u32).to_le_bytes()[..], &[1u8, 2]].concat();
+        let mut sprite = node(0, 0, 0, Some(payload));
         sprite.width = 2;
         sprite.palette = 4; // out of range for a one-palette file
         let sff = SffFile::from_bytes(&build_v2(&[sprite], &[V2Palette::Colors(palette_colors())]))
             .expect("parse missing palette");
         let sprite = sff.get(0, 0).expect("sprite");
-        assert_eq!(sprite.rgba, vec![0; 2 * 4]);
+        assert_eq!(&sprite.rgba[0..4], &[10, 20, 30, 255]);
+        assert_eq!(&sprite.rgba[4..8], &[40, 50, 60, 255]);
     }
 
     #[test]
@@ -1337,6 +1342,71 @@ mod tests {
         // No palette section at all also yields transparent indexed pixels.
         let sff = SffFile::from_bytes(&build_v2(&[sprite], &[])).expect("parse no palettes");
         assert_eq!(sff.get(0, 2).expect("sprite").rgba, [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn v2_minor2_keeps_stored_palette_alpha() {
+        let colors = vec![[0u8, 0, 0, 0], [10, 20, 30, 128]];
+        let mut sprite = node(0, 0, 0, Some(rle8_payload(&[1, 1])));
+        sprite.width = 2;
+
+        let mut data = build_v2(&[sprite.clone()], &[V2Palette::Colors(colors.clone())]);
+        data[13] = 1; // verlo2 != 0 keeps the stored alpha
+        let sff = SffFile::from_bytes(&data).expect("parse minor2 alpha");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!(&sprite.rgba[0..4], &[10, 20, 30, 128]);
+
+        // verlo2 == 0 forces index 0 transparent and all others opaque.
+        let mut second = node(0, 0, 0, Some(rle8_payload(&[1, 1])));
+        second.width = 2;
+        let mut data = build_v2(&[second], &[V2Palette::Colors(colors)]);
+        data[13] = 0;
+        let sff = SffFile::from_bytes(&data).expect("parse forced alpha");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!(&sprite.rgba[0..4], &[10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn v2_png8_sprite_uses_sff_palette_not_png_plte() {
+        let png = {
+            let mut encoded = Vec::new();
+            {
+                let mut encoder = png::Encoder::new(&mut encoded, 2, 2);
+                encoder.set_color(png::ColorType::Indexed);
+                encoder.set_depth(png::BitDepth::Eight);
+                // The PNG's own PLTE is green; the SFF palette must win.
+                encoder.set_palette(vec![255, 0, 0, 0, 255, 0]);
+                let mut writer = encoder.write_header().unwrap();
+                writer.write_image_data(&[1, 1, 1, 1]).unwrap();
+            }
+            encoded
+        };
+        let payload = [&(2u32 * 2 * 4).to_le_bytes()[..], &png].concat();
+        let mut sprite = node(0, 0, 0, Some(payload));
+        sprite.width = 2;
+        sprite.height = 2;
+        sprite.format = 10;
+        sprite.depth = 8;
+        let sff = SffFile::from_bytes(&build_v2(&[sprite], &[V2Palette::Colors(palette_colors())]))
+            .expect("parse png8");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!((sprite.width, sprite.height), (2, 2));
+        assert_eq!(sprite.rgba, [10, 20, 30, 255].repeat(4));
+    }
+
+    #[test]
+    fn v2_truncated_png_yields_a_blank_sprite() {
+        let payload = [&(16u32).to_le_bytes()[..], b"not a png"].concat();
+        let mut sprite = node(0, 0, 0, Some(payload));
+        sprite.width = 2;
+        sprite.height = 2;
+        sprite.format = 12;
+        sprite.depth = 32;
+        let sff = SffFile::from_bytes(&build_v2(&[sprite], &[V2Palette::Colors(palette_colors())]))
+            .expect("truncated PNG must not abort the file");
+        let sprite = sff.get(0, 0).expect("sprite");
+        assert_eq!((sprite.width, sprite.height), (2, 2));
+        assert_eq!(sprite.rgba, vec![0; 2 * 2 * 4]);
     }
 
     #[test]
