@@ -9606,6 +9606,59 @@ fn modify_and_remove_explod_target_the_newest_matching_id() {
 }
 
 #[test]
+fn removeexplod_without_id_removes_all_owned_explods() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.effects.clear();
+    let spawn = |sim: &mut SimState, who: usize, id: &str| {
+        let control = manato_formats::Controller {
+            kind: "explod".into(),
+            params: vec![
+                ("anim".into(), "10".into()),
+                ("id".into(), id.into()),
+                ("removetime".into(), "60".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, who, &control, &assets);
+    };
+    let remove = |sim: &mut SimState, who: usize, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "removeexplod".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, who, &control, &assets);
+    };
+
+    spawn(&mut sim, 0, "4");
+    spawn(&mut sim, 0, "5");
+    spawn(&mut sim, 1, "4");
+    assert_eq!(sim.effects.len(), 3);
+
+    // An explicit id removes only that id from the executing fighter.
+    remove(&mut sim, 0, vec![("id", "4")]);
+    assert_eq!(sim.effects.len(), 2);
+    assert!(sim.effects.iter().any(|e| e.owner == 1 && e.id == 4));
+    assert!(sim.effects.iter().any(|e| e.owner == 0 && e.id == 5));
+
+    // Omitted id removes every explod owned by that fighter.
+    remove(&mut sim, 0, Vec::new());
+    assert_eq!(sim.effects.len(), 1);
+    assert!(sim.effects.iter().all(|e| e.owner == 1));
+
+    // id = -1 behaves the same as an omitted id.
+    spawn(&mut sim, 1, "9");
+    remove(&mut sim, 1, vec![("id", "-1")]);
+    assert!(sim.effects.is_empty());
+}
+
+#[test]
 fn persistent_and_ignorehitpause_control_execution() {
     let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let project = project.canonicalize().unwrap_or(project);

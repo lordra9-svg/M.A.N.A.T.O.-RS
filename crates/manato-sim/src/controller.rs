@@ -1579,10 +1579,6 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
         effect.focal_length = value.max(1.0);
     }
     if let Some(value) = remove_time {
-        eprintln!(
-            "DBG modify removetime={value} elem={} freeze={}",
-            effect.anim_elem, effect.anim_freeze
-        );
         if value > 0 {
             effect.duration = value;
             effect.remove_on_anim_end = false;
@@ -2128,9 +2124,14 @@ fn explod_bind_time(sim: &mut SimState, who: usize, control: &Controller) {
 }
 
 fn remove_explod(sim: &mut SimState, who: usize, control: &Controller) {
-    let id = int_param(sim, who, control, "id").unwrap_or(0);
-    sim.effects
-        .retain(|effect| effect.id != id || effect.owner != who);
+    match int_param(sim, who, control, "id") {
+        Some(id) if id >= 0 => {
+            sim.effects
+                .retain(|effect| effect.id != id || effect.owner != who);
+        }
+        // Omitted or -1 removes every explod owned by this fighter.
+        _ => sim.effects.retain(|effect| effect.owner != who),
+    }
 }
 
 fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {

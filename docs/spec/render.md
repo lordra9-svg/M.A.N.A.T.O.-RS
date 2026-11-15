@@ -241,8 +241,9 @@ three rotation angles are zero and `projection` is orthographic, the existing
 `quad_rotated` path is used to keep output identical.
 
 `ModifyExplod` accepts the same visual keys plus `id`; it updates the newest
-matching explod of the owner. `RemoveExplod` removes all matching explods of
-the owner. `NumExplod` counts them.
+matching explod of the owner. `RemoveExplod` with an explicit non-negative
+`id` removes matching explods of the owner; an omitted `id` (or `-1`) removes
+every explod owned by that fighter. `NumExplod` counts them.
 
 Stage shadows and reflections gain `xangle`/`yangle`/`xshear`/`projection`
 for parity with the stage format, but the sim only applies them to explods in
