@@ -10175,6 +10175,73 @@ fn command_matching_handles_motion_and_button_windows() {
 }
 
 #[test]
+fn command_hold_button_prefix_matches_held_input() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cmd").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-holdcmd-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let cmd = dir.join("kaen.cmd");
+    let mut text = std::fs::read_to_string(&cmd).expect("read kaen.cmd");
+    text.push_str(
+        "\n[Command]\nname = \"hold_x\"\ncommand = /x\ntime = 10\n\
+         \n[Command]\nname = \"press_x\"\ncommand = x\ntime = 10\n",
+    );
+    std::fs::write(&cmd, text).expect("patch kaen.cmd");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    sim.fighters[0].history.clear();
+    for _ in 0..3 {
+        sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::X), 0);
+    }
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command = \"hold_x\""),
+        1,
+        "/x matches while the button is held"
+    );
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command = \"press_x\""),
+        0,
+        "a plain button command requires the press edge"
+    );
+
+    // A fresh press matches both forms.
+    sim.fighters[0].append_input(PlayerInput::default(), 0);
+    sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::X), 0);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "Command = \"press_x\""),
+        1
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "Command = \"hold_x\""), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn hold_pseudo_commands_follow_facing_and_diagonals() {
     let Some(mut sim) = fight_phase() else {
         return;

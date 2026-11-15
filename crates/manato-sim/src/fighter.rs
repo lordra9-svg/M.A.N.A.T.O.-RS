@@ -1241,6 +1241,10 @@ fn step_matches(
             if frame.released_buttons & step.buttons != step.buttons {
                 return false;
             }
+        } else if step.button_hold {
+            if frame.input.buttons & step.buttons != step.buttons {
+                return false;
+            }
         } else if frame.pressed_buttons & step.buttons != step.buttons {
             return false;
         }
@@ -1248,6 +1252,10 @@ fn step_matches(
     if step.or_buttons != 0 {
         if step.button_release {
             if frame.released_buttons & step.or_buttons == 0 {
+                return false;
+            }
+        } else if step.button_hold {
+            if frame.input.buttons & step.or_buttons == 0 {
                 return false;
             }
         } else if frame.pressed_buttons & step.or_buttons == 0 {

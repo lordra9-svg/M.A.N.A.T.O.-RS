@@ -26,6 +26,8 @@ pub struct CommandStep {
     pub pool4: bool,
     /// `~` applying to a button: the button must have been released.
     pub button_release: bool,
+    /// `/` applying to a button: the button must be held.
+    pub button_hold: bool,
     /// `>` prefix: greater-direction expansion.
     pub greater: bool,
     /// `*` prefix: exact-direction tap.
@@ -236,8 +238,12 @@ fn parse_step(raw: &str) -> Option<CommandStep> {
             } else {
                 step.buttons |= button;
             }
-            if step.release {
+            // Prefixes apply per key: `/B+a` holds B while pressing a.
+            if prefix.contains('~') {
                 step.button_release = true;
+            }
+            if prefix.contains('/') {
+                step.button_hold = true;
             }
         } else {
             // Unknown token: keep parsing other parts.
@@ -333,6 +339,15 @@ mod tests {
         let step = parse_step("~x").unwrap();
         assert!(step.button_release);
         assert_eq!(step.buttons, Buttons::X);
+        let step = parse_step("/x").unwrap();
+        assert!(step.button_hold);
+        assert!(!step.button_release);
+        assert_eq!(step.buttons, Buttons::X);
+        let step = parse_step("/B+a").unwrap();
+        assert_eq!(step.dir, Some(Dir8::Back));
+        assert!(step.hold);
+        assert_eq!(step.buttons, Buttons::A);
+        assert!(!step.button_hold, "only the prefixed key is held");
     }
 
     #[test]

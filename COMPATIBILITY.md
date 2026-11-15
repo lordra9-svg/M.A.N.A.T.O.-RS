@@ -50,7 +50,7 @@ Ikemen-GO alone as the runtime oracle.
 | S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/Physics controller tests + first-letter/quoted type names + `U` unchanged (no separate MoveTypeSet controller in either target) |
 | S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + negative persistent every tick + ignorehitpause |
 | S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick + KO lock + own-bank lookup + borrowed-state -3/-1 skip + helper keyctrl/helpertype gating |
-| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer + hold pseudo-commands (diagonals/facing) tests |
+| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer + button `/` hold and `~` release + hold pseudo-commands (diagonals/facing) tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
 | S-08 | Intro/KO control locks | Required | Required | Verified | Smoke tests |
 

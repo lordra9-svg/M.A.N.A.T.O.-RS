@@ -447,8 +447,9 @@ Prefixes:
 
 - `$`: pooled four-way direction tap
 - `*`: exact-direction tap
-- `/`: direction hold (optional charge digits, e.g. `/12D`)
-- `~`: release (optional charge digits)
+- `/`: hold (optional charge digits, e.g. `/12D`); applies to a direction or
+  button (`/x` matches while held)
+- `~`: release (optional charge digits), for directions or buttons
 - `>`: greater-direction expansion
 
 Commands are matched facing-relative. Absolute input directions are converted
@@ -460,7 +461,8 @@ to forward/back using the character's facing.
 - A command matches when every step is satisfied in order within `time`.
 - A direction step without a prefix matches a press or hold.
 - `$` requires a tap; `/` requires a sustained hold; `~` requires release.
-- Button steps match the press edge, not the held state.
+- Button steps match the press edge by default; `/x` matches while held and
+  `~x` matches the release edge.
 - A matched command sets its buffer timer to `buffer.time`.
 - `Command = "name"` is true while the buffer timer is active.
 - AI input uses the same matcher; no special-case command table.
