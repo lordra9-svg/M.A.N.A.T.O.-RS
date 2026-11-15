@@ -9753,6 +9753,86 @@ fn persistent_and_ignorehitpause_control_execution() {
 }
 
 #[test]
+fn special_states_use_own_bank_and_skip_during_custom_states() {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project = project.canonicalize().unwrap_or(project);
+    let source = project.join("content/chars/kaen");
+    if !source.join("kaen.cns").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let copy_char = |name: &str| -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("manato-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp character dir");
+        for entry in std::fs::read_dir(&source).expect("read character dir") {
+            let entry = entry.expect("dir entry");
+            if entry.file_type().expect("file type").is_file() {
+                std::fs::copy(entry.path(), dir.join(entry.file_name()))
+                    .expect("copy character file");
+            }
+        }
+        dir
+    };
+
+    // P1 owns -3 and -1 markers; P2 owns a distinct -2 marker.
+    let p1_dir = copy_char("special-p1");
+    let cns = p1_dir.join("kaen.cns");
+    let mut text = std::fs::read_to_string(&cns).expect("read kaen.cns");
+    text = text.replace(
+        "[Statedef -1]",
+        "[Statedef -1]\n[State -1, Mark]\ntype = VarAdd\ntrigger1 = 1\nv = 2\nvalue = 1000",
+    );
+    text.push_str(
+        "\n[Statedef -3]\n[State -3, Mark]\ntype = VarAdd\ntrigger1 = 1\nv = 1\nvalue = 100\n",
+    );
+    std::fs::write(&cns, text).expect("patch P1 cns");
+
+    let p2_dir = copy_char("special-p2");
+    let cns = p2_dir.join("kaen.cns");
+    let mut text = std::fs::read_to_string(&cns).expect("read kaen.cns");
+    text.push_str(
+        "\n[Statedef -2]\n[State -2, Mark]\ntype = VarAdd\ntrigger1 = 1\nv = 0\nvalue = 1\n",
+    );
+    std::fs::write(&cns, text).expect("patch P2 cns");
+
+    let config = MatchConfig {
+        mugen_root: project.clone(),
+        p1: p1_dir.join("kaen.def"),
+        p2: p2_dir.join("kaen.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+
+    // Normal tick: each fighter runs its own special states.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].vars[1], 100);
+    assert_eq!(sim.fighters[0].vars[2], 1000);
+    assert_eq!(sim.fighters[1].vars[0], 1);
+
+    // While P2 borrows P1's state data, -3/-1 are skipped but its own -2 runs.
+    sim.fighters[1].state_char_id = Some(0);
+    sim.fighters[1].vars[0] = 0;
+    sim.fighters[1].vars[1] = 0;
+    sim.fighters[1].vars[2] = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].vars[0], 1, "own -2 still runs");
+    assert_eq!(sim.fighters[1].vars[1], 0, "-3 is skipped");
+    assert_eq!(sim.fighters[1].vars[2], 0, "-1 is skipped");
+
+    let _ = std::fs::remove_dir_all(&p1_dir);
+    let _ = std::fs::remove_dir_all(&p2_dir);
+}
+
+#[test]
 fn state_and_animation_controllers_round_trip() {
     let Some(mut sim) = fight_phase() else {
         return;

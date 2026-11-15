@@ -494,7 +494,10 @@ Each tick, for each fighter:
 6. Advance animation after controllers.
 
 `[Statedef -1]` is the command-driven state: its controllers are the character's
-move list and run before built-in movement.
+move list and run before built-in movement. Special states always come from
+the fighter's own character, even while a positive custom state borrows another
+player's bank. While borrowed state data is active (throw/custom state), `-3`
+and `-1` are skipped but `-2` still runs.
 
 ## 8. Error handling
 

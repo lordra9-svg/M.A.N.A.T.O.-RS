@@ -1350,7 +1350,12 @@ impl SimState {
     fn special_state_enabled(&self, who: usize, state: i32) -> bool {
         let fighter = &self.fighters[who];
         if fighter.owner.is_none() {
-            return true;
+            // While using another fighter's state data (throw/custom state),
+            // M.U.G.E.N skips -3 and Ikemen also skips -1; -2 still runs.
+            return match state {
+                -3 | -1 => fighter.state_char_id.is_none(),
+                _ => true,
+            };
         }
         match state {
             -3 => fighter.helper_type_player || fighter.keyctrl & 4 != 0,
@@ -1457,9 +1462,15 @@ impl SimState {
         paused_only: bool,
     ) -> bool {
         let assets = self.assets.clone();
-        let char_id = self.fighters[who]
-            .state_char_id
-            .unwrap_or(self.fighters[who].char_id);
+        // Negative states always come from the fighter's own character, even
+        // while a positive custom state borrows another bank.
+        let char_id = if state_no < 0 {
+            self.fighters[who].char_id
+        } else {
+            self.fighters[who]
+                .state_char_id
+                .unwrap_or(self.fighters[who].char_id)
+        };
         let char = &assets.characters[char_id];
         let Some(state) = char.state(state_no) else {
             return false;
