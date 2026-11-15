@@ -244,8 +244,9 @@ zaccel|fall.zvel|xveladd|yveladd)` read `0`: the simulation is 2D and the
 velocity-add accumulators are not modeled. `GetHitVar(hitdamage)` and
 `GetHitVar(guarddamage)` report the HitDef's hit and guard damage,
 `GetHitVar(kill)` reports whether the connecting hit could KO (using
-`guard.kill` on guarded contacts), and `GetHitVar(guardcount)` counts guarded
-contacts in the current combo.
+`guard.kill` on guarded contacts), `GetHitVar(guardcount)` counts guarded
+contacts in the current combo, and `GetHitVar(attr)` returns the connecting
+hit's original `attr` text.
 
 `GetHitVar(ctrltime)` follows the observable Ikemen-GO value: guarded ground
 contacts report `guard.ctrltime`, guarded air contacts report

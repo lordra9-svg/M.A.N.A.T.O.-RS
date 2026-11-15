@@ -5170,6 +5170,10 @@ fn gethitvar_reports_damage_kill_and_guard_count() {
     let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 1, text);
     assert_eq!(int(&sim, "GetHitVar(hitdamage)"), 80);
     assert_eq!(int(&sim, "GetHitVar(guarddamage)"), 20);
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 1, "GetHitVar(attr)").as_str(),
+        "S, NA"
+    );
     assert_eq!(int(&sim, "GetHitVar(kill)"), 0, "kill = 0 forbids a KO");
     assert_eq!(int(&sim, "GetHitVar(guardcount)"), 0);
 

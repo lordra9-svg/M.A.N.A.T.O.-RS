@@ -20,6 +20,22 @@ procedural hit/guard effects, the common fight sounds, and the Training Grid
 stage — is MIT licensed and lives in [`content/`](content/). No stock
 M.U.G.E.N assets are included.
 
+## Compatibility status
+
+[`COMPATIBILITY.md`](COMPATIBILITY.md) tracks the M.U.G.E.N 1.1 / Ikemen-GO
+matrix. Every row is implemented at least partially; there are no `Missing`
+or unscoped `TBD` rows. Remaining `Partial` rows fall into three groups:
+
+- **Blocked subsystems:** text objects, palette remapping on decoded sprites,
+  projectile clashes, asset reload/save states, streaming BGM, 3D depth, and
+  debug-only helpers. These need a new subsystem or a scope decision.
+- **Oracle-only:** implemented and covered by engine tests, but not asserted
+  against a M.U.G.E.N binary because X-07 forbids it.
+- **Small edge cases:** listed in each row's Verification column.
+
+Frozen out of scope: storyboards, tag/team modes, continue/survival/arcade,
+custom shaders, and spectators/lobby.
+
 ## Quick start
 
 Requirements:

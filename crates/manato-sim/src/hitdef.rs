@@ -141,6 +141,8 @@ impl HitAttr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HitDef {
     pub attr: HitAttr,
+    /// Original `attr` text, reported by `GetHitVar(attr)`.
+    pub attr_text: String,
     /// `affectteam` target-team filter (default Enemy).
     pub affect_team: TeamFilter,
     pub damage: i32,
@@ -293,6 +295,7 @@ impl Default for HitDef {
     fn default() -> Self {
         Self {
             attr: HitAttr::default(),
+            attr_text: String::new(),
             affect_team: TeamFilter::Enemy,
             damage: 0,
             guard_damage: 0,
@@ -444,7 +447,10 @@ impl HitDef {
         let mut givepower_set = false;
         for (key, value) in &c.params {
             match key.as_str() {
-                "attr" => h.attr = HitAttr::parse(value),
+                "attr" => {
+                    h.attr = HitAttr::parse(value);
+                    h.attr_text = value.trim().to_string();
+                }
                 "affectteam" => h.affect_team = TeamFilter::parse(value),
                 "damage" => {
                     let (dmg, guard) = parse_pair(value);
@@ -742,7 +748,10 @@ impl HitDef {
     pub fn apply_modifiers(&mut self, c: &Controller) {
         for (key, value) in &c.params {
             match key.as_str() {
-                "attr" => self.attr = HitAttr::parse(value),
+                "attr" => {
+                    self.attr = HitAttr::parse(value);
+                    self.attr_text = value.trim().to_string();
+                }
                 "damage" => self.damage = parse_i32(value),
                 "guard.damage" => {
                     self.guard_damage = parse_i32(value);
@@ -875,6 +884,8 @@ pub struct GetHitVars {
     pub kill: bool,
     /// Guarded contacts in the current combo (`GetHitVar(guardcount)`).
     pub guard_count: i32,
+    /// Original `attr` text of the connecting hit.
+    pub attr_text: String,
     pub hit_id: i32,
     pub chain_id: i32,
     pub is_bound: bool,
@@ -921,6 +932,7 @@ impl Default for GetHitVars {
             guard_damage: 0,
             kill: true,
             guard_count: 0,
+            attr_text: String::new(),
             hit_id: 0,
             chain_id: -1,
             is_bound: false,
@@ -976,6 +988,7 @@ impl GetHitVars {
             "guarddamage" => Value::Int(self.guard_damage),
             "kill" => Value::Int(self.kill as i32),
             "guardcount" => Value::Int(self.guard_count),
+            "attr" => Value::Str(self.attr_text.clone()),
             "hitid" => Value::Int(self.hit_id),
             "chainid" => Value::Int(self.chain_id),
             "isbound" => Value::Int(self.is_bound as i32),

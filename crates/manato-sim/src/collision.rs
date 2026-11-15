@@ -690,6 +690,7 @@ pub fn apply_hit_at(
             hitdef.kill
         };
         f.hit.vars.kill = can_ko;
+        f.hit.vars.attr_text = hitdef.attr_text.clone();
         if guarding {
             f.hit.vars.guard_count += 1;
         }
