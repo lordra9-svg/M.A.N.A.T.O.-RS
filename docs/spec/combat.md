@@ -241,7 +241,11 @@ otherwise. `GetHitVar(ground.animtype)`, `GetHitVar(air.animtype)`, and
 `GetHitVar(fall.animtype)` report the HitDef's three reaction banks, while
 `GetHitVar(animtype)` reports the selected reaction. `GetHitVar(zoff|zvel|
 zaccel|fall.zvel|xveladd|yveladd)` read `0`: the simulation is 2D and the
-velocity-add accumulators are not modeled.
+velocity-add accumulators are not modeled. `GetHitVar(hitdamage)` and
+`GetHitVar(guarddamage)` report the HitDef's hit and guard damage,
+`GetHitVar(kill)` reports whether the connecting hit could KO (using
+`guard.kill` on guarded contacts), and `GetHitVar(guardcount)` counts guarded
+contacts in the current combo.
 
 `GetHitVar(ctrltime)` follows the observable Ikemen-GO value: guarded ground
 contacts report `guard.ctrltime`, guarded air contacts report

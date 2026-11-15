@@ -678,6 +678,21 @@ pub fn apply_hit_at(
         }
         f.hit.vars.damage = damage;
         f.hit.vars.guarded = guarding;
+        f.hit.vars.hit_damage = hitdef.damage;
+        f.hit.vars.guard_damage = if hitdef.guard_damage_set {
+            hitdef.guard_damage
+        } else {
+            hitdef.damage / 4
+        };
+        let can_ko = if guarding {
+            hitdef.guard_kill
+        } else {
+            hitdef.kill
+        };
+        f.hit.vars.kill = can_ko;
+        if guarding {
+            f.hit.vars.guard_count += 1;
+        }
         f.hit.vars.hitcount += 1;
         f.hit.vars.priority = hitdef.priority;
         f.hit.vars.hit_id = hitdef.id;
@@ -686,11 +701,6 @@ pub fn apply_hit_at(
         f.hit.hit_pause = hit_pause.1.max(0);
         f.hit.hit_pause_time = 0;
         f.hit.hit_shake_timer = hit_pause.1.max(0);
-        let can_ko = if guarding {
-            hitdef.guard_kill
-        } else {
-            hitdef.kill
-        };
         let next_life = f.life - damage;
         f.life = if can_ko || f.life <= 0 {
             next_life.max(0)

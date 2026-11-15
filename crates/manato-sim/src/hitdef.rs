@@ -867,6 +867,14 @@ pub struct GetHitVars {
     /// Clash priority points of the HitDef that connected.
     pub priority: i32,
     pub guarded: bool,
+    /// Raw HitDef `damage` / resolved guard damage, as reported by
+    /// `GetHitVar(hitdamage)` and `GetHitVar(guarddamage)`.
+    pub hit_damage: i32,
+    pub guard_damage: i32,
+    /// `GetHitVar(kill)`: whether the connecting hit was allowed to KO.
+    pub kill: bool,
+    /// Guarded contacts in the current combo (`GetHitVar(guardcount)`).
+    pub guard_count: i32,
     pub hit_id: i32,
     pub chain_id: i32,
     pub is_bound: bool,
@@ -909,6 +917,10 @@ impl Default for GetHitVars {
             fallcount: 0,
             priority: 0,
             guarded: false,
+            hit_damage: 0,
+            guard_damage: 0,
+            kill: true,
+            guard_count: 0,
             hit_id: 0,
             chain_id: -1,
             is_bound: false,
@@ -960,6 +972,10 @@ impl GetHitVars {
             "fallcount" => Value::Int(self.fallcount),
             "priority" => Value::Int(self.priority),
             "guarded" => Value::Int(self.guarded as i32),
+            "hitdamage" => Value::Int(self.hit_damage),
+            "guarddamage" => Value::Int(self.guard_damage),
+            "kill" => Value::Int(self.kill as i32),
+            "guardcount" => Value::Int(self.guard_count),
             "hitid" => Value::Int(self.hit_id),
             "chainid" => Value::Int(self.chain_id),
             "isbound" => Value::Int(self.is_bound as i32),

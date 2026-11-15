@@ -222,6 +222,10 @@ Expressions support:
 - Function calls and trigger names
 - Parenthesized expressions
 
+The deprecated old-style `TimeMod [op] divisor, value` trigger is rewritten to
+`(Time % divisor) [op] value`; a zero divisor never matches. The modern
+`Time % divisor` form is preferred.
+
 ### 5.2 Redirects
 
 Supported redirect prefixes:

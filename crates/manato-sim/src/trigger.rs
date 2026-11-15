@@ -22,10 +22,40 @@ pub fn eval_str(sim: &SimState, who: usize, source: &str) -> Value {
     if text.is_empty() {
         return Value::Int(0);
     }
+    if let Some(rewritten) = rewrite_time_mod(text) {
+        if let Ok(expr) = crate::expr::parse(&rewritten) {
+            return eval(sim, who, &expr);
+        }
+    }
     match crate::expr::parse(text) {
         Ok(expr) => eval(sim, who, &expr),
         Err(_) => Value::Str(text.to_string()),
     }
+}
+
+/// Rewrites the deprecated old-style `TimeMod [op] divisor, value` trigger
+/// (`docs/spec/cns-cmd.md` §5) into `(Time % divisor) [op] value`.
+fn rewrite_time_mod(text: &str) -> Option<String> {
+    let head = text.get(..7)?;
+    if !head.eq_ignore_ascii_case("timemod") {
+        return None;
+    }
+    let rest = text[7..].trim_start();
+    let (op, rest) = ["!=", "<=", ">=", "=", "<", ">"]
+        .iter()
+        .find_map(|op| rest.strip_prefix(op).map(|tail| (*op, tail)))?;
+    let (divisor, value) = rest.split_once(',')?;
+    let divisor = divisor.trim();
+    let value = value.trim();
+    if divisor.is_empty() || value.is_empty() {
+        return None;
+    }
+    // A zero divisor returns bottom in M.U.G.E.N; a never-true comparison
+    // keeps that observable while remaining total.
+    if divisor.parse::<f32>().map(|d| d == 0.0).unwrap_or(false) {
+        return Some("(0 = 1)".to_string());
+    }
+    Some(format!("(Time % {divisor}) {op} {value}"))
 }
 
 pub fn num(sim: &SimState, who: usize, source: &str) -> f32 {

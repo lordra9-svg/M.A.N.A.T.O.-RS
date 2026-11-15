@@ -5092,6 +5092,49 @@ fn hitdef_kill_and_guard_kill_control_ko() {
 }
 
 #[test]
+fn gethitvar_reports_damage_kill_and_guard_count() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "80, 20".into()),
+            ("kill".into(), "0".into()),
+            ("guard.kill".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+    let origin = sim.fighters[0].pos;
+
+    // Unguarded: raw hit damage, resolved guard damage, and kill flag.
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 1, text);
+    assert_eq!(int(&sim, "GetHitVar(hitdamage)"), 80);
+    assert_eq!(int(&sim, "GetHitVar(guarddamage)"), 20);
+    assert_eq!(int(&sim, "GetHitVar(kill)"), 0, "kill = 0 forbids a KO");
+    assert_eq!(int(&sim, "GetHitVar(guardcount)"), 0);
+
+    // Guarded contacts use guard.kill and count up within the combo.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.clone().expect("hitdef");
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(int(&sim, "GetHitVar(kill)"), 1);
+    assert_eq!(int(&sim, "GetHitVar(guardcount)"), 1);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(int(&sim, "GetHitVar(guardcount)"), 2);
+}
+
+#[test]
 fn gethitvar_reports_reaction_anim_types_and_zero_depth_fields() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -14938,6 +14981,28 @@ fn posset_absolute_and_posadd_facing_edges() {
     };
     manato_sim::controller::execute(&mut sim, 0, &empty, &assets);
     assert_eq!(sim.fighters[0].pos, manato_core::Vec2::new(40.0, -10.0));
+}
+
+#[test]
+fn old_style_timemod_trigger_compares_state_time_remainder() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].state_time = 11;
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+    assert_eq!(int(&sim, "TimeMod = 4, 3"), 1, "11 % 4 == 3");
+    assert_eq!(int(&sim, "TimeMod = 4, 1"), 0);
+    assert_eq!(int(&sim, "TimeMod != 4, 1"), 1);
+    assert_eq!(int(&sim, "TimeMod >= 4, 2"), 1);
+    assert_eq!(int(&sim, "timeMod < 4, 2"), 0);
+
+    // A zero divisor cannot match and must not panic.
+    assert_eq!(int(&sim, "TimeMod = 0, 0"), 0);
+
+    // The modern `%` form still works and the bare trigger stays 0.
+    sim.fighters[0].state_time = 12;
+    assert_eq!(int(&sim, "Time % 4 = 0"), 1);
+    assert_eq!(int(&sim, "TimeMod"), 0);
 }
 
 #[test]
