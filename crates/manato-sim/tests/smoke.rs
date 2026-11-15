@@ -10381,6 +10381,79 @@ fn ctrl_state_type_and_move_type_controllers() {
 }
 
 #[test]
+fn statetypeset_accepts_quoted_and_word_type_names() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let set = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "statetypeset".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // Quoted and full-word names use their first letter, like Ikemen.
+    set(
+        &mut sim,
+        vec![
+            ("statetype", "\"Air\""),
+            ("movetype", "Hit"),
+            ("physics", "\"Crouch\""),
+        ],
+    );
+    assert_eq!(
+        sim.fighters[0].state_type,
+        manato_sim::fighter::StateType::Air
+    );
+    assert_eq!(
+        sim.fighters[0].move_type,
+        manato_sim::fighter::MoveType::Hit
+    );
+    assert_eq!(
+        sim.fighters[0].physics,
+        manato_sim::fighter::Physics::Crouch
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "StateType").as_str(),
+        "A"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "MoveType").as_str(),
+        "H"
+    );
+    assert_eq!(
+        manato_sim::trigger::eval_str(&sim, 0, "Physics").as_str(),
+        "C"
+    );
+
+    // `U` leaves the current values and previous-type history unchanged.
+    set(
+        &mut sim,
+        vec![("statetype", "U"), ("movetype", "U"), ("physics", "U")],
+    );
+    assert_eq!(
+        sim.fighters[0].state_type,
+        manato_sim::fighter::StateType::Air
+    );
+    assert_eq!(
+        sim.fighters[0].move_type,
+        manato_sim::fighter::MoveType::Hit
+    );
+    assert_eq!(
+        sim.fighters[0].physics,
+        manato_sim::fighter::Physics::Crouch
+    );
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevStateType = S"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevMoveType = I"), 1);
+}
+
+#[test]
 fn after_image_time_and_pal_fx_and_trans_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

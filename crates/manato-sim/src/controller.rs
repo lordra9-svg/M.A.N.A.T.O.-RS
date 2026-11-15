@@ -557,16 +557,52 @@ fn var_random(sim: &mut SimState, who: usize, control: &Controller) {
 
 fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
     use crate::fighter::{MoveType, Physics, StateType};
-    if let Some(v) = param(control, "statetype").and_then(StateType::parse) {
-        sim.fighters[who].prev_state_type = sim.fighters[who].state_type;
-        sim.fighters[who].state_type = v;
+    // Ikemen accepts the first letter of a type name, so quoted and full-word
+    // forms such as "Air" work as well as `A`.
+    let letter = |raw: &str| -> Option<char> {
+        raw.trim()
+            .trim_matches('"')
+            .trim()
+            .chars()
+            .next()
+            .map(|c| c.to_ascii_uppercase())
+    };
+    if let Some(raw) = param(control, "statetype") {
+        let parsed = match letter(raw) {
+            Some('S') => Some(StateType::Stand),
+            Some('C') => Some(StateType::Crouch),
+            Some('A') => Some(StateType::Air),
+            Some('L') => Some(StateType::Liedown),
+            _ => None,
+        };
+        if let Some(v) = parsed {
+            sim.fighters[who].prev_state_type = sim.fighters[who].state_type;
+            sim.fighters[who].state_type = v;
+        }
     }
-    if let Some(v) = param(control, "movetype").and_then(MoveType::parse) {
-        sim.fighters[who].prev_move_type = sim.fighters[who].move_type;
-        sim.fighters[who].move_type = v;
+    if let Some(raw) = param(control, "movetype") {
+        let parsed = match letter(raw) {
+            Some('I') => Some(MoveType::Idle),
+            Some('A') => Some(MoveType::Attack),
+            Some('H') => Some(MoveType::Hit),
+            _ => None,
+        };
+        if let Some(v) = parsed {
+            sim.fighters[who].prev_move_type = sim.fighters[who].move_type;
+            sim.fighters[who].move_type = v;
+        }
     }
-    if let Some(v) = param(control, "physics").and_then(Physics::parse) {
-        sim.fighters[who].physics = v;
+    if let Some(raw) = param(control, "physics") {
+        let parsed = match letter(raw) {
+            Some('S') => Some(Physics::Stand),
+            Some('C') => Some(Physics::Crouch),
+            Some('A') => Some(Physics::Air),
+            Some('N') => Some(Physics::None),
+            _ => None,
+        };
+        if let Some(v) = parsed {
+            sim.fighters[who].physics = v;
+        }
     }
 }
 

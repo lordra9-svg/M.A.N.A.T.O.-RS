@@ -103,7 +103,10 @@ Required controller families for the approved matrix:
   `elemtime` (ticks into that element). An invalid element resets to the
   first frame with `elemtime = 0`; a negative or out-of-duration `elemtime`
   resets to 0.
-- `CtrlSet`, `StateTypeSet`, `MoveTypeSet`, `Turn`
+- `CtrlSet`, `StateTypeSet`, `Turn`
+  `StateTypeSet` accepts single letters, quoted values, or full-word names by
+  their first letter (`A`, `"Air"`, `Crouch`); `U` leaves a field unchanged.
+  Ikemen-GO and M.U.G.E.N 1.1 have no separate `MoveTypeSet` controller.
 - `VarSet`, `VarAdd`, `VarRangeSet`, `VarRandom`
 - `PowerAdd`, `PowerSet`, `LifeAdd`, `LifeSet`
   `LifeAdd` scales negative values by final defence unless `absolute = 1`,
