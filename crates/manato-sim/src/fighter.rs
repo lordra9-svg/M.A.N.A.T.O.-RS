@@ -406,6 +406,8 @@ pub struct Fighter {
     pub pal_remap: Option<(i32, i32)>,
     /// Colors applied to indexed sprites while `pal_remap` is active.
     pub remap_palette: Option<Vec<[u8; 4]>>,
+    /// Source palette identity; `None` remaps every indexed sprite.
+    pub pal_remap_source: Option<(i32, i32)>,
     /// Ticks since the last projectile contact (`-1` = never).
     pub proj_contact_time: i32,
     /// Ticks since the last projectile hit (`-1` = never).
@@ -589,6 +591,7 @@ impl Fighter {
             map: BTreeMap::new(),
             pal_remap: None,
             remap_palette: None,
+            pal_remap_source: None,
             proj_contact_time: -1,
             proj_hit_time: -1,
             proj_guarded_time: -1,
@@ -886,6 +889,24 @@ impl Fighter {
         if char.animation(number).is_none() && number >= 0 {
             log::debug!("character {} has no animation {number}", char.name());
         }
+    }
+
+    /// Palette to use for a sprite under the active `RemapPal`, or `None` when
+    /// the sprite should keep its original colors.
+    pub fn palette_remap_for<'a>(
+        &'a self,
+        sprite: &manato_formats::Sprite,
+    ) -> Option<&'a [[u8; 4]]> {
+        let palette = self.remap_palette.as_deref()?;
+        if let Some(source) = self.pal_remap_source {
+            if sprite.palette_key != Some(source) {
+                return None;
+            }
+        }
+        if sprite.indices.is_empty() {
+            return None;
+        }
+        Some(palette)
     }
 
     /// Resolves a sprite after `RemapSprite` substitutions.

@@ -106,7 +106,7 @@ priority details.
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + proj* aliases + bound removal + hit/removal animations + remvelocity + projpriority default 1 + projanim 0 + Clsn2 projectile clashes/projcancelanim/ProjCancelTime |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime + RemoveExplod omitted-id/all-owned semantics |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + persistent BindToRoot/Parent/Target with time/facing + Target* + ownership/DestroySelf |
-| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/sinmul + AllPalFX/BgPalFX add/mul/alpha + round reset + Trans alpha + SFF index/palette retention + ACT palettes + RemapPal bank recolor + RemapSprite group/index substitution |
+| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/sinmul + AllPalFX/BgPalFX add/mul/alpha + round reset + Trans alpha + SFF index/palette retention + ACT palettes + RemapPal bank recolor with source-palette filtering + RemapSprite group/index substitution |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause movetime + SuperPause default time/poweradd + EnvShake phase/dir/diradd/mul/decay + Nival oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |

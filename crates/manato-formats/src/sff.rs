@@ -26,6 +26,9 @@ pub struct Sprite {
     pub indices: Vec<u8>,
     /// Palette the indices were decoded with.
     pub palette: Vec<[u8; 4]>,
+    /// Palette identity: SFF v2 node `(group, index)`, or `(1, 1)` for SFF v1
+    /// sprites (their embedded base palette). `None` for true-color sprites.
+    pub palette_key: Option<(i32, i32)>,
 }
 
 impl Sprite {
@@ -58,6 +61,7 @@ impl Sprite {
             rgba: Vec::new(),
             indices: Vec::new(),
             palette: Vec::new(),
+            palette_key: None,
         }
     }
 
@@ -72,6 +76,7 @@ impl Sprite {
             rgba: vec![0; (width * height * 4) as usize],
             indices: Vec::new(),
             palette: Vec::new(),
+            palette_key: None,
         }
     }
 }
@@ -214,6 +219,7 @@ impl SffFile {
                             rgba,
                             indices,
                             palette: previous_palette.clone().unwrap_or_default(),
+                            palette_key: Some((1, 1)),
                         });
                     }
                     Err(error) => {
@@ -244,7 +250,7 @@ impl SffFile {
         let tdata_offset = u32_at(data, 60) as usize;
         let minor2 = data[13];
 
-        let (mut palettes, palette_map) =
+        let (mut palettes, palette_keys, palette_map) =
             parse_v2_palettes(data, palette_offset, palette_count, ldata_offset, minor2);
         self.palettes = palette_map;
 
@@ -288,11 +294,16 @@ impl SffFile {
             };
             // Missing or broken palette nodes fall back to palette 0, matching
             // Ikemen-GO's out-of-range palette clamping.
+            let palette_index = if palettes.get(palette_header).is_some_and(Option::is_some) {
+                palette_header
+            } else {
+                0
+            };
             let palette = palettes
-                .get(palette_header)
+                .get(palette_index)
                 .and_then(|p| p.as_deref())
-                .or_else(|| palettes.first().and_then(|p| p.as_deref()))
                 .unwrap_or(&[]);
+            let palette_key = palette_keys.get(palette_index).copied().flatten();
 
             let (out_w, out_h, rgba, indices) = match format {
                 0 => {
@@ -345,8 +356,13 @@ impl SffFile {
                 axis_x,
                 axis_y,
                 rgba,
-                indices,
                 palette: palette.to_vec(),
+                palette_key: if indices.is_empty() {
+                    None
+                } else {
+                    palette_key
+                },
+                indices,
             });
         }
 
@@ -378,6 +394,7 @@ fn parse_v2_palettes(
     minor2: u8,
 ) -> V2Palettes {
     let mut palettes: Vec<Option<Vec<[u8; 4]>>> = vec![None; palette_count.min(MAX_PALETTES)];
+    let mut keys: Vec<Option<(i32, i32)>> = vec![None; palettes.len()];
     let mut by_key = BTreeMap::new();
     for i in 0..palettes.len() {
         let Some(node) = slice(data, palette_offset + i * 16, 16) else {
@@ -394,6 +411,7 @@ fn parse_v2_palettes(
             if let Some(Some(source)) = palettes.get(link).cloned() {
                 by_key.insert((group, index), source.clone());
                 palettes[i] = Some(source);
+                keys[i] = Some((group, index));
             }
             continue;
         }
@@ -412,8 +430,9 @@ fn parse_v2_palettes(
         }
         by_key.insert((group, index), palette.clone());
         palettes[i] = Some(palette);
+        keys[i] = Some((group, index));
     }
-    (palettes, by_key)
+    (palettes, keys, by_key)
 }
 
 enum Codec {
@@ -490,7 +509,11 @@ fn decode_raw(
 }
 
 type PaletteMap = BTreeMap<(i32, i32), Vec<[u8; 4]>>;
-type V2Palettes = (Vec<Option<Vec<[u8; 4]>>>, PaletteMap);
+type V2Palettes = (
+    Vec<Option<Vec<[u8; 4]>>>,
+    Vec<Option<(i32, i32)>>,
+    PaletteMap,
+);
 type PngPixels = (u32, u32, Vec<u8>, Option<Vec<u8>>);
 
 pub(crate) type DecodedPcx = (u32, u32, Vec<u8>, Vec<u8>, Option<Vec<[u8; 4]>>);
@@ -1086,6 +1109,7 @@ mod tests {
         // Index/palette data is retained for RemapPal.
         assert_eq!(first_sprite.indices, vec![1, 2]);
         assert_eq!(first_sprite.palette[1], [255, 0, 0, 255]);
+        assert_eq!(first_sprite.palette_key, Some((1, 1)));
         let mut swapped = first_sprite.palette.clone();
         swapped[1] = [10, 20, 30, 255];
         swapped[2] = [40, 50, 60, 255];
@@ -1326,6 +1350,7 @@ mod tests {
         let sprite = sff.get(0, 0).expect("sprite");
         assert_eq!(&sprite.rgba[0..4], &[10, 20, 30, 255]);
         assert_eq!(&sprite.rgba[4..8], &[40, 50, 60, 255]);
+        assert_eq!(sprite.palette_key, Some((3, 7)), "fallback palette key");
     }
 
     #[test]

@@ -269,9 +269,13 @@ Use the `png` crate for zlib/IDAT handling; do not reimplement PNG filtering.
 
 ## 4.5 Indexed pixels and palettes
 
-Indexed sprites retain their decoded palette indices (`Sprite::indices`) and the
-palette they were decoded with (`Sprite::palette`). True-color sprites leave
-both empty. `Sprite::recolor_rgba(palette)` rebuilds RGBA for `RemapPal`.
+Indexed sprites retain their decoded palette indices (`Sprite::indices`), the
+palette they were decoded with (`Sprite::palette`), and the palette identity
+(`Sprite::palette_key`): the SFF v2 palette-node group/index, or `(1, 1)` for
+SFF v1 embedded palettes. True-color sprites leave all of these empty.
+`Sprite::recolor_rgba(palette)` rebuilds RGBA for `RemapPal`, and the renderer
+only recolors sprites whose key matches the `RemapPal` source (a `-1` source
+force-remaps every indexed sprite).
 
 SFF v2 palette nodes are exposed as a `(group, index)` map, and ACT files
 declared in the character DEF (`pal1`..`palN`, raw 768-byte RGB or 1024-byte

@@ -2529,10 +2529,23 @@ fn remappal_selects_act_palettes() {
     };
     run(&mut sim, vec![("source", "1, 1"), ("dest", "1, 2")]);
     assert_eq!(sim.fighters[0].pal_remap, Some((1, 2)));
+    assert_eq!(sim.fighters[0].pal_remap_source, Some((1, 1)));
     assert_eq!(
         sim.fighters[0].remap_palette.as_ref().expect("palette")[1],
         [10, 20, 30, 255]
     );
+    // Only sprites using the source palette are recolored.
+    let mut sprite = assets.characters[sim.fighters[0].char_id].sprites.sprites[0].clone();
+    sprite.palette_key = Some((1, 1));
+    assert!(sim.fighters[0].palette_remap_for(&sprite).is_some());
+    sprite.palette_key = Some((2, 1));
+    assert!(sim.fighters[0].palette_remap_for(&sprite).is_none());
+
+    // `source = -1` force-remaps every indexed sprite.
+    run(&mut sim, vec![("source", "-1, 0"), ("dest", "1, 2")]);
+    assert_eq!(sim.fighters[0].pal_remap_source, None);
+    sprite.palette_key = Some((2, 1));
+    assert!(sim.fighters[0].palette_remap_for(&sprite).is_some());
 
     // Unknown destination palettes are ignored.
     run(&mut sim, vec![("source", "1, 1"), ("dest", "1, 9")]);
@@ -2542,6 +2555,7 @@ fn remappal_selects_act_palettes() {
     run(&mut sim, vec![("source", "-1, 0"), ("dest", "-1, 0")]);
     assert!(sim.fighters[0].remap_palette.is_none());
     assert!(sim.fighters[0].pal_remap.is_none());
+    assert!(sim.fighters[0].palette_remap_for(&sprite).is_none());
 
     // The selection participates in the rollback checksum.
     run(&mut sim, vec![("source", "1, 1"), ("dest", "1, 2")]);

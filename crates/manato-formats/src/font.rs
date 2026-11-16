@@ -355,6 +355,7 @@ fn crop_sprite(
         rgba: out,
         indices: Vec::new(),
         palette: Vec::new(),
+        palette_key: None,
     }
 }
 

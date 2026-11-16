@@ -43,6 +43,8 @@ const CLEAR_COLOR: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 
+type AppliedPalette = (Option<(i32, i32)>, Option<Vec<[u8; 4]>>);
+
 pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -57,8 +59,8 @@ pub struct Renderer {
     atlas: SpriteAtlas,
     font: FontAtlas,
     screen_fonts: std::collections::BTreeMap<u32, ScreenFont>,
-    /// Last palette applied to each character sprite bank.
-    applied_palettes: std::collections::HashMap<u8, Option<Vec<[u8; 4]>>>,
+    /// Last palette remap applied to each character sprite bank.
+    applied_palettes: std::collections::HashMap<u8, AppliedPalette>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -443,17 +445,17 @@ impl Renderer {
     /// original pixels.
     fn apply_palette_remaps(&mut self, sim: &SimState) {
         use crate::atlas::bank;
-        let mut desired: std::collections::HashMap<u8, Option<Vec<[u8; 4]>>> =
+        let mut desired: std::collections::HashMap<u8, AppliedPalette> =
             std::collections::HashMap::new();
         for fighter in &sim.fighters {
             let bank = bank::CHARACTER_BASE + fighter.char_id as u8;
-            let entry = desired.entry(bank).or_insert(None);
+            let entry = desired.entry(bank).or_insert((None, None));
             if let Some(palette) = &fighter.remap_palette {
-                *entry = Some(palette.clone());
+                *entry = (fighter.pal_remap_source, Some(palette.clone()));
             }
         }
-        for (bank, palette) in desired {
-            if self.applied_palettes.get(&bank) == Some(&palette) {
+        for (bank, (source, palette)) in desired {
+            if self.applied_palettes.get(&bank) == Some(&(source, palette.clone())) {
                 continue;
             }
             let Some(char_id) = (bank.checked_sub(bank::CHARACTER_BASE)).map(|id| id as usize)
@@ -463,29 +465,45 @@ impl Renderer {
             let Some(character) = sim.assets.characters.get(char_id) else {
                 continue;
             };
-            let was_remapped = self
-                .applied_palettes
-                .get(&bank)
-                .is_some_and(Option::is_some);
-            for sprite in &character.sprites.sprites {
-                let rgba = match &palette {
-                    Some(palette) => sprite.recolor_rgba(palette),
-                    None if was_remapped && !sprite.indices.is_empty() => Some(sprite.rgba.clone()),
-                    None => None,
-                };
-                if let Some(rgba) = rgba {
-                    self.atlas.update_sprite(
-                        &self.queue,
-                        bank,
-                        sprite.group,
-                        sprite.index,
-                        sprite.width,
-                        sprite.height,
-                        &rgba,
-                    );
+            let was_remapped = self.applied_palettes.contains_key(&bank);
+            if was_remapped || palette.is_some() {
+                // Restore originals first so a changed source filter cannot
+                // leave stale recolored sprites behind.
+                for sprite in &character.sprites.sprites {
+                    if !sprite.indices.is_empty() {
+                        self.atlas.update_sprite(
+                            &self.queue,
+                            bank,
+                            sprite.group,
+                            sprite.index,
+                            sprite.width,
+                            sprite.height,
+                            &sprite.rgba,
+                        );
+                    }
                 }
             }
-            self.applied_palettes.insert(bank, palette);
+            if let Some(palette) = &palette {
+                for sprite in &character.sprites.sprites {
+                    if let Some(source) = source {
+                        if sprite.palette_key != Some(source) {
+                            continue;
+                        }
+                    }
+                    if let Some(rgba) = sprite.recolor_rgba(palette) {
+                        self.atlas.update_sprite(
+                            &self.queue,
+                            bank,
+                            sprite.group,
+                            sprite.index,
+                            sprite.width,
+                            sprite.height,
+                            &rgba,
+                        );
+                    }
+                }
+            }
+            self.applied_palettes.insert(bank, (source, palette));
         }
     }
 

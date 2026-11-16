@@ -197,8 +197,10 @@ Required controller families for the approved matrix:
 - `PalFX`, `RemapPal`, `Trans`
   `RemapPal` selects a destination palette by `(group, index)` — SFF v2
   palette nodes or DEF `palN` files (`(1, N)`). Unknown destinations are
-  ignored; `source = dest = -1, 0` clears the remap. The renderer recolors
-  the affected character sprite bank in place and restores it when cleared.
+  ignored; `source = dest = -1, 0` clears the remap. Only sprites whose
+  palette identity matches `source` are recolored; a `-1` source force-remaps
+  every indexed sprite. The renderer restores originals when the remap
+  changes or clears.
   `RemapSprite` substitutes `(group, index)` lookups for the fighter and its
   afterimages; `reset = 1` clears the map. Named presets are not modeled.
   `PalFX` models `add`/`sinadd`, `mul`/`sinmul` (0–256 units, 256 =

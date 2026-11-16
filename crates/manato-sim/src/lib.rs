@@ -3260,6 +3260,11 @@ impl SimState {
                 h.write_i32(*di);
             }
             h.write_bool(f.remap_palette.is_some());
+            h.write_bool(f.pal_remap_source.is_some());
+            if let Some((group, index)) = f.pal_remap_source {
+                h.write_i32(group);
+                h.write_i32(index);
+            }
             if let Some(palette) = &f.remap_palette {
                 for color in palette {
                     for channel in color {

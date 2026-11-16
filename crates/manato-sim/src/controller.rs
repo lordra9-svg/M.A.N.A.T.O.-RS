@@ -349,6 +349,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             if src.0 == -1 && dst.0 == -1 {
                 sim.fighters[who].pal_remap = None;
                 sim.fighters[who].remap_palette = None;
+                sim.fighters[who].pal_remap_source = None;
                 return;
             }
             if dst.0 == -1 {
@@ -358,6 +359,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             if let Some(palette) = palette {
                 sim.fighters[who].pal_remap = Some(dst);
                 sim.fighters[who].remap_palette = Some(palette);
+                sim.fighters[who].pal_remap_source = (src.0 >= 0).then_some(src);
             }
         }
         "changemovelist" => {
