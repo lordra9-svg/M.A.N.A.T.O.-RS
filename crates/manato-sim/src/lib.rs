@@ -1818,6 +1818,7 @@ impl SimState {
         let ground_level = char
             .constants
             .get_or("movement.air.gethit.groundlevel", 25.0);
+        let (z_min, z_max) = (assets.stage.z_min, assets.stage.z_max);
         let fighter = &mut self.fighters[who];
         // `GroundLevelOffset` set by the previous tick's controllers applies
         // to this physics step, then is consumed.
@@ -1870,6 +1871,15 @@ impl SimState {
         fighter.pos.x += fighter.vel.x;
         fighter.pos.y += fighter.vel.y;
         fighter.z += fighter.vel_z;
+        // `DepthBound` clamps the depth position to the stage range, expanded
+        // by the current `Depth edge` extents (`top, bottom`).
+        if fighter.depth_bound && (z_max - z_min).abs() >= f32::EPSILON {
+            let low = fighter.depth_edge[0] + z_min;
+            let high = -fighter.depth_edge[1] + z_max;
+            if low <= high {
+                fighter.z = clamp(fighter.z, low, high);
+            }
+        }
 
         // Landing for ordinary air physics. Any airborne state that reaches
         // the ground transitions to the jump-land state (52) when it exists.

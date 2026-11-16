@@ -3602,6 +3602,83 @@ fn effects_and_texts_carry_depth_positions() {
 }
 
 #[test]
+fn depthbound_clamps_fighter_z_to_the_stage_range() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-depthbound-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let mut common = std::fs::read_to_string(dir.join("common.cns")).expect("common");
+    common.push_str(
+        "\n[Statedef -2]\n\
+         [State -2, bound]\n\
+         type = DepthBound\n\
+         trigger1 = 1\n\
+         value = 1\n\
+         [State -2, edge]\n\
+         type = Depth\n\
+         trigger1 = 1\n\
+         edge = 10, 10\n",
+    );
+    std::fs::write(dir.join("common.cns"), common).expect("patch common");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = -50.0;
+        assets.stage.z_max = 50.0;
+    }
+
+    // Forward motion clamps at `zmax - edge.bottom` (50 - 10).
+    sim.fighters[0].z = 0.0;
+    sim.fighters[0].vel_z = 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].z, 40.0);
+    assert!(sim.fighters[0].depth_bound);
+
+    // Backward motion clamps at `zmin + edge.top` (-50 + 10).
+    sim.fighters[0].vel_z = -100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].z, -40.0);
+
+    // With no stage depth range the bound is disabled.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = 0.0;
+        assets.stage.z_max = 0.0;
+    }
+    sim.fighters[0].z = 0.0;
+    sim.fighters[0].vel_z = 100.0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].z, 100.0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

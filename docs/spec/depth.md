@@ -19,6 +19,11 @@
 physics integration. `Depth` extents and `DepthBound`, like most per-tick
 assertions, reset at the start of every tick, so content re-asserts them.
 
+With `DepthBound value = 1` and a stage depth range, the integrated `z` is
+clamped to `[depth_edge.top + z_min, z_max - depth_edge.bottom]`, matching
+Ikemen's `zDepthBound`. Without a `[PlayerInfo] topbound`/`botbound` range the
+clamp is disabled. `movecamera` is accepted but not modeled.
+
 ## 2.0 GetHitVar depth values
 
 `HitDef ground.velocity`/`air.velocity`/`down.velocity`/`guard.velocity`/
@@ -140,8 +145,6 @@ binding layer. `shaderparam` and extra texture inputs are also not modeled.
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
   applied (values persist until changed or the round restarts). Ikemen
   targets 3D model nodes here, which this engine does not load.
-- Fighter `p2depth`/`depthbound` clamping (the flag is stored but does not
-  constrain movement).
 - Hit `zoff` (hit position offset) is always zero; `zvel`/`zaccel` and
   `fall.zvel` report the values applied by the connecting HitDef.
 - Custom shader execution, `shaderparam`, and texture inputs.
