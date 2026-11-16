@@ -567,8 +567,18 @@ fn run_storyboard_headless(
     let mut player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
     let mut renderer = Renderer::new_offscreen()?;
     renderer.load_storyboard(&storyboard);
+    let audio = AudioEngine::new();
     for _ in 0..frames {
         player.tick(&storyboard);
+        for (group, index, volume, pan) in player.take_sounds() {
+            audio.play_bank(
+                &storyboard.sounds,
+                group,
+                index,
+                (volume / 100.0).clamp(0.0, 1.0),
+                pan.clamp(-1.0, 1.0),
+            );
+        }
     }
     renderer.render_storyboard(&storyboard, &player);
     if let Some(path) = &opts.screenshot {

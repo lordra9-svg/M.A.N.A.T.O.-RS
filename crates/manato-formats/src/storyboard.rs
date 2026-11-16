@@ -3,13 +3,14 @@
 //! This is the in-engine storyboard player used for intro/ending scenes. Lua
 //! scripting, 3D models, dynamic BGs, and custom fonts are not modeled.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use manato_core::Vec2;
 
 use crate::air::{parse_air_str, Animation};
 use crate::sff::SffFile;
+use crate::snd::SoundBank;
 use crate::text::{parse_pair, TextFile};
 
 #[derive(Debug, Clone, Default)]
@@ -17,6 +18,15 @@ pub struct Fade {
     pub time: i32,
     pub color: [u8; 3],
     pub alpha: [u8; 2],
+}
+
+#[derive(Debug, Clone)]
+pub struct StoryboardSound {
+    pub group: i32,
+    pub index: i32,
+    pub start_time: i32,
+    pub volume: f32,
+    pub pan: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -96,6 +106,7 @@ pub struct StoryboardScene {
     pub fade_out: Fade,
     pub jump: Option<String>,
     pub layers: Vec<StoryboardLayer>,
+    pub sounds: Vec<StoryboardSound>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +118,10 @@ pub struct Storyboard {
     pub sprites: SffFile,
     pub animations: HashMap<i32, Animation>,
     pub scenes: Vec<StoryboardScene>,
+    /// `[SceneDef] fontN` files (index → path).
+    pub font_files: BTreeMap<i32, PathBuf>,
+    /// `[SceneDef] snd` bank.
+    pub sounds: SoundBank,
 }
 
 impl Storyboard {
@@ -146,6 +161,27 @@ impl Storyboard {
             Some(path) if path.exists() => SffFile::load(&path)?,
             _ => SffFile::default(),
         };
+        let sound_path = get(scene_def, "snd").map(|name| resolve(&dir, &name));
+        let sounds = match sound_path {
+            Some(path) if path.exists() => SoundBank::load(&path)?,
+            _ => SoundBank::default(),
+        };
+        let mut font_files = BTreeMap::new();
+        if let Some(section) = scene_def {
+            for entry in &section.entries {
+                let key = entry.key.trim().to_ascii_lowercase();
+                let Some(suffix) = key.strip_prefix("font") else {
+                    continue;
+                };
+                let Ok(index) = suffix.parse::<i32>() else {
+                    continue;
+                };
+                let value = entry.value.trim();
+                if !value.is_empty() {
+                    font_files.insert(index, resolve(&dir, value));
+                }
+            }
+        }
 
         let mut scenes = Vec::new();
         for section in &text.sections {
@@ -165,6 +201,7 @@ impl Storyboard {
                 ..StoryboardScene::default()
             };
             let mut layers: Vec<(usize, StoryboardLayer)> = Vec::new();
+            let mut scene_sounds: Vec<(usize, StoryboardSound)> = Vec::new();
             for entry in &section.entries {
                 let key = entry.key.trim().to_ascii_lowercase();
                 let value = entry.value.trim();
@@ -187,6 +224,44 @@ impl Storyboard {
                     "fadein.alpha" => scene.fade_in.alpha = alpha_pair(value),
                     "fadeout.alpha" => scene.fade_out.alpha = alpha_pair(value),
                     _ => {
+                        if let Some(rest) = key.strip_prefix("sound") {
+                            let Some((index, field)) = rest.split_once('.') else {
+                                continue;
+                            };
+                            let Ok(index) = index.parse::<usize>() else {
+                                continue;
+                            };
+                            let sound = match scene_sounds.iter_mut().find(|(i, _)| *i == index) {
+                                Some((_, sound)) => sound,
+                                None => {
+                                    scene_sounds.push((
+                                        index,
+                                        StoryboardSound {
+                                            group: -1,
+                                            index: 0,
+                                            start_time: 0,
+                                            volume: 100.0,
+                                            pan: 0.0,
+                                        },
+                                    ));
+                                    &mut scene_sounds.last_mut().unwrap().1
+                                }
+                            };
+                            match field {
+                                "value" => {
+                                    let (group, sound_index) = parse_pair(value);
+                                    sound.group = group as i32;
+                                    sound.index = sound_index as i32;
+                                }
+                                "starttime" => sound.start_time = value.parse().unwrap_or(0),
+                                "volume" | "volumescale" => {
+                                    sound.volume = value.parse().unwrap_or(100.0)
+                                }
+                                "pan" => sound.pan = value.parse().unwrap_or(0.0),
+                                _ => {}
+                            }
+                            continue;
+                        }
                         let Some(rest) = key.strip_prefix("layer") else {
                             continue;
                         };
@@ -239,6 +314,8 @@ impl Storyboard {
             }
             layers.sort_by_key(|(index, _)| *index);
             scene.layers = layers.into_iter().map(|(_, layer)| layer).collect();
+            scene_sounds.sort_by_key(|(index, _)| *index);
+            scene.sounds = scene_sounds.into_iter().map(|(_, sound)| sound).collect();
             scenes.push(scene);
         }
 
@@ -251,6 +328,8 @@ impl Storyboard {
             sprites,
             animations,
             scenes,
+            font_files,
+            sounds,
         })
     }
 
@@ -268,6 +347,7 @@ pub struct StoryboardPlayer {
     pub scene: usize,
     pub time: i32,
     pub done: bool,
+    pending_sounds: Vec<(i32, i32, f32, f32)>,
 }
 
 impl StoryboardPlayer {
@@ -276,7 +356,13 @@ impl StoryboardPlayer {
             scene: storyboard.start_scene,
             time: 0,
             done: storyboard.scenes.is_empty(),
+            pending_sounds: Vec::new(),
         }
+    }
+
+    /// Sound events triggered since the previous tick.
+    pub fn take_sounds(&mut self) -> Vec<(i32, i32, f32, f32)> {
+        std::mem::take(&mut self.pending_sounds)
     }
 
     pub fn current<'a>(&self, storyboard: &'a Storyboard) -> Option<&'a StoryboardScene> {
@@ -290,10 +376,17 @@ impl StoryboardPlayer {
             return;
         }
         self.time += 1;
+        self.pending_sounds.clear();
         let Some(scene) = storyboard.scenes.get(self.scene) else {
             self.done = true;
             return;
         };
+        for sound in &scene.sounds {
+            if sound.start_time == self.time && sound.group >= 0 {
+                self.pending_sounds
+                    .push((sound.group, sound.index, sound.volume, sound.pan));
+            }
+        }
         if scene.end_time <= 0 || self.time < scene.end_time {
             return;
         }
@@ -387,14 +480,37 @@ mod tests {
         let def = dir.join("story.def");
         std::fs::write(
             &def,
-            "[Info]\nname = Test Story\nauthor = Tester\n\
-             [SceneDef]\nstartscene = 0\n\
-             [Begin Action 10]\n0,0, 0,0, 4, , , 1,1, 0\n0,1, 8,16, 4\n\
-             [Scene 0]\nend.time = 20\nclearcolor = 0,0,0\nclearalpha = 255\n\
-             fadein.time = 10\nfadeout.time = 5\njump = Scene 1\n\
-             layer0.anim = 10\nlayer0.offset = 100,120\nlayer0.layerno = 1\n\
-             layer1.text = \"Hello\"\nlayer1.textdelay = 2\nlayer1.starttime = 4\n\
-             [Scene Scene 1]\nend.time = 10\nlayer0.spr = 0,1\nlayer0.scale = 2,2\n",
+            r#"[Info]
+name = Test Story
+author = Tester
+[SceneDef]
+startscene = 0
+font0 = red.fnt
+[Begin Action 10]
+0,0, 0,0, 4, , , 1,1, 0
+0,1, 8,16, 4
+[Scene 0]
+end.time = 20
+clearcolor = 0,0,0
+clearalpha = 255
+fadein.time = 10
+fadeout.time = 5
+jump = Scene 1
+sound0.value = 5,2
+sound0.starttime = 3
+sound0.volume = 80
+sound0.pan = -0.5
+layer0.anim = 10
+layer0.offset = 100,120
+layer0.layerno = 1
+layer1.text = "Hello"
+layer1.textdelay = 2
+layer1.starttime = 4
+[Scene Scene 1]
+end.time = 10
+layer0.spr = 0,1
+layer0.scale = 2,2
+"#,
         )
         .expect("write");
         def
@@ -414,6 +530,13 @@ mod tests {
         assert!(story.animations.contains_key(&10));
         assert_eq!(story.scenes[1].layers[0].sprite, Some((0, 1)));
         assert_eq!(story.scene("Scene 1"), Some(1));
+        assert!(story.font_files.contains_key(&0));
+        assert_eq!(story.scenes[0].sounds.len(), 1);
+        let sound = &story.scenes[0].sounds[0];
+        assert_eq!((sound.group, sound.index), (5, 2));
+        assert_eq!(sound.start_time, 3);
+        assert!((sound.volume - 80.0).abs() < f32::EPSILON);
+        assert!((sound.pan + 0.5).abs() < f32::EPSILON);
         let _ = std::fs::remove_dir_all(def.parent().unwrap());
     }
 
@@ -429,13 +552,21 @@ mod tests {
         assert!(!layer.visible_at(0));
         assert!(layer.visible_at(4));
 
-        // Fade-in alpha decreases over the first 10 ticks.
         assert!(player.fade_alpha(&story.scenes[0]).unwrap().1 > 200);
-        for _ in 0..5 {
-            player.tick(&story);
-        }
-        let alpha = player.fade_alpha(&story.scenes[0]).unwrap().1;
-        assert!(alpha < 200);
+
+        // Sound events fire once at their start time.
+        player.tick(&story);
+        player.tick(&story);
+        assert!(player.take_sounds().is_empty());
+        player.tick(&story);
+        let sounds = player.take_sounds();
+        assert_eq!(sounds.len(), 1);
+        assert_eq!(sounds[0].0, 5);
+        assert_eq!(sounds[0].1, 2);
+        player.tick(&story);
+        assert!(player.take_sounds().is_empty());
+        assert!(player.fade_alpha(&story.scenes[0]).unwrap().1 < 200);
+
         for _ in 0..20 {
             player.tick(&story);
         }

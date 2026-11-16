@@ -12,7 +12,8 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
 ## 2. Format
 
 - `[Info] name`, `author`.
-- `[SceneDef] spr` (SFF), `startscene` (index).
+- `[SceneDef] spr` (SFF), `snd` (SND), `fontN` (`.fnt` files), `startscene`
+  (index).
 - `[Scene <name>]`:
   - `end.time` (ticks; `-1`/`0` never ends on its own),
   - `jump` (target scene name, else the next scene),
@@ -26,6 +27,8 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
     but not integrated),
   - `layerN.text`, `layerN.textdelay`, `layerN.font`
     (`index,r,g,b,a,...`; the built-in bitmap font is used for rendering).
+- `soundN.value = group,index`, `soundN.starttime`, `soundN.volume`
+  (`volumescale` alias), `soundN.pan`.
 - Inline AIR actions provide animation frames for `layerN.anim`.
 
 ## 3. Playback
@@ -40,14 +43,20 @@ per N ticks; `velocity`/`accel` integrate position from `starttime`. Fade-in
 alpha decreases over `fadein.time`; fade-out alpha increases over the last
 `fadeout.time` ticks before `end.time`.
 
+Scene sounds fire once when `time == starttime` and are exposed through
+`StoryboardPlayer::take_sounds()` as `(group, index, volume, pan)`; the app
+plays them from the storyboard's `snd` bank.
+
 ## 4. Rendering
 
 `Renderer::load_storyboard` builds a dedicated atlas bank from the storyboard
 SFF; `render_storyboard` clears to `clearcolor`/`clearalpha`, draws layers
-sorted by `layerno`, overlays fade alpha, and uses the built-in font for text.
+sorted by `layerno`, overlays fade alpha, and draws text with the storyboard
+`fontN` screen font when `layerN.font` selects one (otherwise the built-in
+bitmap font).
 
 ## 5. Not modeled
 
-- Lua storyboard scripting, dynamic backgrounds, 3D models, `.fnt` custom
-  fonts, sound/BGM events, `layerall.pos`, interpolation, palFX, and the
-  in-match `Storyboard`/`ModifyStoryboard` state controllers.
+- Lua storyboard scripting, dynamic backgrounds, 3D models, BGM events,
+  `layerall.pos`, interpolation, palFX, and the in-match
+  `Storyboard`/`ModifyStoryboard` state controllers.

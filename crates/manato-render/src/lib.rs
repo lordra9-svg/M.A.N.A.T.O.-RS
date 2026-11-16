@@ -857,6 +857,24 @@ impl Renderer {
             &[(bank::STORYBOARD, &storyboard.sprites)],
         );
         self.screen_fonts.clear();
+        for (index, path) in &storyboard.font_files {
+            match manato_formats::font::BitmapFont::load(path) {
+                Ok(font) => {
+                    self.screen_fonts.insert(
+                        *index as u32,
+                        ScreenFont::build(
+                            &self.device,
+                            &self.queue,
+                            &self.sprite_bgl,
+                            *index as u32,
+                            &font,
+                            [255, 255, 255],
+                        ),
+                    );
+                }
+                Err(error) => log::warn!("storyboard font {} failed: {error}", path.display()),
+            }
+        }
     }
 
     /// Draws one storyboard frame into the internal 320x240 target.

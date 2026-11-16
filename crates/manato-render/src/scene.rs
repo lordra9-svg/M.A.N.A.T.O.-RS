@@ -1520,20 +1520,20 @@ pub fn draw_storyboard(
         if layer.text.is_some() {
             let text = layer.visible_text(player.time);
             if !text.is_empty() {
-                let pixel_scale = (layer.scale.y.max(layer.scale.x) * 1.0).clamp(0.4, 4.0);
-                painter.text(
-                    deps.font,
-                    &text,
-                    anchor.x,
-                    anchor.y,
-                    pixel_scale,
-                    [
-                        layer.color[0] as f32 / 255.0,
-                        layer.color[1] as f32 / 255.0,
-                        layer.color[2] as f32 / 255.0,
-                        layer.color[3] as f32 / 255.0,
-                    ],
-                );
+                let tint = [
+                    layer.color[0] as f32 / 255.0,
+                    layer.color[1] as f32 / 255.0,
+                    layer.color[2] as f32 / 255.0,
+                    layer.color[3] as f32 / 255.0,
+                ];
+                if layer.font >= 0 {
+                    if let Some(font) = deps.screen_fonts.get(&(layer.font as u32)) {
+                        font.draw(painter, &text, anchor, layer.scale, 0, tint);
+                        continue;
+                    }
+                }
+                let pixel_scale = layer.scale.y.max(layer.scale.x).clamp(0.4, 4.0);
+                painter.text(deps.font, &text, anchor.x, anchor.y, pixel_scale, tint);
             }
         }
     }
