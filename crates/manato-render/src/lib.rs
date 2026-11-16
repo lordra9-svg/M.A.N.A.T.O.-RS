@@ -892,6 +892,58 @@ impl Renderer {
         self.present();
     }
 
+    /// Draws the high-score table.
+    pub fn render_scores(&mut self, scores: &[u64]) {
+        self.painter.clear();
+        self.painter.set_depth(1.0);
+        self.painter.rect(
+            Blend::Normal,
+            0.0,
+            0.0,
+            GAME_WIDTH as f32,
+            GAME_HEIGHT as f32,
+            [0.02, 0.02, 0.05, 1.0],
+        );
+        self.painter.text(
+            &self.font,
+            "HIGH SCORES",
+            104.0,
+            50.0,
+            2.0,
+            [1.0, 0.9, 0.35, 1.0],
+        );
+        if scores.is_empty() {
+            self.painter.text(
+                &self.font,
+                "NO SCORES YET",
+                110.0,
+                120.0,
+                1.0,
+                [0.7, 0.7, 0.7, 1.0],
+            );
+        }
+        for (index, score) in scores.iter().take(5).enumerate() {
+            let y = 84.0 + index as f32 * 24.0;
+            self.painter.text(
+                &self.font,
+                &format!("{}. {score}", index + 1),
+                120.0,
+                y,
+                1.5,
+                [1.0, 1.0, 1.0, 1.0],
+            );
+        }
+        self.painter.text(
+            &self.font,
+            "PRESS START",
+            108.0,
+            216.0,
+            1.0,
+            [0.7, 0.7, 0.7, 1.0],
+        );
+        self.present();
+    }
+
     /// Draws the arcade continue screen (countdown, credits, score).
     pub fn render_continue(&mut self, credits: u32, seconds: i32, score: u64) {
         self.painter.clear();
@@ -1373,6 +1425,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(c.g, c.b, c.r, c.a);
 }
 "#;
+
+    #[test]
+    fn score_table_renders_when_gpu_available() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        renderer.render_scores(&[9000, 5000, 300, 100]);
+        let path = std::env::temp_dir().join(format!("manato-scores-{}.png", std::process::id()));
+        renderer.screenshot(&path).expect("screenshot");
+        let size = std::fs::metadata(&path).expect("file").len();
+        assert!(size > 1000, "score table should not be blank");
+        let _ = std::fs::remove_file(path);
+    }
 
     #[test]
     fn continue_overlay_renders_when_gpu_available() {

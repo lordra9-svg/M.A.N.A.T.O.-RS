@@ -36,6 +36,8 @@ and M.U.G.E.N single-player modes.
 
 Selecting **Arcade** or **Survival** builds a ladder from the roster (every
 entry except the chosen player), and `start_match` uses `current_opponent()`.
+Each ladder match uses that opponent's `select.def` stage when one is assigned
+(falling back to the chosen stage).
 Survival rotates to the next ladder opponent after each win and keeps the
 accumulated score/streak; arcade advances until the ladder is complete. When a match ends
 (after the result delay) the app records `win`/`lose`:
@@ -47,11 +49,11 @@ accumulated score/streak; arcade advances until the ladder is complete. When a m
   the countdown expiring or Esc returns to the title.
 - Loss without credits: returns to the title.
 
-The best score is read from `<mugen root>/manato_highscore.dat` when a session
-starts and written when the run returns to the title. The continue screen and
-session track the current score; the file persists it across runs.
+The top five scores are read from `<mugen root>/manato_highscore.dat` when a
+session starts (the best seeds `high_score`) and re-written when the run
+returns to the title. The title menu's **SCORES** entry renders the table.
 
 ## 4. Not modeled
 
-- Per-opponent stage/order configuration beyond roster order, and a dedicated
-  high-score table. Survival now has a menu entry and rotates opponents.
+- Random/special arcade ordering and per-opponent music overrides beyond the
+  roster's stage assignment.

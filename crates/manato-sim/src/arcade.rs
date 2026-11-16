@@ -151,6 +151,46 @@ impl ArcadeSession {
     }
 }
 
+pub const SCORE_TABLE_SIZE: usize = 5;
+
+/// Reads the persisted score table (highest first).
+pub fn load_score_table(path: &std::path::Path) -> Vec<u64> {
+    let mut scores: Vec<u64> = std::fs::read_to_string(path)
+        .ok()
+        .map(|text| {
+            text.lines()
+                .filter_map(|line| line.trim().parse::<u64>().ok())
+                .collect()
+        })
+        .unwrap_or_default();
+    scores.sort_unstable_by(|a, b| b.cmp(a));
+    scores.truncate(SCORE_TABLE_SIZE);
+    scores
+}
+
+/// Writes the score table (already ordered).
+pub fn save_score_table(path: &std::path::Path, scores: &[u64]) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let text: String = scores
+        .iter()
+        .take(SCORE_TABLE_SIZE)
+        .map(|score| format!("{score}\n"))
+        .collect();
+    std::fs::write(path, text)
+}
+
+/// Inserts `score` into the descending table, keeping the top entries.
+pub fn insert_score(scores: &mut Vec<u64>, score: u64) {
+    if score == 0 {
+        return;
+    }
+    scores.push(score);
+    scores.sort_unstable_by(|a, b| b.cmp(a));
+    scores.truncate(SCORE_TABLE_SIZE);
+}
+
 /// Reads a persisted high score; missing or malformed files read as 0.
 pub fn load_high_score(path: &std::path::Path) -> u64 {
     std::fs::read_to_string(path)
@@ -230,6 +270,26 @@ mod tests {
         assert_eq!(session.score, (300 + 100 * 5) + (300 + 100 + 50 * 5));
         session.lose();
         assert_eq!(session.phase, ArcadePhase::GameOver);
+    }
+
+    #[test]
+    fn score_table_sorts_trims_and_persists() {
+        let dir = std::env::temp_dir().join(format!("manato-table-{}", std::process::id()));
+        let path = dir.join("scores.dat");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(load_score_table(&path).is_empty());
+        let mut table = vec![100, 500];
+        insert_score(&mut table, 300);
+        insert_score(&mut table, 900);
+        insert_score(&mut table, 0);
+        assert_eq!(table, vec![900, 500, 300, 100]);
+        for score in [50, 25, 75] {
+            insert_score(&mut table, score);
+        }
+        assert_eq!(table, vec![900, 500, 300, 100, 75]);
+        save_score_table(&path, &table).expect("save table");
+        assert_eq!(load_score_table(&path), table);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

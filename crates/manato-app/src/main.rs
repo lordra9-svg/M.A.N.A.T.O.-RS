@@ -618,7 +618,7 @@ fn run_frontend_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
                     );
                 }
             }
-            FrontendScreen::Title | FrontendScreen::Options => {
+            FrontendScreen::Title | FrontendScreen::Options | FrontendScreen::Scores => {
                 if let Some(bg) = &frontend.screenpack.title_bg {
                     manato_sim::update_bg_states(
                         &bg.bg_ctrls,
@@ -698,6 +698,7 @@ enum FrontendScreen {
     Options,
     Fight,
     Continue,
+    Scores,
 }
 
 struct Frontend {
@@ -729,6 +730,7 @@ struct Frontend {
     result_timer: i32,
     result_resolved: bool,
     arcade: Option<ArcadeSession>,
+    scores: Vec<u64>,
     title_layers: Vec<manato_sim::StageLayerState>,
     select_layers: Vec<manato_sim::StageLayerState>,
 }
@@ -746,6 +748,7 @@ fn fallback_screenpack() -> Screenpack {
         ("survival", "SURVIVAL"),
         ("versus", "VERSUS"),
         ("training", "TRAINING"),
+        ("scores", "SCORES"),
         ("options", "OPTIONS"),
         ("quit", "QUIT"),
     ];
@@ -939,6 +942,7 @@ impl Frontend {
             result_timer: 0,
             result_resolved: false,
             arcade: None,
+            scores: manato_sim::arcade::load_score_table(&opts.root.join("manato_highscore.dat")),
             title_layers,
             select_layers,
         })
@@ -1188,7 +1192,10 @@ impl App {
                 let config = ArcadeConfig {
                     credits: if survival { 1 } else { 3 },
                     survival,
-                    high_score: manato_sim::arcade::load_high_score(&high_score_path),
+                    high_score: manato_sim::arcade::load_score_table(&high_score_path)
+                        .first()
+                        .copied()
+                        .unwrap_or(0),
                     ..ArcadeConfig::default()
                 };
                 frontend.arcade = Some(ArcadeSession::new(ladder, config));
@@ -1218,11 +1225,18 @@ impl App {
             .get(frontend.stage_index)
             .cloned()
             .unwrap_or_else(|| self.opts.stage.clone());
-        let stage = p1
-            .stage
-            .clone()
-            .or_else(|| p2.stage.clone())
-            .unwrap_or(chosen_stage);
+        let single_player = matches!(frontend.mode, Mode::Arcade | Mode::Survival);
+        let stage = if single_player {
+            p2.stage
+                .clone()
+                .or_else(|| p1.stage.clone())
+                .unwrap_or(chosen_stage)
+        } else {
+            p1.stage
+                .clone()
+                .or_else(|| p2.stage.clone())
+                .unwrap_or(chosen_stage)
+        };
         let mode = frontend.mode;
         let rounds = frontend.options_rounds;
         let round_time = frontend.options_round_time;
@@ -1276,10 +1290,8 @@ impl App {
             frontend.result_timer = 0;
             frontend.result_resolved = false;
             if let Some(session) = &frontend.arcade {
-                if session.score > 0 {
-                    let _ =
-                        manato_sim::arcade::save_high_score(&high_score_path, session.high_score);
-                }
+                manato_sim::arcade::insert_score(&mut frontend.scores, session.high_score);
+                let _ = manato_sim::arcade::save_score_table(&high_score_path, &frontend.scores);
             }
             frontend.arcade = None;
             frontend.frame = 0;
@@ -1315,6 +1327,13 @@ impl App {
                     frontend.page = 0;
                     frontend.select_timer = (frontend.screenpack.select.timer_count > 0)
                         .then(|| frontend.screenpack.select.timer_count.max(1) * 60);
+                }
+            }
+            "scores" => {
+                let path = self.high_score_path();
+                if let Some(frontend) = self.frontend.as_mut() {
+                    frontend.scores = manato_sim::arcade::load_score_table(&path);
+                    frontend.screen = FrontendScreen::Scores;
                 }
             }
             "options" => {
@@ -1471,6 +1490,14 @@ impl App {
                     }
                 }
                 KeyCode::Escape => self.return_to_title(),
+                _ => {}
+            },
+            FrontendScreen::Scores => match code {
+                KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ | KeyCode::Escape => {
+                    if let Some(frontend) = self.frontend.as_mut() {
+                        frontend.screen = FrontendScreen::Title;
+                    }
+                }
                 _ => {}
             },
             FrontendScreen::Options => {
@@ -1653,7 +1680,7 @@ impl App {
                 frontend.frame = frontend.frame.wrapping_add(1);
                 let time = frontend.frame as i32;
                 match frontend.screen {
-                    FrontendScreen::Title | FrontendScreen::Options => {
+                    FrontendScreen::Title | FrontendScreen::Options | FrontendScreen::Scores => {
                         if let Some(bg) = &frontend.screenpack.title_bg {
                             manato_sim::update_bg_states(
                                 &bg.bg_ctrls,
@@ -1830,6 +1857,9 @@ impl App {
                         &frontend.select_layers,
                         &frontend.select_view(),
                     );
+                }
+                FrontendScreen::Scores => {
+                    renderer.render_scores(&frontend.scores);
                 }
                 FrontendScreen::Continue => {
                     if let Some(session) = &frontend.arcade {
@@ -2191,6 +2221,7 @@ mod tests {
             result_timer: 0,
             result_resolved: false,
             arcade: None,
+            scores: vec![],
             title_layers: vec![],
             select_layers: vec![],
         }
