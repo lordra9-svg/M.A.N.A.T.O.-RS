@@ -30,11 +30,19 @@ Operations:
 - `Ready { id, ready }`
 - `Start { id }`
 - `Frame { frame, checksum }` — relayed rollback frame metadata for spectators.
+- `Welcome { id, host }` — server-assigned member id.
+- `State { host, phase, members }` — full lobby snapshot broadcast on changes.
 
 `encode()`/`decode()` are transport-agnostic; a relay can carry them over UDP
 or any other channel.
 
 ## 3. Spectators
+
+`LobbyServer` maps member ids to peer addresses and handles join/leave/ready/
+start/frame messages, returning `(addr, message)` replies (join/state
+broadcasts, spectator-only frame relays). `UdpRelay` binds a non-blocking UDP
+socket, drains datagrams through the server, and sends the replies, making the
+protocol usable over the network (localhost relay is covered by tests).
 
 `SpectatorSync` accepts increasing rollback frame numbers, rejects stale or
 duplicate frames, counts gaps as `missed_frames`, and reports `lagging()` once
@@ -42,6 +50,7 @@ more than 60 frames (one second) are missing.
 
 ## 4. Not modeled
 
-- UDP/TCP relay sockets and lobby discovery, NAT traversal, and matchmaking.
-- Spectator state streaming (only frame/checksum metadata is defined).
+- Lobby discovery/announcement, NAT traversal, and matchmaking.
+- Spectator state streaming (only frame/checksum metadata is relayed; full
+  simulation snapshots are not sent).
 - Chat/moderation, spectator input isolation beyond the role flags.

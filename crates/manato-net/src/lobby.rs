@@ -3,6 +3,9 @@
 //! The lobby protocol carries join/leave/ready/start/frame messages over any
 //! transport; the UDP relay wiring is host-provided.
 
+use std::collections::HashMap;
+use std::net::{SocketAddr, UdpSocket};
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,11 +175,35 @@ impl LobbyState {
 /// Lobby/spectator wire messages.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LobbyMessage {
-    Join { name: String, spectator: bool },
-    Leave { id: u32 },
-    Ready { id: u32, ready: bool },
-    Start { id: u32 },
-    Frame { frame: i32, checksum: u64 },
+    Join {
+        name: String,
+        spectator: bool,
+    },
+    Leave {
+        id: u32,
+    },
+    Ready {
+        id: u32,
+        ready: bool,
+    },
+    Start {
+        id: u32,
+    },
+    Frame {
+        frame: i32,
+        checksum: u64,
+    },
+    /// Server → client: assigned member id and current host.
+    Welcome {
+        id: u32,
+        host: u32,
+    },
+    /// Server → clients: full lobby snapshot.
+    State {
+        host: u32,
+        phase: LobbyPhase,
+        members: Vec<LobbyMember>,
+    },
 }
 
 impl LobbyMessage {
@@ -216,6 +243,146 @@ impl SpectatorSync {
     /// True when more than a second of frames has gone missing.
     pub fn lagging(&self) -> bool {
         self.missed_frames > 60
+    }
+}
+
+/// Lobby protocol server: maps peers to member ids and produces replies to
+/// send back over any transport.
+#[derive(Debug, Clone)]
+pub struct LobbyServer {
+    pub state: LobbyState,
+    pub peers: HashMap<u32, SocketAddr>,
+}
+
+impl LobbyServer {
+    pub fn new(host_name: &str, max_players: usize, host_addr: SocketAddr) -> (Self, u32) {
+        let (state, host) = LobbyState::new(host_name, max_players);
+        let mut peers = HashMap::new();
+        peers.insert(host, host_addr);
+        (Self { state, peers }, host)
+    }
+
+    fn snapshot(&self) -> LobbyMessage {
+        LobbyMessage::State {
+            host: self.state.host,
+            phase: self.state.phase,
+            members: self.state.members.clone(),
+        }
+    }
+
+    fn broadcast(&self) -> Vec<(SocketAddr, LobbyMessage)> {
+        let message = self.snapshot();
+        self.peers
+            .values()
+            .map(|addr| (*addr, message.clone()))
+            .collect()
+    }
+
+    /// Processes one message from `addr` and returns messages to send.
+    pub fn handle(
+        &mut self,
+        addr: SocketAddr,
+        message: LobbyMessage,
+    ) -> Vec<(SocketAddr, LobbyMessage)> {
+        match message {
+            LobbyMessage::Join { name, spectator } => {
+                let Some(id) = self.state.join(&name, spectator) else {
+                    return Vec::new();
+                };
+                self.peers.insert(id, addr);
+                let mut replies = vec![(
+                    addr,
+                    LobbyMessage::Welcome {
+                        id,
+                        host: self.state.host,
+                    },
+                )];
+                replies.extend(self.broadcast());
+                replies
+            }
+            LobbyMessage::Leave { id } => {
+                if !self.state.leave(id) {
+                    return Vec::new();
+                }
+                self.peers.remove(&id);
+                self.broadcast()
+            }
+            LobbyMessage::Ready { id, ready } => {
+                if !self.state.set_ready(id, ready) {
+                    return Vec::new();
+                }
+                self.broadcast()
+            }
+            LobbyMessage::Start { id } => {
+                if !self.state.start(id) {
+                    return Vec::new();
+                }
+                self.broadcast()
+            }
+            LobbyMessage::Frame { frame, checksum } => {
+                let message = LobbyMessage::Frame { frame, checksum };
+                self.state
+                    .members
+                    .iter()
+                    .filter(|member| member.role == LobbyRole::Spectator)
+                    .filter_map(|member| {
+                        self.peers
+                            .get(&member.id)
+                            .map(|addr| (*addr, message.clone()))
+                    })
+                    .collect()
+            }
+            LobbyMessage::Welcome { .. } | LobbyMessage::State { .. } => Vec::new(),
+        }
+    }
+}
+
+/// Non-blocking UDP relay for the lobby protocol.
+pub struct UdpRelay {
+    socket: UdpSocket,
+}
+
+impl UdpRelay {
+    pub fn bind(addr: SocketAddr) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind(addr)?;
+        socket.set_nonblocking(true)?;
+        Ok(Self { socket })
+    }
+
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket.local_addr()
+    }
+
+    /// Drains pending datagrams through `server`, sending every reply.
+    pub fn poll(
+        &self,
+        server: &mut LobbyServer,
+    ) -> std::io::Result<Vec<(SocketAddr, LobbyMessage)>> {
+        let mut buffer = [0u8; 4096];
+        let mut sent = Vec::new();
+        loop {
+            match self.socket.recv_from(&mut buffer) {
+                Ok((len, addr)) => {
+                    let Some(message) = LobbyMessage::decode(&buffer[..len]) else {
+                        continue;
+                    };
+                    for (target, reply) in server.handle(addr, message) {
+                        let bytes = reply.encode();
+                        if self.socket.send_to(&bytes, target).is_ok() {
+                            sent.push((target, reply));
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(sent)
+    }
+
+    /// Sends a message directly (host-side helpers, tests).
+    pub fn send_to(&self, message: &LobbyMessage, addr: SocketAddr) -> std::io::Result<usize> {
+        self.socket.send_to(&message.encode(), addr)
     }
 }
 
@@ -274,6 +441,97 @@ mod tests {
             assert_eq!(LobbyMessage::decode(&bytes), Some(message));
         }
         assert!(LobbyMessage::decode(&[0xff, 0x00]).is_none());
+    }
+
+    #[test]
+    fn server_routes_join_ready_start_and_frames() {
+        let host_addr: SocketAddr = "127.0.0.1:9000".parse().unwrap();
+        let guest_addr: SocketAddr = "127.0.0.1:9001".parse().unwrap();
+        let spec_addr: SocketAddr = "127.0.0.1:9002".parse().unwrap();
+        let (mut server, host) = LobbyServer::new("host", 2, host_addr);
+
+        let replies = server.handle(
+            guest_addr,
+            LobbyMessage::Join {
+                name: "guest".into(),
+                spectator: false,
+            },
+        );
+        assert!(replies
+            .iter()
+            .any(|(_, m)| matches!(m, LobbyMessage::Welcome { .. })));
+        let guest = server.state.members[1].id;
+        let replies = server.handle(
+            spec_addr,
+            LobbyMessage::Join {
+                name: "spec".into(),
+                spectator: true,
+            },
+        );
+        let _spec = server.state.members[2].id;
+        assert!(replies.iter().any(|(addr, _)| *addr == spec_addr));
+
+        server.handle(
+            guest_addr,
+            LobbyMessage::Ready {
+                id: guest,
+                ready: true,
+            },
+        );
+        let replies = server.handle(host_addr, LobbyMessage::Start { id: host });
+        assert!(replies.iter().any(|(_, m)| matches!(
+            m,
+            LobbyMessage::State {
+                phase: LobbyPhase::Starting,
+                ..
+            }
+        )));
+
+        let replies = server.handle(
+            host_addr,
+            LobbyMessage::Frame {
+                frame: 10,
+                checksum: 7,
+            },
+        );
+        assert_eq!(replies.len(), 1, "frames go to spectators only");
+        assert_eq!(replies[0].0, spec_addr);
+    }
+
+    #[test]
+    fn udp_relay_joins_and_relays_state() {
+        let relay = UdpRelay::bind("127.0.0.1:0".parse().unwrap()).expect("relay");
+        let addr = relay.local_addr().expect("addr");
+        let (mut server, _host) = LobbyServer::new("host", 2, addr);
+        let client = UdpSocket::bind("127.0.0.1:0").expect("client");
+        client
+            .set_read_timeout(Some(std::time::Duration::from_millis(200)))
+            .expect("timeout");
+        client
+            .send_to(
+                &LobbyMessage::Join {
+                    name: "guest".into(),
+                    spectator: false,
+                }
+                .encode(),
+                addr,
+            )
+            .expect("send join");
+        let mut buffer = [0u8; 4096];
+        let mut decoded = None;
+        for _ in 0..100 {
+            relay.poll(&mut server).expect("poll");
+            if let Ok((len, _)) = client.recv_from(&mut buffer) {
+                decoded = LobbyMessage::decode(&buffer[..len]);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(server.state.player_count(), 2);
+        assert!(matches!(
+            decoded,
+            Some(LobbyMessage::Welcome { .. }) | Some(LobbyMessage::State { .. })
+        ));
     }
 
     #[test]
