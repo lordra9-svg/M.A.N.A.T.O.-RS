@@ -176,8 +176,18 @@ impl Assets {
 pub struct TeamMember {
     pub char_id: usize,
     pub life: i32,
+    pub life_max: i32,
     pub red_life: i32,
     pub power: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum TeamMode {
+    #[default]
+    Single,
+    Turns,
+    Tag,
+    Simul,
 }
 
 impl TeamMember {
@@ -185,6 +195,7 @@ impl TeamMember {
         Self {
             char_id: fighter.char_id,
             life: fighter.life,
+            life_max: fighter.life_max,
             red_life: fighter.red_life,
             power: fighter.power,
         }
@@ -785,6 +796,8 @@ pub struct SimState {
     pub fighters: Vec<Fighter>,
     /// Team rosters for each side (index 0/1). Tag swaps rotate `active`.
     pub teams: [TeamRoster; 2],
+    /// Per-side team mode (`Single`, `Turns`, `Tag`, `Simul`).
+    pub team_modes: [TeamMode; 2],
     pub frame: u64,
     /// Ticks since the match started (`FightTime`); not reset between rounds.
     pub match_time: i32,
@@ -920,6 +933,7 @@ impl SimState {
             stage_right_bound,
             fighters,
             teams,
+            team_modes: [TeamMode::Single; 2],
             frame: 0,
             match_time: 0,
             first_attack: None,
@@ -1224,6 +1238,12 @@ impl SimState {
         }
         self.update_round();
         self.update_camera();
+        for side in 0..2 {
+            let active = self.teams[side].active;
+            if let Some(member) = self.teams[side].members.get_mut(active) {
+                *member = TeamMember::from_fighter(&self.fighters[side]);
+            }
+        }
         self.update_effects();
         self.update_texts();
         self.update_fight_screen();
@@ -2092,6 +2112,38 @@ impl SimState {
         }
     }
 
+    fn advance_turns_team(&mut self, side: usize) {
+        if self.team_modes[side] != TeamMode::Turns {
+            return;
+        }
+        if self.fighters[side].life > 0 || self.teams[side].members.len() <= 1 {
+            return;
+        }
+        let active = self.teams[side].active;
+        self.teams[side].members[active] = TeamMember::from_fighter(&self.fighters[side]);
+        let next = (0..self.teams[side].members.len())
+            .filter(|index| *index != active)
+            .find(|index| self.teams[side].members[*index].life > 0);
+        if let Some(next) = next {
+            self.teams[side].active = next;
+            let member = self.teams[side].members[next].clone();
+            self.rebuild_active_with(side, &member, None, true);
+        }
+    }
+
+    fn team_total_life(&self, side: usize) -> i32 {
+        let active = self.teams[side].active;
+        let mut total = 0;
+        for (index, member) in self.teams[side].members.iter().enumerate() {
+            total += if index == active {
+                self.fighters[side].life.max(0)
+            } else {
+                member.life.max(0)
+            };
+        }
+        total
+    }
+
     fn update_round(&mut self) {
         match self.round.phase {
             RoundPhase::Intro => {
@@ -2103,6 +2155,8 @@ impl SimState {
                 }
             }
             RoundPhase::Fight => {
+                self.advance_turns_team(0);
+                self.advance_turns_team(1);
                 let timer_frozen = self.fighters.iter().any(|fighter| {
                     fighter.active && fighter.assert_flags & fighter::ASSERT_TIMERFREEZE != 0
                 });
@@ -2141,8 +2195,8 @@ impl SimState {
                     }
                 } else if !timer_frozen && self.round.timer <= 0 {
                     self.round.timer = 0;
-                    let life0 = self.fighters[0].life.max(0);
-                    let life1 = self.fighters[1].life.max(0);
+                    let life0 = self.team_total_life(0);
+                    let life1 = self.team_total_life(1);
                     let winner = if life0 == life1 {
                         None
                     } else if life0 > life1 {
@@ -2427,6 +2481,7 @@ impl SimState {
             members.push(TeamMember {
                 char_id,
                 life,
+                life_max: life,
                 red_life: life,
                 power: 0.0,
             });
@@ -3607,12 +3662,15 @@ impl SimState {
                 h.write_u8(frame.pause_bits);
             }
         }
+        h.write_u8(self.team_modes[0] as u8);
+        h.write_u8(self.team_modes[1] as u8);
         for team in &self.teams {
             h.write_u32(team.members.len() as u32);
             h.write_u32(team.active as u32);
             for member in &team.members {
                 h.write_u32(member.char_id as u32);
                 h.write_i32(member.life);
+                h.write_i32(member.life_max);
                 h.write_i32(member.red_life);
                 h.write_f32(member.power);
             }

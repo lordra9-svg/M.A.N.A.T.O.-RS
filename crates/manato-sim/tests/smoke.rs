@@ -3731,6 +3731,37 @@ fn tag_team_roster_and_tagout_tagin_swap_members() {
 }
 
 #[test]
+fn turns_mode_advances_to_living_partner_before_ko() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival]);
+    sim.team_modes[0] = manato_sim::TeamMode::Turns;
+    assert_eq!(sim.teams[0].members.len(), 2);
+    assert_eq!(sim.teams[0].members[0].life_max, sim.fighters[0].life_max);
+
+    // KO the active member: the partner enters and the round continues.
+    sim.fighters[0].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.teams[0].active, 1);
+    assert_eq!(sim.fighters[0].char_id, nival);
+    assert!(sim.fighters[0].life > 0);
+    assert_ne!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.teams[0].members[0].life, 0);
+
+    // KO the last member: the round ends against the team.
+    sim.fighters[0].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(1));
+
+    // The active member syncs into the roster for partner lifebars.
+    assert_eq!(sim.teams[0].members[1].life, 0);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

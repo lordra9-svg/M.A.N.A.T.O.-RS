@@ -1336,7 +1336,7 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
         }
 
         // Name, clipped to the bar width.
-        let name = sim.assets.characters[who].display_name();
+        let name = sim.assets.characters[sim.fighters[who].char_id].display_name();
         let limit = fit_chars(bar_w, 1.0);
         let short: String = name.chars().take(limit).collect();
         painter.text(
@@ -1347,6 +1347,33 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
             1.0,
             [0.92, 0.92, 0.96, 1.0],
         );
+
+        // Partner lifebars for standby team members.
+        let roster = &sim.teams[who.min(1)];
+        if roster.members.len() > 1 {
+            let small_w = 60.0;
+            let small_h = 4.0;
+            for (index, member) in roster.members.iter().enumerate() {
+                if index == roster.active {
+                    continue;
+                }
+                let row = index.saturating_sub(if index > roster.active { 1 } else { 0 });
+                let sy = y + bar_h + 16.0 + row as f32 * 7.0;
+                let ratio = (member.life as f32 / member.life_max.max(1) as f32).clamp(0.0, 1.0);
+                let sx = if who == 0 { x } else { x + bar_w - small_w };
+                painter.rect(
+                    Blend::Normal,
+                    sx,
+                    sy,
+                    small_w,
+                    small_h,
+                    [0.18, 0.06, 0.06, 0.9],
+                );
+                let fill = (small_w * ratio).round();
+                let fx = if who == 0 { sx } else { sx + small_w - fill };
+                painter.rect(Blend::Normal, fx, sy, fill, small_h, [0.85, 0.55, 0.2, 0.9]);
+            }
+        }
     }
 
     // Timer.

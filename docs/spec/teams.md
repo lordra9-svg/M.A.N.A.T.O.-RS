@@ -15,6 +15,15 @@ Only one member per side is simulated at a time. The leader (member 0) is the
 initial active fighter; standby members are stat-only roster entries and are
 not ticked, drawn, or collided.
 
+`SimState.team_modes[side]` selects `Single`, `Turns`, `Tag`, or `Simul`.
+`Turns` auto-advances to the next living standby member when the active member
+is KO'd, and the round only ends when no living member remains. `Tag` keeps
+manual `TagIn`/`TagOut` control. `Simul` is declared for content compatibility
+but not simulated (one active fighter per side).
+
+The active member's life/red-life/power are synchronized into the roster each
+tick, so standby lifebars and turn selection see current values.
+
 `assign_team(side, &[char_id, ...])` replaces a roster from already-loaded
 characters. `start_round` resets every side to its leader and restores the
 leader's default life.
@@ -36,9 +45,14 @@ leader's default life.
   leader's member number (1).
 - `Standby` — always false because standby members are not simulated.
 
-## 4. Not modeled
+## 4. Rendering
 
-- Simultaneous (simul) teams, turns mode, and multi-member team lifebars.
+The fallback HUD draws a thin lifebar for every standby member next to the
+active fighter's bar, using the synced roster life/life-max values.
+
+## 5. Not modeled
+
+- Simultaneous (simul) teams: two or more fighters active per side.
 - Alternate-character loading from `select.def` team configuration; rosters are
   assigned through the API (tests and hosts).
 - Partner tag animations, tag-in invulnerability windows, and team-specific
