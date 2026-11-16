@@ -1793,6 +1793,11 @@ impl SimState {
             .constants
             .get_or("movement.air.gethit.groundlevel", 25.0);
         let fighter = &mut self.fighters[who];
+        // `GroundLevelOffset` set by the previous tick's controllers applies
+        // to this physics step, then is consumed.
+        let ground_offset = fighter.ground_level;
+        fighter.ground_level = 0.0;
+        fighter.applied_ground = ground_offset;
         if fighter.pos_freeze > 0 {
             return;
         }
@@ -1844,10 +1849,10 @@ impl SimState {
         if fighter.physics == fighter::Physics::Air
             && fighter.state_no != 52
             && !matches!(fighter.state_no, 5030 | 5040 | 5050 | 5201 | 5210)
-            && fighter.pos.y >= 0.0
+            && fighter.pos.y >= ground_offset
             && fighter.vel.y >= 0.0
         {
-            fighter.pos.y = 0.0;
+            fighter.pos.y = ground_offset;
             fighter.vel.y = 0.0;
             if char.state(52).is_some() {
                 fighter.enter_state(52, char, false);
@@ -1856,7 +1861,7 @@ impl SimState {
 
         // Hit-fall ground level (common1 states use `groundlevel`). Landing
         // applies `fall.damage` once (`docs/spec/combat.md` §6).
-        if fall_state && fighter.vel.y > 0.0 && fighter.pos.y >= ground_level {
+        if fall_state && fighter.vel.y > 0.0 && fighter.pos.y >= ground_level + ground_offset {
             fighter.pos.y = 0.0;
             fighter.vel.y = 0.0;
             if fighter.hit.vars.fall_damage > 0 {
@@ -1914,7 +1919,9 @@ impl SimState {
             }
             if fighter.screen_bound.1 {
                 let p = fighter.pos.y;
-                fighter.pos.y = clamp(p, stage_top, stage_bottom);
+                // A positive ground offset lowers the floor; otherwise the
+                // normal stage bound applies.
+                fighter.pos.y = clamp(p, stage_top, stage_bottom.max(fighter.applied_ground));
             }
         }
         let (a, b) = (0usize, 1usize);
@@ -2419,6 +2426,8 @@ impl SimState {
             fighter.assert_flags = 0;
             fighter.asserted_commands.clear();
             fighter.asserted_input = PlayerInput::default();
+            fighter.ground_level = 0.0;
+            fighter.applied_ground = 0.0;
             fighter.sprite_remap.clear();
             fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;
@@ -3252,6 +3261,8 @@ impl SimState {
             h.write_f32(f.pal_alpha);
             h.write_i32(f.pal_time);
             h.write_i32(f.movelist);
+            h.write_f32(f.ground_level);
+            h.write_f32(f.applied_ground);
             h.write_u32(f.sprite_remap.len() as u32);
             for ((sg, si), (dg, di)) in &f.sprite_remap {
                 h.write_i32(*sg);

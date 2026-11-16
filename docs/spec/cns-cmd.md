@@ -161,6 +161,9 @@ Required controller families for the approved matrix:
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a
   new box; `ClsnVar` and hit detection see the result)
+- `GroundLevelOffset` (per-tick ground plane offset: the next physics step
+  lands on `value` instead of 0; positive values lower the floor, negative
+  values raise it, and the screen-bound clamp follows the offset)
 - `SaveState`, `LoadState`, `MatchRestart` (snapshot/restore the live
   simulation and reset to round 1; see `docs/spec/save.md`; disk
   `SaveFile`/`LoadFile` and DEF/PAL overrides are not modeled)

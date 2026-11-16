@@ -396,6 +396,11 @@ pub struct Fighter {
     pub bind_facing: i32,
     /// `VictoryQuote` index; `-1` selects a default quote.
     pub win_quote: i32,
+    /// Pending `GroundLevelOffset` for the next physics step.
+    pub ground_level: f32,
+    /// Ground offset applied by the current tick's physics (used by the
+    /// screen-bound clamp).
+    pub applied_ground: f32,
     /// Active `ChangeMovelist` selection (0 = default).
     pub movelist: i32,
     /// `RemapSprite` substitutions: source `(group, index)` → destination.
@@ -586,6 +591,8 @@ impl Fighter {
             bind_offset: Vec2::ZERO,
             bind_facing: 0,
             win_quote: -1,
+            ground_level: 0.0,
+            applied_ground: 0.0,
             movelist: 0,
             sprite_remap: BTreeMap::new(),
             map: BTreeMap::new(),

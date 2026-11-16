@@ -2917,6 +2917,56 @@ fn remapsprite_substitutes_sprite_lookups() {
 }
 
 #[test]
+fn groundleveloffset_moves_the_landing_plane() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let offset = |sim: &mut SimState, value: f32| {
+        let control = manato_formats::Controller {
+            kind: "groundleveloffset".into(),
+            params: vec![("value".into(), value.to_string())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    // A +10 ground plane stops the fighter at y=10 instead of y=0, and the
+    // screen-bound clamp does not pull it back to the stage floor.
+    sim.fighters[0].physics = manato_sim::fighter::Physics::Air;
+    sim.fighters[0].state_no = 50;
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, 5.0);
+    sim.fighters[0].vel = manato_core::Vec2::new(0.0, 1.0);
+    for _ in 0..4 {
+        offset(&mut sim, 10.0);
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].pos.y, 10.0);
+    assert_eq!(sim.fighters[0].applied_ground, 10.0);
+
+    // Without re-asserting the offset, the normal floor applies again.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].pos.y, 0.0);
+
+    // A negative offset raises the ground plane above the floor.
+    sim.fighters[0].physics = manato_sim::fighter::Physics::Air;
+    sim.fighters[0].state_no = 50;
+    sim.fighters[0].pos = manato_core::Vec2::new(0.0, -20.0);
+    sim.fighters[0].vel = manato_core::Vec2::new(0.0, 1.0);
+    for _ in 0..30 {
+        offset(&mut sim, -10.0);
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].pos.y, -10.0);
+
+    // The offset participates in the rollback checksum.
+    offset(&mut sim, 7.0);
+    let before = sim.checksum();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

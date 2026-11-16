@@ -308,6 +308,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         }
         "loadstate" => sim.load_state_requested = true,
         "matchrestart" => sim.restart_requested = true,
+        "groundleveloffset" => {
+            sim.fighters[who].ground_level = num_param(sim, who, control, "value").unwrap_or(0.0);
+        }
         "remapsprite" => {
             if int_param(sim, who, control, "reset").unwrap_or(0) != 0 {
                 sim.fighters[who].sprite_remap.clear();

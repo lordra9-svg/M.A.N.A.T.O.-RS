@@ -523,6 +523,14 @@ timed stun.
 - Helpers use their owner’s attack multipliers and sound banks.
 - Helpers are not valid defenders in the first pass.
 
+## 10.1 Ground plane
+
+`GroundLevelOffset` sets a per-tick ground plane consumed by the next physics
+step. Airborne physics lands when `pos.y` reaches the offset (instead of 0),
+fall states add it to the hit-fall ground level, and the vertical screen-bound
+clamp uses `max(stage floor, offset)` so a lowered floor is not pulled back.
+The offset resets every tick, so content must re-assert it.
+
 ## 11. Fall and KO
 
 - Fall states `5030/5040/5050` use `air.gethit.groundlevel` and fall damage.
