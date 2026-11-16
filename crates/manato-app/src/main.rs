@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use anyhow::Context as _;
 use manato_audio::AudioEngine;
 use manato_core::{Buttons, PlayerInput, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
-use manato_formats::screenpack::{Roster, RosterEntry, Screenpack};
+use manato_formats::screenpack::{ArcadeOrderMode, Roster, RosterEntry, Screenpack};
 use manato_formats::SffFile;
 use manato_render::frontend::{OptionsView, SelectEntry, SelectView, TitleView};
 use manato_render::{wgpu, Renderer, GAME_HEIGHT, GAME_WIDTH};
@@ -756,6 +756,9 @@ struct Frontend {
     result_timer: i32,
     result_resolved: bool,
     arcade: Option<ArcadeSession>,
+    arcade_special: Option<String>,
+    arcade_final_boss: Option<String>,
+    arcade_order: ArcadeOrderMode,
     scores: Vec<u64>,
     title_layers: Vec<manato_sim::StageLayerState>,
     select_layers: Vec<manato_sim::StageLayerState>,
@@ -864,6 +867,7 @@ impl Frontend {
                     })
                     .collect(),
                 stages: Vec::new(),
+                arcade: Default::default(),
             },
         };
         let names = roster
@@ -934,6 +938,9 @@ impl Frontend {
                     .map(|item| (item.key.clone(), item.label.clone()))
             })
             .collect();
+        let arcade_special = roster.arcade.special.clone();
+        let arcade_final_boss = roster.arcade.final_boss.clone();
+        let arcade_order = roster.arcade.order;
         let mut stages = roster.stages.clone();
         if !stages.iter().any(|stage| stage == &opts.stage) {
             stages.push(opts.stage.clone());
@@ -969,6 +976,9 @@ impl Frontend {
             result_timer: 0,
             result_resolved: false,
             arcade: None,
+            arcade_special,
+            arcade_final_boss,
+            arcade_order,
             scores: manato_sim::arcade::load_score_table(&opts.root.join("manato_highscore.dat")),
             title_layers,
             select_layers,
@@ -1071,6 +1081,20 @@ fn screen_layer_states(
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn roster_index_by_def(roster: &[RosterEntry], def: &str) -> Option<usize> {
+    let normalize = |value: &str| {
+        value
+            .trim()
+            .trim_matches('"')
+            .replace('\\', "/")
+            .to_ascii_lowercase()
+    };
+    let wanted = normalize(def);
+    roster
+        .iter()
+        .position(|entry| !entry.random && normalize(&entry.def) == wanted)
 }
 
 fn chosen_entry(frontend: &Frontend, cell: usize) -> Option<RosterEntry> {
@@ -1220,7 +1244,23 @@ impl App {
                     .duration_since(std::time::UNIX_EPOCH)
                     .map(|duration| duration.as_nanos() as u64)
                     .unwrap_or(1);
-                let ladder = manato_sim::arcade::build_ladder(&random_flags, p1, seed);
+                let special = frontend
+                    .arcade_special
+                    .as_deref()
+                    .and_then(|def| roster_index_by_def(&frontend.roster, def));
+                let boss = frontend
+                    .arcade_final_boss
+                    .as_deref()
+                    .and_then(|def| roster_index_by_def(&frontend.roster, def));
+                let shuffle = frontend.arcade_order == ArcadeOrderMode::Random;
+                let ladder = manato_sim::arcade::build_ladder_ordered(
+                    &random_flags,
+                    p1,
+                    seed,
+                    special,
+                    boss,
+                    shuffle,
+                );
                 let survival = frontend.mode == Mode::Survival;
                 let config = ArcadeConfig {
                     credits: if survival { 1 } else { 3 },
@@ -2267,6 +2307,9 @@ mod tests {
             result_timer: 0,
             result_resolved: false,
             arcade: None,
+            arcade_special: None,
+            arcade_final_boss: None,
+            arcade_order: ArcadeOrderMode::Roster,
             scores: vec![],
             title_layers: vec![],
             select_layers: vec![],

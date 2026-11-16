@@ -874,11 +874,29 @@ impl ScreenBg {
 }
 
 /// A parsed `select.def` roster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ArcadeOrderMode {
+    #[default]
+    Roster,
+    Random,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ArcadeOrderConfig {
+    pub order: ArcadeOrderMode,
+    /// `[Arcade] special`/`subboss` def path.
+    pub special: Option<String>,
+    /// `[Arcade] finalboss` def path.
+    pub final_boss: Option<String>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Roster {
     pub entries: Vec<RosterEntry>,
     /// `[ExtraStages]` entries, in file order.
     pub stages: Vec<String>,
+    /// `[Arcade]` ordering configuration.
+    pub arcade: ArcadeOrderConfig,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -904,6 +922,8 @@ impl Roster {
         let mut stages = Vec::new();
         let mut in_characters = false;
         let mut in_stages = false;
+        let mut in_arcade = false;
+        let mut arcade = ArcadeOrderConfig::default();
         for line in raw.lines() {
             let line = crate::text::strip_comment(line).trim();
             if line.is_empty() {
@@ -913,6 +933,29 @@ impl Roster {
                 let header = line.trim_matches(|c| c == '[' || c == ']').trim();
                 in_characters = header.eq_ignore_ascii_case("characters");
                 in_stages = header.eq_ignore_ascii_case("extrastages");
+                in_arcade = header.eq_ignore_ascii_case("arcade");
+                continue;
+            }
+            if in_arcade {
+                if let Some((key, value)) = line.split_once('=') {
+                    let value = value.trim().trim_matches('"');
+                    match key.trim().to_ascii_lowercase().as_str() {
+                        "order" => {
+                            arcade.order = if value.eq_ignore_ascii_case("random") {
+                                ArcadeOrderMode::Random
+                            } else {
+                                ArcadeOrderMode::Roster
+                            };
+                        }
+                        "special" | "subboss" if !value.is_empty() => {
+                            arcade.special = Some(value.to_string());
+                        }
+                        "finalboss" | "final_boss" if !value.is_empty() => {
+                            arcade.final_boss = Some(value.to_string());
+                        }
+                        _ => {}
+                    }
+                }
                 continue;
             }
             if in_stages {
@@ -955,7 +998,11 @@ impl Roster {
                 random: false,
             });
         }
-        Self { entries, stages }
+        Self {
+            entries,
+            stages,
+            arcade,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1597,7 +1644,9 @@ mod tests {
     fn roster_parses_lines_and_random() {
         let roster = Roster::parse_str(
             "[Characters]\nchars/kaen/kaen.def, stages/a.def\n\
-             randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg\n",
+             randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg\n\
+             [Arcade]\norder = random\nspecial = chars/subboss/subboss.def\n\
+             finalboss = chars/boss/boss.def\n",
         );
         assert_eq!(roster.entries.len(), 3);
         assert_eq!(roster.entries[0].def, "chars/kaen/kaen.def");
@@ -1606,6 +1655,15 @@ mod tests {
         assert_eq!(roster.entries[2].stage.as_deref(), Some("stage.def"));
         assert_eq!(roster.entries[2].music.as_deref(), Some("theme.ogg"));
         assert_eq!(roster.entries[2].def, "chars/nival/nival.def");
+        assert_eq!(roster.arcade.order, ArcadeOrderMode::Random);
+        assert_eq!(
+            roster.arcade.special.as_deref(),
+            Some("chars/subboss/subboss.def")
+        );
+        assert_eq!(
+            roster.arcade.final_boss.as_deref(),
+            Some("chars/boss/boss.def")
+        );
     }
 
     #[test]

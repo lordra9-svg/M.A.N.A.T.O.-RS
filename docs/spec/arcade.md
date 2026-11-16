@@ -43,6 +43,20 @@ Each ladder match uses that opponent's `select.def` stage when one is assigned
 `select.def` `randomselect` slots are resolved into concrete non-random
 opponents by `arcade::build_ladder(flags, p1, seed)`; the ladder keeps roster
 order for fixed entries and fills random slots deterministically for the run.
+
+The engine also reads an optional `[Arcade]` section:
+
+```ini
+[Arcade]
+order = roster      ; or random
+special = chars/subboss/subboss.def
+finalboss = chars/boss/boss.def
+```
+
+`special` is placed immediately before the final boss and `finalboss` always
+ends the ladder; both are removed from the regular pool to avoid duplicates.
+`order = random` deterministically shuffles the regular opponents per run
+(`build_ladder_ordered`).
 Survival rotates to the next ladder opponent after each win and keeps the
 accumulated score/streak; arcade advances until the ladder is complete. When a match ends
 (after the result delay) the app records `win`/`lose`:
@@ -60,5 +74,5 @@ returns to the title. The title menu's **SCORES** entry renders the table.
 
 ## 4. Not modeled
 
-- Special/ordered arcade ladders beyond `randomselect` substitution, and a
-  hidden final boss configuration.
+- Per-character `arcadepath` overrides and mid-run challenger interruptions;
+  the boss/special slots are configured through the roster's `[Arcade]`.

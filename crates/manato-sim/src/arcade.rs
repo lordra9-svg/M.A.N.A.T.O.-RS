@@ -153,6 +153,48 @@ impl ArcadeSession {
 
 pub const SCORE_TABLE_SIZE: usize = 5;
 
+/// Builds an arcade ladder with optional special and final-boss opponents.
+///
+/// `special` is placed immediately before the final boss (or appended when no
+/// boss is configured) and `final_boss` always ends the ladder. Both are
+/// removed from the regular roster pool to avoid duplicates. `shuffle`
+/// deterministically randomizes the regular opponents.
+pub fn build_ladder_ordered(
+    random_flags: &[bool],
+    p1: usize,
+    seed: u64,
+    special: Option<usize>,
+    final_boss: Option<usize>,
+    shuffle: bool,
+) -> Vec<usize> {
+    let mut ladder = build_ladder(random_flags, p1, seed);
+    ladder.retain(|index| Some(*index) != special && Some(*index) != final_boss);
+    if shuffle {
+        let mut state = seed ^ 0x9e37_79b9_7f4a_7c15;
+        for index in (1..ladder.len()).rev() {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let swap = (state >> 33) as usize % (index + 1);
+            ladder.swap(index, swap);
+        }
+    }
+    if let Some(special) = special {
+        if special != p1 {
+            ladder.insert(ladder.len(), special);
+        }
+    }
+    if let Some(boss) = final_boss {
+        if boss != p1 {
+            ladder.push(boss);
+        }
+    }
+    if ladder.is_empty() {
+        ladder.push(p1);
+    }
+    ladder
+}
+
 /// Builds an arcade ladder from roster order. `random_flags[i]` marks a
 /// `randomselect` entry, which is replaced by a deterministic pick from the
 /// non-random roster (seeded by `seed`). `p1` is excluded.
@@ -301,6 +343,28 @@ mod tests {
         assert_eq!(session.score, (300 + 100 * 5) + (300 + 100 + 50 * 5));
         session.lose();
         assert_eq!(session.phase, ArcadePhase::GameOver);
+    }
+
+    #[test]
+    fn ordered_ladder_places_special_and_final_boss() {
+        let flags = [false; 4];
+        let ladder = build_ladder_ordered(&flags, 0, 7, Some(2), Some(3), false);
+        assert_eq!(ladder, vec![1, 2, 3]);
+        assert_eq!(*ladder.last().unwrap(), 3, "final boss last");
+
+        // Boss/special already in the roster are moved, not duplicated.
+        let ladder = build_ladder_ordered(&flags, 0, 7, Some(1), Some(3), false);
+        assert_eq!(ladder, vec![2, 1, 3]);
+
+        // Shuffling keeps the same member set and the boss last.
+        let ladder = build_ladder_ordered(&flags, 0, 99, None, Some(3), true);
+        assert_eq!(ladder.len(), 3);
+        assert_eq!(*ladder.last().unwrap(), 3);
+        assert!(ladder.contains(&1) && ladder.contains(&2));
+        assert_eq!(
+            ladder,
+            build_ladder_ordered(&flags, 0, 99, None, Some(3), true)
+        );
     }
 
     #[test]
