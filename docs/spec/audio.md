@@ -130,7 +130,9 @@ queues a `SoundCommand::PlayBgm`; an empty `bgm` stops playback. Volume is
 scaled by 1/100. `loop`, `loopstart`, `loopend`, `startposition`, `freqmul`, and `loopcount`
 are parsed and exposed through `BgmVar`. The mixer applies looping (or plays
 once when `loop = 0`), seeks to `startposition` (milliseconds), and scales the
-playback step by `freqmul`. `loopcount` is stored but not enforced.
+playback step by `freqmul`. `loopcount` is enforced at each loop wrap: `0`
+plays once, `>0` repeats that many times before stopping, and `-1` loops
+forever. `ModifyBGM` can retarget `loopstart`/`loopend` on the live voice.
 
 `ModifyBGM` updates the live volume, seeks with `position`, and changes
 `freqmul` immediately; loop/frequency/count fields are also stored. `BgmVar(filename|volume|loop|loopstart|loopend|

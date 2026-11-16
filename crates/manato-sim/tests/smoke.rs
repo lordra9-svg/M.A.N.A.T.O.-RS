@@ -2740,6 +2740,7 @@ fn play_and_modify_bgm_emit_commands_and_live_state() {
             loop_start: 100,
             loop_end: 500,
             volume: 80,
+            loop_count: -1,
             ..
         }] if (*freq_mul - 1.5).abs() < 1e-5
     ));
@@ -2770,6 +2771,9 @@ fn play_and_modify_bgm_emit_commands_and_live_state() {
         [manato_sim::SoundCommand::ModifyBgm {
             position: Some(1500),
             freq_mul: Some(0.75),
+            loop_start: Some(20),
+            loop_end: Some(300),
+            loop_count: Some(3),
             ..
         }]
     ));
