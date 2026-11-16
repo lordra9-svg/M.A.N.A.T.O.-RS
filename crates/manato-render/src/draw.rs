@@ -73,6 +73,11 @@ impl Painter {
         self.depth = 1.0;
     }
 
+    /// Depth written by subsequent quads.
+    pub fn depth(&self) -> f32 {
+        self.depth
+    }
+
     /// Sets the depth written by subsequent quads (`0` nearest, `1` farthest).
     pub fn set_depth(&mut self, depth: f32) {
         self.depth = depth.clamp(0.0, 1.0);

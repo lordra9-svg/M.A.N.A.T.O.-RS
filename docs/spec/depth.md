@@ -86,6 +86,14 @@ scale is multiplied by `z_scale`, so a fighter at the far plane is smaller and
 shifted toward the horizon. With `z = 0` and no `[Scaling]` range the
 transform is an identity.
 
+### 3.2 Stage-layer perspective
+
+Stage layers use the same transform when a depth is assigned. The layer's
+start position is projected about the camera centre and ground line, its scale
+is multiplied by `z_scale`, and its painter depth becomes
+`0.5 + z * 0.001` (clamped `0.05..0.95`) for that layer only; other layers keep
+their region plane.
+
 ## 4. Shaders
 
 `CharacterDef.shaders` parses the DEF `[Shaders]` section (`name = file`) with
@@ -100,8 +108,12 @@ rollback checksum.
 
 ## 5. Not modeled
 
-- Stage-BG 3D controllers (`ModifyBGCtrl3D`) and perspective for stage layers,
-  shadows, reflections, effects, and texts (fighters only for now).
+- GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
+  `ctrlid` selects BG layers by `id` (`-1` = all) and
+  `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
+  applied (values persist until changed or the round restarts). Ikemen
+  targets 3D model nodes here, which this engine does not load.
+- Perspective for shadows, reflections, effects, and texts.
 - Fighter `p2depth`/`depthbound` clamping (the flag is stored but does not
   constrain movement).
 - Projectile z rendering/perspective (depth affects collisions and bounds

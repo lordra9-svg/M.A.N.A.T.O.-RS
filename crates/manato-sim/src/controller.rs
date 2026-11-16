@@ -393,6 +393,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "assertanalogvector" => assert_analog_vector(sim, who, control),
         "modifystagebg" => modify_stage_bg(sim, who, control),
         "modifybgctrl" => modify_bg_ctrl(sim, who, control),
+        "modifybgctrl3d" => modify_bg_ctrl_3d(sim, who, control),
         "allpalfx" => {
             let pal = parse_global_pal(sim, who, control);
             sim.all_pal = pal;
@@ -2753,6 +2754,42 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         }
         if let Some(y) = y {
             controller_set_param(&mut ctrl.controller, "y", y.to_string());
+        }
+    }
+}
+
+/// `ModifyBGCtrl3D`: depth position/scale for stage layers. Ikemen targets
+/// GLTF 3D nodes here; this engine has no 3D node graph, so `ctrlid` selects
+/// BG layers by id and `value = z[, xscale[, yscale]]`. `time` is accepted but
+/// not applied (the values persist until the next modification or round).
+fn modify_bg_ctrl_3d(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "ctrlid")
+        .or_else(|| int_param(sim, who, control, "id"))
+        .unwrap_or(-1);
+    let Some(raw) = control.get("value") else {
+        return;
+    };
+    let values: Vec<f32> = raw
+        .split(',')
+        .map(|part| part.trim().parse::<f32>().unwrap_or(0.0))
+        .collect();
+    let z = values.first().copied().unwrap_or(0.0);
+    let xscale = values.get(1).copied().unwrap_or(1.0);
+    let yscale = values.get(2).copied().unwrap_or(xscale);
+    let ids: Vec<i32> = sim
+        .assets
+        .stage
+        .layers
+        .iter()
+        .map(|layer| layer.id)
+        .collect();
+    for (index, layer_id) in ids.iter().enumerate() {
+        if id >= 0 && *layer_id != id {
+            continue;
+        }
+        if let Some(state) = sim.stage_layers.get_mut(index) {
+            state.z = Some(z);
+            state.z_scale = Some(Vec2::new(xscale, yscale));
         }
     }
 }

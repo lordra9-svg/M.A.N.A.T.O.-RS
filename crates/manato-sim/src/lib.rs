@@ -609,6 +609,10 @@ pub struct StageLayerState {
     pub sprite: Option<(i32, i32)>,
     /// `trans` blend override.
     pub trans: Option<manato_formats::air::BlendMode>,
+    /// `ModifyBGCtrl3D` depth position for this layer.
+    pub z: Option<f32>,
+    /// `ModifyBGCtrl3D` depth scale (`x`, `y`) for this layer.
+    pub z_scale: Option<Vec2>,
 }
 
 impl StageLayerState {
@@ -630,6 +634,8 @@ impl StageLayerState {
             layer_no: None,
             sprite: None,
             trans: None,
+            z: None,
+            z_scale: None,
         }
     }
 }
@@ -3094,6 +3100,15 @@ impl SimState {
                 h.write_f32(pos.x);
                 h.write_f32(pos.y);
             }
+            h.write_bool(layer.z.is_some());
+            if let Some(z) = layer.z {
+                h.write_f32(z);
+            }
+            h.write_bool(layer.z_scale.is_some());
+            if let Some(scale) = layer.z_scale {
+                h.write_f32(scale.x);
+                h.write_f32(scale.y);
+            }
             h.write_i32(layer.layer_no.unwrap_or(i32::MIN));
             h.write_bool(layer.sprite.is_some());
             if let Some((group, index)) = layer.sprite {
@@ -3718,6 +3733,8 @@ mod stage_tests {
             layer_no: None,
             sprite: None,
             trans: None,
+            z: None,
+            z_scale: None,
         }
     }
 

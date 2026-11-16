@@ -32,7 +32,7 @@ deliberate, not scheduling gaps:
 | Blocker | Rows | Reason |
 | --- | --- | --- |
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
-| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, and stage `[Scaling]` perspective for fighters are implemented; `ModifyBGCtrl3D`, layer/effect perspective, and projectile z rendering are not modeled; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile `offset`/`velocity`/`accel` z plus `projdepthbound`. |
+| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, stage `[Scaling]` perspective for fighters and layers, and layer `ModifyBGCtrl3D` (id + z/scale approximation) are implemented; GLTF 3D nodes, effect/shadow/text perspective, and projectile z rendering are not modeled; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile z plus `projdepthbound`. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
 | Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
@@ -110,7 +110,7 @@ priority details.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow + TimerFreeze round-clock freeze |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector/ChangeMovelist/RemapPal/SaveState/LoadState/MatchRestart/SaveFile/LoadFile/PlayBGM/ModifyBGM/RemapSprite/GroundLevelOffset/Depth/DepthBound/ShaderSet implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), ModifyBGCtrl3D, RunState, and debug-only clipboard/console/assert helpers |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector/ChangeMovelist/RemapPal/SaveState/LoadState/MatchRestart/SaveFile/LoadFile/PlayBGM/ModifyBGM/RemapSprite/GroundLevelOffset/Depth/DepthBound/ShaderSet implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), RunState, and debug-only clipboard/console/assert helpers |
 
 ## 5. Collision and combat
 
@@ -143,13 +143,13 @@ priority details.
 | --- | --- | --- | --- | --- | --- |
 | V-01 | Sprite/palette rendering | Required | Required | Verified | Screenshots |
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
-| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests + `[Scaling]` topz/botz/topscale/botscale/depthtoscreen perspective for fighters |
+| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests + `[Scaling]` perspective for fighters + layered depth/scale via `ModifyBGCtrl3D` |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Win-icon kind/perfect/cap + combo refresh + delayed fills + guard points/bar rendering with hide-at-zero + red-life bar layer from red_life/life_max + guard-crush drain/window; custom guard-break effects pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile shear/perspective rendering + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, stage `[Scaling]` perspective, and z-axis `HitDef depth` collision implemented; GLSL execution and `ModifyBGCtrl3D` not modeled |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, stage `[Scaling]` + layer perspective, and z-axis collision implemented; GLSL execution and GLTF 3D nodes not modeled |
 
 ## 8. Audio
 

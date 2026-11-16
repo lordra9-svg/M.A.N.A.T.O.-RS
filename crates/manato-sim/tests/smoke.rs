@@ -3497,6 +3497,63 @@ fn gethitvar_reports_z_velocity_and_acceleration() {
 }
 
 #[test]
+fn modifybgctrl3d_sets_layer_depth_and_scale() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let Some(layer_id) = assets.stage.layers.first().map(|layer| layer.id) else {
+        return;
+    };
+    let run = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "modifybgctrl3d".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    run(
+        &mut sim,
+        vec![
+            ("ctrlid".into(), layer_id.to_string()),
+            ("value".into(), "40, 2, 1.5".into()),
+        ],
+    );
+    let state = &sim.stage_layers[0];
+    assert_eq!(state.z, Some(40.0));
+    assert_eq!(state.z_scale, Some(manato_core::Vec2::new(2.0, 1.5)));
+    for (index, layer) in assets.stage.layers.iter().enumerate() {
+        if layer.id == layer_id {
+            assert_eq!(sim.stage_layers[index].z, Some(40.0));
+        } else {
+            assert_eq!(sim.stage_layers[index].z, None, "non-matching layer");
+        }
+    }
+    let before = sim.checksum();
+
+    // `ctrlid = -1` applies to every layer.
+    run(
+        &mut sim,
+        vec![
+            ("ctrlid".into(), "-1".into()),
+            ("value".into(), "-20".into()),
+        ],
+    );
+    assert!(sim
+        .stage_layers
+        .iter()
+        .all(|layer| layer.z == Some(-20.0)
+            && layer.z_scale == Some(manato_core::Vec2::new(1.0, 1.0))));
+    assert_ne!(before, sim.checksum());
+
+    // Round restart rebuilds the layers and clears the 3D overrides.
+    sim.restart_match();
+    assert!(sim.stage_layers.iter().all(|layer| layer.z.is_none()));
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

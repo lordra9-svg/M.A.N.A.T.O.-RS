@@ -90,11 +90,13 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         .filter(|(index, layer)| effective_layer_no(*index, layer) < 0 && !hide_bg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
+            let restore = painter_depth(painter, state);
             painter.set_scissor(layer_scissor(layer));
             painter.set_mask(layer.mask);
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
             painter.set_mask(false);
             painter.set_scissor(None);
+            painter.set_depth(restore);
         }
     }
     for (index, layer) in stage
@@ -103,11 +105,13 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         .filter(|(index, layer)| effective_layer_no(*index, layer) == 0 && !hide_bg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
+            let restore = painter_depth(painter, state);
             painter.set_scissor(layer_scissor(layer));
             painter.set_mask(layer.mask);
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
             painter.set_mask(false);
             painter.set_scissor(None);
+            painter.set_depth(restore);
         }
     }
 
@@ -147,11 +151,13 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         .filter(|(index, layer)| effective_layer_no(*index, layer) > 0 && !hide_fg)
     {
         if let Some(state) = sim.stage_layers.get(index) {
+            let restore = painter_depth(painter, state);
             painter.set_scissor(layer_scissor(layer));
             painter.set_mask(layer.mask);
             draw_bg_layer(painter, deps.atlas, sim, stage, layer, state);
             painter.set_mask(false);
             painter.set_scissor(None);
+            painter.set_depth(restore);
         }
     }
 
@@ -294,11 +300,26 @@ fn draw_bg_layer(
     );
     let start = state.start.unwrap_or(layer.start);
     let delta = state.delta.unwrap_or(layer.delta);
-    let scale = state.scale.unwrap_or(Vec2::new(1.0, 1.0));
-    let base = Vec2::new(
+    let mut scale = state.scale.unwrap_or(Vec2::new(1.0, 1.0));
+    let mut base = Vec2::new(
         start.x - camera.x * delta.x + camera.shake.x + motion.x,
         start.y - camera.y * delta.y + camera.shake.y + motion.y,
     );
+    // `ModifyBGCtrl3D` depth perspective for this layer.
+    if let Some(z) = state.z {
+        let z_scale = stage.z_scale(z);
+        base = project_depth(
+            base,
+            z_scale,
+            stage.z_y_offset(z),
+            GAME_WIDTH * 0.5,
+            sim.ground_screen_y(),
+        );
+        scale = scale * z_scale;
+    }
+    if let Some(extra) = state.z_scale {
+        scale = Vec2::new(scale.x * extra.x, scale.y * extra.y);
+    }
 
     let action = state.action.or(layer.action);
     let (sprite, pose, anim) = if let Some(action) = action {
@@ -707,6 +728,15 @@ fn project_depth(anchor: Vec2, z_scale: f32, y_offset: f32, pivot_x: f32, ground
         pivot_x + (anchor.x - pivot_x) * z_scale,
         ground + (anchor.y - ground) * z_scale + y_offset,
     )
+}
+
+/// Applies a layer's `ModifyBGCtrl3D` depth and returns the depth to restore.
+fn painter_depth(painter: &mut Painter, state: &manato_sim::StageLayerState) -> f32 {
+    let restore = painter.depth();
+    if let Some(z) = state.z {
+        painter.set_depth((0.5 + z * 0.001).clamp(0.05, 0.95));
+    }
+    restore
 }
 
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
