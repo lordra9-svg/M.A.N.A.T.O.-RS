@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use crate::text::{parse_pair, TextFile};
@@ -13,6 +13,8 @@ pub struct CharacterFiles {
     pub anim: Option<PathBuf>,
     pub sound: Option<PathBuf>,
     pub ai: Option<PathBuf>,
+    /// `movelist`, `movelist0`, … selection files (`ChangeMovelist`).
+    pub movelists: BTreeMap<i32, PathBuf>,
 }
 
 /// Parsed character `.def` file.
@@ -94,6 +96,26 @@ impl CharacterDef {
             }
         }
 
+        let mut movelists = BTreeMap::new();
+        for (key, value) in &files_section {
+            let Some(suffix) = key.strip_prefix("movelist") else {
+                continue;
+            };
+            let id = if suffix.is_empty() || suffix == "0" {
+                0
+            } else if suffix.chars().all(|c| c.is_ascii_digit()) {
+                match suffix.parse::<i32>() {
+                    Ok(id) => id,
+                    Err(_) => continue,
+                }
+            } else {
+                continue;
+            };
+            if !value.trim().is_empty() {
+                movelists.insert(id, resolve_path(&dir, value));
+            }
+        }
+
         let files = CharacterFiles {
             cmd: resolve("cmd"),
             cns: resolve("cns"),
@@ -103,6 +125,7 @@ impl CharacterDef {
             anim: resolve("anim"),
             sound: resolve("sound"),
             ai: resolve("ai"),
+            movelists,
         };
 
         let palette_keymap = text

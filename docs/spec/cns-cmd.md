@@ -161,6 +161,10 @@ Required controller families for the approved matrix:
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a
   new box; `ClsnVar` and hit detection see the result)
+- `ChangeMovelist` (selects one of the character's `[Files] movelist`,
+  `movelist0`, `movelistN` texts by `value`; an unknown id leaves the
+  selection unchanged. Ikemen exposes this list to Lua AI scripts; the
+  selection is stored here even though no Lua runtime is embedded)
 - `Text`, `ModifyText`, `RemoveText` (screen-space text objects; see
   `docs/spec/text.md`; custom shaders/TTF/windows are not modeled)
 - `AssertCommand` (keeps a command name active for `buffertime` ticks; an

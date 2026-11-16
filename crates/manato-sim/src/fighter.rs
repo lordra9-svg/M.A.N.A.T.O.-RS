@@ -366,6 +366,8 @@ pub struct Fighter {
     pub bind_facing: i32,
     /// `VictoryQuote` index; `-1` selects a default quote.
     pub win_quote: i32,
+    /// Active `ChangeMovelist` selection (0 = default).
+    pub movelist: i32,
     /// Per-fighter `Map()` storage; deterministic ordering for rollback.
     pub map: BTreeMap<String, Value>,
     pub pal_remap: Option<(i32, i32)>,
@@ -547,6 +549,7 @@ impl Fighter {
             bind_offset: Vec2::ZERO,
             bind_facing: 0,
             win_quote: -1,
+            movelist: 0,
             map: BTreeMap::new(),
             pal_remap: None,
             proj_contact_time: -1,

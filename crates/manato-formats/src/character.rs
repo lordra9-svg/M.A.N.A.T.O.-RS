@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -19,6 +19,8 @@ pub struct Character {
     pub quotes: Vec<(i32, String)>,
     pub states: HashMap<i32, StateDef>,
     pub commands: Vec<CommandDef>,
+    /// `movelist`, `movelist0`, … file contents selected by `ChangeMovelist`.
+    pub movelists: BTreeMap<i32, String>,
     pub animations: HashMap<i32, Animation>,
     pub sprites: SffFile,
     pub sounds: SoundBank,
@@ -131,12 +133,29 @@ impl Character {
             }
         }
 
+        let mut movelists = BTreeMap::new();
+        for (id, path) in &def.files.movelists {
+            if let Some(found) = resolve(path) {
+                match std::fs::read(&found) {
+                    Ok(bytes) => {
+                        movelists.insert(*id, crate::text::decode_text(&bytes));
+                    }
+                    Err(error) => {
+                        log::warn!("failed to load movelist {}: {error}", found.display())
+                    }
+                }
+            } else {
+                log::warn!("movelist file not found: {}", path.display());
+            }
+        }
+
         Ok(Self {
             def,
             constants: merged.constants,
             quotes,
             states,
             commands,
+            movelists,
             animations,
             sprites,
             sounds,

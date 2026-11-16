@@ -2391,6 +2391,83 @@ fn text_controller_numtext_modify_and_remove() {
 }
 
 #[test]
+fn changemovelist_selects_loaded_character_lists() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-movelist-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    std::fs::write(dir.join("movelist0.txt"), "default-list").expect("write movelist");
+    std::fs::write(dir.join("movelist2.txt"), "alternate-list").expect("write movelist");
+    let def = dir.join("kaen.def");
+    let text = std::fs::read_to_string(&def).expect("read def");
+    let patched = text.replace(
+        "[Files]",
+        "[Files]\nmovelist = movelist0.txt\nmovelist2 = movelist2.txt",
+    );
+    std::fs::write(&def, patched).expect("patch def");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: def,
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let character = &assets.characters[sim.fighters[0].char_id];
+    assert_eq!(
+        character.movelists.get(&0).map(String::as_str),
+        Some("default-list")
+    );
+    assert_eq!(
+        character.movelists.get(&2).map(String::as_str),
+        Some("alternate-list")
+    );
+    assert_eq!(sim.fighters[0].movelist, 0);
+
+    let change = |sim: &mut SimState, value: &str| {
+        let control = manato_formats::Controller {
+            kind: "changemovelist".into(),
+            params: vec![("value".into(), value.into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    change(&mut sim, "2");
+    assert_eq!(sim.fighters[0].movelist, 2);
+
+    // Invalid selections leave the current list unchanged.
+    change(&mut sim, "9");
+    assert_eq!(sim.fighters[0].movelist, 2);
+
+    // The selection participates in the rollback checksum.
+    change(&mut sim, "0");
+    let before = sim.checksum();
+    change(&mut sim, "2");
+    assert_ne!(before, sim.checksum());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

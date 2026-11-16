@@ -3104,6 +3104,7 @@ impl SimState {
             h.write_f32(f.pal_mul[2]);
             h.write_f32(f.pal_alpha);
             h.write_i32(f.pal_time);
+            h.write_i32(f.movelist);
             for value in f.pal_base_add {
                 h.write_f32(value);
             }

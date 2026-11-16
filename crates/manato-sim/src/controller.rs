@@ -271,6 +271,12 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
+        "changemovelist" => {
+            let value = int_param(sim, who, control, "value").unwrap_or(0);
+            if sim.character(who).movelists.contains_key(&value) {
+                sim.fighters[who].movelist = value;
+            }
+        }
         "text" => text_controller(sim, who, control),
         "modifytext" => modify_text(sim, who, control),
         "removetext" => remove_text(sim, who, control),
