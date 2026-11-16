@@ -43,6 +43,8 @@ pub struct DrawRange {
     pub scissor: Option<[u32; 4]>,
     /// Custom shader selected for these quads (`ShaderSet` name).
     pub shader: Option<String>,
+    /// `ShaderSet shaderparam` values bound with the custom shader.
+    pub shader_params: Option<[f32; 16]>,
 }
 
 /// Accumulates quads and the state changes needed to draw them.
@@ -53,6 +55,7 @@ pub struct Painter {
     mask: bool,
     depth: f32,
     shader: Option<String>,
+    shader_params: Option<[f32; 16]>,
 }
 
 impl Default for Painter {
@@ -64,6 +67,7 @@ impl Default for Painter {
             mask: false,
             depth: 1.0,
             shader: None,
+            shader_params: None,
         }
     }
 }
@@ -76,11 +80,17 @@ impl Painter {
         self.mask = false;
         self.depth = 1.0;
         self.shader = None;
+        self.shader_params = None;
     }
 
     /// Selects a custom shader for subsequent quads (`None` = default).
     pub fn set_shader(&mut self, shader: Option<String>) {
         self.shader = shader;
+    }
+
+    /// Sets the shader parameters bound with subsequent custom-shader quads.
+    pub fn set_shader_params(&mut self, params: Option<[f32; 16]>) {
+        self.shader_params = params;
     }
 
     /// Depth written by subsequent quads.
@@ -108,6 +118,7 @@ impl Painter {
                 && last.mask == self.mask
                 && last.scissor == self.scissor
                 && last.shader == self.shader
+                && last.shader_params == self.shader_params
                 && last.start + last.count == self.vertices.len() as u32
             {
                 last.count += 6;
@@ -122,6 +133,7 @@ impl Painter {
             mask: self.mask,
             scissor: self.scissor,
             shader: self.shader.clone(),
+            shader_params: self.shader_params,
         });
     }
 

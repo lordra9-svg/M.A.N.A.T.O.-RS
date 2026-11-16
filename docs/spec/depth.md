@@ -137,11 +137,23 @@ layout(location = 0) in vec2 uv;
 layout(location = 1) in vec4 color;
 layout(binding = 0) uniform texture2D tex;
 layout(binding = 1) uniform sampler samp;
+layout(binding = 2) uniform ShaderParams { vec4 param[4]; vec4 misc; } sp;
+layout(binding = 3) uniform texture2D pal;
+layout(binding = 4) uniform sampler palSamp;
+layout(binding = 5) uniform texture2D tex1;
+layout(binding = 6) uniform sampler tex1Samp;
+layout(binding = 7) uniform texture2D tex2;
+layout(binding = 8) uniform sampler tex2Samp;
 layout(location = 0) out vec4 frag;
 void main() {
     frag = texture(sampler2D(tex, samp), uv) * color;
 }
 ```
+
+`ShaderSet shaderparam = count, index, value[, index, value...]` fills the
+`param` array (16 slots). `misc` is `(time_seconds, 320, 240, aspect)`.
+`pal`/`tex1`/`tex2` are currently bound to the sprite's atlas page as
+placeholders; dedicated palette and shader textures are not loaded yet.
 
 Compiled shaders are cached per name and usable with normal/add/sub blends and
 the depth buffer; selecting a shader splits the painter's draw ranges so only
@@ -149,15 +161,15 @@ that fighter's quads use it. Compilation failures fall back to the default
 sprite pipeline.
 
 Ikemen's OpenGL-GLSL fragment convention still needs a compatibility layer:
-its shaders use implicit uniform locations and the `pal`/`tex1`/`tex2`/grab
-textures plus a large uniform set. `shaderparam` values and extra textures are
-not yet bound, so such shaders compile only after being rewritten to the
-interface above.
+its shaders use implicit uniform locations and additional uniforms. `param`
+(`shaderparam`) and `pal`/`tex1`/`tex2` bindings are provided, but the latter
+alias the atlas page until sprite/palette textures are wired, and grab passes
+(`bgl_RenderedTexture`) are not modeled.
 
 ## 5. Not modeled
 
-- Ikemen's implicit-location GLSL uniform set, `shaderparam` values, and
-  shader texture inputs (`pal`, `tex1`, `tex2`, grab passes).
+- Ikemen's implicit-location GLSL uniform set, real `pal`/`tex1`/`tex2`
+  textures, and grab passes.
 - GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
   `ctrlid` selects BG layers by `id` (`-1` = all) and
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
@@ -165,4 +177,4 @@ interface above.
   targets 3D model nodes here, which this engine does not load.
 - Hit `zoff` (hit position offset) is always zero; `zvel`/`zaccel` and
   `fall.zvel` report the values applied by the connecting HitDef.
-- `shaderparam` values and extra shader textures.
+- Grab passes and non-placeholder shader texture inputs.

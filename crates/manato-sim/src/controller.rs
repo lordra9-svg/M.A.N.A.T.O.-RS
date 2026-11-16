@@ -2401,11 +2401,28 @@ fn shader_set(sim: &mut SimState, who: usize, control: &Controller) {
     if name.is_empty() {
         sim.fighters[who].shader = None;
         sim.fighters[who].shader_time = 0;
+        sim.fighters[who].shader_params = [0.0; 16];
         return;
     }
     if !sim.character(who).def.shaders.contains_key(&name) {
         log::warn!("ShaderSet: unknown shader {name}");
         return;
+    }
+    // `shaderparam = count, idx, value[, idx, value...]`.
+    if let Some(raw) = control.get("shaderparam") {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| part.trim().parse::<f32>().unwrap_or(0.0))
+            .collect();
+        if let Some(count) = parts.first().map(|value| *value as usize) {
+            for pair in 0..count {
+                let idx = parts.get(1 + pair * 2).copied().unwrap_or(-1.0) as i32;
+                let value = parts.get(2 + pair * 2).copied().unwrap_or(0.0);
+                if (0..16).contains(&idx) {
+                    sim.fighters[who].shader_params[idx as usize] = value;
+                }
+            }
+        }
     }
     sim.fighters[who].shader = Some(name);
     sim.fighters[who].shader_time = if time < 0 { -1 } else { time.max(1) };

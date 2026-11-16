@@ -2472,6 +2472,7 @@ impl SimState {
             fighter.depth_bound = false;
             fighter.shader = None;
             fighter.shader_time = 0;
+            fighter.shader_params = [0.0; 16];
             fighter.sprite_remap.clear();
             fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;
@@ -3335,6 +3336,9 @@ impl SimState {
                 None => h.write_bool(false),
             }
             h.write_i32(f.shader_time);
+            for value in f.shader_params {
+                h.write_f32(value);
+            }
             h.write_u32(f.sprite_remap.len() as u32);
             for ((sg, si), (dg, di)) in &f.sprite_remap {
                 h.write_i32(*sg);

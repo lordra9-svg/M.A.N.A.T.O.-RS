@@ -32,6 +32,7 @@ pub struct AtlasSprite {
 pub struct AtlasPage {
     pub bind_group: wgpu::BindGroup,
     pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
 }
 
 pub struct SpriteAtlas {
@@ -191,6 +192,7 @@ impl SpriteAtlas {
             pages.push(AtlasPage {
                 bind_group,
                 texture,
+                view,
             });
         }
 
@@ -239,6 +241,11 @@ impl SpriteAtlas {
             placements: placement_map,
             sampler,
         }
+    }
+
+    /// Texture view of an atlas page (custom shader bind groups).
+    pub fn page_view(&self, page: u32) -> Option<&wgpu::TextureView> {
+        self.pages.get(page as usize).map(|page| &page.view)
     }
 
     pub fn get(&self, bank: u8, group: i32, index: i32) -> Option<AtlasSprite> {

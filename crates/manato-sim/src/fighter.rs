@@ -414,6 +414,8 @@ pub struct Fighter {
     /// Active `ShaderSet` shader reference and remaining ticks (`0` = none).
     pub shader: Option<String>,
     pub shader_time: i32,
+    /// `ShaderSet shaderparam` values (index → value, 16 slots).
+    pub shader_params: [f32; 16],
     /// Active `ChangeMovelist` selection (0 = default).
     pub movelist: i32,
     /// `RemapSprite` substitutions: source `(group, index)` → destination.
@@ -613,6 +615,7 @@ impl Fighter {
             depth_bound: false,
             shader: None,
             shader_time: 0,
+            shader_params: [0.0; 16],
             movelist: 0,
             sprite_remap: BTreeMap::new(),
             map: BTreeMap::new(),

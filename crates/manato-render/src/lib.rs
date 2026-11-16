@@ -55,7 +55,9 @@ pub struct Renderer {
     depth_view: wgpu::TextureView,
 
     sprite_bgl: wgpu::BindGroupLayout,
-    sprite_layout: wgpu::PipelineLayout,
+    custom_bgl: wgpu::BindGroupLayout,
+    custom_layout: wgpu::PipelineLayout,
+    shader_sampler: wgpu::Sampler,
     /// GLSL vertex module paired with GLSL fragment shaders.
     glsl_vertex_module: wgpu::ShaderModule,
     pipelines: [wgpu::RenderPipeline; 3],
@@ -70,6 +72,8 @@ pub struct Renderer {
     custom_shaders: HashMap<String, [wgpu::RenderPipeline; 3]>,
     /// Shader names that failed to compile or use unsupported GLSL.
     failed_shaders: HashSet<String>,
+    /// Seconds since the match started, fed to custom shader uniforms.
+    shader_time: f32,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -179,6 +183,99 @@ impl Renderer {
             label: Some("manato sprite pipeline layout"),
             bind_group_layouts: &[&sprite_bgl],
             push_constant_ranges: &[],
+        });
+        // Custom shaders additionally expose `shaderparam`, `pal`, `tex1`,
+        // and `tex2`. Textures currently alias the sprite atlas page.
+        let custom_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("manato custom shader bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+        let custom_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("manato custom shader layout"),
+            bind_group_layouts: &[&custom_bgl],
+            push_constant_ranges: &[],
+        });
+        let shader_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("manato shader sampler"),
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
         });
         let make_pipeline = |blend: Blend, shader: &wgpu::ShaderModule| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -409,7 +506,9 @@ impl Renderer {
             game_view,
             depth_view,
             sprite_bgl,
-            sprite_layout,
+            custom_bgl,
+            custom_layout,
+            shader_sampler,
             glsl_vertex_module,
             pipelines,
             pipelines_mask,
@@ -419,6 +518,7 @@ impl Renderer {
             applied_palettes: std::collections::HashMap::new(),
             custom_shaders: HashMap::new(),
             failed_shaders: HashSet::new(),
+            shader_time: 0.0,
             solid,
             shadow,
             blit_pipeline,
@@ -587,7 +687,7 @@ impl Renderer {
             self.device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("manato custom shader pipeline"),
-                    layout: Some(&self.sprite_layout),
+                    layout: Some(&self.custom_layout),
                     vertex: wgpu::VertexState {
                         module: &module,
                         entry_point: Some("vs_main"),
@@ -642,7 +742,7 @@ impl Renderer {
             self.device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("manato GLSL custom pipeline"),
-                    layout: Some(&self.sprite_layout),
+                    layout: Some(&self.custom_layout),
                     vertex: wgpu::VertexState {
                         module: &self.glsl_vertex_module,
                         entry_point: Some("main"),
@@ -726,6 +826,7 @@ impl Renderer {
     /// Draws one frame into the internal 320x240 target.
     pub fn render(&mut self, sim: &SimState) {
         self.apply_palette_remaps(sim);
+        self.shader_time = sim.match_time as f32 / 60.0;
         let deps = SceneDeps {
             atlas: &self.atlas,
             font: &self.font,
@@ -816,6 +917,58 @@ impl Renderer {
         }
 
         let ranges = std::mem::take(&mut self.painter.ranges);
+        // Build per-range custom bind groups (shaderparam + aliased textures).
+        let mut custom_bindings: Vec<Option<(wgpu::Buffer, wgpu::BindGroup)>> =
+            Vec::with_capacity(ranges.len());
+        for range in &ranges {
+            let binding = (|| {
+                if range.mask {
+                    return None;
+                }
+                let name = range.shader.as_ref()?;
+                if !self.custom_shaders.contains_key(name) {
+                    return None;
+                }
+                let TexRef::Atlas(page) = range.tex else {
+                    return None;
+                };
+                let view = self.atlas.page_view(page)?;
+                let mut data = [0f32; 20];
+                if let Some(params) = range.shader_params {
+                    data[..16].copy_from_slice(&params);
+                }
+                data[16] = self.shader_time;
+                data[17] = GAME_WIDTH as f32;
+                data[18] = GAME_HEIGHT as f32;
+                data[19] = GAME_WIDTH as f32 / GAME_HEIGHT as f32;
+                let buffer = self
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("manato shader params"),
+                        contents: cast_slice(&data),
+                        usage: wgpu::BufferUsages::UNIFORM,
+                    });
+                let entries = [
+                    (0, wgpu::BindingResource::TextureView(view)),
+                    (1, wgpu::BindingResource::Sampler(&self.shader_sampler)),
+                    (2, buffer.as_entire_binding()),
+                    (3, wgpu::BindingResource::TextureView(view)),
+                    (4, wgpu::BindingResource::Sampler(&self.shader_sampler)),
+                    (5, wgpu::BindingResource::TextureView(view)),
+                    (6, wgpu::BindingResource::Sampler(&self.shader_sampler)),
+                    (7, wgpu::BindingResource::TextureView(view)),
+                    (8, wgpu::BindingResource::Sampler(&self.shader_sampler)),
+                ]
+                .map(|(binding, resource)| wgpu::BindGroupEntry { binding, resource });
+                let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("manato shader bind group"),
+                    layout: &self.custom_bgl,
+                    entries: &entries,
+                });
+                Some((buffer, bind_group))
+            })();
+            custom_bindings.push(binding);
+        }
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -846,7 +999,7 @@ impl Renderer {
             if !ranges.is_empty() {
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             }
-            for range in &ranges {
+            for (range_index, range) in ranges.iter().enumerate() {
                 let custom = if range.mask {
                     None
                 } else {
@@ -894,7 +1047,11 @@ impl Renderer {
                     pass.set_scissor_rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
                 }
                 pass.set_pipeline(pipeline);
-                pass.set_bind_group(0, bind_group, &[]);
+                if let Some(Some((_, custom_bind_group))) = custom_bindings.get(range_index) {
+                    pass.set_bind_group(0, custom_bind_group, &[]);
+                } else {
+                    pass.set_bind_group(0, bind_group, &[]);
+                }
                 pass.draw(range.start..range.start + range.count, 0..1);
             }
         }
