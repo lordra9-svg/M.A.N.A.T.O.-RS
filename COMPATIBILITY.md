@@ -34,7 +34,7 @@ deliberate, not scheduling gaps:
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, stage `[Scaling]` perspective for fighters and layers, and layer `ModifyBGCtrl3D` (id + z/scale approximation) are implemented; GLTF 3D nodes are not modeled; effect/shadow/text/projectile/reflection perspective is implemented; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile z plus `projdepthbound`; fighter `DepthBound` clamps z to the stage range. `movecamera` is not modeled. |
 | Storyboards | F-12, C-13 | Front-end scenes, text fonts, and sound events render/play; Lua scripting, dynamic BGs/3D models, BGM, and `Storyboard`/`ModifyStoryboard` controllers remain unmodeled. |
-| Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
+| Team/tag flow | R-04 | Active/standby rosters and TagIn/TagOut swaps work, but simul/turns modes, partner lifebars, content-driven rosters, and tag animations remain unmodeled. |
 | Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
 | GLSL uniform layer | V-09 | `.glsl`/`.frag` fragments execute with explicit Vulkan-style bindings, a built-in vertex stage, a `shaderparam` uniform block, and pal/tex1/tex2 placeholder bindings; Ikemen's implicit `uniform` set, dedicated shader textures, and grab passes are not modeled. |
 | Spectators/lobby | N-03 | Spectator transport and lobby state need a netplay session layer. |
@@ -133,7 +133,7 @@ priority details.
 | R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
 | R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw + RoundsWon/LoseKO/LoseTime + timer freeze/clamp |
 | R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay + Win/WinKO/WinTime/WinPerfect/WinClutch/DecisiveRound triggers + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
-| R-04 | Turns/team/tag modes | Required | Ikemen | Partial | In scope by owner decision; stories/turns/tag flow not implemented yet |
+| R-04 | Turns/team/tag modes | Required | Ikemen | Partial | Team rosters with active/standby members, `TagIn`/`TagOut` member swaps with life/power snapshots, `assign_team`, and `TeamSize`/`TeamLeader`/`MemberNo`/`Standby` triggers; simul/turns modes, multi-member lifebars, content-driven team loading, and tag animations not modeled |
 | R-05 | Continue/survival/arcade | Required | Required | Partial | In scope by owner decision; continue/survival/arcade flow not implemented yet |
 | R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + MatchRestart controller + SaveFile/LoadFile + `restart_match` API and R-key reset |
 

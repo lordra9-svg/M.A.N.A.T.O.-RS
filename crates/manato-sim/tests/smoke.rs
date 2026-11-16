@@ -3679,6 +3679,58 @@ fn depthbound_clamps_fighter_z_to_the_stage_range() {
 }
 
 #[test]
+fn tag_team_roster_and_tagout_tagin_swap_members() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival]);
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+    assert_eq!(int(&sim, "TeamSize"), 2);
+    assert_eq!(int(&sim, "MemberNo"), 1);
+    assert_eq!(int(&sim, "TeamLeader"), 1);
+    assert_eq!(int(&sim, "Standby"), 0);
+
+    // Damage the leader, tag out, then tag back in: the stored life returns.
+    sim.fighters[0].life = 700;
+    let tag_out = manato_formats::Controller {
+        kind: "tagout".into(),
+        params: vec![("partnerstateno".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &tag_out, &assets);
+    assert_eq!(sim.fighters[0].char_id, nival);
+    assert_eq!(sim.teams[0].active, 1);
+    assert_eq!(int(&sim, "MemberNo"), 2);
+    assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
+
+    let tag_in = manato_formats::Controller {
+        kind: "tagin".into(),
+        params: vec![("stateno".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &tag_in, &assets);
+    assert_eq!(sim.fighters[0].char_id, kaen);
+    assert_eq!(sim.teams[0].active, 0);
+    assert_eq!(sim.fighters[0].life, 700, "leader life snapshot restored");
+
+    // A single-member team cannot tag.
+    sim.assign_team(0, &[kaen]);
+    let before = sim.fighters[0].char_id;
+    manato_sim::controller::execute(&mut sim, 0, &tag_in, &assets);
+    assert_eq!(sim.fighters[0].char_id, before);
+    assert_eq!(sim.teams[0].members.len(), 1);
+
+    // The active member participates in the rollback checksum.
+    sim.assign_team(0, &[kaen, nival]);
+    let before = sim.checksum();
+    manato_sim::controller::execute(&mut sim, 0, &tag_out, &assets);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -1963,10 +1963,14 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "stagetime" => Value::Int(sim.bg_time as i32),
         "lastplayerid" => Value::Int(sim.last_player_id),
         "fighttime" => Value::Int(sim.match_time),
-        // Single-member teams in the frozen scope.
-        "teamsize" => Value::Int(1),
-        "teamleader" => Value::Int(f.slot as i32 + 1),
-        "memberno" => Value::Int(1),
+        "teamsize" => Value::Int(sim.teams[f.side.min(1)].members.len().max(1) as i32),
+        "teamleader" => Value::Int(if sim.teams[f.side.min(1)].members.len() <= 1 {
+            f.slot as i32 + 1
+        } else {
+            1
+        }),
+        "memberno" => Value::Int(sim.teams[f.side.min(1)].active as i32 + 1),
+        // Only the active member is simulated; standby members are not ticked.
         "standby" => Value::Bool(false),
         "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),

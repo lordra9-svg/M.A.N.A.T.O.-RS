@@ -172,6 +172,31 @@ impl Assets {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TeamMember {
+    pub char_id: usize,
+    pub life: i32,
+    pub red_life: i32,
+    pub power: f32,
+}
+
+impl TeamMember {
+    fn from_fighter(fighter: &fighter::Fighter) -> Self {
+        Self {
+            char_id: fighter.char_id,
+            life: fighter.life,
+            red_life: fighter.red_life,
+            power: fighter.power,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+pub struct TeamRoster {
+    pub members: Vec<TeamMember>,
+    pub active: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MatchOptions {
     pub rounds_to_win: u32,
     pub round_time: i32,
@@ -757,6 +782,8 @@ pub struct SimState {
     pub stage_left_bound: f32,
     pub stage_right_bound: f32,
     pub fighters: Vec<Fighter>,
+    /// Team rosters for each side (index 0/1). Tag swaps rotate `active`.
+    pub teams: [TeamRoster; 2],
     pub frame: u64,
     /// Ticks since the match started (`FightTime`); not reset between rounds.
     pub match_time: i32,
@@ -865,6 +892,16 @@ impl SimState {
             };
             fighters.push(fighter);
         }
+        let teams = [
+            TeamRoster {
+                members: vec![TeamMember::from_fighter(&fighters[0])],
+                active: 0,
+            },
+            TeamRoster {
+                members: vec![TeamMember::from_fighter(&fighters[1])],
+                active: 0,
+            },
+        ];
         let stage_layers = assets
             .stage
             .layers
@@ -881,6 +918,7 @@ impl SimState {
             stage_left_bound,
             stage_right_bound,
             fighters,
+            teams,
             frame: 0,
             match_time: 0,
             first_attack: None,
@@ -2371,6 +2409,90 @@ impl SimState {
         }
     }
 
+    /// Replaces a side's roster (character ids). The first member is active.
+    pub fn assign_team(&mut self, side: usize, char_ids: &[usize]) {
+        if side >= 2 || char_ids.is_empty() {
+            return;
+        }
+        let mut members = Vec::new();
+        for &char_id in char_ids {
+            let Some(character) = self.assets.characters.get(char_id) else {
+                continue;
+            };
+            let life = character
+                .constants
+                .get_or("data.life", character.constants.get_or("life", 1000.0))
+                as i32;
+            members.push(TeamMember {
+                char_id,
+                life,
+                red_life: life,
+                power: 0.0,
+            });
+        }
+        if members.is_empty() {
+            return;
+        }
+        let leader = members[0].char_id;
+        self.teams[side] = TeamRoster { members, active: 0 };
+        if self.fighters[side].char_id != leader {
+            self.rebuild_active(side);
+        }
+    }
+
+    /// Swaps the active roster member (TagIn/TagOut). The incoming fighter is
+    /// rebuilt from its character and keeps the outgoing position/facing.
+    pub fn tag_swap(&mut self, who: usize, incoming_state: Option<i32>, ctrl: bool) -> bool {
+        let side = self.fighters[who].side.min(1);
+        if self.teams[side].members.len() <= 1 {
+            return false;
+        }
+        let active = self.teams[side].active;
+        self.teams[side].members[active] = TeamMember::from_fighter(&self.fighters[who]);
+        let next = (active + 1) % self.teams[side].members.len();
+        self.teams[side].active = next;
+        let member = self.teams[side].members[next].clone();
+        self.rebuild_active_with(who, &member, incoming_state, ctrl);
+        true
+    }
+
+    fn rebuild_active(&mut self, who: usize) {
+        let member = self.teams[who.min(1)]
+            .members
+            .get(self.teams[who.min(1)].active)
+            .cloned();
+        if let Some(member) = member {
+            self.rebuild_active_with(who, &member, None, true);
+        }
+    }
+
+    fn rebuild_active_with(
+        &mut self,
+        who: usize,
+        member: &TeamMember,
+        incoming_state: Option<i32>,
+        ctrl: bool,
+    ) {
+        let Some(character) = self.assets.characters.get(member.char_id) else {
+            return;
+        };
+        let old = &self.fighters[who];
+        let (side, slot, pos, facing, ai_level) =
+            (old.side, old.slot, old.pos, old.facing, old.ai_level);
+        let mut fighter = fighter::Fighter::new(character, member.char_id, side, slot, pos, facing);
+        fighter.ai_level = ai_level;
+        fighter.life = member.life.clamp(0, fighter.life_max.max(1));
+        fighter.red_life = member.red_life.clamp(fighter.life, fighter.life_max);
+        fighter.power = member.power.min(MAX_POWER);
+        fighter.ctrl = ctrl;
+        if let Some(stateno) = incoming_state {
+            if character.state(stateno).is_some() {
+                fighter.enter_state(stateno, character, false);
+            }
+        }
+        self.fighters[who] = fighter;
+    }
+
     /// Restarts the match from round 1, clearing wins, power, and match state.
     /// The host may call this after `finished` (`docs/spec/rounds.md` §6).
     pub fn restart_match(&mut self) {
@@ -2403,12 +2525,26 @@ impl SimState {
             }
         }
         self.fighters.truncate(2);
+        for team in &mut self.teams {
+            team.active = 0;
+        }
         // Unique IDs are 1-based, so two players occupy IDs 1 and 2.
         self.last_player_id = self.fighters.len() as i32;
         let stage = &self.assets.stage;
         for slot in 0..2 {
-            let char = &self.assets.characters[slot];
+            let char_id = self.teams[slot]
+                .members
+                .first()
+                .map(|member| member.char_id)
+                .unwrap_or(slot);
+            self.fighters[slot].char_id = char_id;
+            let char = &self.assets.characters[char_id];
+            let default_life = char
+                .constants
+                .get_or("data.life", char.constants.get_or("life", 1000.0))
+                as i32;
             let fighter = &mut self.fighters[slot];
+            fighter.life_max = default_life.max(1);
             let power = fighter.power;
             let start = if slot == 0 {
                 stage.p1_start
@@ -3468,6 +3604,16 @@ impl SimState {
                 h.write_u8(frame.input.dir);
                 h.write_u8(frame.input.buttons);
                 h.write_u8(frame.pause_bits);
+            }
+        }
+        for team in &self.teams {
+            h.write_u32(team.members.len() as u32);
+            h.write_u32(team.active as u32);
+            for member in &team.members {
+                h.write_u32(member.char_id as u32);
+                h.write_i32(member.life);
+                h.write_i32(member.red_life);
+                h.write_f32(member.power);
             }
         }
         h.finish()

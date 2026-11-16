@@ -87,6 +87,16 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "turn" => {
             sim.fighters[who].facing = -sim.fighters[who].facing;
         }
+        "tagin" | "tagout" => {
+            let incoming = int_param(sim, who, control, "partnerstateno")
+                .or_else(|| int_param(sim, who, control, "stateno"))
+                .filter(|state| *state >= 0);
+            let ctrl = int_param(sim, who, control, "partnerctrl")
+                .or_else(|| int_param(sim, who, control, "ctrl"))
+                .unwrap_or(1)
+                != 0;
+            sim.tag_swap(who, incoming, ctrl);
+        }
         "poweradd" => {
             let value = num_param(sim, who, control, "value").unwrap_or(0.0);
             sim.fighters[who].power = clamp(sim.fighters[who].power + value, 0.0, MAX_POWER);
