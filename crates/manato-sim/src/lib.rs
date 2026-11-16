@@ -1223,9 +1223,10 @@ impl SimState {
             let scale = self.camera.scale;
             let stage = &self.assets.stage;
             let (stage_left, stage_right) = (stage.camera.bound_left, stage.camera.bound_right);
+            let z_range = (stage.z_min, stage.z_max);
             for projectile in &mut self.projectiles {
                 projectile.advance();
-                projectile.apply_bounds(camera_x, scale, stage_left, stage_right);
+                projectile.apply_bounds(camera_x, scale, stage_left, stage_right, z_range);
             }
         }
         collision::resolve_projectiles(self);

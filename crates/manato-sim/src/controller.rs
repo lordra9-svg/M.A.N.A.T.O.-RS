@@ -2838,6 +2838,27 @@ fn remove_explod(sim: &mut SimState, who: usize, control: &Controller) {
     }
 }
 
+/// Reads up to three literal components from a controller value.
+fn triplet(control: &Controller, key: &str) -> (f32, f32, f32) {
+    let Some(raw) = control.get(key) else {
+        return (0.0, 0.0, 0.0);
+    };
+    let mut parts = raw.split(',');
+    let x = parts
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0.0);
+    let y = parts
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0.0);
+    let z = parts
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0.0);
+    (x, y, z)
+}
+
 fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::Assets) {
     let char = char_of(assets, sim, who);
     let anim = int_param(sim, who, control, "projanim").unwrap_or(0);
@@ -2845,9 +2866,18 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         log::warn!("projectile uses missing animation {anim}");
         return;
     }
-    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
-    let (vx, vy) = control.get_pair("velocity").unwrap_or((0.0, 0.0));
-    let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
+    let (px, py, pz) = {
+        let (x, y, z) = triplet(control, "pos");
+        let (ox, oy, oz) = triplet(control, "offset");
+        let (x, y) = if control.get("pos").is_some() {
+            (x, y)
+        } else {
+            (ox, oy)
+        };
+        (x, y, if control.get("pos").is_some() { z } else { oz })
+    };
+    let (vx, vy, vz) = triplet(control, "velocity");
+    let (ax, ay, az) = triplet(control, "accel");
     let facing = sim.fighters[who].facing;
     let mut hitdef = HitDef::from_controller_for(
         control,
@@ -2893,10 +2923,13 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let stage_bound = num_param(sim, who, control, "projstagebound").unwrap_or(40.0);
     let height_bound = control.get_pair("projheightbound").unwrap_or((-240.0, 1.0));
     let depth_bound = num_param(sim, who, control, "projdepthbound").unwrap_or(f32::MAX);
-    let rem_velocity = control
-        .get_pair("remvelocity")
-        .or_else(|| control.get_pair("projremvelocity"))
-        .unwrap_or((0.0, 0.0));
+    let (rem_velocity, rem_velocity_z) = if control.get("remvelocity").is_some() {
+        let (x, y, z) = triplet(control, "remvelocity");
+        ((x, y), z)
+    } else {
+        let (x, y, z) = triplet(control, "projremvelocity");
+        ((x, y), z)
+    };
     let postype = str_param(control, "postype")
         .unwrap_or("p1")
         .to_ascii_lowercase();
@@ -2912,6 +2945,11 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         _ => owner,
     };
     let pos = Vec2::new(base.x + px * facing as f32, base.y + py);
+    let base_z = match postype.as_str() {
+        "p2" => sim.fighters[sim.other(who)].z,
+        _ => sim.fighters[who].z,
+    };
+    let z = base_z + pz;
     // `removetime = 0` expires before the projectile can move or hit.
     if remove_time == 0 {
         return;
@@ -2924,6 +2962,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         pos,
         vel: Vec2::new(vx * facing as f32, vy),
         accel: Vec2::new(ax * facing as f32, ay),
+        z,
+        vel_z: vz,
+        accel_z: az,
         facing,
         scale: Vec2::new(scale.0, scale.1),
         angle,
@@ -2952,6 +2993,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         status: crate::projectile::ProjectileStatus::Active,
         removal_ticks: 0,
         rem_velocity: Vec2::new(rem_velocity.0, rem_velocity.1),
+        rem_velocity_z,
         hits,
         hits_max: hits,
         hitdef,
@@ -3030,8 +3072,10 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         .map(|(index, _)| index)
         .collect();
     let anim = int_param(sim, who, control, "projanim");
-    let velocity = control.get_pair("velocity");
-    let accel = control.get_pair("accel");
+    let velocity = control
+        .get("velocity")
+        .map(|_| triplet(control, "velocity"));
+    let accel = control.get("accel").map(|_| triplet(control, "accel"));
     let remove_time = int_param(sim, who, control, "projremovetime")
         .or_else(|| int_param(sim, who, control, "removetime"));
     let hits =
@@ -3055,9 +3099,13 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let stage_bound = num_param(sim, who, control, "projstagebound");
     let height_bound = control.get_pair("projheightbound");
     let depth_bound = num_param(sim, who, control, "projdepthbound");
-    let rem_velocity = control
-        .get_pair("remvelocity")
-        .or_else(|| control.get_pair("projremvelocity"));
+    let rem_velocity = if control.get("remvelocity").is_some() {
+        Some(triplet(control, "remvelocity"))
+    } else {
+        control
+            .get("projremvelocity")
+            .map(|_| triplet(control, "projremvelocity"))
+    };
     let damage = control.get("damage").and_then(|raw| {
         raw.split(',')
             .next()
@@ -3072,12 +3120,14 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
                 .map(|animation| animation.total_time())
                 .unwrap_or(0);
         }
-        if let Some((x, y)) = velocity {
+        if let Some((x, y, z)) = velocity {
             projectile.vel = Vec2::new(x * facing as f32, y);
+            projectile.vel_z = z;
             projectile.facing = facing;
         }
-        if let Some((x, y)) = accel {
+        if let Some((x, y, z)) = accel {
             projectile.accel = Vec2::new(x * facing as f32, y);
+            projectile.accel_z = z;
         }
         if let Some(remove_time) = remove_time {
             projectile.remove_time = remove_time;
@@ -3143,8 +3193,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         if let Some(depth_bound) = depth_bound {
             projectile.depth_bound = depth_bound;
         }
-        if let Some((x, y)) = rem_velocity {
+        if let Some((x, y, z)) = rem_velocity {
             projectile.rem_velocity = Vec2::new(x, y);
+            projectile.rem_velocity_z = z;
         }
         if let Some(damage) = damage {
             projectile.hitdef.damage = damage;

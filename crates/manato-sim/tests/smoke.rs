@@ -3381,6 +3381,76 @@ fn hitdef_depth_gates_z_axis_collision() {
 }
 
 #[test]
+fn projectile_z_position_and_depth_bounds() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = -50.0;
+        assets.stage.z_max = 50.0;
+    }
+    sim.fighters[0].pos = manato_core::Vec2::ZERO;
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].z = 5.0;
+    sim.fighters[1].pos = manato_core::Vec2::ZERO;
+    sim.fighters[1].facing = -1;
+
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("offset".into(), "0,0,40".into()),
+            ("velocity".into(), "1,0,2".into()),
+            ("accel".into(), "0,0,1".into()),
+            ("projdepthbound".into(), "10".into()),
+            ("removetime".into(), "60".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    drop(assets);
+    assert_eq!(sim.projectiles.len(), 1);
+    let projectile = &sim.projectiles[0];
+    assert_eq!(projectile.z, 45.0, "offset z adds to the owner's z");
+    assert_eq!(projectile.vel_z, 2.0);
+    assert_eq!(projectile.accel_z, 1.0);
+
+    // Depth bounds only apply when the stage has a depth range.
+    sim.projectiles[0].apply_bounds(0.0, 1.0, -500.0, 500.0, (-50.0, 50.0));
+    assert!(!sim.projectiles[0].out_of_bounds, "45 is inside 50");
+    sim.projectiles[0].z = 61.0;
+    sim.projectiles[0].apply_bounds(0.0, 1.0, -500.0, 500.0, (-50.0, 50.0));
+    assert!(sim.projectiles[0].out_of_bounds, "61 > 50 + bound 10");
+    sim.projectiles[0].out_of_bounds = false;
+    sim.projectiles[0].apply_bounds(0.0, 1.0, -500.0, 500.0, (0.0, 0.0));
+    assert!(
+        !sim.projectiles[0].out_of_bounds,
+        "no stage depth range disables the z bound"
+    );
+
+    // Projectile hits are z-gated like fighter hits.
+    sim.projectiles[0].pos = manato_core::Vec2::ZERO;
+    sim.projectiles[0].time = 0;
+    sim.projectiles[0].hitdef.attack_depth = [10.0, 10.0];
+    sim.projectiles[0].hitdef.damage = 10;
+    sim.projectiles[0].z = 100.0;
+    let life = sim.fighters[1].life;
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    assert_eq!(sim.fighters[1].life, life, "z-separated projectile misses");
+
+    sim.projectiles[0].z = 10.0;
+    sim.projectiles[0].time = 0;
+    manato_sim::collision::resolve_projectiles(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life,
+        life - 10,
+        "projectile depth band intersects the defender"
+    );
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -10686,6 +10756,9 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         pos: sim.fighters[1].pos,
         vel: manato_core::Vec2::ZERO,
         accel: manato_core::Vec2::ZERO,
+        z: 0.0,
+        vel_z: 0.0,
+        accel_z: 0.0,
         facing: 1,
         scale: manato_core::Vec2::new(1.0, 1.0),
         angle: 0.0,
@@ -10714,6 +10787,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         status: manato_sim::projectile::ProjectileStatus::Active,
         removal_ticks: 0,
         rem_velocity: manato_core::Vec2::ZERO,
+        rem_velocity_z: 0.0,
         hits: 2,
         hits_max: 2,
         hitdef,

@@ -162,14 +162,19 @@ pub(crate) fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> 
 /// applies when the stage defines a depth range (`[PlayerInfo] topbound` !=
 /// `botbound`).
 fn z_axis_allows(sim: &SimState, attacker: usize, defender: usize, hitdef: &HitDef) -> bool {
+    z_bands_allow(sim, sim.fighters[attacker].z, hitdef.attack_depth, defender)
+}
+
+/// Shared z-axis band test for attacks (fighters and projectiles) against a
+/// defender's `Depth` extents.
+fn z_bands_allow(sim: &SimState, z: f32, attack_depth: [f32; 2], defender: usize) -> bool {
     let stage = &sim.assets.stage;
     if (stage.z_max - stage.z_min).abs() < f32::EPSILON {
         return true;
     }
-    let a = &sim.fighters[attacker];
     let d = &sim.fighters[defender];
-    let a_top = a.z - hitdef.attack_depth[0];
-    let a_bottom = a.z + hitdef.attack_depth[1];
+    let a_top = z - attack_depth[0];
+    let a_bottom = z + attack_depth[1];
     let d_top = d.z - d.depth_player[0];
     let d_bottom = d.z + d.depth_player[1];
     a_bottom >= d_top && a_top <= d_bottom
@@ -1011,7 +1016,7 @@ pub fn apply_hit_at(
 pub fn resolve_projectiles(sim: &mut SimState) {
     let count = sim.projectiles.len();
     for i in 0..count {
-        let (owner, anim, time, facing, pos, hits, hitdef) = {
+        let (owner, anim, time, facing, pos, z, hits, hitdef) = {
             let p = &sim.projectiles[i];
             (
                 p.owner,
@@ -1019,6 +1024,7 @@ pub fn resolve_projectiles(sim: &mut SimState) {
                 p.time,
                 p.facing,
                 p.pos,
+                p.z,
                 p.hits,
                 p.hitdef.clone(),
             )
@@ -1067,6 +1073,9 @@ pub fn resolve_projectiles(sim: &mut SimState) {
             continue;
         }
         if !any_overlap(&attack_boxes, &hurt_boxes) {
+            continue;
+        }
+        if !z_bands_allow(sim, z, hitdef.attack_depth, defender) {
             continue;
         }
 

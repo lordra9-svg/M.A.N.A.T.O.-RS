@@ -32,8 +32,14 @@ defender = [z - depth_player[0], z + depth_player[1]]
 The bands must overlap for a hit to connect, using the defender's current
 `Depth` `player` extents. The check only runs when the stage defines a depth
 range (`[PlayerInfo] topbound != botbound`); otherwise hits ignore depth, as in
-Ikemen. This applies to normal `HitDef` collision (projectiles still use their
-2D/`attack_depth` values without a z position).
+Ikemen. The same band test applies to projectile hits.
+
+Projectiles also carry `z`/`vel_z`/`accel_z`:
+`offset = x, y, z` initialises the projectile at the owner's `z` plus the
+offset (P2 postypes use P2's `z`), and `velocity`/`accel`/`remvelocity` accept a
+third component. `projdepthbound` removes the projectile when its `z` leaves
+`[z_min - bound, z_max + bound]`, and only when the stage defines a depth
+range.
 
 ## 3. Rendering
 
@@ -87,7 +93,9 @@ rollback checksum.
 
 - Stage-BG 3D controllers (`ModifyBGCtrl3D`) and perspective for stage layers,
   shadows, reflections, effects, and texts (fighters only for now).
-- Projectile z positions and `p2depth`/`depthbound` clamping (the flag is
-  stored but does not constrain movement).
+- Fighter `p2depth`/`depthbound` clamping (the flag is stored but does not
+  constrain movement).
+- Projectile z rendering/perspective (depth affects collisions and bounds
+  only).
 - `GetHitVar(zoff|zvel|zaccel)`, which still reads zero.
 - Custom shader execution, `shaderparam`, and texture inputs.

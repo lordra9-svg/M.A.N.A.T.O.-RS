@@ -22,6 +22,10 @@ pub struct Projectile {
     pub pos: Vec2,
     pub vel: Vec2,
     pub accel: Vec2,
+    /// Depth position (`offset` third component; follows the owner's `z`).
+    pub z: f32,
+    pub vel_z: f32,
+    pub accel_z: f32,
     pub facing: i32,
     /// `projscale` multiplier for the animation frame.
     pub scale: Vec2,
@@ -72,6 +76,7 @@ pub struct Projectile {
     pub removal_ticks: i32,
     /// `remvelocity` applied when entering the hit/removal state.
     pub rem_velocity: Vec2,
+    pub rem_velocity_z: f32,
     /// Remaining hits before the projectile disappears.
     pub hits: i32,
     /// Initial hit allowance (`projhitsmax`).
@@ -111,7 +116,9 @@ impl Projectile {
         self.status = status;
         // Entering the removal state replaces the velocity.
         self.vel = self.rem_velocity;
+        self.vel_z = self.rem_velocity_z;
         self.accel = Vec2::ZERO;
+        self.accel_z = 0.0;
         let anim = match status {
             ProjectileStatus::Hit => self.hit_anim,
             ProjectileStatus::Rem => self.rem_anim,
@@ -136,7 +143,14 @@ impl Projectile {
     /// Marks the projectile for removal once it passes the screen edge or
     /// stage/height bounds (`projedgebound`, `projstagebound`,
     /// `projheightbound`; depth is not modeled).
-    pub fn apply_bounds(&mut self, camera_x: f32, scale: f32, stage_left: f32, stage_right: f32) {
+    pub fn apply_bounds(
+        &mut self,
+        camera_x: f32,
+        scale: f32,
+        stage_left: f32,
+        stage_right: f32,
+        z_range: (f32, f32),
+    ) {
         // `projedgebound` extends the visible camera edges; `projstagebound`
         // extends the camera's movement limits.
         let half = manato_core::GAME_WIDTH / (2.0 * scale.max(0.0001));
@@ -149,6 +163,8 @@ impl Projectile {
             || (vel_x > 0.0 && self.pos.x > stage_right + half + self.stage_bound)
             || (self.vel.y > 0.0 && self.pos.y > self.height_bound.1)
             || (self.vel.y < 0.0 && self.pos.y < self.height_bound.0)
+            || ((z_range.1 - z_range.0).abs() >= f32::EPSILON
+                && (self.z < z_range.0 - self.depth_bound || self.z > z_range.1 + self.depth_bound))
         {
             self.out_of_bounds = true;
         }
@@ -158,8 +174,10 @@ impl Projectile {
         self.time += 1;
         self.pos.x += self.vel.x;
         self.pos.y += self.vel.y;
+        self.z += self.vel_z;
         self.vel.x += self.accel.x;
         self.vel.y += self.accel.y;
+        self.vel_z += self.accel_z;
         // Ikemen decrements the countdown after the frame's contact checks.
         if self.remove_time > 0 {
             self.remove_time -= 1;
