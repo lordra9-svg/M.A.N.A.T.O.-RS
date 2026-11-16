@@ -292,6 +292,14 @@ pub struct Stage {
     pub screen_left: f32,
     pub screen_right: f32,
     pub zoffset: f32,
+    /// `[Scaling] topz`/`botz`: depth range used for perspective.
+    pub z_top: f32,
+    pub z_bottom: f32,
+    /// `[Scaling] topscale`/`botscale`: sprite scale at `z_top`/`z_bottom`.
+    pub z_top_scale: f32,
+    pub z_bottom_scale: f32,
+    /// `[Scaling] depthtoscreen`: converts depth units to screen Y offset.
+    pub depth_to_screen: f32,
     pub autoturn: bool,
     pub reset_bg: bool,
     pub debug_bg: bool,
@@ -331,6 +339,11 @@ impl Default for Stage {
             screen_left: 0.0,
             screen_right: 0.0,
             zoffset: 0.0,
+            z_top: 0.0,
+            z_bottom: 0.0,
+            z_top_scale: 1.0,
+            z_bottom_scale: 1.0,
+            depth_to_screen: 0.0,
             autoturn: false,
             reset_bg: true,
             debug_bg: false,
@@ -356,6 +369,22 @@ impl Default for Stage {
 }
 
 impl Stage {
+    /// Sprite scale at depth `z`, interpolated across `z_top..z_bottom`.
+    /// Returns `1.0` when the stage has no depth range.
+    pub fn z_scale(&self, z: f32) -> f32 {
+        let range = self.z_bottom - self.z_top;
+        if range.abs() < f32::EPSILON {
+            return 1.0;
+        }
+        let d = (z - self.z_top) / range;
+        (self.z_top_scale + d * (self.z_bottom_scale - self.z_top_scale)).max(0.0)
+    }
+
+    /// Screen-space Y offset for depth `z` (`depthtoscreen`).
+    pub fn z_y_offset(&self, z: f32) -> f32 {
+        z * self.depth_to_screen
+    }
+
     pub fn load(path: &Path, data_dirs: &[PathBuf]) -> anyhow::Result<Self> {
         let def = StageDefFile::load(path)
             .with_context(|| format!("failed to load stage def {}", path.display()))?;
@@ -511,6 +540,11 @@ impl Stage {
             .map(section_map)
             .unwrap_or_default();
         let music_map = def.text.find("music").map(section_map).unwrap_or_default();
+        let scaling = def
+            .text
+            .find("scaling")
+            .map(crate::def::section_map)
+            .unwrap_or_default();
         let bgdef = &def.bgdef;
 
         Ok(Self {
@@ -526,6 +560,26 @@ impl Stage {
             screen_left: num(&def.player_info, "screenleft", 15.0),
             screen_right: num(&def.player_info, "screenright", 15.0),
             zoffset: num(&stage_info, "zoffset", 204.0),
+            z_top: scaling
+                .get("topz")
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(0.0),
+            z_bottom: scaling
+                .get("botz")
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(0.0),
+            z_top_scale: scaling
+                .get("topscale")
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(1.0),
+            z_bottom_scale: scaling
+                .get("botscale")
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(1.0),
+            depth_to_screen: scaling
+                .get("depthtoscreen")
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(0.0),
             autoturn: num(&stage_info, "autoturn", 1.0) != 0.0,
             reset_bg: num(&stage_info, "resetbg", 1.0) != 0.0,
             debug_bg: num(bgdef, "debugbg", 0.0) != 0.0,
@@ -816,6 +870,35 @@ mod tests {
         let music = stage.music.path.expect("music path");
         assert!(music.ends_with("sub/theme.ogg"), "got {music:?}");
         assert_eq!(stage.music.volume, 90);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parses_scaling_and_projects_depth() {
+        let dir = std::env::temp_dir().join(format!("manato-stage-scale-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dirs");
+        let def = dir.join("stage.def");
+        std::fs::write(
+            &def,
+            "[Info]\nname = Depth\n[Camera]\n[PlayerInfo]\n[BGdef]\n\
+             [StageInfo]\nzoffset = 100\n\
+             [Scaling]\ntopz = -100\nbotz = 100\ntopscale = 0.5\n\
+             botscale = 1.5\ndepthtoscreen = 0.25\n",
+        )
+        .expect("write def");
+        let stage = Stage::load(&def, &[]).expect("stage load");
+        assert_eq!(stage.zoffset, 100.0);
+        assert_eq!(stage.z_top, -100.0);
+        assert_eq!(stage.z_bottom, 100.0);
+        assert_eq!(stage.z_top_scale, 0.5);
+        assert_eq!(stage.z_bottom_scale, 1.5);
+        assert_eq!(stage.depth_to_screen, 0.25);
+        assert!((stage.z_scale(-100.0) - 0.5).abs() < 1e-5);
+        assert!((stage.z_scale(0.0) - 1.0).abs() < 1e-5);
+        assert!((stage.z_scale(50.0) - 1.25).abs() < 1e-5);
+        assert!((stage.z_scale(100.0) - 1.5).abs() < 1e-5);
+        assert!((stage.z_y_offset(40.0) - 10.0).abs() < 1e-5);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

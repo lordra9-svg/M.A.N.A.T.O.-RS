@@ -700,6 +700,15 @@ fn draw_atlas_quad(
     );
 }
 
+/// Applies stage `[Scaling]` perspective: scale about the camera centre and
+/// the ground line, then shift by the depth-to-screen offset.
+fn project_depth(anchor: Vec2, z_scale: f32, y_offset: f32, pivot_x: f32, ground: f32) -> Vec2 {
+    Vec2::new(
+        pivot_x + (anchor.x - pivot_x) * z_scale,
+        ground + (anchor.y - ground) * z_scale + y_offset,
+    )
+}
+
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
     let fighter = &sim.fighters[who];
     // Positive `z` is farther; `0` matches the default mid-ground plane.
@@ -721,10 +730,23 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     let mut anchor = sim.screen_pos(fighter.pos);
     anchor.x += character.constants.get_or("draw.offset.x", 0.0) + fighter.draw_offset.x;
     anchor.y += character.constants.get_or("draw.offset.y", 0.0) + fighter.draw_offset.y;
+    // Stage `[Scaling]` perspective: scale about the camera centre and the
+    // ground line, then add the depth-to-screen Y offset.
+    let stage = &sim.assets.stage;
+    let z_scale = stage.z_scale(fighter.z);
+    if (z_scale - 1.0).abs() > f32::EPSILON || fighter.z != 0.0 {
+        anchor = project_depth(
+            anchor,
+            z_scale,
+            stage.z_y_offset(fighter.z),
+            manato_core::GAME_WIDTH * 0.5,
+            sim.ground_screen_y(),
+        );
+    }
     let base_scale = Vec2::new(
         character.constants.get_or("size.xscale", 1.0) * fighter.size_xscale,
         character.constants.get_or("size.yscale", 1.0) * fighter.size_yscale,
-    );
+    ) * z_scale;
     let elapsed = fighter.anim_elem_time(anim_character, fighter.anim_elem());
     let pose = anim
         .interpolated_pose(fighter.anim_frame, elapsed)
@@ -1277,6 +1299,24 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn depth_projection_scales_about_camera_and_ground() {
+        let anchor = Vec2::new(200.0, 180.0);
+        // A depth scale of 1 with no y offset is an identity.
+        let same = project_depth(anchor, 1.0, 0.0, 160.0, 200.0);
+        assert!((same.x - anchor.x).abs() < 1e-5);
+        assert!((same.y - anchor.y).abs() < 1e-5);
+
+        // Scaling about the camera centre and ground line.
+        let far = project_depth(anchor, 0.5, 0.0, 160.0, 200.0);
+        assert!((far.x - 180.0).abs() < 1e-5);
+        assert!((far.y - 190.0).abs() < 1e-5);
+
+        // Depth-to-screen shifts Y after scaling.
+        let shifted = project_depth(anchor, 1.0, 12.0, 160.0, 200.0);
+        assert!((shifted.y - 192.0).abs() < 1e-5);
+    }
 
     #[test]
     fn global_tint_composes_mul_add_and_alpha() {

@@ -32,7 +32,7 @@ deliberate, not scheduling gaps:
 | Blocker | Rows | Reason |
 | --- | --- | --- |
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
-| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position and a wgpu depth buffer are implemented; perspective scaling, `ModifyBGCtrl3D`, and z-axis attack collision are not modeled. |
+| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, and stage `[Scaling]` perspective for fighters are implemented; `ModifyBGCtrl3D`, layer/effect perspective, and z-axis attack collision are not modeled. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
 | Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
@@ -143,13 +143,13 @@ priority details.
 | --- | --- | --- | --- | --- | --- |
 | V-01 | Sprite/palette rendering | Required | Required | Verified | Screenshots |
 | V-02 | Blend modes | Required | Required | Verified | Screenshots |
-| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests |
+| V-03 | Stage layers/parallax/tiling | Required | Required | Partial | Layer geometry + BGCtrl vel/pos/visible/anim/sin/cos update tests + `[Scaling]` topz/botz/topscale/botscale/depthtoscreen perspective for fighters |
 | V-04 | HUD/lifebars/fonts | Required | Required | Partial | Win-icon kind/perfect/cap + combo refresh + delayed fills + guard points/bar rendering with hide-at-zero + red-life bar layer from red_life/life_max + guard-crush drain/window; custom guard-break effects pending |
 | V-05 | Explods/projectiles | Required | Required | Partial | Lifetime/removal + edge/window/perspective edges + projectile shear/perspective rendering + projectile hit/guard oracle |
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, and a wgpu depth buffer implemented; GLSL execution and perspective scaling not modeled |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, and stage `[Scaling]` perspective implemented; GLSL execution and `ModifyBGCtrl3D` not modeled |
 
 ## 8. Audio
 

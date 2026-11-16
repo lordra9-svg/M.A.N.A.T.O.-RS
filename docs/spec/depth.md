@@ -36,6 +36,25 @@ order. Scene regions use fixed planes:
 A positive `z` (farther) therefore sorts behind a `z = 0` fighter, and a
 negative `z` sorts in front.
 
+### 3.1 Perspective
+
+The stage `[Scaling]` section supplies `topz`, `botz`, `topscale`,
+`botscale`, and `depthtoscreen`. `Stage::z_scale(z)` interpolates the sprite
+scale across `topz..botz` (clamped at 0, and `1.0` when the range is empty or
+the stage does not define it). `z_y_offset(z)` is `z * depthtoscreen`.
+
+When a fighter's `z` is non-zero, its draw anchor is projected as:
+
+```
+x = pivot_x + (x - pivot_x) * z_scale
+y = ground + (y - ground) * z_scale + z * depthtoscreen
+```
+
+where `pivot_x` is the camera centre and `ground` is the ground line. Sprite
+scale is multiplied by `z_scale`, so a fighter at the far plane is smaller and
+shifted toward the horizon. With `z = 0` and no `[Scaling]` range the
+transform is an identity.
+
 ## 4. Shaders
 
 `CharacterDef.shaders` parses the DEF `[Shaders]` section (`name = file`) with
@@ -50,7 +69,8 @@ rollback checksum.
 
 ## 5. Not modeled
 
-- Perspective scaling (`zscale`, `zoffset` projection) and `ModifyBGCtrl3D`.
+- Stage-BG 3D controllers (`ModifyBGCtrl3D`) and perspective for stage layers,
+  shadows, reflections, effects, and texts (fighters only for now).
 - Z-axis attack/defence collision (`attack_depth`), `p2depth`, and depth bounds
-  affecting hit detection.
+  affecting hit detection. `[Scaling]` perspective is implemented.
 - Custom shader execution, `shaderparam`, and texture inputs.
