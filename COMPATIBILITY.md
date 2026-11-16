@@ -33,7 +33,7 @@ deliberate, not scheduling gaps:
 | --- | --- | --- |
 | Sprite substitution | C-07, C-13 | `RemapSprite` and `AfterImage remappal` (sprite substitution) are not modeled; `RemapPal` recolors indexed sprites in place. |
 | Disk serialization | C-13, R-06 | `SaveFile`/`LoadFile` need a stable on-disk format; in-memory `SaveState`/`LoadState` and `MatchRestart` are implemented. |
-| Audio streaming | A-03, T-08 | `PlayBGM`/`ModifyBGM` and live `BgmVar`/`SoundVar` fields need a streaming BGM engine; the mixer currently plays decoded one-shots. |
+| BGM stream feedback | A-03 | `BgmVar(position|length|samplerate)` and non-loop playback need the mixer to report stream state back to the simulation. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/`ModifyBGCtrl3D` and non-zero Z fields need a depth renderer; the engine is strictly 2D. |
 | Ground plane model | C-13, K-04 | `GroundLevelOffset` needs a per-character ground plane that does not conflict with screen-bound clamping. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
@@ -113,7 +113,7 @@ priority details.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow + TimerFreeze round-clock freeze |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector/ChangeMovelist/RemapPal/SaveState/LoadState/MatchRestart implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), ShaderSet (V-09 pending), RunState, RemapSprite (sprite substitution), ModifyBGM/PlayBGM (no BGM engine), 3D/depth controllers, SaveFile/LoadFile (disk serialization), and debug-only clipboard/console/assert helpers |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector/ChangeMovelist/RemapPal/SaveState/LoadState/MatchRestart/PlayBGM/ModifyBGM implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), ShaderSet (V-09 pending), RunState, RemapSprite (sprite substitution), 3D/depth controllers, SaveFile/LoadFile (disk serialization), and debug-only clipboard/console/assert helpers |
 
 ## 5. Collision and combat
 
@@ -160,7 +160,7 @@ priority details.
 | --- | --- | --- | --- | --- | --- |
 | A-01 | SND playback | Required | Required | Partial | SND + channels/priority; oracle pending |
 | A-02 | Character/effect sounds | Required | Required | Verified | Roster + hit/guard sound events and silent group -1 |
-| A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer; oracle pending |
+| A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer + PlayBGM/ModifyBGM controllers with live BgmVar state; startposition/freqmul/non-loop playback not modeled |
 | A-04 | Pan/volume/channels | Required | Required | Partial | Channel priority, pan, master/music volume, tests |
 | A-05 | Pause/loop/modify sound | Required | Ikemen | Partial | PlaySnd loop, StopSnd/SndPan/ModifySnd, BGM pause/resume test |
 

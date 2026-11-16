@@ -138,6 +138,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].attack.uniq_hit_count = 0;
         }
         "playsnd" => play_snd(sim, who, control),
+        "playbgm" => play_bgm(sim, who, control),
+        "modifybgm" => modify_bgm(sim, who, control),
         "stopsnd" => stop_snd(sim, who, control),
         "sndpan" => snd_pan(sim, who, control),
         "modifysnd" => modify_snd(sim, who, control),
@@ -2143,6 +2145,122 @@ fn remove_text(sim: &mut SimState, who: usize, control: &Controller) {
             match_index += 1;
         }
         keep
+    });
+}
+
+/// Searches the character, stage, and shared data directories for a BGM
+/// file, preferring their `sound/` subdirectory.
+fn resolve_bgm_path(sim: &SimState, who: usize, name: &str) -> Option<std::path::PathBuf> {
+    let name = name.trim().trim_matches('"');
+    if name.is_empty() {
+        return None;
+    }
+    let direct = std::path::PathBuf::from(name);
+    if direct.is_absolute() && direct.exists() {
+        return Some(direct);
+    }
+    let mut dirs = vec![
+        sim.assets.characters[sim.fighters[who].char_id]
+            .def
+            .dir
+            .clone(),
+        sim.assets.stage.dir.clone(),
+    ];
+    dirs.extend(sim.assets.data_dirs.iter().cloned());
+    for dir in dirs {
+        for candidate in [dir.join("sound").join(name), dir.join(name)] {
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// `PlayBGM`: starts (or stops, with an empty `bgm`) background music.
+/// Only the direct `bgm` form is modeled; `source = "..."` lookups and
+/// `startposition`/`freqmul` are parsed but not applied by the mixer.
+fn play_bgm(sim: &mut SimState, who: usize, control: &Controller) {
+    if control.get("bgm").is_none() {
+        return;
+    }
+    let name = text_value(sim, who, control, "bgm");
+    if name.is_empty() {
+        sim.bgm = crate::BgmState::default();
+        sim.sound_commands.push(crate::SoundCommand::StopBgm);
+        return;
+    }
+    let Some(path) = resolve_bgm_path(sim, who, &name) else {
+        log::warn!("PlayBGM could not find {name}");
+        return;
+    };
+    if sim.bgm.active && sim.bgm.filename == name {
+        return;
+    }
+    let volume = int_param(sim, who, control, "volume").unwrap_or(100).max(0);
+    let loop_music = int_param(sim, who, control, "loop").unwrap_or(1) != 0;
+    let loop_start = int_param(sim, who, control, "loopstart").unwrap_or(0);
+    let loop_end = int_param(sim, who, control, "loopend").unwrap_or(0);
+    let start_position = int_param(sim, who, control, "startposition").unwrap_or(0);
+    let freq_mul = num_param(sim, who, control, "freqmul").unwrap_or(1.0);
+    let loop_count = int_param(sim, who, control, "loopcount").unwrap_or(-1);
+    sim.bgm = crate::BgmState {
+        active: true,
+        filename: name,
+        volume,
+        loop_music,
+        loop_start,
+        loop_end,
+        start_position,
+        freq_mul,
+        loop_count,
+    };
+    sim.sound_commands.push(crate::SoundCommand::PlayBgm {
+        path,
+        volume,
+        loop_music,
+        loop_start,
+        loop_end,
+        start_position,
+        freq_mul,
+        loop_count,
+    });
+}
+
+/// `ModifyBGM`: updates the live BGM state and forwards the same values to
+/// the audio engine.
+fn modify_bgm(sim: &mut SimState, who: usize, control: &Controller) {
+    if !sim.bgm.active {
+        return;
+    }
+    let volume = int_param(sim, who, control, "volume");
+    let loop_start = int_param(sim, who, control, "loopstart");
+    let loop_end = int_param(sim, who, control, "loopend");
+    let position = int_param(sim, who, control, "position");
+    let freq_mul = num_param(sim, who, control, "freqmul");
+    let loop_count = int_param(sim, who, control, "loopcount");
+    if let Some(volume) = volume {
+        sim.bgm.volume = volume.max(0);
+    }
+    if let Some(value) = loop_start {
+        sim.bgm.loop_start = value;
+    }
+    if let Some(value) = loop_end {
+        sim.bgm.loop_end = value;
+    }
+    if let Some(value) = freq_mul {
+        sim.bgm.freq_mul = value;
+    }
+    if let Some(value) = loop_count {
+        sim.bgm.loop_count = value;
+    }
+    sim.sound_commands.push(crate::SoundCommand::ModifyBgm {
+        volume,
+        loop_start,
+        loop_end,
+        position,
+        freq_mul,
+        loop_count,
     });
 }
 

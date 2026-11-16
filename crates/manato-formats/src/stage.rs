@@ -279,6 +279,8 @@ impl BgScene {
 
 #[derive(Debug, Clone)]
 pub struct Stage {
+    /// Stage DEF directory (used to resolve BGM paths).
+    pub dir: PathBuf,
     pub name: String,
     pub display_name: String,
     pub author: String,
@@ -473,6 +475,7 @@ impl Stage {
         let bgdef = &def.bgdef;
 
         Ok(Self {
+            dir: def.dir.clone(),
             name: def.name,
             display_name: def.display_name,
             author: def.author,

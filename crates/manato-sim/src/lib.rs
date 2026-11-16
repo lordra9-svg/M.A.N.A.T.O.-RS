@@ -481,8 +481,22 @@ pub struct SoundEvent {
     pub low_priority: bool,
 }
 
+/// Live background-music state driven by `PlayBGM`/`ModifyBGM`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BgmState {
+    pub active: bool,
+    pub filename: String,
+    pub volume: i32,
+    pub loop_music: bool,
+    pub loop_start: i32,
+    pub loop_end: i32,
+    pub start_position: i32,
+    pub freq_mul: f32,
+    pub loop_count: i32,
+}
+
 /// A non-playback sound operation emitted by a controller.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SoundCommand {
     Stop {
         source: SoundSource,
@@ -503,6 +517,25 @@ pub enum SoundCommand {
         pan: Option<f32>,
         loop_sound: Option<bool>,
     },
+    PlayBgm {
+        path: PathBuf,
+        volume: i32,
+        loop_music: bool,
+        loop_start: i32,
+        loop_end: i32,
+        start_position: i32,
+        freq_mul: f32,
+        loop_count: i32,
+    },
+    ModifyBgm {
+        volume: Option<i32>,
+        loop_start: Option<i32>,
+        loop_end: Option<i32>,
+        position: Option<i32>,
+        freq_mul: Option<f32>,
+        loop_count: Option<i32>,
+    },
+    StopBgm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -756,6 +789,8 @@ pub struct SimState {
     pub score_rounds: [f32; 2],
     /// Live stage BG controllers; `ModifyBGCtrl` edits this copy.
     pub bg_ctrls: Vec<manato_formats::BgCtrl>,
+    /// Background music state driven by BGM controllers.
+    pub bgm: BgmState,
     /// Snapshot stored by `SaveState` and restored by `LoadState`.
     saved_snapshot: Option<Box<SimState>>,
     save_state_requested: bool,
@@ -855,6 +890,7 @@ impl SimState {
             score: [0.0; 2],
             score_rounds: [0.0; 2],
             bg_ctrls,
+            bgm: BgmState::default(),
             saved_snapshot: None,
             save_state_requested: false,
             load_state_requested: false,

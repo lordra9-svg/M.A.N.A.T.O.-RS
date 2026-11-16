@@ -1398,20 +1398,40 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "bgmvar" => {
             let key = call_key(sim, who, args).to_ascii_lowercase();
             let music = &sim.assets.stage.music;
+            let live = &sim.bgm;
             match key.as_str() {
-                "filename" => Value::Str(
+                "filename" => Value::Str(if live.active {
+                    live.filename.clone()
+                } else {
                     music
                         .path
                         .as_ref()
                         .map(|path| path.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                ),
-                "volume" => Value::Int(music.volume),
-                "loopstart" => Value::Int(music.loop_start),
-                "loopend" => Value::Int(music.loop_end),
-                // Stage music loops whenever a track is configured.
-                "loop" => Value::Int(music.path.is_some() as i32),
-                "freqmul" => Value::Float(1.0),
+                        .unwrap_or_default()
+                }),
+                "volume" => Value::Int(if live.active {
+                    live.volume
+                } else {
+                    music.volume
+                }),
+                "loopstart" => Value::Int(if live.active {
+                    live.loop_start
+                } else {
+                    music.loop_start
+                }),
+                "loopend" => Value::Int(if live.active {
+                    live.loop_end
+                } else {
+                    music.loop_end
+                }),
+                "loop" => Value::Int(if live.active {
+                    live.loop_music as i32
+                } else {
+                    music.path.is_some() as i32
+                }),
+                "freqmul" => Value::Float(if live.active { live.freq_mul } else { 1.0 }),
+                "loopcount" => Value::Int(if live.active { live.loop_count } else { 0 }),
+                "startposition" => Value::Int(if live.active { live.start_position } else { 0 }),
                 _ => Value::Int(0),
             }
         }

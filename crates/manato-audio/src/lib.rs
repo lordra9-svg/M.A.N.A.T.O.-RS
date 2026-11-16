@@ -587,9 +587,9 @@ impl AudioEngine {
         }
 
         for command in &sim.sound_commands {
-            match *command {
+            match command {
                 SoundCommand::Stop { source, channel } => {
-                    let key = Self::channel_key(source, sim, channel);
+                    let key = Self::channel_key(*source, sim, *channel);
                     if let Ok(mut mixer) = self.mixer.lock() {
                         mixer.stop_channel(key);
                     }
@@ -600,9 +600,9 @@ impl AudioEngine {
                     pan,
                     volume,
                 } => {
-                    let key = Self::channel_key(source, sim, channel);
+                    let key = Self::channel_key(*source, sim, *channel);
                     if let Ok(mut mixer) = self.mixer.lock() {
-                        mixer.pan_channel(key, pan, volume);
+                        mixer.pan_channel(key, *pan, *volume);
                     }
                 }
                 SoundCommand::Modify {
@@ -614,24 +614,40 @@ impl AudioEngine {
                     pan,
                     loop_sound,
                 } => {
-                    let Some(bank) = Self::resolve_bank(sim, source) else {
+                    let Some(bank) = Self::resolve_bank(sim, *source) else {
                         continue;
                     };
-                    let Some(sound) = bank.get(group, index) else {
+                    let Some(sound) = bank.get(*group, *index) else {
                         continue;
                     };
-                    let key = Self::channel_key(source, sim, channel);
+                    let key = Self::channel_key(*source, sim, *channel);
                     if let Ok(mut mixer) = self.mixer.lock() {
                         mixer.modify_channel(
                             key,
                             sound,
                             self.rate,
-                            volume,
-                            pan,
+                            *volume,
+                            *pan,
                             loop_sound.unwrap_or(false),
                         );
                     }
                 }
+                SoundCommand::PlayBgm {
+                    path,
+                    volume,
+                    loop_start,
+                    loop_end,
+                    ..
+                } => match Music::load(path, *loop_start, *loop_end) {
+                    Ok(music) => self.play_music(&music, (*volume as f32 / 100.0).clamp(0.0, 1.0)),
+                    Err(error) => log::warn!("could not play BGM {}: {error:#}", path.display()),
+                },
+                SoundCommand::ModifyBgm { volume, .. } => {
+                    if let Some(volume) = volume {
+                        self.set_music_volume((*volume as f32 / 100.0).clamp(0.0, 1.0));
+                    }
+                }
+                SoundCommand::StopBgm => self.stop_music(),
             }
         }
     }

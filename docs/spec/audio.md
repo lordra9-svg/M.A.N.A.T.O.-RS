@@ -122,6 +122,23 @@ loop = 0
 - BGM is not part of the rollback checksum.
 - Music continues across rounds unless the stage changes.
 
+### 8.1 BGM controllers
+
+`PlayBGM` resolves `bgm` against the character, stage, and shared data
+directories (preferring `sound/`), stores the live state in `SimState.bgm`, and
+queues a `SoundCommand::PlayBgm`; an empty `bgm` stops playback. Volume is
+scaled by 1/100. `loop`, `loopstart`, `loopend`, `startposition`, `freqmul`,
+and `loopcount` are parsed and exposed through `BgmVar`, but the mixer only
+applies volume and loop points; non-looping playback, start offsets, and
+frequency scaling are not modeled.
+
+`ModifyBGM` updates the live volume (applied immediately) and the stored
+loop/frequency/count fields. `BgmVar(filename|volume|loop|loopstart|loopend|
+freqmul|loopcount|startposition)` reads the live controller state when active,
+otherwise the stage `[Music]` definition; stream `position`, `length`, and
+`samplerate` remain 0 because the mixer does not report stream state back to
+the simulation.
+
 ## 9. Mixing
 
 - Voices are resampled to the output rate.

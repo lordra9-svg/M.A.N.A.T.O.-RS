@@ -2629,6 +2629,127 @@ fn matchrestart_resets_the_match() {
 }
 
 #[test]
+fn play_and_modify_bgm_emit_commands_and_live_state() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-bgmctrl-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    std::fs::create_dir_all(dir.join("sound")).expect("sound dir");
+    std::fs::write(dir.join("sound/theme.wav"), b"placeholder").expect("write bgm");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "playbgm".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let modify = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "modifybgm".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    let text = |sim: &SimState, text: &str| manato_sim::trigger::eval_str(sim, 0, text).as_str();
+
+    run(
+        &mut sim,
+        vec![
+            ("bgm", "\"theme.wav\""),
+            ("volume", "80"),
+            ("loop", "1"),
+            ("loopstart", "100"),
+            ("loopend", "500"),
+            ("freqmul", "1.5"),
+        ],
+    );
+    assert!(sim.bgm.active);
+    assert_eq!(sim.bgm.filename, "theme.wav");
+    assert_eq!(sim.bgm.volume, 80);
+    assert_eq!(sim.bgm.loop_start, 100);
+    assert_eq!(text(&sim, "BgmVar(filename)"), "theme.wav");
+    assert_eq!(num(&sim, "BgmVar(volume)"), 80.0);
+    assert_eq!(num(&sim, "BgmVar(loopstart)"), 100.0);
+    assert_eq!(num(&sim, "BgmVar(loopend)"), 500.0);
+    assert_eq!(num(&sim, "BgmVar(loop)"), 1.0);
+    assert_eq!(num(&sim, "BgmVar(freqmul)"), 1.5);
+    assert!(matches!(
+        sim.sound_commands.as_slice(),
+        [manato_sim::SoundCommand::PlayBgm { .. }]
+    ));
+
+    // Re-issuing the same track does not queue another load.
+    sim.sound_commands.clear();
+    run(&mut sim, vec![("bgm", "\"theme.wav\"")]);
+    assert!(sim.sound_commands.is_empty());
+
+    // ModifyBGM updates live state and emits a modify command.
+    modify(
+        &mut sim,
+        vec![
+            ("volume", "40"),
+            ("loopstart", "20"),
+            ("loopend", "300"),
+            ("loopcount", "3"),
+        ],
+    );
+    assert_eq!(sim.bgm.volume, 40);
+    assert_eq!(num(&sim, "BgmVar(volume)"), 40.0);
+    assert_eq!(num(&sim, "BgmVar(loopcount)"), 3.0);
+    assert!(matches!(
+        sim.sound_commands.as_slice(),
+        [manato_sim::SoundCommand::ModifyBgm { .. }]
+    ));
+
+    // An empty bgm string stops playback.
+    sim.sound_commands.clear();
+    run(&mut sim, vec![("bgm", "\"\"")]);
+    assert!(!sim.bgm.active);
+    assert!(matches!(
+        sim.sound_commands.as_slice(),
+        [manato_sim::SoundCommand::StopBgm]
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;
