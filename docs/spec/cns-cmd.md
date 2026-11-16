@@ -375,8 +375,8 @@ missing redirect targets make the trigger false.
   numbers, other values as strings, missing keys as `0`),
   `BgmVar(field)` (live `PlayBGM`/`ModifyBGM` state when active, otherwise
   stage BGM: `filename`, `volume`, `loop`, `loopstart`, `loopend`, `freqmul`,
-  `loopcount`, `startposition`; live stream fields such as `position`,
-  `length`, and `samplerate` read 0),
+  `loopcount`, `startposition`, and live `position`/`length`/`samplerate`
+  fed by the audio engine),
   `Const240p`, `Const480p`,
   `Const720p`, `Const1080p`, `Random`, `IfElse`, `Cond`, `Clamp`, `Lerp`, `Sign`,
   `Abs`, `Ceil`, `Floor`, `Min`, `Max`, `Sin`, `Cos`, `Tan`, `Asin`,

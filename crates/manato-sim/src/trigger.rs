@@ -1432,6 +1432,13 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 "freqmul" => Value::Float(if live.active { live.freq_mul } else { 1.0 }),
                 "loopcount" => Value::Int(if live.active { live.loop_count } else { 0 }),
                 "startposition" => Value::Int(if live.active { live.start_position } else { 0 }),
+                "position" => Value::Int(if live.active { live.position_ms } else { 0 }),
+                "length" => Value::Int(if live.active { live.length_ms } else { 0 }),
+                "samplerate" => Value::Int(if live.active {
+                    live.sample_rate as i32
+                } else {
+                    0
+                }),
                 _ => Value::Int(0),
             }
         }

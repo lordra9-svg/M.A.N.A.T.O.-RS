@@ -135,9 +135,13 @@ frequency scaling are not modeled.
 `ModifyBGM` updates the live volume (applied immediately) and the stored
 loop/frequency/count fields. `BgmVar(filename|volume|loop|loopstart|loopend|
 freqmul|loopcount|startposition)` reads the live controller state when active,
-otherwise the stage `[Music]` definition; stream `position`, `length`, and
-`samplerate` remain 0 because the mixer does not report stream state back to
-the simulation.
+otherwise the stage `[Music]` definition.
+
+The mixer reports `BgmStatus { position_ms, length_ms, sample_rate }` from the
+active music voice. The app copies it into `SimState.bgm` after each
+`play_events`, so `BgmVar(position|length|samplerate)` is live while music
+plays; without an audio backend the fields stay 0. Stream state is presentation
+data and is not part of the rollback checksum.
 
 ## 9. Mixing
 

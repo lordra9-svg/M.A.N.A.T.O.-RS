@@ -1577,6 +1577,13 @@ impl App {
         };
         sim.tick([p1, p2]);
         self.audio.play_events(sim);
+        if sim.bgm.active {
+            if let Some(status) = self.audio.bgm_status() {
+                sim.bgm.position_ms = status.position_ms;
+                sim.bgm.length_ms = status.length_ms;
+                sim.bgm.sample_rate = status.sample_rate;
+            }
+        }
         let finished = sim.finished;
         if finished {
             if let Some(frontend) = self.frontend.as_mut() {

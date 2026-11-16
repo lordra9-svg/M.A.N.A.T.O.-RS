@@ -2724,6 +2724,13 @@ fn play_and_modify_bgm_emit_commands_and_live_state() {
     assert_eq!(num(&sim, "BgmVar(loopend)"), 500.0);
     assert_eq!(num(&sim, "BgmVar(loop)"), 1.0);
     assert_eq!(num(&sim, "BgmVar(freqmul)"), 1.5);
+    // Stream fields are fed by the audio engine.
+    sim.bgm.position_ms = 1234;
+    sim.bgm.length_ms = 60_000;
+    sim.bgm.sample_rate = 44_100;
+    assert_eq!(num(&sim, "BgmVar(position)"), 1234.0);
+    assert_eq!(num(&sim, "BgmVar(length)"), 60_000.0);
+    assert_eq!(num(&sim, "BgmVar(samplerate)"), 44_100.0);
     assert!(matches!(
         sim.sound_commands.as_slice(),
         [manato_sim::SoundCommand::PlayBgm { .. }]

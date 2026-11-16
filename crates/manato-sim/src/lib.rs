@@ -493,6 +493,12 @@ pub struct BgmState {
     pub start_position: i32,
     pub freq_mul: f32,
     pub loop_count: i32,
+    /// Stream position in milliseconds (fed by the audio engine).
+    pub position_ms: i32,
+    /// Stream length in milliseconds (fed by the audio engine).
+    pub length_ms: i32,
+    /// Stream sample rate (fed by the audio engine).
+    pub sample_rate: u32,
 }
 
 /// A non-playback sound operation emitted by a controller.

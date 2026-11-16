@@ -2281,6 +2281,9 @@ fn play_bgm(sim: &mut SimState, who: usize, control: &Controller) {
         start_position,
         freq_mul,
         loop_count,
+        position_ms: 0,
+        length_ms: 0,
+        sample_rate: 0,
     };
     sim.sound_commands.push(crate::SoundCommand::PlayBgm {
         path,

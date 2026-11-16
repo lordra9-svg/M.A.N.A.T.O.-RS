@@ -101,6 +101,7 @@ impl Music {
 
 struct Voice {
     samples: Arc<Vec<i16>>,
+    source_rate: u32,
     channels: usize,
     position: f64,
     step: f64,
@@ -123,6 +124,7 @@ impl Voice {
         }
         let mut voice = Self {
             samples: Arc::new(sound.samples.clone()),
+            source_rate: sound.sample_rate,
             channels: sound.channels as usize,
             position: 0.0,
             step: sound.sample_rate as f64 / output_rate.max(1) as f64,
@@ -173,6 +175,7 @@ impl Voice {
         };
         Some(Self {
             samples: music.samples.clone(),
+            source_rate: music.sample_rate,
             channels: music.channels as usize,
             position: 0.0,
             step: music.sample_rate as f64 / output_rate.max(1) as f64,
@@ -223,6 +226,24 @@ impl Voice {
             }
             self.position += self.step;
         }
+    }
+}
+
+/// Live background-music stream state reported to the simulation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BgmStatus {
+    pub position_ms: i32,
+    pub length_ms: i32,
+    pub sample_rate: u32,
+}
+
+fn voice_status(voice: &Voice) -> BgmStatus {
+    let rate = voice.source_rate.max(1);
+    let frames = voice.samples.len() / voice.channels.max(1);
+    BgmStatus {
+        position_ms: (voice.position / rate as f64 * 1000.0) as i32,
+        length_ms: (frames as f64 / rate as f64 * 1000.0) as i32,
+        sample_rate: rate,
     }
 }
 
@@ -499,6 +520,12 @@ impl AudioEngine {
         }
     }
 
+    /// Current BGM stream position/length/sample rate, if music is playing.
+    pub fn bgm_status(&self) -> Option<BgmStatus> {
+        let mixer = self.mixer.lock().ok()?;
+        mixer.music.as_ref().map(voice_status)
+    }
+
     pub fn set_volume(&self, volume: f32) {
         if let Ok(mut mixer) = self.mixer.lock() {
             mixer.volume = volume.clamp(0.0, 1.0);
@@ -696,6 +723,23 @@ mod tests {
             channels: 1,
             samples,
         }
+    }
+
+    #[test]
+    fn bgm_status_reports_position_length_and_rate() {
+        let music = Music {
+            samples: std::sync::Arc::new(vec![0i16; 2000]),
+            sample_rate: 1000,
+            channels: 2,
+            loop_start_ms: 0,
+            loop_end_ms: 0,
+        };
+        let mut voice = Voice::new_music(&music, 1000, 1.0).expect("music voice");
+        voice.position = 500.0;
+        let status = voice_status(&voice);
+        assert_eq!(status.position_ms, 500);
+        assert_eq!(status.length_ms, 1000);
+        assert_eq!(status.sample_rate, 1000);
     }
 
     #[test]
