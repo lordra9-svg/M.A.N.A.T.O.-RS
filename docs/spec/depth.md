@@ -19,6 +19,15 @@
 physics integration. `Depth` extents and `DepthBound`, like most per-tick
 assertions, reset at the start of every tick, so content re-asserts them.
 
+## 2.0 GetHitVar depth values
+
+`HitDef ground.velocity`/`air.velocity`/`down.velocity`/`guard.velocity`/
+`airguard.velocity` accept a third z component, and `zaccel` is parsed.
+A connecting hit stores the selected velocity z in `GetHitVar(zvel)`, the
+HitDef's `zaccel` in `GetHitVar(zaccel)`, and `fall.zvelocity` in
+`GetHitVar(fall.zvel)`. `GetHitVar(zoff)` remains zero because hit position
+offsets are not modeled.
+
 ## 2.1 Z-axis hits
 
 `HitDef depth = top, bottom` (parsed into `attack_depth`) defines the
@@ -97,5 +106,6 @@ rollback checksum.
   constrain movement).
 - Projectile z rendering/perspective (depth affects collisions and bounds
   only).
-- `GetHitVar(zoff|zvel|zaccel)`, which still reads zero.
+- Hit `zoff` (hit position offset) is always zero; `zvel`/`zaccel` and
+  `fall.zvel` report the values applied by the connecting HitDef.
 - Custom shader execution, `shaderparam`, and texture inputs.

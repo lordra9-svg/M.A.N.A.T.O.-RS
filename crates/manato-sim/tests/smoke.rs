@@ -3451,6 +3451,52 @@ fn projectile_z_position_and_depth_bounds() {
 }
 
 #[test]
+fn gethitvar_reports_z_velocity_and_acceleration() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("ground.velocity".into(), "4,0,2".into()),
+            ("air.velocity".into(), "1,0,3".into()),
+            ("guard.velocity".into(), "3,0,-1".into()),
+            ("airguard.velocity".into(), "2,0,-2".into()),
+            ("zaccel".into(), "0.5".into()),
+            ("fall.zvelocity".into(), "6".into()),
+            ("pausetime".into(), "0,0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let hit = sim.fighters[0].hitdef.as_ref().expect("hitdef").clone();
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 1, text);
+
+    // Grounded contact uses `ground.velocity`'s third component.
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(num(&sim, "GetHitVar(zvel)"), 2.0);
+    assert_eq!(num(&sim, "GetHitVar(zaccel)"), 0.5);
+    assert_eq!(num(&sim, "GetHitVar(zoff)"), 0.0);
+    assert_eq!(num(&sim, "GetHitVar(fall.zvel)"), 6.0);
+
+    // Airborne contact uses `air.velocity`'s third component.
+    sim.fighters[1].life = sim.fighters[1].life_max;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Air;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
+    assert_eq!(num(&sim, "GetHitVar(zvel)"), 3.0);
+
+    // Guarded contacts use the guard velocity z.
+    sim.fighters[1].life = sim.fighters[1].life_max;
+    sim.fighters[1].state_type = manato_sim::fighter::StateType::Stand;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert_eq!(num(&sim, "GetHitVar(zvel)"), -1.0);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -553,10 +553,13 @@ pub fn apply_hit_at(
         / sim.fighters[defender].fall_defence_mul.max(0.01)) as i32;
 
     let velocity_tuple = if guarding {
-        let v = if defender_airborne {
-            hitdef.airguard_velocity
+        let (v, vz) = if defender_airborne {
+            (hitdef.airguard_velocity, hitdef.airguard_velocity_z)
         } else {
-            hitdef.guard_velocity.unwrap_or(hitdef.ground_velocity)
+            (
+                hitdef.guard_velocity.unwrap_or(hitdef.ground_velocity),
+                hitdef.guard_velocity_z.unwrap_or(hitdef.ground_velocity_z),
+            )
         };
         let ctrltime = if defender_airborne {
             hitdef.airguard_ctrltime
@@ -565,6 +568,7 @@ pub fn apply_hit_at(
         };
         (
             v,
+            vz,
             hitdef.guard_hittime.max(1),
             hitdef.guard_slidetime,
             ctrltime,
@@ -572,6 +576,7 @@ pub fn apply_hit_at(
     } else if defender_airborne {
         (
             hitdef.air_velocity,
+            hitdef.air_velocity_z,
             hitdef.air_hittime.max(1),
             hitdef.ground_slidetime,
             hitdef.air_hittime,
@@ -580,6 +585,7 @@ pub fn apply_hit_at(
         if hitdef.down_velocity.y == 0.0 {
             (
                 hitdef.down_velocity,
+                hitdef.down_velocity_z,
                 hitdef.down_hittime.max(1),
                 hitdef.ground_slidetime,
                 hitdef.down_hittime,
@@ -587,6 +593,7 @@ pub fn apply_hit_at(
         } else {
             (
                 hitdef.down_velocity,
+                hitdef.down_velocity_z,
                 hitdef.ground_hittime.max(1),
                 hitdef.ground_slidetime,
                 hitdef.ground_hittime,
@@ -595,6 +602,7 @@ pub fn apply_hit_at(
     } else {
         (
             hitdef.ground_velocity,
+            hitdef.ground_velocity_z,
             hitdef.ground_hittime.max(1),
             hitdef.ground_slidetime,
             hitdef.ground_hittime,
@@ -617,7 +625,7 @@ pub fn apply_hit_at(
             0.0
         }
     };
-    let (velocity, hittime, slidetime, ctrltime) = velocity_tuple;
+    let (velocity, velocity_z, hittime, slidetime, ctrltime) = velocity_tuple;
     let hit_pause = if guarding {
         if hitdef.guard_pausetime_set {
             hitdef.guard_pausetime
@@ -649,7 +657,9 @@ pub fn apply_hit_at(
         // applied to the stored (screen-space) velocity directly.
         f.hit.vars.x_vel = velocity.x * -(attacker_facing as f32) + corner_push;
         f.hit.vars.y_vel = velocity.y;
+        f.hit.vars.z_vel = velocity_z;
         f.hit.vars.y_accel = hitdef.yaccel;
+        f.hit.vars.z_accel = hitdef.zaccel;
         f.hit.vars.hittime = hittime;
         f.hit.vars.slidetime = slidetime;
         f.hit.vars.ctrltime = ctrltime;
@@ -695,6 +705,7 @@ pub fn apply_hit_at(
         f.hit.vars.fall_damage = hitdef.fall_damage;
         f.hit.vars.fall_x_vel = Some(hitdef.fall_xvel * -(attacker_facing as f32));
         f.hit.vars.fall_y_vel = Some(hitdef.fall_yvel);
+        f.hit.vars.fall_z_vel = hitdef.fall_zvel;
         let down_launch =
             !guarding && defender_state_type == StateType::Liedown && hitdef.down_velocity.y != 0.0;
         f.hit.down_bounce = down_launch && hitdef.down_bounce;
@@ -891,6 +902,7 @@ pub fn apply_hit_at(
             sim.fighters[defender].hit.vars.x_vel,
             sim.fighters[defender].hit.vars.y_vel,
         );
+        sim.fighters[defender].vel_z = sim.fighters[defender].hit.vars.z_vel;
     }
 
     if from_fighter {

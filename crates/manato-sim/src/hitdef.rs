@@ -178,6 +178,16 @@ pub struct HitDef {
     pub yaccel: f32,
     /// `depth = top, bottom`: z-axis attack extents around the attacker's `z`.
     pub attack_depth: [f32; 2],
+    /// `zaccel`: applied to the defender's z velocity.
+    pub zaccel: f32,
+    /// Third components of the reaction velocities.
+    pub ground_velocity_z: f32,
+    pub air_velocity_z: f32,
+    pub down_velocity_z: f32,
+    pub guard_velocity_z: Option<f32>,
+    pub airguard_velocity_z: f32,
+    /// `fall.zvelocity` (`GetHitVar(fall.zvel)`); `None` when unset.
+    pub fall_zvel: Option<f32>,
     /// `guard.velocity`; falls back to `ground.velocity` when absent.
     pub guard_velocity: Option<Vec2>,
     pub airguard_velocity: Vec2,
@@ -299,6 +309,13 @@ impl Default for HitDef {
             attr: HitAttr::default(),
             attr_text: String::new(),
             attack_depth: [0.0, 0.0],
+            zaccel: 0.0,
+            ground_velocity_z: 0.0,
+            air_velocity_z: 0.0,
+            down_velocity_z: 0.0,
+            guard_velocity_z: None,
+            airguard_velocity_z: 0.0,
+            fall_zvel: None,
             affect_team: TeamFilter::Enemy,
             damage: 0,
             guard_damage: 0,
@@ -488,10 +505,17 @@ impl HitDef {
                     h.air_type = GroundType::parse(value);
                     air_type_set = true;
                 }
-                "ground.velocity" => h.ground_velocity = parse_vec(value),
-                "air.velocity" => h.air_velocity = parse_vec(value),
+                "ground.velocity" => {
+                    h.ground_velocity = parse_vec(value);
+                    h.ground_velocity_z = parse_vec3(value).2;
+                }
+                "air.velocity" => {
+                    h.air_velocity = parse_vec(value);
+                    h.air_velocity_z = parse_vec3(value).2;
+                }
                 "down.velocity" => {
                     h.down_velocity = parse_vec(value);
+                    h.down_velocity_z = parse_vec3(value).2;
                     down_velocity_set = true;
                 }
                 "down.bounce" => h.down_bounce = parse_i32(value) != 0,
@@ -499,13 +523,18 @@ impl HitDef {
                 "down.recover" => h.down_recover = parse_i32(value) != 0,
                 "down.recovertime" => h.down_recovertime = parse_i32(value),
                 "yaccel" => h.yaccel = parse_f32(value),
+                "zaccel" => h.zaccel = parse_f32(value),
                 "depth" => {
                     let (top, bottom) = parse_pair(value);
                     h.attack_depth = [top, bottom];
                 }
-                "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
+                "guard.velocity" => {
+                    h.guard_velocity = Some(parse_vec(value));
+                    h.guard_velocity_z = Some(parse_vec3(value).2);
+                }
                 "airguard.velocity" => {
                     h.airguard_velocity = parse_vec(value);
+                    h.airguard_velocity_z = parse_vec3(value).2;
                     airguard_velocity_set = true;
                 }
                 "ground.hittime" => h.ground_hittime = parse_i32(value),
@@ -586,6 +615,7 @@ impl HitDef {
                 "fall.damage" => h.fall_damage = parse_i32(value),
                 "fall.xvelocity" => h.fall_xvel = parse_f32(value),
                 "fall.yvelocity" => h.fall_yvel = parse_f32(value),
+                "fall.zvelocity" => h.fall_zvel = Some(parse_f32(value)),
                 "air.juggle" => h.air_juggle = parse_i32(value),
                 "juggle" => h.air_juggle = h.air_juggle.max(parse_i32(value)),
                 "priority" => {
@@ -772,9 +802,16 @@ impl HitDef {
                 "guardflag" => self.guardflag = value.to_ascii_uppercase(),
                 "ground.type" => self.ground_type = GroundType::parse(value),
                 "air.type" => self.air_type = GroundType::parse(value),
-                "ground.velocity" => self.ground_velocity = parse_vec(value),
-                "air.velocity" => self.air_velocity = parse_vec(value),
+                "ground.velocity" => {
+                    self.ground_velocity = parse_vec(value);
+                    self.ground_velocity_z = parse_vec3(value).2;
+                }
+                "air.velocity" => {
+                    self.air_velocity = parse_vec(value);
+                    self.air_velocity_z = parse_vec3(value).2;
+                }
                 "yaccel" => self.yaccel = parse_f32(value),
+                "zaccel" => self.zaccel = parse_f32(value),
                 "ground.hittime" => self.ground_hittime = parse_i32(value),
                 "air.hittime" => self.air_hittime = parse_i32(value),
                 "ground.slidetime" => self.ground_slidetime = parse_i32(value),
@@ -851,10 +888,13 @@ pub struct GetHitVars {
     pub hit_type: i32,
     pub x_vel: f32,
     pub y_vel: f32,
+    pub z_vel: f32,
     /// Defender position relative to the attacker when the hit landed.
     pub x_off: f32,
     pub y_off: f32,
+    pub z_off: f32,
     pub y_accel: f32,
+    pub z_accel: f32,
     pub hittime: i32,
     pub slidetime: i32,
     pub ctrltime: i32,
@@ -878,6 +918,7 @@ pub struct GetHitVars {
     /// `fall.xvelocity`/`fall.yvelocity`; `None` when unset.
     pub fall_x_vel: Option<f32>,
     pub fall_y_vel: Option<f32>,
+    pub fall_z_vel: Option<f32>,
     pub hitcount: i32,
     /// Number of fall/ground impacts in the current combo.
     pub fallcount: i32,
@@ -912,9 +953,12 @@ impl Default for GetHitVars {
             hit_type: 0,
             x_vel: 0.0,
             y_vel: 0.0,
+            z_vel: 0.0,
             x_off: 0.0,
             y_off: 0.0,
+            z_off: 0.0,
             y_accel: 0.0,
+            z_accel: 0.0,
             hittime: 0,
             slidetime: 0,
             ctrltime: 0,
@@ -932,6 +976,7 @@ impl Default for GetHitVars {
             fall_damage: 0,
             fall_x_vel: None,
             fall_y_vel: None,
+            fall_z_vel: None,
             hitcount: 0,
             fallcount: 0,
             priority: 0,
@@ -962,11 +1007,14 @@ impl GetHitVars {
             "xvel" => Value::Float(self.x_vel),
             "xoff" => Value::Float(self.x_off),
             "yoff" => Value::Float(self.y_off),
-            // The renderer and simulation are 2D, so depth and the
-            // documented-but-unused velocity-add accumulators read zero.
-            "zoff" | "zvel" | "zaccel" | "fall.zvel" | "xveladd" | "yveladd" => Value::Float(0.0),
+            // The documented-but-unused velocity-add accumulators read zero.
+            "xveladd" | "yveladd" => Value::Float(0.0),
             "yvel" => Value::Float(self.y_vel),
             "yaccel" => Value::Float(self.y_accel),
+            "zaccel" => Value::Float(self.z_accel),
+            "zvel" => Value::Float(self.z_vel),
+            "zoff" => Value::Float(self.z_off),
+            "fall.zvel" => Value::Float(self.fall_z_vel.unwrap_or(0.0)),
             "hittime" => Value::Int(self.hittime),
             "slidetime" => Value::Int(self.slidetime),
             "ctrltime" => Value::Int(self.ctrltime),
@@ -1076,6 +1124,14 @@ fn parse_pair(s: &str) -> (f32, f32) {
     let a = it.next().unwrap_or("0").trim().parse().unwrap_or(0.0);
     let b = it.next().unwrap_or("0").trim().parse().unwrap_or(a);
     (a, b)
+}
+
+fn parse_vec3(s: &str) -> (f32, f32, f32) {
+    let mut it = s.split(',');
+    let x = it.next().unwrap_or("0").trim().parse().unwrap_or(0.0);
+    let y = it.next().unwrap_or("0").trim().parse().unwrap_or(0.0);
+    let z = it.next().unwrap_or("0").trim().parse().unwrap_or(0.0);
+    (x, y, z)
 }
 
 fn parse_vec(s: &str) -> Vec2 {
