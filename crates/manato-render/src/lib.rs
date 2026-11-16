@@ -51,6 +51,7 @@ pub struct Renderer {
 
     game_texture: wgpu::Texture,
     game_view: wgpu::TextureView,
+    depth_view: wgpu::TextureView,
 
     sprite_bgl: wgpu::BindGroupLayout,
     pipelines: [wgpu::RenderPipeline; 3],
@@ -163,7 +164,13 @@ impl Renderer {
                     compilation_options: Default::default(),
                 }),
                 primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
                 cache: None,
@@ -238,6 +245,21 @@ impl Renderer {
             view_formats: &[],
         });
         let game_view = game_texture.create_view(&Default::default());
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("manato depth target"),
+            size: wgpu::Extent3d {
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let depth_view = depth_texture.create_view(&Default::default());
 
         // Blit resources.
         let blit_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -347,6 +369,7 @@ impl Renderer {
             queue,
             game_texture,
             game_view,
+            depth_view,
             sprite_bgl,
             pipelines,
             pipelines_mask,
@@ -604,7 +627,14 @@ impl Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });

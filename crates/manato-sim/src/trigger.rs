@@ -774,6 +774,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 _ => Value::Int(0),
             }
         }
+        "shader" => Value::Str(sim.fighters[who].shader.clone().unwrap_or_default()),
         "spritevar" => {
             let field = args
                 .first()

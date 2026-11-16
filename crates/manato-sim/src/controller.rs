@@ -308,6 +308,11 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         }
         "loadstate" => sim.load_state_requested = true,
         "matchrestart" => sim.restart_requested = true,
+        "depth" => depth_controller(sim, who, control),
+        "depthbound" => {
+            sim.fighters[who].depth_bound = int_param(sim, who, control, "value").unwrap_or(0) != 0;
+        }
+        "shaderset" => shader_set(sim, who, control),
         "groundleveloffset" => {
             sim.fighters[who].ground_level = num_param(sim, who, control, "value").unwrap_or(0.0);
         }
@@ -520,6 +525,7 @@ fn change_anim2(sim: &mut SimState, who: usize, control: &Controller, assets: &c
 fn vel_set(sim: &mut SimState, who: usize, control: &Controller) {
     let x = num_param(sim, who, control, "x");
     let y = num_param(sim, who, control, "y");
+    let z = num_param(sim, who, control, "z");
     let facing = sim.fighters[who].facing as f32;
     if let Some(x) = x {
         sim.fighters[who].vel.x = x * facing;
@@ -527,17 +533,24 @@ fn vel_set(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(y) = y {
         sim.fighters[who].vel.y = y;
     }
+    if let Some(z) = z {
+        sim.fighters[who].vel_z = z;
+    }
 }
 
 fn vel_add(sim: &mut SimState, who: usize, control: &Controller) {
     let x = num_param(sim, who, control, "x");
     let y = num_param(sim, who, control, "y");
+    let z = num_param(sim, who, control, "z");
     let facing = sim.fighters[who].facing as f32;
     if let Some(x) = x {
         sim.fighters[who].vel.x += x * facing;
     }
     if let Some(y) = y {
         sim.fighters[who].vel.y += y;
+    }
+    if let Some(z) = z {
+        sim.fighters[who].vel_z += z;
     }
 }
 
@@ -558,23 +571,31 @@ fn vel_mul(sim: &mut SimState, who: usize, control: &Controller) {
 fn pos_set(sim: &mut SimState, who: usize, control: &Controller) {
     let x = num_param(sim, who, control, "x");
     let y = num_param(sim, who, control, "y");
+    let z = num_param(sim, who, control, "z");
     if let Some(x) = x {
         sim.fighters[who].pos.x = x;
     }
     if let Some(y) = y {
         sim.fighters[who].pos.y = y;
     }
+    if let Some(z) = z {
+        sim.fighters[who].z = z;
+    }
 }
 
 fn pos_add(sim: &mut SimState, who: usize, control: &Controller) {
     let x = num_param(sim, who, control, "x");
     let y = num_param(sim, who, control, "y");
+    let z = num_param(sim, who, control, "z");
     let facing = sim.fighters[who].facing as f32;
     if let Some(x) = x {
         sim.fighters[who].pos.x += x * facing;
     }
     if let Some(y) = y {
         sim.fighters[who].pos.y += y;
+    }
+    if let Some(z) = z {
+        sim.fighters[who].z += z;
     }
 }
 
@@ -2332,6 +2353,59 @@ fn modify_bgm(sim: &mut SimState, who: usize, control: &Controller) {
         freq_mul,
         loop_count,
     });
+}
+
+/// `Depth`: per-tick depth extents used by 3D collision checks.
+/// `player`/`Edge`/`value` each take `top, bottom`.
+fn depth_controller(sim: &mut SimState, who: usize, control: &Controller) {
+    let pair = |key: &str| {
+        control.get(key).map(|raw| {
+            let mut parts = raw.split(',');
+            let top = parts
+                .next()
+                .map(|part| trigger::num(sim, who, part))
+                .unwrap_or(0.0);
+            let bottom = parts
+                .next()
+                .map(|part| trigger::num(sim, who, part))
+                .unwrap_or(top);
+            [top, bottom]
+        })
+    };
+    let player = pair("player");
+    let edge = pair("edge");
+    let value = pair("value");
+    if let Some(value) = player {
+        sim.fighters[who].depth_player = value;
+    }
+    if let Some(value) = edge {
+        sim.fighters[who].depth_edge = value;
+    }
+    if let Some(value) = value {
+        sim.fighters[who].depth_player = value;
+        sim.fighters[who].depth_edge = value;
+    }
+}
+
+/// `ShaderSet`: selects a `[Shaders]` entry by name for `time` ticks.
+/// Shader files are stored but not executed (see V-09).
+fn shader_set(sim: &mut SimState, who: usize, control: &Controller) {
+    let time = int_param(sim, who, control, "time").unwrap_or(1);
+    if control.get("shader").is_none() {
+        return;
+    }
+    let name = text_value(sim, who, control, "shader").to_ascii_lowercase();
+    if name.is_empty() {
+        sim.fighters[who].shader = None;
+        sim.fighters[who].shader_time = 0;
+        return;
+    }
+    if !sim.character(who).def.shaders.contains_key(&name) {
+        log::warn!("ShaderSet: unknown shader {name}");
+        return;
+    }
+    sim.fighters[who].shader = Some(name);
+    sim.fighters[who].shader_time = if time < 0 { -1 } else { time.max(1) };
 }
 
 /// `AssertCommand`: keeps a named command active for `buffertime` ticks

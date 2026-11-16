@@ -10,6 +10,8 @@ pub struct Vertex {
     pub pos: [f32; 2],
     pub uv: [f32; 2],
     pub color: [f32; 4],
+    /// Depth in `0.0..=1.0` (0 nearest); `Painter::set_depth` fills this.
+    pub z: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,12 +44,24 @@ pub struct DrawRange {
 }
 
 /// Accumulates quads and the state changes needed to draw them.
-#[derive(Default)]
 pub struct Painter {
     pub vertices: Vec<Vertex>,
     pub ranges: Vec<DrawRange>,
     scissor: Option<[u32; 4]>,
     mask: bool,
+    depth: f32,
+}
+
+impl Default for Painter {
+    fn default() -> Self {
+        Self {
+            vertices: Vec::new(),
+            ranges: Vec::new(),
+            scissor: None,
+            mask: false,
+            depth: 1.0,
+        }
+    }
 }
 
 impl Painter {
@@ -56,6 +70,12 @@ impl Painter {
         self.ranges.clear();
         self.scissor = None;
         self.mask = false;
+        self.depth = 1.0;
+    }
+
+    /// Sets the depth written by subsequent quads (`0` nearest, `1` farthest).
+    pub fn set_depth(&mut self, depth: f32) {
+        self.depth = depth.clamp(0.0, 1.0);
     }
 
     pub fn set_scissor(&mut self, scissor: Option<[u32; 4]>) {
@@ -136,7 +156,12 @@ impl Painter {
         ];
         self.range(tex, blend);
         for (pos, uv) in corners {
-            self.vertices.push(Vertex { pos, uv, color });
+            self.vertices.push(Vertex {
+                pos,
+                uv,
+                color,
+                z: self.depth,
+            });
         }
     }
 
@@ -167,7 +192,12 @@ impl Painter {
             (br, [u1, v1]),
             (bl, [u0, v1]),
         ] {
-            self.vertices.push(Vertex { pos, uv, color });
+            self.vertices.push(Vertex {
+                pos,
+                uv,
+                color,
+                z: self.depth,
+            });
         }
     }
 
@@ -249,6 +279,7 @@ struct VsIn {
     @location(0) pos: vec2<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) color: vec4<f32>,
+    @location(3) z: f32,
 };
 
 struct VsOut {
@@ -264,7 +295,7 @@ fn vs_main(in: VsIn) -> VsOut {
     out.pos = vec4<f32>(
         in.pos.x / 320.0 * 2.0 - 1.0,
         1.0 - in.pos.y / 240.0 * 2.0,
-        0.0,
+        in.z,
         1.0,
     );
     out.uv = in.uv;
@@ -358,6 +389,11 @@ pub fn vertex_layout() -> wgpu::VertexBufferLayout<'static> {
                 shader_location: 2,
                 format: wgpu::VertexFormat::Float32x4,
             },
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 3,
+                format: wgpu::VertexFormat::Float32,
+            },
         ],
     }
 }
@@ -381,5 +417,37 @@ pub fn blend_state(blend: Blend) -> wgpu::BlendState {
             },
             alpha: wgpu::BlendComponent::OVER,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_depth_applies_to_subsequent_quads() {
+        let mut painter = Painter::default();
+        painter.set_depth(0.25);
+        painter.quad(
+            TexRef::Solid,
+            Blend::Normal,
+            [0.0, 0.0, 10.0, 10.0],
+            [0.0, 0.0, 1.0, 1.0],
+            false,
+            false,
+            [1.0; 4],
+        );
+        painter.set_depth(0.75);
+        painter.quad(
+            TexRef::Solid,
+            Blend::Normal,
+            [0.0, 0.0, 10.0, 10.0],
+            [0.0, 0.0, 1.0, 1.0],
+            false,
+            false,
+            [1.0; 4],
+        );
+        assert!(painter.vertices[..6].iter().all(|v| v.z == 0.25));
+        assert!(painter.vertices[6..].iter().all(|v| v.z == 0.75));
     }
 }

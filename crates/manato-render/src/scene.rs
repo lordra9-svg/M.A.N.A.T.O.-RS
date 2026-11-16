@@ -121,12 +121,14 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     }
 
     // Effects that are explicitly behind characters.
+    painter.set_depth(0.9);
     let mut behind: Vec<&Effect> = sim.effects.iter().filter(|e| e.behind).collect();
     behind.sort_by_key(|e| e.sprite_priority);
     for effect in behind {
         draw_effect(painter, deps.atlas, sim, effect);
     }
 
+    painter.set_depth(0.89);
     draw_texts(painter, deps, sim, true);
 
     let mut order: Vec<usize> = (0..sim.fighters.len()).collect();
@@ -135,8 +137,10 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_fighter(painter, deps.atlas, sim, who);
     }
 
+    painter.set_depth(0.45);
     draw_projectiles(painter, deps.atlas, sim, false);
 
+    painter.set_depth(0.1);
     for (index, layer) in stage
         .render_layers()
         .enumerate()
@@ -152,16 +156,21 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     }
 
     // Projectiles with `projlayerno > 0` draw over the stage foreground.
+    painter.set_depth(0.08);
     draw_projectiles(painter, deps.atlas, sim, true);
 
+    painter.set_depth(0.06);
     let mut front: Vec<&Effect> = sim.effects.iter().filter(|e| !e.behind).collect();
     front.sort_by_key(|e| e.sprite_priority);
     for effect in front {
         draw_effect(painter, deps.atlas, sim, effect);
     }
 
+    painter.set_depth(0.05);
     draw_texts(painter, deps, sim, false);
 
+    // Fight-screen HUD is closest to the viewer.
+    painter.set_depth(0.02);
     if let Some(screenpack) = &sim.assets.screenpack {
         let fight_deps = crate::fightscreen::FightDeps {
             atlas: deps.atlas,
@@ -171,10 +180,12 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         crate::fightscreen::draw_background(painter, sim, &fight_deps, screenpack);
     }
 
+    painter.set_depth(0.01);
     if let Some(env_color) = sim.env_color.filter(|color| !color.under) {
         draw_env_color(painter, env_color);
     }
 
+    painter.set_depth(0.0);
     if let Some(screenpack) = &sim.assets.screenpack {
         let fight_deps = crate::fightscreen::FightDeps {
             atlas: deps.atlas,
@@ -691,6 +702,8 @@ fn draw_atlas_quad(
 
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
     let fighter = &sim.fighters[who];
+    // Positive `z` is farther; `0` matches the default mid-ground plane.
+    painter.set_depth((0.5 + fighter.z * 0.001).clamp(0.05, 0.95));
     if !fighter.active || fighter.assert_flags & manato_sim::fighter::ASSERT_INVISIBLE != 0 {
         return;
     }

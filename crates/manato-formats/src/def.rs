@@ -37,6 +37,8 @@ pub struct CharacterDef {
     pub palette_keymap: HashMap<String, i32>,
     /// `[RemapPreset <name>]` tables: source `(group, index)` → dest.
     pub remap_presets: BTreeMap<String, RemapPreset>,
+    /// `[Shaders]` name → file path (names lowercased).
+    pub shaders: BTreeMap<String, PathBuf>,
 }
 
 impl CharacterDef {
@@ -184,6 +186,17 @@ impl CharacterDef {
             }
         }
 
+        let mut shaders = BTreeMap::new();
+        if let Some(section) = text.find("shaders") {
+            for entry in &section.entries {
+                let name = entry.key.trim().to_ascii_lowercase();
+                let value = entry.value.trim();
+                if !name.is_empty() && !value.is_empty() {
+                    shaders.insert(name, resolve_path(&dir, value));
+                }
+            }
+        }
+
         let palette_keymap = text
             .find_header("Palette Keymap")
             .map(|s| {
@@ -212,6 +225,7 @@ impl CharacterDef {
             info,
             palette_keymap,
             remap_presets,
+            shaders,
         })
     }
 }

@@ -3178,6 +3178,111 @@ fn remapsprite_substitutes_collision_boxes() {
 }
 
 #[test]
+fn depth_shaderset_and_z_components() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-depth-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let def = dir.join("kaen.def");
+    let mut text = std::fs::read_to_string(&def).expect("read def");
+    text.push_str("\n[Shaders]\nfire = fire.glsl\n");
+    std::fs::write(&def, text).expect("patch def");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: def,
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let shader = |sim: &SimState| manato_sim::trigger::eval_str(sim, 0, "Shader()").as_str();
+
+    // `z` position/velocity components.
+    run(&mut sim, "posset", vec![("z", "4")]);
+    run(&mut sim, "velset", vec![("z", "2")]);
+    assert_eq!(sim.fighters[0].z, 4.0);
+    assert_eq!(sim.fighters[0].vel_z, 2.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].z, 6.0);
+    run(&mut sim, "posadd", vec![("z", "1")]);
+    run(&mut sim, "veladd", vec![("z", "1")]);
+    assert_eq!(sim.fighters[0].z, 7.0);
+    assert_eq!(sim.fighters[0].vel_z, 3.0);
+
+    // `Depth` sets player/edge extents and resets each tick.
+    run(
+        &mut sim,
+        "depth",
+        vec![("player", "10, 20"), ("edge", "5, 15")],
+    );
+    assert_eq!(sim.fighters[0].depth_player, [10.0, 20.0]);
+    assert_eq!(sim.fighters[0].depth_edge, [5.0, 15.0]);
+    run(&mut sim, "depth", vec![("value", "7")]);
+    assert_eq!(sim.fighters[0].depth_player, [7.0, 7.0]);
+    run(&mut sim, "depthbound", vec![("value", "1")]);
+    assert!(sim.fighters[0].depth_bound);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].depth_player, [0.0, 0.0]);
+    assert_eq!(sim.fighters[0].depth_edge, [0.0, 0.0]);
+    assert!(!sim.fighters[0].depth_bound);
+
+    // `ShaderSet` resolves a DEF `[Shaders]` name and reports it through
+    // `Shader`; unknown names are ignored.
+    assert_eq!(shader(&sim), "");
+    run(
+        &mut sim,
+        "shaderset",
+        vec![("shader", "\"fire\""), ("time", "2")],
+    );
+    assert_eq!(shader(&sim), "fire");
+    assert_eq!(sim.fighters[0].shader_time, 2);
+    run(&mut sim, "shaderset", vec![("shader", "\"missing\"")]);
+    assert_eq!(shader(&sim), "fire");
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(shader(&sim), "fire");
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(shader(&sim), "");
+
+    // Shader selection is checksum-covered.
+    run(&mut sim, "shaderset", vec![("shader", "\"fire\"")]);
+    let before = sim.checksum();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(before, sim.checksum());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

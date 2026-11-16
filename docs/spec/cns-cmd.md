@@ -161,6 +161,9 @@ Required controller families for the approved matrix:
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a
   new box; `ClsnVar` and hit detection see the result)
+- `Depth`, `DepthBound`, `ShaderSet` (per-tick depth extents/flags and a
+  named `[Shaders]` selection; see `docs/spec/depth.md`; GLSL shader
+  execution is not modeled)
 - `GroundLevelOffset` (per-tick ground plane offset: the next physics step
   lands on `value` instead of 0; positive values lower the floor, negative
   values raise it, and the screen-bound clamp follows the offset)
@@ -398,7 +401,7 @@ missing redirect targets make the trigger false.
   ID; `clsn1`/`clsn2`; a projectile's Clsn1 or Clsn2 group may overlap, and
   the unmodeled `size` group is false),
   `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`, `Index`,
-  `ExplodVar(id, index, field)`, `ProjCancelTime(id)`, `NumText(id)`, `ProjHit`,
+  `ExplodVar(id, index, field)`, `ProjCancelTime(id)`, `NumText(id)`, `Shader()`, `ProjHit`,
   `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
   `ParentDist`, `RootDist`, `ParentExist`
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`

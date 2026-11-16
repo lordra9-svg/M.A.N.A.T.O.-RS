@@ -1394,6 +1394,16 @@ impl SimState {
             fighter.assert_flags = 0;
             fighter.asserted_input = PlayerInput::default();
             fighter.analog_axes = [0.0; 6];
+            // `Depth`/`DepthBound` are per-tick; shaders expire after `time`.
+            fighter.depth_player = [0.0, 0.0];
+            fighter.depth_edge = [0.0, 0.0];
+            fighter.depth_bound = false;
+            if fighter.shader_time > 0 {
+                fighter.shader_time -= 1;
+                if fighter.shader_time == 0 {
+                    fighter.shader = None;
+                }
+            }
             // `Width`/`Height` are per-tick overrides: Ikemen resets them
             // before the state controllers run each tick.
             fighter.width_override = None;
@@ -1849,6 +1859,7 @@ impl SimState {
 
         fighter.pos.x += fighter.vel.x;
         fighter.pos.y += fighter.vel.y;
+        fighter.z += fighter.vel_z;
 
         // Landing for ordinary air physics. Any airborne state that reaches
         // the ground transitions to the jump-land state (52) when it exists.
@@ -2434,6 +2445,13 @@ impl SimState {
             fighter.asserted_input = PlayerInput::default();
             fighter.ground_level = 0.0;
             fighter.applied_ground = 0.0;
+            fighter.z = 0.0;
+            fighter.vel_z = 0.0;
+            fighter.depth_player = [0.0, 0.0];
+            fighter.depth_edge = [0.0, 0.0];
+            fighter.depth_bound = false;
+            fighter.shader = None;
+            fighter.shader_time = 0;
             fighter.sprite_remap.clear();
             fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;
@@ -3269,6 +3287,22 @@ impl SimState {
             h.write_i32(f.movelist);
             h.write_f32(f.ground_level);
             h.write_f32(f.applied_ground);
+            h.write_f32(f.z);
+            h.write_f32(f.vel_z);
+            h.write_f32(f.depth_player[0]);
+            h.write_f32(f.depth_player[1]);
+            h.write_f32(f.depth_edge[0]);
+            h.write_f32(f.depth_edge[1]);
+            h.write_bool(f.depth_bound);
+            match &f.shader {
+                Some(name) => {
+                    h.write_bool(true);
+                    h.write_u32(name.len() as u32);
+                    h.write_bytes(name.as_bytes());
+                }
+                None => h.write_bool(false),
+            }
+            h.write_i32(f.shader_time);
             h.write_u32(f.sprite_remap.len() as u32);
             for ((sg, si), (dg, di)) in &f.sprite_remap {
                 h.write_i32(*sg);

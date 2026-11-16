@@ -217,6 +217,10 @@ pub struct Fighter {
 
     pub pos: Vec2,
     pub vel: Vec2,
+    /// Depth position (`PosSet z` / `PosAdd z`), zero in plain 2D play.
+    pub z: f32,
+    /// Depth velocity (`VelSet z` / `VelAdd z`).
+    pub vel_z: f32,
     pub facing: i32,
 
     pub state_no: i32,
@@ -401,6 +405,15 @@ pub struct Fighter {
     /// Ground offset applied by the current tick's physics (used by the
     /// screen-bound clamp).
     pub applied_ground: f32,
+    /// `Depth` player extents (`top`, `bottom`) for the current tick.
+    pub depth_player: [f32; 2],
+    /// `Depth` edge extents for the current tick.
+    pub depth_edge: [f32; 2],
+    /// `DepthBound` flag: enables depth bounds for the current tick.
+    pub depth_bound: bool,
+    /// Active `ShaderSet` shader reference and remaining ticks (`0` = none).
+    pub shader: Option<String>,
+    pub shader_time: i32,
     /// Active `ChangeMovelist` selection (0 = default).
     pub movelist: i32,
     /// `RemapSprite` substitutions: source `(group, index)` → destination.
@@ -470,6 +483,8 @@ impl Fighter {
             ai_level: 0,
             pos,
             vel: Vec2::ZERO,
+            z: 0.0,
+            vel_z: 0.0,
             facing,
             state_no: 0,
             prev_state_no: 0,
@@ -593,6 +608,11 @@ impl Fighter {
             win_quote: -1,
             ground_level: 0.0,
             applied_ground: 0.0,
+            depth_player: [0.0, 0.0],
+            depth_edge: [0.0, 0.0],
+            depth_bound: false,
+            shader: None,
+            shader_time: 0,
             movelist: 0,
             sprite_remap: BTreeMap::new(),
             map: BTreeMap::new(),
