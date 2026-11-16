@@ -36,7 +36,7 @@ deliberate, not scheduling gaps:
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
 | Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
-| GLSL shader execution | V-09 | `ShaderSet`/`Shader()` and a WGSL pipeline registry execute `.wgsl` files; Ikemen's GLSL fragment shaders (and `shaderparam`/extra textures) are not executed. |
+| GLSL uniform layer | V-09 | `.glsl`/`.frag` fragments execute with explicit Vulkan-style bindings and a built-in vertex stage; Ikemen's implicit `uniform` set, `shaderparam`, and `pal`/`tex1`/`tex2` bindings are not modeled. |
 | Spectators/lobby | N-03 | Spectator transport and lobby state need a netplay session layer. |
 | Debug-only helpers | C-13 | Clipboard, console-print, and assert controllers are authoring aids rather than engine behavior. |
 
@@ -149,7 +149,7 @@ priority details.
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, WGSL pipeline registry/execution (both stages, texture+sampler bindings, blend/depth, cached per name), wgpu depth buffer, stage `[Scaling]` perspective for fighters/layers/effects/shadows/texts/projectiles/reflections, and z-axis collision implemented; GLSL execution/`shaderparam` and GLTF 3D nodes not modeled |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, WGSL pipeline registry/execution + GLSL fragment execution (explicit bindings, built-in GLSL vertex stage, blend/depth, cached per name), wgpu depth buffer, stage `[Scaling]` perspective for fighters/layers/effects/shadows/texts/projectiles/reflections, and z-axis collision implemented; Ikemen implicit-uniform GLSL/`shaderparam`/tex1/tex2 and GLTF 3D nodes not modeled |
 
 ## 8. Audio
 

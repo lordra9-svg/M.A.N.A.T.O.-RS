@@ -56,6 +56,8 @@ pub struct Renderer {
 
     sprite_bgl: wgpu::BindGroupLayout,
     sprite_layout: wgpu::PipelineLayout,
+    /// GLSL vertex module paired with GLSL fragment shaders.
+    glsl_vertex_module: wgpu::ShaderModule,
     pipelines: [wgpu::RenderPipeline; 3],
     pipelines_mask: [wgpu::RenderPipeline; 3],
 
@@ -78,6 +80,35 @@ pub struct Renderer {
     vertex_buffer: wgpu::Buffer,
     vertex_capacity: u64,
     painter: Painter,
+}
+
+fn create_glsl_vertex_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
+    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("manato GLSL vertex shader"),
+        source: wgpu::ShaderSource::Glsl {
+            shader: r#"#version 450
+layout(location = 0) in vec2 position;
+layout(location = 1) in vec2 uv_in;
+layout(location = 2) in vec4 color_in;
+layout(location = 3) in float z;
+layout(location = 0) out vec2 uv;
+layout(location = 1) out vec4 color;
+void main() {
+    gl_Position = vec4(
+        position.x / 320.0 * 2.0 - 1.0,
+        1.0 - position.y / 240.0 * 2.0,
+        z,
+        1.0
+    );
+    uv = uv_in;
+    color = color_in;
+}
+"#
+            .into(),
+            stage: wgpu::naga::ShaderStage::Vertex,
+            defines: &[],
+        },
+    })
 }
 
 impl Renderer {
@@ -370,6 +401,7 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
+        let glsl_vertex_module = create_glsl_vertex_shader(&device);
         Ok(Self {
             device,
             queue,
@@ -378,6 +410,7 @@ impl Renderer {
             depth_view,
             sprite_bgl,
             sprite_layout,
+            glsl_vertex_module,
             pipelines,
             pipelines_mask,
             atlas,
@@ -589,6 +622,65 @@ impl Renderer {
         true
     }
 
+    /// Compiles a GLSL fragment shader against the sprite vertex module. The
+    /// fragment must declare `layout(binding = 0) uniform texture2D tex`,
+    /// `layout(binding = 1) uniform sampler samp`, inputs `uv` (location 0)
+    /// and `color` (location 1), and a colour output at location 0.
+    pub fn register_glsl_shader(&mut self, name: &str, source: &str) -> bool {
+        self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let fragment = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("manato GLSL custom shader"),
+                source: wgpu::ShaderSource::Glsl {
+                    shader: source.into(),
+                    stage: wgpu::naga::ShaderStage::Fragment,
+                    defines: &[],
+                },
+            });
+        let make = |blend: Blend| {
+            self.device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("manato GLSL custom pipeline"),
+                    layout: Some(&self.sprite_layout),
+                    vertex: wgpu::VertexState {
+                        module: &self.glsl_vertex_module,
+                        entry_point: Some("main"),
+                        buffers: &[vertex_layout()],
+                        compilation_options: Default::default(),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &fragment,
+                        entry_point: Some("main"),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: GAME_FORMAT,
+                            blend: Some(blend_state(blend)),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                        compilation_options: Default::default(),
+                    }),
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                    cache: None,
+                })
+        };
+        let pipelines = [make(Blend::Normal), make(Blend::Add), make(Blend::Sub)];
+        if let Some(error) = pollster::block_on(self.device.pop_error_scope()) {
+            log::warn!("GLSL shader {name} failed to compile: {error}");
+            return false;
+        }
+        self.custom_shaders.insert(name.to_string(), pipelines);
+        true
+    }
+
     /// Loads and compiles one `ShaderSet` name on first use. Only WGSL files
     /// are executed; GLSL content shaders are reported once and fall back to
     /// the default pipeline.
@@ -613,19 +705,20 @@ impl Renderer {
                 return;
             }
         };
-        if path
+        let extension = path
             .extension()
             .and_then(|ext| ext.to_str())
-            .is_none_or(|ext| !ext.eq_ignore_ascii_case("wgsl"))
-        {
-            log::warn!(
-                "custom shader {} is not WGSL; GLSL execution is not modeled",
-                path.display()
-            );
-            self.failed_shaders.insert(name.to_string());
-            return;
-        }
-        if !self.register_shader(name, &source) {
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let compiled = match extension.as_str() {
+            "wgsl" => self.register_shader(name, &source),
+            "glsl" | "frag" | "fs" => self.register_glsl_shader(name, &source),
+            _ => {
+                log::warn!("custom shader {} is not WGSL or GLSL", path.display());
+                false
+            }
+        };
+        if !compiled {
             self.failed_shaders.insert(name.to_string());
         }
     }
@@ -1028,6 +1121,27 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(c.g, c.b, c.r, c.a);
 }
 "#;
+
+    #[test]
+    fn glsl_fragment_compiles_when_gpu_available() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let source = r#"#version 450
+layout(location = 0) smooth in vec2 uv;
+layout(location = 1) smooth in vec4 color;
+layout(binding = 0) uniform texture2D tex;
+layout(binding = 1) uniform sampler samp;
+layout(location = 0) out vec4 frag;
+void main() {
+    vec4 c = texture(sampler2D(tex, samp), uv) * color;
+    frag = vec4(c.g, c.b, c.r, c.a);
+}
+"#;
+        assert!(renderer.register_glsl_shader("swap-glsl", source));
+        assert!(renderer.custom_shaders.contains_key("swap-glsl"));
+    }
 
     #[test]
     fn wgsl_custom_shader_compiles_when_gpu_available() {

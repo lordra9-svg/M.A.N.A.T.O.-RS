@@ -127,19 +127,37 @@ checksum. The renderer compiles a selected shader on first use when the
   `(2) color: vec4<f32>`, `(3) z: f32`;
 - bindings: `@group(0) @binding(0)` texture2d, `(1)` sampler.
 
+GLSL files are also executed as fragment shaders (`.glsl`, `.frag`, `.fs`). The
+renderer pairs them with a built-in GLSL vertex shader and requires explicit
+Vulkan-style bindings/locations:
+
+```glsl
+#version 450
+layout(location = 0) in vec2 uv;
+layout(location = 1) in vec4 color;
+layout(binding = 0) uniform texture2D tex;
+layout(binding = 1) uniform sampler samp;
+layout(location = 0) out vec4 frag;
+void main() {
+    frag = texture(sampler2D(tex, samp), uv) * color;
+}
+```
+
 Compiled shaders are cached per name and usable with normal/add/sub blends and
 the depth buffer; selecting a shader splits the painter's draw ranges so only
 that fighter's quads use it. Compilation failures fall back to the default
 sprite pipeline.
 
-GLSL content shaders (Ikemen's fragment-only shaders with its uniform and
-texture set) are not executed: there is no GLSL→WGSL translation or uniform
-binding layer. `shaderparam` and extra texture inputs are also not modeled.
+Ikemen's OpenGL-GLSL fragment convention still needs a compatibility layer:
+its shaders use implicit uniform locations and the `pal`/`tex1`/`tex2`/grab
+textures plus a large uniform set. `shaderparam` values and extra textures are
+not yet bound, so such shaders compile only after being rewritten to the
+interface above.
 
 ## 5. Not modeled
 
-- GLSL shader execution, `shaderparam`, and shader texture inputs (`tex1`,
-  `tex2`, grab passes).
+- Ikemen's implicit-location GLSL uniform set, `shaderparam` values, and
+  shader texture inputs (`pal`, `tex1`, `tex2`, grab passes).
 - GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
   `ctrlid` selects BG layers by `id` (`-1` = all) and
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
@@ -147,4 +165,4 @@ binding layer. `shaderparam` and extra texture inputs are also not modeled.
   targets 3D model nodes here, which this engine does not load.
 - Hit `zoff` (hit position offset) is always zero; `zvel`/`zaccel` and
   `fall.zvel` report the values applied by the connecting HitDef.
-- Custom shader execution, `shaderparam`, and texture inputs.
+- `shaderparam` values and extra shader textures.
