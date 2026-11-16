@@ -523,6 +523,13 @@ timed stun.
 - Helpers use their owner’s attack multipliers and sound banks.
 - Helpers are not valid defenders in the first pass.
 
+## 10.0 Depth (z-axis) hits
+
+`HitDef depth = top, bottom` gives the attack a depth band around the
+attacker's `z`; the defender's `Depth player` extents around its `z` must
+overlap. The gate only applies when the stage `[PlayerInfo] topbound` and
+`botbound` differ; otherwise depth is ignored. See `docs/spec/depth.md` §2.1.
+
 ## 10.1 Ground plane
 
 `GroundLevelOffset` sets a per-tick ground plane consumed by the next physics

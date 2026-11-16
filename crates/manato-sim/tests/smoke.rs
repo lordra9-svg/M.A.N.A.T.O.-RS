@@ -3283,6 +3283,104 @@ fn depth_shaderset_and_z_components() {
 }
 
 #[test]
+fn hitdef_depth_gates_z_axis_collision() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // Enable a stage depth range; the gate only runs when topbound != botbound.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = -50.0;
+        assets.stage.z_max = 50.0;
+    }
+
+    // HitDef `depth = top, bottom` is parsed into attack extents.
+    let control = manato_formats::Controller {
+        kind: "hitdef".into(),
+        params: vec![
+            ("attr".into(), "S, NA".into()),
+            ("damage".into(), "10".into()),
+            ("depth".into(), "10, 20".into()),
+        ],
+        line: 0,
+    };
+    let assets = sim.assets.clone();
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(
+        sim.fighters[0]
+            .hitdef
+            .as_ref()
+            .expect("hitdef")
+            .attack_depth,
+        [10.0, 20.0]
+    );
+    drop(assets);
+
+    sim.fighters[0].pos = manato_core::Vec2::new(-1.0, 0.0);
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos = manato_core::Vec2::new(5.0, 0.0);
+    sim.fighters[1].facing = -1;
+    let mut hit = hitdef();
+    hit.damage = 10;
+    hit.pausetime = (0, 0);
+    hit.attack_depth = [20.0, 20.0];
+
+    let reset = |sim: &mut SimState| {
+        sim.fighters[0].enter_state(200, &sim.assets.characters[0], false);
+        sim.fighters[0].set_anim(200, &sim.assets.characters[0], Some(2));
+        sim.fighters[1].enter_state(0, &sim.assets.characters[1], false);
+        sim.fighters[1].set_anim(0, &sim.assets.characters[1], None);
+        sim.fighters[0].hit.hit_counts.clear();
+        sim.fighters[0].hit.hit_targets.clear();
+        sim.fighters[0].hit.last_activation_frame = -1;
+        sim.fighters[1].life = sim.fighters[1].life_max;
+        sim.fighters[1].z = 0.0;
+        sim.fighters[1].depth_player = [0.0, 0.0];
+    };
+
+    // Both fighters at z = 0: extents overlap and the hit lands.
+    reset(&mut sim);
+    sim.fighters[0].hitdef = Some(hit.clone());
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 10);
+
+    // The defender steps out of the attacker's depth band: no hit.
+    reset(&mut sim);
+    sim.fighters[1].z = 100.0;
+    sim.fighters[0].hitdef = Some(hit.clone());
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life, sim.fighters[1].life_max,
+        "z-separated fighters must not connect"
+    );
+
+    // `Depth` extents widen the defender back into the attack band:
+    // z = 100 with a 90-unit top extent spans z = 10..100.
+    reset(&mut sim);
+    sim.fighters[1].z = 100.0;
+    sim.fighters[1].depth_player = [90.0, 0.0];
+    sim.fighters[0].hitdef = Some(hit.clone());
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(
+        sim.fighters[1].life,
+        sim.fighters[1].life_max - 10,
+        "wide defender depth overlaps the attack"
+    );
+
+    // With no stage depth range the check is disabled and the hit lands.
+    reset(&mut sim);
+    sim.fighters[1].z = 100.0;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = 0.0;
+        assets.stage.z_max = 0.0;
+    }
+    sim.fighters[0].hitdef = Some(hit);
+    manato_sim::collision::resolve(&mut sim);
+    assert_eq!(sim.fighters[1].life, sim.fighters[1].life_max - 10);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -19,6 +19,22 @@
 physics integration. `Depth` extents and `DepthBound`, like most per-tick
 assertions, reset at the start of every tick, so content re-asserts them.
 
+## 2.1 Z-axis hits
+
+`HitDef depth = top, bottom` (parsed into `attack_depth`) defines the
+attacker's z extents around its own `z`:
+
+```
+attack = [z - attack_depth[0], z + attack_depth[1]]
+defender = [z - depth_player[0], z + depth_player[1]]
+```
+
+The bands must overlap for a hit to connect, using the defender's current
+`Depth` `player` extents. The check only runs when the stage defines a depth
+range (`[PlayerInfo] topbound != botbound`); otherwise hits ignore depth, as in
+Ikemen. This applies to normal `HitDef` collision (projectiles still use their
+2D/`attack_depth` values without a z position).
+
 ## 3. Rendering
 
 The renderer owns a `Depth32Float` buffer cleared to `1.0` each frame. Sprites
@@ -71,6 +87,7 @@ rollback checksum.
 
 - Stage-BG 3D controllers (`ModifyBGCtrl3D`) and perspective for stage layers,
   shadows, reflections, effects, and texts (fighters only for now).
-- Z-axis attack/defence collision (`attack_depth`), `p2depth`, and depth bounds
-  affecting hit detection. `[Scaling]` perspective is implemented.
+- Projectile z positions and `p2depth`/`depthbound` clamping (the flag is
+  stored but does not constrain movement).
+- `GetHitVar(zoff|zvel|zaccel)`, which still reads zero.
 - Custom shader execution, `shaderparam`, and texture inputs.

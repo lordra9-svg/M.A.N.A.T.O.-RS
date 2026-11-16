@@ -176,6 +176,8 @@ pub struct HitDef {
     pub down_recovertime: i32,
     /// Vertical acceleration imparted to the defender (`yaccel`).
     pub yaccel: f32,
+    /// `depth = top, bottom`: z-axis attack extents around the attacker's `z`.
+    pub attack_depth: [f32; 2],
     /// `guard.velocity`; falls back to `ground.velocity` when absent.
     pub guard_velocity: Option<Vec2>,
     pub airguard_velocity: Vec2,
@@ -296,6 +298,7 @@ impl Default for HitDef {
         Self {
             attr: HitAttr::default(),
             attr_text: String::new(),
+            attack_depth: [0.0, 0.0],
             affect_team: TeamFilter::Enemy,
             damage: 0,
             guard_damage: 0,
@@ -421,6 +424,7 @@ impl HitDef {
         let mut h = Self {
             activation,
             yaccel: default_yaccel,
+            attack_depth: [0.0, 0.0],
             fall_yvel: default_fall_yvel,
             guard_dist: default_guard_dist.max(0),
             ..Self::default()
@@ -495,6 +499,10 @@ impl HitDef {
                 "down.recover" => h.down_recover = parse_i32(value) != 0,
                 "down.recovertime" => h.down_recovertime = parse_i32(value),
                 "yaccel" => h.yaccel = parse_f32(value),
+                "depth" => {
+                    let (top, bottom) = parse_pair(value);
+                    h.attack_depth = [top, bottom];
+                }
                 "guard.velocity" => h.guard_velocity = Some(parse_vec(value)),
                 "airguard.velocity" => {
                     h.airguard_velocity = parse_vec(value);

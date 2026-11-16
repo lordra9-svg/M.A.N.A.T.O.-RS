@@ -32,7 +32,7 @@ deliberate, not scheduling gaps:
 | Blocker | Rows | Reason |
 | --- | --- | --- |
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
-| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, and stage `[Scaling]` perspective for fighters are implemented; `ModifyBGCtrl3D`, layer/effect perspective, and z-axis attack collision are not modeled. |
+| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, and stage `[Scaling]` perspective for fighters are implemented; `ModifyBGCtrl3D`, layer/effect perspective, and projectile z positions are not modeled; fighter z-axis hits use `HitDef depth` and `Depth` extents. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
 | Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
@@ -88,7 +88,7 @@ priority details.
 | T-01 | Time/Anim/AnimElem/AnimTime | Required | Required | Partial | Anim triggers + AnimElemNo look-ahead/wrap + loop boundary and invalid AnimElemTime sentinel + AnimExist animation-bank vs SelfAnimExist own-bank tests |
 | T-02 | Pos/Vel/StateType/MoveType | Required | Required | Partial | Pos/Vel/Facing/Physics + StateNo/PrevStateNo/Time + P2 distances incl. M.U.G.E.N-version P2BodyDist Y signed axis difference |
 | T-03 | Command/command timers | Required | Required | Partial | Command trigger + time/buffer expiry + M.U.G.E.N `/` step propagation and hold-only 1-tick buffer quirks |
-| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | GetHitVar vel/xoff/yoff/hittime countdown/HitOver equivalence/redlife/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.*/fall.xvel fall.yvel + ground/air/fall.animtype banks + hitdamage/guarddamage/kill/guardcount/attr + zero zoff/zvel/zaccel/xveladd/yveladd + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) + PowerMax/Attack/AttackMul/Defence/DefenceMul/GuardCount/Angle/HitOverridden/ClsnOverlap |
+| T-04 | GetHitVar/HitShakeOver/HitOver | Required | Required | Partial | HitDef depth + z-axis hit gating + GetHitVar vel/xoff/yoff/hittime countdown/HitOver equivalence/redlife/hitid/priority/fall/hitshaketime/fallcount/recovertime/fall.recovertime/fall.kill/fall.envshake.*/fall.xvel fall.yvel + ground/air/fall.animtype banks + hitdamage/guarddamage/kill/guardcount/attr + zero zoff/zvel/zaccel/xveladd/yveladd + HitVel + HitShakeOver/HitOver threshold + HitPauseTime attacker/defender split (O-29) + PowerMax/Attack/AttackMul/Defence/DefenceMul/GuardCount/Angle/HitOverridden/ClsnOverlap |
 | T-05 | P2/redirect/helper/explod/proj vars | Required | Required | Partial | Redirects + NumHelper/NumProj(ID active-only)/NumExplod + ExplodVar(id, index, field) incl. animplayerno/bindid/loopcount/teamside + ProjVar(id, index, field) incl. projhitsmax/remvelocity/teamside + HelperVar + Index + SysVar + ID/PlayerID 1-based unique IDs + IsHelper(id)/ParentDist/RootDist axis-facing + ParentExist ancestry tests |
 | T-06 | Const/expressions/random | Required | Required | Partial | Const incl. 1080p + radian trig/asin/acos/atan2 + Clamp/Lerp/Sign/Round/RandomRange + Cond/E/Ln/Log(base,value) + ScreenWidth/Height, TicksPerSecond, GameTime + per-slot AILevel + old-style TimeMod |
 | T-07 | Team/tag/partner triggers | Required | Ikemen | Partial | `TeamMode` single/simul/turns + `IsHomeTeam` versus side semantics; tag/partner/simul teams out of scope |
@@ -149,7 +149,7 @@ priority details.
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, and stage `[Scaling]` perspective implemented; GLSL execution and `ModifyBGCtrl3D` not modeled |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, stage `[Scaling]` perspective, and z-axis `HitDef depth` collision implemented; GLSL execution and `ModifyBGCtrl3D` not modeled |
 
 ## 8. Audio
 

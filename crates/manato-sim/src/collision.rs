@@ -66,6 +66,9 @@ pub fn resolve(sim: &mut SimState) {
         if !any_overlap(&attack_boxes, &hurt_boxes) {
             continue;
         }
+        if !z_axis_allows(sim, attacker, defender, &hitdef) {
+            continue;
+        }
 
         let mut forced_guard = false;
         if let Some(override_) = sim.fighters[defender].matched_override(&hitdef) {
@@ -152,6 +155,24 @@ pub(crate) fn clsn_boxes(sim: &SimState, who: usize, attack: bool) -> Vec<Rect> 
         .enumerate()
         .map(|(index, b)| fighter.world_clsn_box(b, group, index))
         .collect()
+}
+
+/// Z-axis gate: the attacker's `HitDef depth` extents around its own `z` must
+/// overlap the defender's `Depth` extents around its `z`. The check only
+/// applies when the stage defines a depth range (`[PlayerInfo] topbound` !=
+/// `botbound`).
+fn z_axis_allows(sim: &SimState, attacker: usize, defender: usize, hitdef: &HitDef) -> bool {
+    let stage = &sim.assets.stage;
+    if (stage.z_max - stage.z_min).abs() < f32::EPSILON {
+        return true;
+    }
+    let a = &sim.fighters[attacker];
+    let d = &sim.fighters[defender];
+    let a_top = a.z - hitdef.attack_depth[0];
+    let a_bottom = a.z + hitdef.attack_depth[1];
+    let d_top = d.z - d.depth_player[0];
+    let d_bottom = d.z + d.depth_player[1];
+    a_bottom >= d_top && a_top <= d_bottom
 }
 
 fn any_overlap(a: &[Rect], b: &[Rect]) -> bool {
