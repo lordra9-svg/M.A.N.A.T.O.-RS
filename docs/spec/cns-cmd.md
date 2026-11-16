@@ -161,6 +161,9 @@ Required controller families for the approved matrix:
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a
   new box; `ClsnVar` and hit detection see the result)
+- `SaveState`, `LoadState`, `MatchRestart` (snapshot/restore the live
+  simulation and reset to round 1; see `docs/spec/save.md`; disk
+  `SaveFile`/`LoadFile` and DEF/PAL overrides are not modeled)
 - `ChangeMovelist` (selects one of the character's `[Files] movelist`,
   `movelist0`, `movelistN` texts by `value`; an unknown id leaves the
   selection unchanged. Ikemen exposes this list to Lua AI scripts; the

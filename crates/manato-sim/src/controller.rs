@@ -271,6 +271,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
+        "savestate" => sim.save_state_requested = true,
+        "loadstate" => sim.load_state_requested = true,
+        "matchrestart" => sim.restart_requested = true,
         "remappal" => {
             let pair = |key: &str| {
                 control.get(key).map(|raw| {

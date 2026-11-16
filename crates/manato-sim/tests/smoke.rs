@@ -2552,6 +2552,83 @@ fn remappal_selects_act_palettes() {
 }
 
 #[test]
+fn save_load_state_restores_the_simulation() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    for _ in 0..30 {
+        sim.tick([
+            PlayerInput::new(0, manato_core::Buttons::X),
+            PlayerInput::default(),
+        ]);
+    }
+    sim.fighters[0].vars[5] = 42;
+    sim.fighters[1].life = 777;
+    sim.save_snapshot();
+    let saved_checksum = sim.checksum();
+
+    // Advance and mutate, recording the trajectory from the snapshot.
+    let mut expected = Vec::new();
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+        expected.push(sim.checksum());
+    }
+    assert_ne!(sim.checksum(), saved_checksum);
+
+    // Restoring reproduces the same trajectory exactly.
+    assert!(sim.load_snapshot());
+    assert_eq!(sim.checksum(), saved_checksum);
+    for expected_checksum in expected {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.checksum(), expected_checksum);
+    }
+
+    // SaveState/LoadState controllers schedule the same operations.
+    let run = |sim: &mut SimState, kind: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: Vec::new(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    sim.fighters[0].life = 100;
+    run(&mut sim, "savestate");
+    sim.tick([PlayerInput::default(); 2]);
+    sim.fighters[0].life = 1;
+    run(&mut sim, "loadstate");
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].life, 100);
+}
+
+#[test]
+fn matchrestart_resets_the_match() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.round.number = 3;
+    sim.round.wins = [2, 1];
+    sim.round.winner = Some(0);
+    sim.fighters[0].life = 10;
+    sim.score = [7.0, 3.0];
+    let control = manato_formats::Controller {
+        kind: "matchrestart".into(),
+        params: Vec::new(),
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert_eq!(sim.round.number, 3, "applied at the next tick boundary");
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.number, 1);
+    assert_eq!(sim.round.wins, [0, 0]);
+    assert_eq!(sim.round.winner, None);
+    assert_eq!(sim.fighters[0].life, sim.fighters[0].life_max);
+    assert_eq!(sim.score, [0.0, 0.0]);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

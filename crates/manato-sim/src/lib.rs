@@ -756,6 +756,11 @@ pub struct SimState {
     pub score_rounds: [f32; 2],
     /// Live stage BG controllers; `ModifyBGCtrl` edits this copy.
     pub bg_ctrls: Vec<manato_formats::BgCtrl>,
+    /// Snapshot stored by `SaveState` and restored by `LoadState`.
+    saved_snapshot: Option<Box<SimState>>,
+    save_state_requested: bool,
+    load_state_requested: bool,
+    restart_requested: bool,
 }
 
 impl SimState {
@@ -850,6 +855,10 @@ impl SimState {
             score: [0.0; 2],
             score_rounds: [0.0; 2],
             bg_ctrls,
+            saved_snapshot: None,
+            save_state_requested: false,
+            load_state_requested: false,
+            restart_requested: false,
         };
         state.start_round();
         state
@@ -933,8 +942,42 @@ impl SimState {
             .map(|(index, _)| index)
     }
 
+    /// Stores a complete simulation snapshot for `LoadState`.
+    pub fn save_snapshot(&mut self) {
+        let mut snapshot = self.clone();
+        snapshot.saved_snapshot = None;
+        snapshot.save_state_requested = false;
+        snapshot.load_state_requested = false;
+        snapshot.restart_requested = false;
+        self.saved_snapshot = Some(Box::new(snapshot));
+    }
+
+    /// Restores the stored snapshot, if any. Returns whether a snapshot
+    /// existed.
+    pub fn load_snapshot(&mut self) -> bool {
+        let Some(snapshot) = self.saved_snapshot.take() else {
+            return false;
+        };
+        let restored = (*snapshot).clone();
+        *self = restored;
+        self.saved_snapshot = Some(snapshot);
+        true
+    }
+
     /// Advances the match by exactly one 60 Hz tick.
     pub fn tick(&mut self, inputs: [PlayerInput; 2]) {
+        if self.restart_requested {
+            self.restart_requested = false;
+            self.restart_match();
+        }
+        if self.load_state_requested {
+            self.load_state_requested = false;
+            self.load_snapshot();
+        }
+        if self.save_state_requested {
+            self.save_state_requested = false;
+            self.save_snapshot();
+        }
         self.frame = self.frame.wrapping_add(1);
         for fighter in &mut self.fighters {
             if fighter.hit.hit_shake_timer > 0 {
