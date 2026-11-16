@@ -202,6 +202,14 @@ pub enum LobbyMessage {
         id: u32,
         host: u32,
     },
+    /// Host → spectators: one chunk of a rollback state snapshot.
+    Snapshot {
+        frame: i32,
+        checksum: u64,
+        index: u16,
+        total: u16,
+        data: Vec<u8>,
+    },
     /// Server → clients: full lobby snapshot.
     State {
         host: u32,
@@ -387,6 +395,34 @@ impl LobbyServer {
                     })
                     .collect()
             }
+            LobbyMessage::Snapshot {
+                frame,
+                checksum,
+                index,
+                total,
+                data,
+            } => {
+                if host_addr != Some(addr) {
+                    return Vec::new();
+                }
+                let message = LobbyMessage::Snapshot {
+                    frame,
+                    checksum,
+                    index,
+                    total,
+                    data,
+                };
+                self.state
+                    .members
+                    .iter()
+                    .filter(|member| member.role == LobbyRole::Spectator)
+                    .filter_map(|member| {
+                        self.peers
+                            .get(&member.id)
+                            .map(|addr| (*addr, message.clone()))
+                    })
+                    .collect()
+            }
             LobbyMessage::Welcome { .. } | LobbyMessage::State { .. } => Vec::new(),
         }
     }
@@ -438,6 +474,89 @@ impl UdpRelay {
     /// Sends a message directly (host-side helpers, tests).
     pub fn send_to(&self, message: &LobbyMessage, addr: SocketAddr) -> std::io::Result<usize> {
         self.socket.send_to(&message.encode(), addr)
+    }
+}
+
+/// Payload size per snapshot chunk (keeps datagrams well under 4 KiB).
+pub const SNAPSHOT_CHUNK_SIZE: usize = 1024;
+/// Maximum reassembled spectator snapshot (chunks × size).
+pub const MAX_SNAPSHOT_SIZE: usize = 256 * 1024;
+
+/// Splits a serialized state snapshot into relayable chunks.
+pub fn chunk_snapshot(frame: i32, checksum: u64, bytes: &[u8]) -> Vec<LobbyMessage> {
+    if bytes.is_empty() {
+        return Vec::new();
+    }
+    let total = bytes
+        .len()
+        .div_ceil(SNAPSHOT_CHUNK_SIZE)
+        .min(u16::MAX as usize);
+    bytes
+        .chunks(SNAPSHOT_CHUNK_SIZE)
+        .enumerate()
+        .map(|(index, chunk)| LobbyMessage::Snapshot {
+            frame,
+            checksum,
+            index: index as u16,
+            total: total as u16,
+            data: chunk.to_vec(),
+        })
+        .collect()
+}
+
+/// Reassembles host snapshot chunks for a spectator, rejecting stale frames,
+/// duplicates, oversized payloads, and checksum mismatches.
+#[derive(Debug, Clone, Default)]
+pub struct SnapshotAssembler {
+    frame: i32,
+    checksum: u64,
+    total: u16,
+    parts: Vec<Option<Vec<u8>>>,
+    received: u16,
+}
+
+impl SnapshotAssembler {
+    pub fn accept(
+        &mut self,
+        frame: i32,
+        checksum: u64,
+        index: u16,
+        total: u16,
+        data: &[u8],
+    ) -> Option<Vec<u8>> {
+        if total == 0
+            || index >= total
+            || data.len() > SNAPSHOT_CHUNK_SIZE
+            || total as usize * SNAPSHOT_CHUNK_SIZE > MAX_SNAPSHOT_SIZE
+        {
+            return None;
+        }
+        if frame < self.frame || (frame == self.frame && checksum != self.checksum) {
+            return None;
+        }
+        if frame > self.frame {
+            self.frame = frame;
+            self.checksum = checksum;
+            self.total = total;
+            self.parts = vec![None; total as usize];
+            self.received = 0;
+        } else if total != self.total {
+            return None;
+        }
+        let slot = &mut self.parts[index as usize];
+        if slot.is_some() {
+            return None;
+        }
+        *slot = Some(data.to_vec());
+        self.received += 1;
+        if self.received != self.total {
+            return None;
+        }
+        let mut out = Vec::new();
+        for part in &self.parts {
+            out.extend_from_slice(part.as_deref()?);
+        }
+        Some(out)
     }
 }
 
@@ -516,6 +635,50 @@ mod tests {
                 later,
             )
             .is_empty());
+    }
+
+    #[test]
+    fn snapshot_chunks_reassemble_and_reject_bad_input() {
+        let payload: Vec<u8> = (0..3000u32).map(|v| v as u8).collect();
+        let chunks = chunk_snapshot(5, 99, &payload);
+        assert!(chunks.len() >= 3);
+        let mut assembler = SnapshotAssembler::default();
+        let mut complete = None;
+        for (position, chunk) in chunks.iter().enumerate().rev() {
+            let LobbyMessage::Snapshot {
+                frame,
+                checksum,
+                index,
+                total,
+                data,
+            } = chunk
+            else {
+                panic!("snapshot variant");
+            };
+            let result = assembler.accept(*frame, *checksum, *index, *total, data);
+            if position == 0 {
+                complete = result;
+            } else {
+                assert!(result.is_none());
+            }
+        }
+        assert_eq!(complete.as_deref(), Some(payload.as_slice()));
+
+        // Stale frame, duplicate, oversized chunk, and bad totals are rejected.
+        assert!(assembler.accept(4, 99, 0, 1, &[1, 2, 3]).is_none());
+        assert!(assembler.accept(5, 99, 0, 3, &[1]).is_none());
+        assert!(assembler
+            .accept(6, 1, 0, 1, &vec![0; SNAPSHOT_CHUNK_SIZE + 1])
+            .is_none());
+        assert!(assembler
+            .accept(
+                6,
+                1,
+                0,
+                (MAX_SNAPSHOT_SIZE / SNAPSHOT_CHUNK_SIZE + 1) as u16,
+                &[1]
+            )
+            .is_none());
     }
 
     #[test]
@@ -630,6 +793,32 @@ mod tests {
         );
         assert_eq!(replies.len(), 1, "frames go to spectators only");
         assert_eq!(replies[0].0, spec_addr);
+
+        // Snapshot chunks relay from the host to spectators only.
+        let replies = server.handle(
+            host_addr,
+            LobbyMessage::Snapshot {
+                frame: 10,
+                checksum: 7,
+                index: 0,
+                total: 1,
+                data: vec![1, 2, 3],
+            },
+        );
+        assert_eq!(replies.len(), 1);
+        assert_eq!(replies[0].0, spec_addr);
+        assert!(server
+            .handle(
+                guest_addr,
+                LobbyMessage::Snapshot {
+                    frame: 11,
+                    checksum: 8,
+                    index: 0,
+                    total: 1,
+                    data: vec![9],
+                },
+            )
+            .is_empty());
     }
 
     #[test]

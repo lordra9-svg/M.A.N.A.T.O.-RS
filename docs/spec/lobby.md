@@ -32,6 +32,8 @@ Operations:
 - `Frame { frame, checksum }` — relayed rollback frame metadata for spectators.
 - `Welcome { id, host }` — server-assigned member id.
 - `State { host, phase, members }` — full lobby snapshot broadcast on changes.
+- `Snapshot { frame, checksum, index, total, data }` — one chunk of a host
+  rollback state snapshot, relayed to spectators.
 
 `encode()`/`decode()` are transport-agnostic; a relay can carry them over UDP
 or any other channel.
@@ -43,6 +45,16 @@ start/frame messages, returning `(addr, message)` replies (join/state
 broadcasts, spectator-only frame relays). `UdpRelay` binds a non-blocking UDP
 socket, drains datagrams through the server, and sends the replies, making the
 protocol usable over the network (localhost relay is covered by tests).
+
+### State streaming
+
+`chunk_snapshot(frame, checksum, bytes)` splits a serialized snapshot into
+1 KiB `Snapshot` chunks (at most 256 chunks / 256 KiB). The host relays them to
+spectators only. `SnapshotAssembler` reassembles chunks, rejects stale frames,
+duplicate indices, inconsistent checksums/totals, oversized chunks, and
+payloads above 256 KiB, and returns the complete byte payload once every chunk
+has arrived. The host remains responsible for serializing/deserializing the
+simulation state and validating its checksum.
 
 `SpectatorSync` accepts increasing rollback frame numbers, rejects stale or
 duplicate frames, counts gaps as `missed_frames`, and reports `lagging()` once
@@ -65,6 +77,6 @@ more than 60 frames (one second) are missing.
 ## 5. Not modeled
 
 - Lobby discovery/announcement, NAT traversal, and matchmaking.
-- Spectator state streaming (only frame/checksum metadata is relayed; full
-  simulation snapshots are not sent).
+- Host-side snapshot serialization/restore wiring into the spectator client
+  (the chunk transport and reassembler are implemented).
 - Chat/moderation, spectator input isolation beyond the role flags.
