@@ -31,7 +31,7 @@ pub enum TexRef {
     Shadow,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DrawRange {
     pub start: u32,
     pub count: u32,
@@ -41,6 +41,8 @@ pub struct DrawRange {
     pub mask: bool,
     /// Optional scissor rectangle in game pixels: x, y, width, height.
     pub scissor: Option<[u32; 4]>,
+    /// Custom shader selected for these quads (`ShaderSet` name).
+    pub shader: Option<String>,
 }
 
 /// Accumulates quads and the state changes needed to draw them.
@@ -50,6 +52,7 @@ pub struct Painter {
     scissor: Option<[u32; 4]>,
     mask: bool,
     depth: f32,
+    shader: Option<String>,
 }
 
 impl Default for Painter {
@@ -60,6 +63,7 @@ impl Default for Painter {
             scissor: None,
             mask: false,
             depth: 1.0,
+            shader: None,
         }
     }
 }
@@ -71,6 +75,12 @@ impl Painter {
         self.scissor = None;
         self.mask = false;
         self.depth = 1.0;
+        self.shader = None;
+    }
+
+    /// Selects a custom shader for subsequent quads (`None` = default).
+    pub fn set_shader(&mut self, shader: Option<String>) {
+        self.shader = shader;
     }
 
     /// Depth written by subsequent quads.
@@ -97,6 +107,7 @@ impl Painter {
                 && last.blend == blend
                 && last.mask == self.mask
                 && last.scissor == self.scissor
+                && last.shader == self.shader
                 && last.start + last.count == self.vertices.len() as u32
             {
                 last.count += 6;
@@ -110,6 +121,7 @@ impl Painter {
             blend,
             mask: self.mask,
             scissor: self.scissor,
+            shader: self.shader.clone(),
         });
     }
 
@@ -428,6 +440,31 @@ pub fn blend_state(blend: Blend) -> wgpu::BlendState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shader_changes_split_draw_ranges() {
+        let mut painter = Painter::default();
+        let draw = |painter: &mut Painter| {
+            painter.quad(
+                TexRef::Solid,
+                Blend::Normal,
+                [0.0, 0.0, 10.0, 10.0],
+                [0.0, 0.0, 1.0, 1.0],
+                false,
+                false,
+                [1.0; 4],
+            );
+        };
+        draw(&mut painter);
+        painter.set_shader(Some("glow".into()));
+        draw(&mut painter);
+        painter.set_shader(None);
+        draw(&mut painter);
+        assert_eq!(painter.ranges.len(), 3);
+        assert_eq!(painter.ranges[0].shader, None);
+        assert_eq!(painter.ranges[1].shader.as_deref(), Some("glow"));
+        assert_eq!(painter.ranges[2].shader, None);
+    }
 
     #[test]
     fn set_depth_applies_to_subsequent_quads() {

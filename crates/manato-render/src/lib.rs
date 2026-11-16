@@ -16,6 +16,7 @@ pub mod text;
 
 pub use wgpu;
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::Context as _;
@@ -54,6 +55,7 @@ pub struct Renderer {
     depth_view: wgpu::TextureView,
 
     sprite_bgl: wgpu::BindGroupLayout,
+    sprite_layout: wgpu::PipelineLayout,
     pipelines: [wgpu::RenderPipeline; 3],
     pipelines_mask: [wgpu::RenderPipeline; 3],
 
@@ -62,6 +64,10 @@ pub struct Renderer {
     screen_fonts: std::collections::BTreeMap<u32, ScreenFont>,
     /// Last palette remap applied to each character sprite bank.
     applied_palettes: std::collections::HashMap<u8, AppliedPalette>,
+    /// Compiled `ShaderSet` pipelines (WGSL files containing both stages).
+    custom_shaders: HashMap<String, [wgpu::RenderPipeline; 3]>,
+    /// Shader names that failed to compile or use unsupported GLSL.
+    failed_shaders: HashSet<String>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -371,12 +377,15 @@ impl Renderer {
             game_view,
             depth_view,
             sprite_bgl,
+            sprite_layout,
             pipelines,
             pipelines_mask,
             atlas,
             font,
             screen_fonts: std::collections::BTreeMap::new(),
             applied_palettes: std::collections::HashMap::new(),
+            custom_shaders: HashMap::new(),
+            failed_shaders: HashSet::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -530,6 +539,97 @@ impl Renderer {
         }
     }
 
+    /// Compiles a `ShaderSet` shader from a WGSL source string. The file must
+    /// define `vs_main`/`fs_main` matching the engine's sprite vertex layout
+    /// (position, uv, color, z) and binding 0/1 texture/sampler.
+    pub fn register_shader(&mut self, name: &str, source: &str) -> bool {
+        self.device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("manato custom shader"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+        let make = |blend: Blend| {
+            self.device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("manato custom shader pipeline"),
+                    layout: Some(&self.sprite_layout),
+                    vertex: wgpu::VertexState {
+                        module: &module,
+                        entry_point: Some("vs_main"),
+                        buffers: &[vertex_layout()],
+                        compilation_options: Default::default(),
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &module,
+                        entry_point: Some("fs_main"),
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: GAME_FORMAT,
+                            blend: Some(blend_state(blend)),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                        compilation_options: Default::default(),
+                    }),
+                    primitive: wgpu::PrimitiveState::default(),
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                    cache: None,
+                })
+        };
+        let pipelines = [make(Blend::Normal), make(Blend::Add), make(Blend::Sub)];
+        self.custom_shaders.insert(name.to_string(), pipelines);
+        true
+    }
+
+    /// Loads and compiles one `ShaderSet` name on first use. Only WGSL files
+    /// are executed; GLSL content shaders are reported once and fall back to
+    /// the default pipeline.
+    fn ensure_custom_shader(&mut self, sim: &SimState, name: &str) {
+        if self.custom_shaders.contains_key(name) || self.failed_shaders.contains(name) {
+            return;
+        }
+        let path = sim
+            .assets
+            .characters
+            .iter()
+            .find_map(|character| character.def.shaders.get(name).cloned());
+        let Some(path) = path else {
+            self.failed_shaders.insert(name.to_string());
+            return;
+        };
+        let source = match std::fs::read_to_string(&path) {
+            Ok(source) => source,
+            Err(error) => {
+                log::warn!("custom shader {}: {error}", path.display());
+                self.failed_shaders.insert(name.to_string());
+                return;
+            }
+        };
+        if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_none_or(|ext| !ext.eq_ignore_ascii_case("wgsl"))
+        {
+            log::warn!(
+                "custom shader {} is not WGSL; GLSL execution is not modeled",
+                path.display()
+            );
+            self.failed_shaders.insert(name.to_string());
+            return;
+        }
+        if !self.register_shader(name, &source) {
+            self.failed_shaders.insert(name.to_string());
+        }
+    }
+
     /// Draws one frame into the internal 320x240 target.
     pub fn render(&mut self, sim: &SimState) {
         self.apply_palette_remaps(sim);
@@ -539,6 +639,18 @@ impl Renderer {
             screen_fonts: &self.screen_fonts,
         };
         scene::build(&mut self.painter, sim, &deps);
+        // Compile any selected custom shaders before the render pass.
+        let mut names: Vec<String> = self
+            .painter
+            .ranges
+            .iter()
+            .filter_map(|range| range.shader.clone())
+            .collect();
+        names.sort();
+        names.dedup();
+        for name in names {
+            self.ensure_custom_shader(sim, &name);
+        }
         self.present();
     }
 
@@ -642,15 +754,31 @@ impl Renderer {
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             }
             for range in &ranges {
-                let pipelines = if range.mask {
-                    &self.pipelines_mask
+                let custom = if range.mask {
+                    None
                 } else {
-                    &self.pipelines
+                    range
+                        .shader
+                        .as_ref()
+                        .and_then(|name| self.custom_shaders.get(name))
                 };
-                let pipeline = match range.blend {
-                    Blend::Normal => &pipelines[0],
-                    Blend::Add => &pipelines[1],
-                    Blend::Sub => &pipelines[2],
+                let pipeline = if let Some(custom) = custom {
+                    match range.blend {
+                        Blend::Normal => &custom[0],
+                        Blend::Add => &custom[1],
+                        Blend::Sub => &custom[2],
+                    }
+                } else {
+                    let pipelines = if range.mask {
+                        &self.pipelines_mask
+                    } else {
+                        &self.pipelines
+                    };
+                    match range.blend {
+                        Blend::Normal => &pipelines[0],
+                        Blend::Add => &pipelines[1],
+                        Blend::Sub => &pipelines[2],
+                    }
                 };
                 let bind_group = match range.tex {
                     TexRef::Atlas(page) => self.atlas.page_bind_group(page),
@@ -857,4 +985,59 @@ fn create_shadow_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Te
         wgpu::util::TextureDataOrder::LayerMajor,
         &pixels,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_SHADER: &str = r#"
+struct VsIn {
+    @location(0) pos: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) color: vec4<f32>,
+    @location(3) z: f32,
+};
+
+struct VsOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+@vertex
+fn vs_main(in: VsIn) -> VsOut {
+    var out: VsOut;
+    out.pos = vec4<f32>(
+        in.pos.x / 320.0 * 2.0 - 1.0,
+        1.0 - in.pos.y / 240.0 * 2.0,
+        in.z,
+        1.0,
+    );
+    out.uv = in.uv;
+    out.color = in.color;
+    return out;
+}
+
+@group(0) @binding(0) var tex: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    let c = textureSample(tex, samp, in.uv) * in.color;
+    return vec4<f32>(c.g, c.b, c.r, c.a);
+}
+"#;
+
+    #[test]
+    fn wgsl_custom_shader_compiles_when_gpu_available() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        assert!(renderer.register_shader("swap", TEST_SHADER));
+        assert!(renderer.custom_shaders.contains_key("swap"));
+        // Re-registering replaces the cached pipelines.
+        assert!(renderer.register_shader("swap", TEST_SHADER));
+    }
 }

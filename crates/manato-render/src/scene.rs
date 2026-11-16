@@ -138,7 +138,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     let mut order: Vec<usize> = (0..sim.fighters.len()).collect();
     order.sort_by_key(|&i| sim.fighters[i].sprite_priority);
     for who in order {
+        painter.set_shader(sim.fighters[who].shader.clone());
         draw_fighter(painter, deps.atlas, sim, who);
+        painter.set_shader(None);
     }
 
     painter.set_depth(0.45);
