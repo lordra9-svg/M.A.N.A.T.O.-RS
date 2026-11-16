@@ -14,6 +14,7 @@ use manato_formats::screenpack::{Roster, RosterEntry, Screenpack};
 use manato_formats::SffFile;
 use manato_render::frontend::{OptionsView, SelectEntry, SelectView, TitleView};
 use manato_render::{wgpu, Renderer, GAME_HEIGHT, GAME_WIDTH};
+use manato_sim::arcade::{ArcadeConfig, ArcadePhase, ArcadeSession};
 use manato_sim::{ai, Assets, MatchConfig, MatchOptions, SimState};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -628,7 +629,7 @@ fn run_frontend_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
                     );
                 }
             }
-            FrontendScreen::Fight => {}
+            FrontendScreen::Fight | FrontendScreen::Continue => {}
         }
     }
     let mut renderer = Renderer::new_offscreen()?;
@@ -695,6 +696,7 @@ enum FrontendScreen {
     Select,
     Options,
     Fight,
+    Continue,
 }
 
 struct Frontend {
@@ -724,6 +726,8 @@ struct Frontend {
     options_music: u32,
     options_fullscreen: bool,
     result_timer: i32,
+    result_resolved: bool,
+    arcade: Option<ArcadeSession>,
     title_layers: Vec<manato_sim::StageLayerState>,
     select_layers: Vec<manato_sim::StageLayerState>,
 }
@@ -929,6 +933,8 @@ impl Frontend {
             options_music: 100,
             options_fullscreen: false,
             result_timer: 0,
+            result_resolved: false,
+            arcade: None,
             title_layers,
             select_layers,
         })
@@ -1157,6 +1163,20 @@ impl App {
     }
 
     fn start_match(&mut self) {
+        if let Some(frontend) = self.frontend.as_mut() {
+            let needs_session = frontend.mode == Mode::Arcade
+                && frontend.arcade.as_ref().is_none_or(|session| {
+                    matches!(session.phase, ArcadePhase::Complete | ArcadePhase::GameOver)
+                });
+            if needs_session {
+                let p1 = frontend.p1;
+                let ladder: Vec<usize> = (0..frontend.roster.len())
+                    .filter(|index| *index != p1)
+                    .collect();
+                let ladder = if ladder.is_empty() { vec![p1] } else { ladder };
+                frontend.arcade = Some(ArcadeSession::new(ladder, ArcadeConfig::default()));
+            }
+        }
         let Some(frontend) = self.frontend.as_ref() else {
             return;
         };
@@ -1166,6 +1186,13 @@ impl App {
         };
         let p2 = if frontend.mode == Mode::Versus {
             chosen_entry(frontend, frontend.p2).unwrap_or_else(|| p1.clone())
+        } else if frontend.mode == Mode::Arcade {
+            frontend
+                .arcade
+                .as_ref()
+                .and_then(|session| session.current_opponent())
+                .and_then(|index| chosen_entry(frontend, index))
+                .unwrap_or_else(|| next_entry(frontend, frontend.p1).unwrap_or_else(|| p1.clone()))
         } else {
             next_entry(frontend, frontend.p1).unwrap_or_else(|| p1.clone())
         };
@@ -1217,6 +1244,7 @@ impl App {
         if let Some(frontend) = self.frontend.as_mut() {
             frontend.screen = FrontendScreen::Fight;
             frontend.result_timer = 0;
+            frontend.result_resolved = false;
         }
     }
 
@@ -1228,6 +1256,8 @@ impl App {
             frontend.p1_done = false;
             frontend.p2_done = false;
             frontend.result_timer = 0;
+            frontend.result_resolved = false;
+            frontend.arcade = None;
             frontend.frame = 0;
         }
         if let (Some(renderer), Some(frontend)) = (self.renderer.as_mut(), self.frontend.as_ref()) {
@@ -1404,6 +1434,20 @@ impl App {
                     }
                 }
             }
+            FrontendScreen::Continue => match code {
+                KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => {
+                    let resumed = self
+                        .frontend
+                        .as_mut()
+                        .and_then(|frontend| frontend.arcade.as_mut())
+                        .is_some_and(|session| session.use_credit());
+                    if resumed {
+                        self.start_match();
+                    }
+                }
+                KeyCode::Escape => self.return_to_title(),
+                _ => {}
+            },
             FrontendScreen::Options => {
                 let count = self
                     .frontend
@@ -1570,6 +1614,16 @@ impl App {
     fn step(&mut self) {
         self.poll_pad_menu();
         if let Some(frontend) = self.frontend.as_mut() {
+            if frontend.screen == FrontendScreen::Continue {
+                let ended = frontend.arcade.as_mut().is_none_or(|session| {
+                    session.tick();
+                    session.phase == ArcadePhase::GameOver
+                });
+                if ended {
+                    self.return_to_title();
+                    return;
+                }
+            }
             if frontend.screen != FrontendScreen::Fight {
                 frontend.frame = frontend.frame.wrapping_add(1);
                 let time = frontend.frame as i32;
@@ -1596,7 +1650,7 @@ impl App {
                             );
                         }
                     }
-                    FrontendScreen::Fight => {}
+                    FrontendScreen::Fight | FrontendScreen::Continue => {}
                 }
                 if frontend.screen == FrontendScreen::Select {
                     if let Some(timer) = frontend.select_timer.as_mut() {
@@ -1635,18 +1689,62 @@ impl App {
             }
         }
         let finished = sim.finished;
+        let winner = sim.round.winner;
+        let time_left = sim.round.timer;
+        let life_left = sim.fighters[0].life;
+        let perfect = sim.fighters[0].life >= sim.fighters[0].life_max;
         if finished {
             if let Some(frontend) = self.frontend.as_mut() {
                 frontend.result_timer += 1;
             }
         }
-        if finished
-            && self
+        let resolve = finished
+            && self.frontend.as_ref().is_some_and(|f| {
+                f.mode != Mode::Training && f.result_timer >= 180 && !f.result_resolved
+            });
+        if resolve {
+            let arcade = self
                 .frontend
                 .as_ref()
-                .is_some_and(|f| f.mode != Mode::Training && f.result_timer >= 180)
-        {
-            self.return_to_title();
+                .is_some_and(|f| f.mode == Mode::Arcade);
+            if arcade {
+                let phase = {
+                    let frontend = self.frontend.as_mut().expect("frontend");
+                    frontend.result_resolved = true;
+                    let Some(session) = frontend.arcade.as_mut() else {
+                        return;
+                    };
+                    if winner == Some(0) {
+                        session.win(time_left, perfect, life_left);
+                    } else {
+                        session.lose();
+                    }
+                    session.phase
+                };
+                match phase {
+                    ArcadePhase::Continue => {
+                        self.sim = None;
+                        if let Some(frontend) = self.frontend.as_mut() {
+                            frontend.screen = FrontendScreen::Continue;
+                        }
+                    }
+                    ArcadePhase::Fight => {
+                        let opponent = self
+                            .frontend
+                            .as_ref()
+                            .and_then(|f| f.arcade.as_ref())
+                            .and_then(|session| session.current_opponent());
+                        if let (Some(frontend), Some(opponent)) = (self.frontend.as_mut(), opponent)
+                        {
+                            frontend.p2 = opponent;
+                        }
+                        self.start_match();
+                    }
+                    ArcadePhase::Complete | ArcadePhase::GameOver => self.return_to_title(),
+                }
+            } else {
+                self.return_to_title();
+            }
         }
     }
 
@@ -1707,6 +1805,15 @@ impl App {
                         &frontend.select_layers,
                         &frontend.select_view(),
                     );
+                }
+                FrontendScreen::Continue => {
+                    if let Some(session) = &frontend.arcade {
+                        renderer.render_continue(
+                            session.credits,
+                            session.continue_seconds_left(),
+                            session.score,
+                        );
+                    }
                 }
                 FrontendScreen::Fight => {}
             }
@@ -2057,6 +2164,8 @@ mod tests {
             options_music: 100,
             options_fullscreen: false,
             result_timer: 0,
+            result_resolved: false,
+            arcade: None,
             title_layers: vec![],
             select_layers: vec![],
         }

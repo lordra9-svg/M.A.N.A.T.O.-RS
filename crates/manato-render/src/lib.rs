@@ -892,6 +892,57 @@ impl Renderer {
         self.present();
     }
 
+    /// Draws the arcade continue screen (countdown, credits, score).
+    pub fn render_continue(&mut self, credits: u32, seconds: i32, score: u64) {
+        self.painter.clear();
+        self.painter.set_depth(1.0);
+        self.painter.rect(
+            Blend::Normal,
+            0.0,
+            0.0,
+            GAME_WIDTH as f32,
+            GAME_HEIGHT as f32,
+            [0.02, 0.02, 0.05, 1.0],
+        );
+        let white = [1.0, 1.0, 1.0, 1.0];
+        let yellow = [1.0, 0.9, 0.35, 1.0];
+        self.painter
+            .text(&self.font, "CONTINUE?", 96.0, 86.0, 2.0, white);
+        self.painter.text(
+            &self.font,
+            &format!("{seconds:02}"),
+            148.0,
+            120.0,
+            3.0,
+            yellow,
+        );
+        self.painter.text(
+            &self.font,
+            &format!("CREDITS {credits}"),
+            96.0,
+            176.0,
+            1.0,
+            white,
+        );
+        self.painter.text(
+            &self.font,
+            &format!("SCORE {score}"),
+            96.0,
+            192.0,
+            1.0,
+            white,
+        );
+        self.painter.text(
+            &self.font,
+            "PRESS START",
+            108.0,
+            216.0,
+            1.0,
+            [0.7, 0.7, 0.7, 1.0],
+        );
+        self.present();
+    }
+
     /// Draws a front-end title or select frame into the internal target.
     pub fn render_title(
         &mut self,
@@ -1322,6 +1373,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(c.g, c.b, c.r, c.a);
 }
 "#;
+
+    #[test]
+    fn continue_overlay_renders_when_gpu_available() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        renderer.render_continue(3, 9, 1234);
+        let path = std::env::temp_dir().join(format!("manato-continue-{}.png", std::process::id()));
+        renderer.screenshot(&path).expect("screenshot");
+        let size = std::fs::metadata(&path).expect("file").len();
+        assert!(size > 1000, "continue screen should not be blank");
+        let _ = std::fs::remove_file(path);
+    }
 
     #[test]
     fn glsl_fragment_compiles_when_gpu_available() {

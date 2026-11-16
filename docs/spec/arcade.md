@@ -32,10 +32,20 @@ and M.U.G.E.N single-player modes.
 - `use_credit()` spends one credit, records the continue, and resumes the same
   match.
 
-## 3. Not modeled
+## 3. App integration
 
-- Front-end screens/dialogue for continue, credits, and score tallies (the
-  state machine is available to the host; the window UI currently starts and
-  returns from single matches).
+Selecting **Arcade** builds a ladder from the roster (every entry except the
+chosen player), and `start_match` uses `current_opponent()`. When a match ends
+(after the result delay) the app records `win`/`lose`:
+
+- Win: the next ladder opponent starts; completing the ladder returns to the
+  title.
+- Loss with credits: the continue screen shows the countdown, credits, and
+  score. START (Enter/Space/J) spends a credit and restarts the same opponent;
+  the countdown expiring or Esc returns to the title.
+- Loss without credits: returns to the title.
+
+## 4. Not modeled
+
 - Per-opponent stage/order configuration from `select.def`, survival opponent
-  rotation, and high-score persistence.
+  rotation, high-score persistence, and a survival mode entry in the menu.
