@@ -2967,6 +2967,98 @@ fn groundleveloffset_moves_the_landing_plane() {
 }
 
 #[test]
+fn remapsprite_applies_named_presets() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.sff").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let sff = manato_formats::SffFile::load(&source.join("kaen.sff")).expect("load sff");
+    let keys: Vec<(i32, i32)> = sff
+        .sprites
+        .iter()
+        .map(|sprite| (sprite.group, sprite.index))
+        .collect();
+    let Some(&src) = keys.first() else {
+        return;
+    };
+    let Some(&dst) = keys.iter().find(|key| **key != src) else {
+        return;
+    };
+
+    let dir = std::env::temp_dir().join(format!("manato-preset-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    let def = dir.join("kaen.def");
+    let mut text = std::fs::read_to_string(&def).expect("read def");
+    text.push_str(&format!(
+        "\n[RemapPreset Test]\n{},{} = {},{}\n",
+        src.0, src.1, dst.0, dst.1
+    ));
+    std::fs::write(&def, text).expect("patch def");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: def,
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, preset: &str| {
+        let control = manato_formats::Controller {
+            kind: "remapsprite".into(),
+            params: vec![("preset".into(), preset.into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let char_id = sim.fighters[0].char_id;
+    assert!(sim.assets.characters[char_id]
+        .def
+        .remap_presets
+        .contains_key("test"));
+
+    run(&mut sim, "Test");
+    assert_eq!(
+        sim.fighters[0]
+            .sprite_for(&assets.characters[char_id], src.0, src.1)
+            .map(|sprite| (sprite.group, sprite.index)),
+        Some(dst)
+    );
+
+    // Unknown presets leave the map unchanged.
+    let before = sim.fighters[0].sprite_remap.clone();
+    run(&mut sim, "missing");
+    assert_eq!(sim.fighters[0].sprite_remap, before);
+
+    // `reset = 1` also clears preset mappings.
+    let control = manato_formats::Controller {
+        kind: "remapsprite".into(),
+        params: vec![("reset".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    assert!(sim.fighters[0].sprite_remap.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

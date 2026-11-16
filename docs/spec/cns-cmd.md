@@ -205,7 +205,8 @@ Required controller families for the approved matrix:
   every indexed sprite. The renderer restores originals when the remap
   changes or clears.
   `RemapSprite` substitutes `(group, index)` lookups for the fighter and its
-  afterimages; `reset = 1` clears the map. Named presets are not modeled.
+  afterimages; `reset = 1` clears the map and `preset = "name"` applies a
+  `[RemapPreset name]` table from the character DEF.
   `PalFX` models `add`/`sinadd`, `mul`/`sinmul` (0–256 units, 256 =
   identity), and `alpha` (0–1). `color`, `hue`, `invertall`, `invertblend`,
   `sincolor`, and `sinhue` are unmodeled.

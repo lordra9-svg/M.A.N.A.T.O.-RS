@@ -315,6 +315,15 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             if int_param(sim, who, control, "reset").unwrap_or(0) != 0 {
                 sim.fighters[who].sprite_remap.clear();
             }
+            if control.get("preset").is_some() {
+                let name = text_value(sim, who, control, "preset").to_ascii_lowercase();
+                let table = sim.character(who).def.remap_presets.get(&name).cloned();
+                if let Some(table) = table {
+                    for (src, dst) in table {
+                        sim.fighters[who].sprite_remap.insert(src, dst);
+                    }
+                }
+            }
             let pair = |key: &str| {
                 control.get(key).and_then(|raw| {
                     let mut parts = raw.split(',');

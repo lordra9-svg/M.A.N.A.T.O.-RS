@@ -19,6 +19,9 @@ pub struct CharacterFiles {
     pub palettes: BTreeMap<i32, PathBuf>,
 }
 
+/// One `[RemapPreset <name>]` mapping table.
+pub type RemapPreset = BTreeMap<(i32, i32), (i32, i32)>;
+
 /// Parsed character `.def` file.
 #[derive(Debug, Clone)]
 pub struct CharacterDef {
@@ -32,6 +35,8 @@ pub struct CharacterDef {
     pub files: CharacterFiles,
     pub info: HashMap<String, String>,
     pub palette_keymap: HashMap<String, i32>,
+    /// `[RemapPreset <name>]` tables: source `(group, index)` → dest.
+    pub remap_presets: BTreeMap<String, RemapPreset>,
 }
 
 impl CharacterDef {
@@ -146,6 +151,39 @@ impl CharacterDef {
             palettes,
         };
 
+        let mut remap_presets = BTreeMap::new();
+        for section in &text.sections {
+            let header = section.header_lower();
+            let Some(name) = header
+                .strip_prefix("remappreset ")
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+            else {
+                continue;
+            };
+            let mut table = BTreeMap::new();
+            for entry in &section.entries {
+                let Some((src, dst)) = entry.key.split_once(',') else {
+                    continue;
+                };
+                let (Ok(sg), Ok(si)) = (src.trim().parse::<i32>(), dst.trim().parse::<i32>())
+                else {
+                    continue;
+                };
+                let mut parts = entry.value.split(',');
+                let (Some(dg), Some(di)) = (parts.next(), parts.next()) else {
+                    continue;
+                };
+                let (Ok(dg), Ok(di)) = (dg.trim().parse::<i32>(), di.trim().parse::<i32>()) else {
+                    continue;
+                };
+                table.insert((sg, si), (dg, di));
+            }
+            if !table.is_empty() {
+                remap_presets.insert(name.to_string(), table);
+            }
+        }
+
         let palette_keymap = text
             .find_header("Palette Keymap")
             .map(|s| {
@@ -173,6 +211,7 @@ impl CharacterDef {
             files,
             info,
             palette_keymap,
+            remap_presets,
         })
     }
 }

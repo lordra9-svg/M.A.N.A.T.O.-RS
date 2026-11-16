@@ -286,8 +286,10 @@ RGBA) are registered as `(1, N)` with index 0 forced transparent.
 `RemapSprite` stores `(group, index) → (group, index)` substitutions on the
 fighter. Rendering (fighters and their afterimages) resolves through the map;
 unmapped keys use the animation's original sprite. `reset = 1` clears the map,
-which also happens at round start. Named presets and per-frame collision-box
-substitution are not modeled.
+which also happens at round start. `preset = "name"` loads a
+`[RemapPreset name]` table from the character DEF (keys are
+`srcGroup,srcIndex = dstGroup,dstIndex`). Per-frame collision-box substitution
+is not modeled.
 
 ## 5. Error handling
 
