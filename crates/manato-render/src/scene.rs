@@ -127,6 +127,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_effect(painter, deps.atlas, sim, effect);
     }
 
+    draw_texts(painter, deps, sim, true);
+
     let mut order: Vec<usize> = (0..sim.fighters.len()).collect();
     order.sort_by_key(|&i| sim.fighters[i].sprite_priority);
     for who in order {
@@ -158,6 +160,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         draw_effect(painter, deps.atlas, sim, effect);
     }
 
+    draw_texts(painter, deps, sim, false);
+
     if let Some(screenpack) = &sim.assets.screenpack {
         let fight_deps = crate::fightscreen::FightDeps {
             atlas: deps.atlas,
@@ -180,6 +184,39 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
         crate::fightscreen::draw_foreground(painter, sim, &fight_deps, screenpack);
     } else {
         draw_hud(painter, deps.font, sim);
+    }
+}
+
+/// Draws `Text` objects. Negative `layerno` values go behind the fighters.
+fn draw_texts(painter: &mut Painter, deps: &SceneDeps, sim: &SimState, behind: bool) {
+    for text in &sim.texts {
+        if (text.layer_no < 0) != behind {
+            continue;
+        }
+        let visible = text.visible_text();
+        if visible.is_empty() {
+            continue;
+        }
+        let tint = [
+            text.color[0] as f32 / 255.0,
+            text.color[1] as f32 / 255.0,
+            text.color[2] as f32 / 255.0,
+            text.color[3] as f32 / 255.0,
+        ];
+        if text.font >= 0 {
+            if let Some(font) = deps.screen_fonts.get(&(text.font as u32)) {
+                font.draw(painter, visible, text.pos, text.scale, text.align, tint);
+                continue;
+            }
+        }
+        let pixel_scale = text.scale.y.max(text.scale.x).clamp(0.4, 4.0);
+        let width = Painter::text_width(visible, pixel_scale);
+        let x = match text.align {
+            1 => text.pos.x - width * 0.5,
+            2 => text.pos.x - width,
+            _ => text.pos.x,
+        };
+        painter.text(deps.font, visible, x, text.pos.y, pixel_scale, tint);
     }
 }
 

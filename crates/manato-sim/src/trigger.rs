@@ -1061,6 +1061,15 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 sim.fighters[who].hit.vars.get(&lower)
             }
         }
+        "numtext" => {
+            let id = arg_i32(sim, who, args, 0);
+            Value::Int(
+                sim.texts
+                    .iter()
+                    .filter(|text| text.owner == who && (id < 0 || text.id == id))
+                    .count() as i32,
+            )
+        }
         "numexplod" => Value::Int(
             sim.effects
                 .iter()
@@ -1747,6 +1756,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "outrostate"
             | "displayname"
             | "authorname"
+            | "numtext"
             | "numstagebg"
             | "roundtime"
             | "timeremaining"

@@ -14,6 +14,7 @@ pub mod expr;
 pub mod fighter;
 pub mod hitdef;
 pub mod projectile;
+pub mod text;
 pub mod trigger;
 
 use std::path::{Path, PathBuf};
@@ -718,6 +719,8 @@ pub struct SimState {
     pub round: RoundState,
     pub camera: CameraState,
     pub effects: Vec<Effect>,
+    /// Runtime text objects created by `Text`.
+    pub texts: Vec<crate::text::TextObject>,
     pub projectiles: Vec<crate::projectile::Projectile>,
     pub sounds: Vec<SoundEvent>,
     pub sound_commands: Vec<SoundCommand>,
@@ -822,6 +825,7 @@ impl SimState {
                 ..CameraState::default()
             },
             effects: Vec::new(),
+            texts: Vec::new(),
             projectiles: Vec::new(),
             sounds: Vec::new(),
             sound_commands: Vec::new(),
@@ -1021,6 +1025,7 @@ impl SimState {
         self.update_round();
         self.update_camera();
         self.update_effects();
+        self.update_texts();
         self.update_fight_screen();
         self.bg_time += 1.0;
         self.update_stage_layers();
@@ -2313,6 +2318,7 @@ impl SimState {
         self.first_attack = None;
         self.effects.clear();
         self.projectiles.clear();
+        self.texts.clear();
         self.combo = [ComboState::default(); 2];
         self.actions = [Vec::new(), Vec::new()];
         self.round.slow_timer = 0;
@@ -2557,6 +2563,13 @@ impl SimState {
         } else {
             self.camera.shake = Vec2::ZERO;
         }
+    }
+
+    fn update_texts(&mut self) {
+        for text in &mut self.texts {
+            text.tick();
+        }
+        self.texts.retain(|text| !text.expired());
     }
 
     fn update_effects(&mut self) {
@@ -2840,6 +2853,37 @@ impl SimState {
             h.write_f32(e.x_angle);
             h.write_f32(e.y_angle);
             h.write_f32(e.x_shear);
+        }
+        h.write_u32(self.texts.len() as u32);
+        for text in &self.texts {
+            h.write_u32(text.owner as u32);
+            h.write_i32(text.id);
+            h.write_u32(text.text.len() as u32);
+            h.write_bytes(text.text.as_bytes());
+            h.write_f32(text.pos.x);
+            h.write_f32(text.pos.y);
+            h.write_f32(text.vel.x);
+            h.write_f32(text.vel.y);
+            h.write_f32(text.accel.x);
+            h.write_f32(text.accel.y);
+            h.write_f32(text.friction.x);
+            h.write_f32(text.friction.y);
+            h.write_i32(text.time);
+            h.write_i32(text.remove_time);
+            h.write_i32(text.layer_no);
+            h.write_i32(text.font);
+            h.write_u8(text.font_bank as u8);
+            h.write_i32(text.align);
+            h.write_f32(text.scale.x);
+            h.write_f32(text.scale.y);
+            for channel in text.color {
+                h.write_u8(channel);
+            }
+            h.write_f32(text.spacing.x);
+            h.write_f32(text.spacing.y);
+            h.write_f32(text.text_delay);
+            h.write_f32(text.angle);
+            h.write_f32(text.x_shear);
         }
         for layer in &self.stage_layers {
             h.write_f32(layer.offset.x);

@@ -2285,6 +2285,112 @@ fn projectile_clashes_cancel_both_and_report_projcanceltime() {
 }
 
 #[test]
+fn text_controller_numtext_modify_and_remove() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+
+    run(
+        &mut sim,
+        "text",
+        vec![
+            ("text", "\"Hi %d\""),
+            ("params", "7"),
+            ("id", "2"),
+            ("pos", "100, 50"),
+            ("removetime", "5"),
+        ],
+    );
+    assert_eq!(sim.texts.len(), 1);
+    assert_eq!(sim.texts[0].text, "Hi 7");
+    assert_eq!((sim.texts[0].pos.x, sim.texts[0].pos.y), (100.0, 50.0));
+    assert_eq!(num(&sim, "NumText(2)"), 1);
+    assert_eq!(num(&sim, "NumText(3)"), 0);
+    assert_eq!(num(&sim, "NumText(-1)"), 1);
+
+    // Text lifetime counts down one tick at a time.
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.texts.len(), 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.texts.is_empty(), "removetime expired");
+
+    // A permanent text can be modified and then removed by id.
+    run(
+        &mut sim,
+        "text",
+        vec![
+            ("text", "\"abcd\""),
+            ("id", "4"),
+            ("textdelay", "2"),
+            ("removetime", "-1"),
+        ],
+    );
+    assert_eq!(sim.texts[0].visible_text(), "a");
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.texts[0].visible_text(), "ab");
+
+    run(
+        &mut sim,
+        "modifytext",
+        vec![
+            ("id", "4"),
+            ("pos", "10, 20"),
+            ("text", "\"xy\""),
+            ("removetime", "30"),
+        ],
+    );
+    assert_eq!(sim.texts[0].text, "xy");
+    assert_eq!((sim.texts[0].pos.x, sim.texts[0].pos.y), (10.0, 20.0));
+    assert_eq!(sim.texts[0].remove_time, 30);
+
+    // ModifyText index selects one match; -1 selects all.
+    run(
+        &mut sim,
+        "text",
+        vec![("text", "\"second\""), ("id", "4"), ("removetime", "-1")],
+    );
+    assert_eq!(num(&sim, "NumText(4)"), 2);
+    run(
+        &mut sim,
+        "modifytext",
+        vec![("id", "4"), ("index", "1"), ("text", "\"only-second\"")],
+    );
+    assert_eq!(sim.texts[0].text, "xy");
+    assert_eq!(sim.texts[1].text, "only-second");
+
+    run(&mut sim, "removetext", vec![("id", "4"), ("index", "1")]);
+    assert_eq!(num(&sim, "NumText(4)"), 1);
+    run(&mut sim, "removetext", vec![]);
+    assert!(sim.texts.is_empty(), "omitted id removes all owned texts");
+
+    // Texts are part of the rollback checksum.
+    run(
+        &mut sim,
+        "text",
+        vec![("text", "\"state\""), ("removetime", "-1")],
+    );
+    let before = sim.checksum();
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

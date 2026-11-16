@@ -271,6 +271,9 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
+        "text" => text_controller(sim, who, control),
+        "modifytext" => modify_text(sim, who, control),
+        "removetext" => remove_text(sim, who, control),
         "assertcommand" => assert_command(sim, who, control),
         "assertinput" => assert_input(sim, who, control),
         "assertanalogvector" => assert_analog_vector(sim, who, control),
@@ -1881,6 +1884,226 @@ fn override_clsn(sim: &mut SimState, who: usize, control: &Controller) {
         }
         _ => {}
     }
+}
+
+/// Evaluates a controller string, stripping literal quotes.
+fn text_value(sim: &SimState, who: usize, control: &Controller, key: &str) -> String {
+    control
+        .get(key)
+        .map(|raw| {
+            let value = trigger::eval_str(sim, who, raw).as_str();
+            value.trim_matches('"').to_string()
+        })
+        .unwrap_or_default()
+}
+
+/// Applies the `Text`/`ModifyText` visual parameters shared by both.
+fn apply_text_params(
+    sim: &SimState,
+    who: usize,
+    control: &Controller,
+    text: &mut crate::text::TextObject,
+) {
+    if let Some(raw) = control.get("removetime") {
+        text.remove_time = trigger::int(sim, who, raw);
+    }
+    if let Some(raw) = control.get("layerno") {
+        text.layer_no = trigger::int(sim, who, raw);
+    }
+    if let Some(raw) = control.get("id") {
+        text.id = trigger::int(sim, who, raw);
+    }
+    if let Some(raw) = control.get("velocity") {
+        let (x, y) = split_pair(raw);
+        text.vel = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+    }
+    if let Some(raw) = control.get("accel") {
+        let (x, y) = split_pair(raw);
+        text.accel = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+    }
+    if let Some(raw) = control.get("friction") {
+        let (x, y) = split_pair(raw);
+        text.friction = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+    }
+    if let Some(raw) = control.get("scale") {
+        let (x, y) = split_pair(raw);
+        text.scale = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+    }
+    if let Some(raw) = control.get("textspacing") {
+        let (x, y) = split_pair(raw);
+        text.spacing = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+    }
+    if let Some(raw) = control.get("textdelay") {
+        text.text_delay = trigger::num(sim, who, raw);
+    }
+    if let Some(raw) = control.get("align") {
+        text.align = trigger::int(sim, who, raw);
+    }
+    if let Some(raw) = control.get("angle") {
+        text.angle = trigger::num(sim, who, raw);
+    }
+    if let Some(raw) = control.get("xshear") {
+        text.x_shear = trigger::num(sim, who, raw);
+    }
+    if let Some(raw) = control.get("color") {
+        let mut parts = raw
+            .split(',')
+            .map(|part| trigger::int(sim, who, part).clamp(0, 255) as u8);
+        text.color[0] = parts.next().unwrap_or(255);
+        text.color[1] = parts.next().unwrap_or(255);
+        text.color[2] = parts.next().unwrap_or(255);
+        text.color[3] = parts.next().unwrap_or(255);
+    }
+    if let Some(raw) = control.get("font") {
+        let mut parts = raw.split(',');
+        let bank = parts
+            .next()
+            .map(|part| {
+                trigger::eval_str(sim, who, part.trim())
+                    .as_str()
+                    .trim_matches('"')
+                    .chars()
+                    .next()
+                    .unwrap_or('f')
+                    .to_ascii_lowercase()
+            })
+            .unwrap_or('f');
+        text.font_bank = bank;
+        text.font = parts
+            .next()
+            .map(|part| trigger::int(sim, who, part))
+            .unwrap_or(-1);
+        let _ = who;
+    }
+}
+
+/// Formats `%d`/`%i`/`%f`/`%s` placeholders from the controller's `params`.
+fn format_text(sim: &SimState, who: usize, control: &Controller, template: &str) -> String {
+    let raw = control.get("params").unwrap_or_default();
+    let params: Vec<String> = if raw.trim().is_empty() {
+        Vec::new()
+    } else {
+        raw.split(',')
+            .map(|part| {
+                let value = trigger::eval_str(sim, who, part.trim());
+                match value {
+                    crate::expr::Value::Str(_) => value.as_str(),
+                    crate::expr::Value::Float(f) => {
+                        if f.fract() == 0.0 {
+                            format!("{}", f as i32)
+                        } else {
+                            format!("{f}")
+                        }
+                    }
+                    _ => format!("{}", value.as_i32()),
+                }
+            })
+            .collect()
+    };
+    let mut out = String::new();
+    let mut chars = template.chars().peekable();
+    let mut index = 0;
+    while let Some(ch) = chars.next() {
+        if ch != '%' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('d') | Some('i') => {
+                out.push_str(params.get(index).map(String::as_str).unwrap_or("0"));
+                index += 1;
+            }
+            Some('f') => {
+                out.push_str(params.get(index).map(String::as_str).unwrap_or("0"));
+                index += 1;
+            }
+            Some('s') => {
+                out.push_str(params.get(index).map(String::as_str).unwrap_or(""));
+                index += 1;
+            }
+            Some('%') => out.push('%'),
+            Some(other) => {
+                out.push('%');
+                out.push(other);
+            }
+            None => out.push('%'),
+        }
+    }
+    out
+}
+
+fn split_pair(raw: &str) -> (String, String) {
+    match raw.split_once(',') {
+        Some((x, y)) => (x.trim().to_string(), y.trim().to_string()),
+        None => (raw.trim().to_string(), "0".to_string()),
+    }
+}
+
+/// `Text`: spawns a screen-space text object owned by the fighter.
+fn text_controller(sim: &mut SimState, who: usize, control: &Controller) {
+    let template = text_value(sim, who, control, "text");
+    let text_string = format_text(sim, who, control, &template);
+    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let mut text = crate::text::TextObject::new(who, text_string, Vec2::new(px, py));
+    apply_text_params(sim, who, control, &mut text);
+    sim.texts.push(text);
+}
+
+/// `ModifyText`: updates matching texts of the executing fighter.
+fn modify_text(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(-1);
+    let index = int_param(sim, who, control, "index").unwrap_or(-1);
+    let positions: Vec<usize> = sim
+        .texts
+        .iter()
+        .enumerate()
+        .filter(|(_, text)| text.owner == who && (id < 0 || text.id == id))
+        .map(|(position, _)| position)
+        .collect();
+    let targets: Vec<usize> = if index < 0 {
+        positions
+    } else {
+        positions.get(index as usize).copied().into_iter().collect()
+    };
+    if targets.is_empty() {
+        return;
+    }
+    let template = control
+        .get("text")
+        .map(|_| text_value(sim, who, control, "text"));
+    let formatted = template
+        .as_ref()
+        .map(|template| format_text(sim, who, control, template));
+    for position in targets {
+        if let Some(formatted) = &formatted {
+            sim.texts[position].text = formatted.clone();
+        }
+        if let Some(raw) = control.get("pos") {
+            let (x, y) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+            let _ = raw;
+            sim.texts[position].pos = Vec2::new(x, y);
+        }
+        let mut text = sim.texts[position].clone();
+        apply_text_params(sim, who, control, &mut text);
+        // `id` selects the targets; it does not rewrite the text id.
+        text.id = sim.texts[position].id;
+        sim.texts[position] = text;
+    }
+}
+
+/// `RemoveText`: removes matching texts (`id < 0` or `index < 0` selects all).
+fn remove_text(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(-1);
+    let index = int_param(sim, who, control, "index").unwrap_or(-1);
+    let mut match_index = 0;
+    sim.texts.retain(|text| {
+        let matches = text.owner == who && (id < 0 || text.id == id);
+        let keep = !(matches && (index < 0 || index == match_index));
+        if matches {
+            match_index += 1;
+        }
+        keep
+    });
 }
 
 /// `AssertCommand`: keeps a named command active for `buffertime` ticks
