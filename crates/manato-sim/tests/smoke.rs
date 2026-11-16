@@ -2855,6 +2855,13 @@ fn savefile_and_loadfile_roundtrip_state() {
     sim.tick([PlayerInput::default(); 2]);
     assert!(!std::path::Path::new("/tmp/manato-absolute.bin").exists());
 
+    // Oversized snapshot files are rejected before decoding.
+    let oversized = dir.join("oversized.bin");
+    let file = std::fs::File::create(&oversized).expect("create");
+    file.set_len(64 * 1024 * 1024 + 1).expect("sparse file");
+    assert!(sim.load_state_file(&oversized).is_err());
+    let _ = std::fs::remove_file(&oversized);
+
     // A file from different assets is rejected instead of corrupting state.
     let mut other = SimState::new(assets, MatchOptions::default());
     for _ in 0..10 {
