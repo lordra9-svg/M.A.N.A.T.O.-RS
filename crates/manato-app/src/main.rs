@@ -688,6 +688,7 @@ enum Mode {
     Arcade,
     Versus,
     Training,
+    Survival,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -732,7 +733,9 @@ struct Frontend {
     select_layers: Vec<manato_sim::StageLayerState>,
 }
 
-const MENU_ORDER: [&str; 5] = ["arcade", "versus", "training", "options", "quit"];
+const MENU_ORDER: [&str; 6] = [
+    "arcade", "survival", "versus", "training", "options", "quit",
+];
 
 fn fallback_screenpack() -> Screenpack {
     use manato_core::Vec2;
@@ -740,6 +743,7 @@ fn fallback_screenpack() -> Screenpack {
 
     let labels = [
         ("arcade", "ARCADE"),
+        ("survival", "SURVIVAL"),
         ("versus", "VERSUS"),
         ("training", "TRAINING"),
         ("options", "OPTIONS"),
@@ -1162,9 +1166,15 @@ impl App {
         }
     }
 
+    fn high_score_path(&self) -> PathBuf {
+        self.opts.root.join("manato_highscore.dat")
+    }
+
     fn start_match(&mut self) {
+        let high_score_path = self.high_score_path();
         if let Some(frontend) = self.frontend.as_mut() {
-            let needs_session = frontend.mode == Mode::Arcade
+            let single_player = matches!(frontend.mode, Mode::Arcade | Mode::Survival);
+            let needs_session = single_player
                 && frontend.arcade.as_ref().is_none_or(|session| {
                     matches!(session.phase, ArcadePhase::Complete | ArcadePhase::GameOver)
                 });
@@ -1174,7 +1184,14 @@ impl App {
                     .filter(|index| *index != p1)
                     .collect();
                 let ladder = if ladder.is_empty() { vec![p1] } else { ladder };
-                frontend.arcade = Some(ArcadeSession::new(ladder, ArcadeConfig::default()));
+                let survival = frontend.mode == Mode::Survival;
+                let config = ArcadeConfig {
+                    credits: if survival { 1 } else { 3 },
+                    survival,
+                    high_score: manato_sim::arcade::load_high_score(&high_score_path),
+                    ..ArcadeConfig::default()
+                };
+                frontend.arcade = Some(ArcadeSession::new(ladder, config));
             }
         }
         let Some(frontend) = self.frontend.as_ref() else {
@@ -1186,7 +1203,7 @@ impl App {
         };
         let p2 = if frontend.mode == Mode::Versus {
             chosen_entry(frontend, frontend.p2).unwrap_or_else(|| p1.clone())
-        } else if frontend.mode == Mode::Arcade {
+        } else if matches!(frontend.mode, Mode::Arcade | Mode::Survival) {
             frontend
                 .arcade
                 .as_ref()
@@ -1249,6 +1266,7 @@ impl App {
     }
 
     fn return_to_title(&mut self) {
+        let high_score_path = self.high_score_path();
         self.sim = None;
         self.audio.stop_music();
         if let Some(frontend) = self.frontend.as_mut() {
@@ -1257,6 +1275,12 @@ impl App {
             frontend.p2_done = false;
             frontend.result_timer = 0;
             frontend.result_resolved = false;
+            if let Some(session) = &frontend.arcade {
+                if session.score > 0 {
+                    let _ =
+                        manato_sim::arcade::save_high_score(&high_score_path, session.high_score);
+                }
+            }
             frontend.arcade = None;
             frontend.frame = 0;
         }
@@ -1275,11 +1299,12 @@ impl App {
         let first = 0;
         let second = if frontend.roster.len() > 1 { 1 } else { 0 };
         match key.as_str() {
-            "arcade" | "versus" | "training" => {
+            "arcade" | "survival" | "versus" | "training" => {
                 if let Some(frontend) = self.frontend.as_mut() {
                     frontend.mode = match key.as_str() {
                         "versus" => Mode::Versus,
                         "training" => Mode::Training,
+                        "survival" => Mode::Survival,
                         _ => Mode::Arcade,
                     };
                     frontend.screen = FrontendScreen::Select;
@@ -1706,7 +1731,7 @@ impl App {
             let arcade = self
                 .frontend
                 .as_ref()
-                .is_some_and(|f| f.mode == Mode::Arcade);
+                .is_some_and(|f| matches!(f.mode, Mode::Arcade | Mode::Survival));
             if arcade {
                 let phase = {
                     let frontend = self.frontend.as_mut().expect("frontend");

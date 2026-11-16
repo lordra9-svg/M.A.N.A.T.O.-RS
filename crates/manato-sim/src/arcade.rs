@@ -18,6 +18,8 @@ pub struct ArcadeConfig {
     /// Continue countdown in seconds (60 ticks per second).
     pub continue_seconds: i32,
     pub survival: bool,
+    /// Previously persisted best score.
+    pub high_score: u64,
 }
 
 impl Default for ArcadeConfig {
@@ -26,6 +28,7 @@ impl Default for ArcadeConfig {
             credits: 3,
             continue_seconds: 10,
             survival: false,
+            high_score: 0,
         }
     }
 }
@@ -43,6 +46,7 @@ pub struct ArcadeSession {
     pub losses: u32,
     pub continues: u32,
     pub survival: bool,
+    pub high_score: u64,
     continue_seconds: i32,
 }
 
@@ -64,6 +68,7 @@ impl ArcadeSession {
             losses: 0,
             continues: 0,
             survival: config.survival,
+            high_score: config.high_score,
             continue_seconds: config.continue_seconds.max(1),
         }
     }
@@ -84,7 +89,10 @@ impl ArcadeSession {
         if self.survival {
             self.score +=
                 300 + u64::from(self.streak.saturating_sub(1)) * 100 + life_left.max(0) as u64 * 5;
-            // Survival stays on the same opponent; the host may rotate it.
+            // Survival keeps facing new opponents from the ladder.
+            if !self.ladder.is_empty() {
+                self.current = (self.current + 1) % self.ladder.len();
+            }
         } else {
             self.score += 1000 + time_left.max(0) as u64 * 10;
             if perfect {
@@ -95,6 +103,7 @@ impl ArcadeSession {
                 self.phase = ArcadePhase::Complete;
             }
         }
+        self.high_score = self.high_score.max(self.score);
     }
 
     /// Records a lost match. Remaining credits start a continue countdown;
@@ -142,6 +151,22 @@ impl ArcadeSession {
     }
 }
 
+/// Reads a persisted high score; missing or malformed files read as 0.
+pub fn load_high_score(path: &std::path::Path) -> u64 {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// Persists a high score, creating parent directories when needed.
+pub fn save_high_score(path: &std::path::Path, score: u64) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, format!("{score}\n"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +192,7 @@ mod tests {
                 credits: 2,
                 continue_seconds: 3,
                 survival: false,
+                high_score: 0,
             },
         );
         session.lose();
@@ -188,19 +214,34 @@ mod tests {
     #[test]
     fn survival_accumulates_score_and_streak() {
         let mut session = ArcadeSession::new(
-            vec![10],
+            vec![10, 20],
             ArcadeConfig {
                 credits: 0,
                 continue_seconds: 1,
                 survival: true,
+                high_score: 0,
             },
         );
         session.win(0, false, 100);
+        assert_eq!(session.current, 1, "survival rotates opponents");
         session.win(0, false, 50);
-        assert_eq!(session.current, 0, "survival stays on the opponent");
+        assert_eq!(session.current, 0);
         assert_eq!(session.streak, 2);
         assert_eq!(session.score, (300 + 100 * 5) + (300 + 100 + 50 * 5));
         session.lose();
         assert_eq!(session.phase, ArcadePhase::GameOver);
+    }
+
+    #[test]
+    fn high_score_persists() {
+        let dir = std::env::temp_dir().join(format!("manato-score-{}", std::process::id()));
+        let path = dir.join("score.dat");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(load_high_score(&path), 0);
+        save_high_score(&path, 1234).expect("save");
+        assert_eq!(load_high_score(&path), 1234);
+        save_high_score(&path, 9999).expect("overwrite");
+        assert_eq!(load_high_score(&path), 9999);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
