@@ -10,6 +10,8 @@ pub struct TextObject {
     pub text: String,
     /// Stage-space position (already offset by the spawn `pos`).
     pub pos: Vec2,
+    /// Depth position for `[Scaling]` perspective.
+    pub z: f32,
     pub vel: Vec2,
     pub accel: Vec2,
     pub friction: Vec2,
@@ -41,6 +43,7 @@ impl TextObject {
             id: 0,
             text,
             pos,
+            z: 0.0,
             vel: Vec2::ZERO,
             accel: Vec2::ZERO,
             friction: Vec2::new(1.0, 1.0),

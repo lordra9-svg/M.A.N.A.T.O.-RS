@@ -3554,6 +3554,54 @@ fn modifybgctrl3d_sets_layer_depth_and_scale() {
 }
 
 #[test]
+fn effects_and_texts_carry_depth_positions() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].z = 5.0;
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    run(
+        &mut sim,
+        "explod",
+        vec![("anim", "0"), ("pos", "10, 20, 30"), ("id", "4")],
+    );
+    let effect = sim.effects.last().expect("explod");
+    assert_eq!(effect.z, 35.0, "explod pos z adds to the owner's z");
+
+    run(
+        &mut sim,
+        "text",
+        vec![
+            ("text", "\"depth\""),
+            ("pos", "100, 50, -20"),
+            ("removetime", "-1"),
+        ],
+    );
+    let text = sim.texts.last().expect("text");
+    assert_eq!(text.z, -20.0);
+
+    run(&mut sim, "modifytext", vec![("pos", "0, 0, 12")]);
+    assert_eq!(sim.texts.last().expect("text").z, 12.0);
+
+    let before = sim.checksum();
+    let effect = sim.effects.last_mut().expect("explod");
+    effect.z = 99.0;
+    assert_ne!(before, sim.checksum());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

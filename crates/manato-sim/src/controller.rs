@@ -2174,8 +2174,9 @@ fn split_pair(raw: &str) -> (String, String) {
 fn text_controller(sim: &mut SimState, who: usize, control: &Controller) {
     let template = text_value(sim, who, control, "text");
     let text_string = format_text(sim, who, control, &template);
-    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let (px, py, pz) = triplet(control, "pos");
     let mut text = crate::text::TextObject::new(who, text_string, Vec2::new(px, py));
+    text.z = pz;
     apply_text_params(sim, who, control, &mut text);
     sim.texts.push(text);
 }
@@ -2210,9 +2211,10 @@ fn modify_text(sim: &mut SimState, who: usize, control: &Controller) {
             sim.texts[position].text = formatted.clone();
         }
         if let Some(raw) = control.get("pos") {
-            let (x, y) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+            let (x, y, z) = triplet(control, "pos");
             let _ = raw;
             sim.texts[position].pos = Vec2::new(x, y);
+            sim.texts[position].z = z;
         }
         let mut text = sim.texts[position].clone();
         apply_text_params(sim, who, control, &mut text);
@@ -3645,7 +3647,7 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         Err(_) => int_param(sim, who, control, "anim").unwrap_or(0),
     };
     let id = int_param(sim, who, control, "id").unwrap_or(0);
-    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let (px, py, pz) = triplet(control, "pos");
     let (vx, vy) = control.get_pair("vel").unwrap_or((0.0, 0.0));
     let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
     let (sx, sy) = control.get_pair("scale").unwrap_or((1.0, 1.0));
@@ -3694,6 +3696,11 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         _ => (sim.fighters[who].pos, Some(who)),
     };
 
+    let base_z = match pos_type.as_str() {
+        "p2" => sim.fighters[sim.other(who)].z,
+        _ => sim.fighters[who].z,
+    };
+    let z = base_z + pz;
     let source = if fight_fx {
         EffectSource::FightFx
     } else {
@@ -3756,6 +3763,7 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         pos: Vec2::new(base.x + bind_offset.x, base.y + bind_offset.y),
         vel: Vec2::new(vx * facing_f, vy),
         accel: Vec2::new(ax * facing_f, ay),
+        z,
         scale: Vec2::new(sx, sy),
         facing,
         flip_v: int_param(sim, who, control, "vfacing").unwrap_or(1) < 0,

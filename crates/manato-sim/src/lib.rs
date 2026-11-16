@@ -359,6 +359,8 @@ pub struct Effect {
     pub pos: Vec2,
     pub vel: Vec2,
     pub accel: Vec2,
+    /// Depth position used by `[Scaling]` perspective.
+    pub z: f32,
     pub scale: Vec2,
     pub facing: i32,
     pub flip_h: bool,
@@ -421,6 +423,7 @@ impl Default for Effect {
             pos: Vec2::ZERO,
             vel: Vec2::ZERO,
             accel: Vec2::ZERO,
+            z: 0.0,
             scale: Vec2::new(1.0, 1.0),
             facing: 1,
             flip_h: false,
@@ -2814,6 +2817,7 @@ impl SimState {
                             target.pos.x + effect.bind_offset.x,
                             target.pos.y + effect.bind_offset.y,
                         );
+                        effect.z = target.z;
                     }
                     if effect.bind_time > 0 {
                         effect.bind_time -= 1;
@@ -3027,6 +3031,7 @@ impl SimState {
             h.write_i32(e.id);
             h.write_f32(e.pos.x);
             h.write_f32(e.pos.y);
+            h.write_f32(e.z);
             h.write_f32(e.vel.x);
             h.write_f32(e.vel.y);
             h.write_f32(e.scale.x);
@@ -3049,6 +3054,7 @@ impl SimState {
             h.write_bytes(text.text.as_bytes());
             h.write_f32(text.pos.x);
             h.write_f32(text.pos.y);
+            h.write_f32(text.z);
             h.write_f32(text.vel.x);
             h.write_f32(text.vel.y);
             h.write_f32(text.accel.x);

@@ -220,20 +220,39 @@ fn draw_texts(painter: &mut Painter, deps: &SceneDeps, sim: &SimState, behind: b
             text.color[2] as f32 / 255.0,
             text.color[3] as f32 / 255.0,
         ];
+        let stage = &sim.assets.stage;
+        let z_scale = stage.z_scale(text.z);
+        let mut pos = text.pos;
+        if (z_scale - 1.0).abs() > f32::EPSILON {
+            pos = project_depth(
+                pos,
+                z_scale,
+                stage.z_y_offset(text.z),
+                GAME_WIDTH * 0.5,
+                sim.ground_screen_y(),
+            );
+        }
+        let scale = text.scale * z_scale;
+        let restore = painter.depth();
+        if text.z != 0.0 {
+            painter.set_depth((0.5 + text.z * 0.001).clamp(0.05, 0.95));
+        }
         if text.font >= 0 {
             if let Some(font) = deps.screen_fonts.get(&(text.font as u32)) {
-                font.draw(painter, visible, text.pos, text.scale, text.align, tint);
+                font.draw(painter, visible, pos, scale, text.align, tint);
+                painter.set_depth(restore);
                 continue;
             }
         }
-        let pixel_scale = text.scale.y.max(text.scale.x).clamp(0.4, 4.0);
+        let pixel_scale = scale.y.max(scale.x).clamp(0.4, 4.0);
         let width = Painter::text_width(visible, pixel_scale);
         let x = match text.align {
-            1 => text.pos.x - width * 0.5,
-            2 => text.pos.x - width,
-            _ => text.pos.x,
+            1 => pos.x - width * 0.5,
+            2 => pos.x - width,
+            _ => pos.x,
         };
-        painter.text(deps.font, visible, x, text.pos.y, pixel_scale, tint);
+        painter.text(deps.font, visible, x, pos.y, pixel_scale, tint);
+        painter.set_depth(restore);
     }
 }
 
@@ -594,8 +613,19 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
             continue;
         }
         let shadow = &sim.assets.stage.shadow;
-        let ground = sim.screen_pos(Vec2::new(fighter.pos.x, 0.0))
+        let stage = &sim.assets.stage;
+        let z_scale = stage.z_scale(fighter.z);
+        let mut ground = sim.screen_pos(Vec2::new(fighter.pos.x, 0.0))
             + fighter.shadow_offset * sim.camera.scale;
+        if (z_scale - 1.0).abs() > f32::EPSILON {
+            ground = project_depth(
+                ground,
+                z_scale,
+                stage.z_y_offset(fighter.z),
+                GAME_WIDTH * 0.5,
+                sim.ground_screen_y(),
+            );
+        }
         let height = (-fighter.pos.y).max(0.0);
         let intensity = fighter.shadow_intensity.unwrap_or(shadow.intensity);
         let color = fighter.shadow_color.unwrap_or(shadow.color);
@@ -609,8 +639,13 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
             .unwrap_or(1.0);
         let base_alpha = (intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.6;
         let alpha = (base_alpha - height / 400.0).clamp(0.05, base_alpha.max(0.05));
-        let w = (fighter.width_back + fighter.width_front) * 1.35 * sim.camera.scale * xscale;
-        let h = 7.0 * sim.camera.scale * yscale;
+        let w =
+            (fighter.width_back + fighter.width_front) * 1.35 * sim.camera.scale * xscale * z_scale;
+        let h = 7.0 * sim.camera.scale * yscale * z_scale;
+        let restore = painter.depth();
+        if fighter.z != 0.0 {
+            painter.set_depth((0.5 + fighter.z * 0.001).clamp(0.05, 0.95));
+        }
         painter.quad(
             TexRef::Shadow,
             Blend::Normal,
@@ -630,6 +665,7 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
                 alpha,
             ],
         );
+        painter.set_depth(restore);
     }
 }
 
@@ -938,9 +974,14 @@ fn effect_scissor(effect: &Effect) -> Option<[u32; 4]> {
 }
 
 fn draw_effect(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effect: &Effect) {
+    let restore = painter.depth();
+    if effect.z != 0.0 {
+        painter.set_depth((0.5 + effect.z * 0.001).clamp(0.05, 0.95));
+    }
     painter.set_scissor(effect_scissor(effect));
     draw_effect_body(painter, atlas, sim, effect);
     painter.set_scissor(None);
+    painter.set_depth(restore);
 }
 
 fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, effect: &Effect) {
@@ -969,11 +1010,26 @@ fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
     let Some(sprite) = effect_sprite(sim, effect, frame.group, frame.index) else {
         return;
     };
-    let anchor = if effect.screen_space {
+    let stage = &sim.assets.stage;
+    let z_scale = if effect.screen_space {
+        1.0
+    } else {
+        stage.z_scale(effect.z)
+    };
+    let mut anchor = if effect.screen_space {
         effect.pos
     } else {
         sim.screen_pos(effect.pos)
     };
+    if !effect.screen_space && (z_scale - 1.0).abs() > f32::EPSILON {
+        anchor = project_depth(
+            anchor,
+            z_scale,
+            stage.z_y_offset(effect.z),
+            GAME_WIDTH * 0.5,
+            sim.ground_screen_y(),
+        );
+    }
     let blend = match effect.blend {
         EffectBlend::Normal => Blend::Normal,
         EffectBlend::Add => Blend::Add,
@@ -986,8 +1042,8 @@ fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         sim.camera.scale
     };
     let scale = Vec2::new(
-        effect.scale.x * pose.scale.x * zoom,
-        effect.scale.y * pose.scale.y * zoom,
+        effect.scale.x * pose.scale.x * zoom * z_scale,
+        effect.scale.y * pose.scale.y * zoom * z_scale,
     );
     let offset = Vec2::new(frame.offset.x, frame.offset.y);
     let flip_h = frame.flip_h ^ effect.flip_h;

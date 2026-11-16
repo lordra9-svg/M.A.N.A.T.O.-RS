@@ -32,7 +32,7 @@ deliberate, not scheduling gaps:
 | Blocker | Rows | Reason |
 | --- | --- | --- |
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
-| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, stage `[Scaling]` perspective for fighters and layers, and layer `ModifyBGCtrl3D` (id + z/scale approximation) are implemented; GLTF 3D nodes, effect/shadow/text perspective, and projectile z rendering are not modeled; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile z plus `projdepthbound`. |
+| 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, stage `[Scaling]` perspective for fighters and layers, and layer `ModifyBGCtrl3D` (id + z/scale approximation) are implemented; GLTF 3D nodes and projectile/reflection perspective are not modeled; effect/shadow/text perspective is implemented; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile z plus `projdepthbound`. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
 | Arcade flow | R-05 | Continue screens, survival scoring, and arcade ladders need front-end flow outside the match. |
@@ -149,7 +149,7 @@ priority details.
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, stage `[Scaling]` + layer perspective, and z-axis collision implemented; GLSL execution and GLTF 3D nodes not modeled |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, wgpu depth buffer, stage `[Scaling]` fighter/layer/effect/shadow/text perspective, and z-axis collision implemented; GLSL execution and GLTF 3D nodes not modeled |
 
 ## 8. Audio
 

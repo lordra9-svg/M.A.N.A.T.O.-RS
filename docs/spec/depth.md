@@ -94,6 +94,17 @@ is multiplied by `z_scale`, and its painter depth becomes
 `0.5 + z * 0.001` (clamped `0.05..0.95`) for that layer only; other layers keep
 their region plane.
 
+### 3.3 Effects, shadows, and texts
+
+`Explod pos` and `Text pos` accept a third z component; explods default to the
+owner's (or `postype = p2`'s) `z` and add the offset, and bound explods follow
+their anchor's `z` each tick. Shadows and these objects use the same
+`[Scaling]` projection as fighters (position about the camera centre and
+ground line, sprite scale multiplied by `z_scale`), and each object writes its
+own painter depth `0.5 + z * 0.001` (clamped `0.05..0.95`) while keeping the
+surrounding region plane for `z = 0`. Texts use a third `pos` component as an
+engine extension; Ikemen text positions are 2D.
+
 ## 4. Shaders
 
 `CharacterDef.shaders` parses the DEF `[Shaders]` section (`name = file`) with
@@ -113,7 +124,8 @@ rollback checksum.
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
   applied (values persist until changed or the round restarts). Ikemen
   targets 3D model nodes here, which this engine does not load.
-- Perspective for shadows, reflections, effects, and texts.
+- Perspective for reflections and projectile sprites (effects, shadows, and
+  texts are covered).
 - Fighter `p2depth`/`depthbound` clamping (the flag is stored but does not
   constrain movement).
 - Projectile z rendering/perspective (depth affects collisions and bounds
