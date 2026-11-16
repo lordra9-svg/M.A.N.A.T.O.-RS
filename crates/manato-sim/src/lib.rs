@@ -832,6 +832,9 @@ pub struct SimState {
     pub projectiles: Vec<crate::projectile::Projectile>,
     pub sounds: Vec<SoundEvent>,
     pub sound_commands: Vec<SoundCommand>,
+    /// Output from debug clipboard controllers (cleared each tick).
+    #[serde(skip, default)]
+    pub debug_output: Vec<String>,
     pub bg_time: f32,
     pub env_shake: EnvShake,
     pub env_color: Option<EnvColor>,
@@ -970,6 +973,7 @@ impl SimState {
             projectiles: Vec::new(),
             sounds: Vec::new(),
             sound_commands: Vec::new(),
+            debug_output: Vec::new(),
             bg_time: 0.0,
             env_shake: EnvShake::default(),
             env_color: None,
@@ -1212,6 +1216,7 @@ impl SimState {
         }
         self.sounds.clear();
         self.sound_commands.clear();
+        self.debug_output.clear();
 
         if self.super_pause > 0 {
             self.super_pause -= 1;

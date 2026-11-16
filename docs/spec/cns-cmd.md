@@ -174,6 +174,10 @@ Required controller families for the approved matrix:
   `movelist0`, `movelistN` texts by `value`; an unknown id leaves the
   selection unchanged. Ikemen exposes this list to Lua AI scripts; the
   selection is stored here even though no Lua runtime is embedded)
+- `DisplayToClipboard`/`AppendToClipboard`/`ClearClipboard` (debug output:
+  formatted text is logged and stored in `SimState.debug_output`, which is
+  cleared every tick and excluded from rollback; the OS clipboard is not
+  touched)
 - `Text`, `ModifyText`, `RemoveText` (screen-space text objects; see
   `docs/spec/text.md`; custom shaders/TTF/windows are not modeled)
 - `AssertCommand` (keeps a command name active for `buffertime` ticks; an

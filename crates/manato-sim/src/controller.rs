@@ -379,6 +379,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 sim.fighters[who].movelist = value;
             }
         }
+        "displaytoclipboard" | "appendtoclipboard" => clipboard_controller(sim, who, control),
+        "clearclipboard" => sim.debug_output.clear(),
         "text" => text_controller(sim, who, control),
         "storyboard" => storyboard_controller(sim, who, control),
         "modifystoryboard" => modify_storyboard(sim, who, control),
@@ -2278,6 +2280,20 @@ fn modify_storyboard(sim: &mut SimState, who: usize, control: &Controller) {
         if let Some(screen_space) = screen_space {
             overlay.screen_space = screen_space;
         }
+    }
+}
+
+/// `DisplayToClipboard`/`AppendToClipboard`: debug output. The engine does not
+/// touch the OS clipboard; output is logged and exposed via `debug_output`.
+fn clipboard_controller(sim: &mut SimState, who: usize, control: &Controller) {
+    if control.get("text").is_none() {
+        return;
+    }
+    let template = text_value(sim, who, control, "text");
+    let message = format_text(sim, who, control, &template);
+    log::info!("clipboard: {message}");
+    if sim.debug_output.len() < 64 {
+        sim.debug_output.push(message);
     }
 }
 

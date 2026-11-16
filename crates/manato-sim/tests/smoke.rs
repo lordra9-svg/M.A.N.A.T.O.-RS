@@ -3864,6 +3864,43 @@ fn storyboard_overlay_controller_ticks_and_modifies() {
 }
 
 #[test]
+fn clipboard_debug_controllers_store_and_clear_output() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let checksum = sim.checksum();
+    run(
+        &mut sim,
+        "displaytoclipboard",
+        vec![("text", "\"value %d\""), ("params", "42")],
+    );
+    run(&mut sim, "appendtoclipboard", vec![("text", "\"more\"")]);
+    assert_eq!(sim.debug_output, vec!["value 42", "more"]);
+    assert_eq!(
+        checksum,
+        sim.checksum(),
+        "debug output is not rollback state"
+    );
+    run(&mut sim, "clearclipboard", vec![]);
+    assert!(sim.debug_output.is_empty());
+    run(&mut sim, "appendtoclipboard", vec![("text", "\"tick\"")]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.debug_output.is_empty(), "cleared each tick");
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;
