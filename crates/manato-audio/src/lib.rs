@@ -102,6 +102,7 @@ impl Music {
 struct Voice {
     samples: Arc<Vec<i16>>,
     source_rate: u32,
+    output_rate: u32,
     channels: usize,
     position: f64,
     step: f64,
@@ -125,6 +126,7 @@ impl Voice {
         let mut voice = Self {
             samples: Arc::new(sound.samples.clone()),
             source_rate: sound.sample_rate,
+            output_rate: output_rate.max(1),
             channels: sound.channels as usize,
             position: 0.0,
             step: sound.sample_rate as f64 / output_rate.max(1) as f64,
@@ -160,7 +162,14 @@ impl Voice {
         }
     }
 
-    fn new_music(music: &Music, output_rate: u32, volume: f32) -> Option<Self> {
+    fn new_music(
+        music: &Music,
+        output_rate: u32,
+        volume: f32,
+        looping: bool,
+        start_ms: i32,
+        freqmul: f32,
+    ) -> Option<Self> {
         if music.samples.is_empty() || music.sample_rate == 0 || music.channels == 0 {
             return None;
         }
@@ -173,16 +182,20 @@ impl Voice {
         } else {
             frames
         };
+        let freqmul = freqmul.max(0.01) as f64;
+        let start_frame = (start_ms.max(0) as u64 * music.sample_rate as u64 / 1000)
+            .min(frames.saturating_sub(1) as u64);
         Some(Self {
             samples: music.samples.clone(),
             source_rate: music.sample_rate,
+            output_rate: output_rate.max(1),
             channels: music.channels as usize,
-            position: 0.0,
-            step: music.sample_rate as f64 / output_rate.max(1) as f64,
+            position: start_frame as f64,
+            step: music.sample_rate as f64 / output_rate.max(1) as f64 * freqmul,
             gain_l: volume,
             gain_r: volume,
             finished: false,
-            looping: true,
+            looping,
             loop_start,
             loop_end: loop_end.max(loop_start.saturating_add(1)),
             priority: 0,
@@ -300,6 +313,24 @@ impl Mixer {
             }
         }
         self.channels.insert(key, voice);
+    }
+
+    fn set_music_position(&mut self, ms: i32) {
+        let Some(music) = self.music.as_mut() else {
+            return;
+        };
+        let frames = music.samples.len() / music.channels.max(1);
+        let frame = (ms.max(0) as u64 * music.source_rate as u64 / 1000)
+            .min(frames.saturating_sub(1) as u64);
+        music.position = frame as f64;
+    }
+
+    fn set_music_freqmul(&mut self, freqmul: f32) {
+        let Some(music) = self.music.as_mut() else {
+            return;
+        };
+        music.step =
+            music.source_rate as f64 / music.output_rate.max(1) as f64 * freqmul.max(0.01) as f64;
     }
 
     fn stop_channel(&mut self, key: ChannelKey) {
@@ -501,7 +532,26 @@ impl AudioEngine {
     }
 
     pub fn play_music(&self, music: &Music, volume: f32) {
-        let Some(voice) = Voice::new_music(music, self.rate, volume.clamp(0.0, 1.0)) else {
+        self.play_music_with(music, volume, true, 0, 1.0);
+    }
+
+    /// Starts music with explicit loop/start/frequency options.
+    pub fn play_music_with(
+        &self,
+        music: &Music,
+        volume: f32,
+        looping: bool,
+        start_ms: i32,
+        freqmul: f32,
+    ) {
+        let Some(voice) = Voice::new_music(
+            music,
+            self.rate,
+            volume.clamp(0.0, 1.0),
+            looping,
+            start_ms,
+            freqmul,
+        ) else {
             return;
         };
         if let Ok(mut mixer) = self.mixer.lock() {
@@ -517,6 +567,20 @@ impl AudioEngine {
     pub fn stop_music(&self) {
         if let Ok(mut mixer) = self.mixer.lock() {
             mixer.music = None;
+        }
+    }
+
+    /// Seeks the active music stream to `position_ms`.
+    pub fn set_music_position(&self, position_ms: i32) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer.set_music_position(position_ms);
+        }
+    }
+
+    /// Changes the active music stream's frequency multiplier.
+    pub fn set_music_freqmul(&self, freqmul: f32) {
+        if let Ok(mut mixer) = self.mixer.lock() {
+            mixer.set_music_freqmul(freqmul);
         }
     }
 
@@ -662,16 +726,36 @@ impl AudioEngine {
                 SoundCommand::PlayBgm {
                     path,
                     volume,
+                    loop_music,
                     loop_start,
                     loop_end,
+                    start_position,
+                    freq_mul,
                     ..
                 } => match Music::load(path, *loop_start, *loop_end) {
-                    Ok(music) => self.play_music(&music, (*volume as f32 / 100.0).clamp(0.0, 1.0)),
+                    Ok(music) => self.play_music_with(
+                        &music,
+                        (*volume as f32 / 100.0).clamp(0.0, 1.0),
+                        *loop_music,
+                        *start_position,
+                        *freq_mul,
+                    ),
                     Err(error) => log::warn!("could not play BGM {}: {error:#}", path.display()),
                 },
-                SoundCommand::ModifyBgm { volume, .. } => {
+                SoundCommand::ModifyBgm {
+                    volume,
+                    position,
+                    freq_mul,
+                    ..
+                } => {
                     if let Some(volume) = volume {
                         self.set_music_volume((*volume as f32 / 100.0).clamp(0.0, 1.0));
+                    }
+                    if let Some(position) = position {
+                        self.set_music_position(*position);
+                    }
+                    if let Some(freq_mul) = freq_mul {
+                        self.set_music_freqmul(*freq_mul);
                     }
                 }
                 SoundCommand::StopBgm => self.stop_music(),
@@ -734,7 +818,7 @@ mod tests {
             loop_start_ms: 0,
             loop_end_ms: 0,
         };
-        let mut voice = Voice::new_music(&music, 1000, 1.0).expect("music voice");
+        let mut voice = Voice::new_music(&music, 1000, 1.0, true, 0, 1.0).expect("music voice");
         voice.position = 500.0;
         let status = voice_status(&voice);
         assert_eq!(status.position_ms, 500);
@@ -801,7 +885,7 @@ mod tests {
             loop_start_ms: 0,
             loop_end_ms: 0,
         };
-        let mut voice = Voice::new_music(&music, 48_000, 1.0).unwrap();
+        let mut voice = Voice::new_music(&music, 48_000, 1.0, true, 0, 1.0).unwrap();
         let mut out = vec![0.0f32; 16];
         voice.mix(&mut out, 2);
         assert!(out.iter().any(|sample| sample.abs() > 0.0));
@@ -857,6 +941,51 @@ mod tests {
     }
 
     #[test]
+    fn music_honors_loop_start_and_freqmul() {
+        let music = Music {
+            samples: std::sync::Arc::new(vec![1_000i16; 200]),
+            sample_rate: 1000,
+            channels: 2,
+            loop_start_ms: 0,
+            loop_end_ms: 0,
+        };
+        let voice = Voice::new_music(&music, 1000, 1.0, false, 50, 2.0).expect("voice");
+        assert_eq!(voice.position, 50.0, "startposition seeks 50 ms");
+        assert!((voice.step - 2.0).abs() < 1e-9, "freqmul doubles the step");
+        assert!(!voice.looping);
+
+        let mut mixer = test_mixer();
+        mixer.music = Some(voice);
+        let mut out = vec![0.0f32; 40]; // 20 stereo frames
+        mixer.fill(&mut out);
+        let position = mixer.music.as_ref().expect("still playing").position;
+        assert!((position - 90.0).abs() < 1e-6);
+
+        // `loop = false` finishes at the end of the track.
+        let mut out = vec![0.0f32; 64];
+        mixer.fill(&mut out);
+        assert!(mixer.music.is_none(), "non-looping music stops at the end");
+    }
+
+    #[test]
+    fn music_seek_and_freq_changes_apply_live() {
+        let music = Music {
+            samples: std::sync::Arc::new(vec![1_000i16; 2_000]),
+            sample_rate: 1000,
+            channels: 2,
+            loop_start_ms: 0,
+            loop_end_ms: 0,
+        };
+        let voice = Voice::new_music(&music, 1000, 1.0, true, 0, 1.0).expect("voice");
+        let mut mixer = test_mixer();
+        mixer.music = Some(voice);
+        mixer.set_music_position(750);
+        assert_eq!(mixer.music.as_ref().unwrap().position, 750.0);
+        mixer.set_music_freqmul(0.5);
+        assert!((mixer.music.as_ref().unwrap().step - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
     fn channel_priority_and_stop() {
         let sound = mono_sound(vec![1_000; 32]);
         let key = (0u8, 0usize, 0i32);
@@ -897,7 +1026,7 @@ mod tests {
         let mut mixer = Mixer {
             pending: VecDeque::new(),
             channels: std::collections::HashMap::new(),
-            music: Some(Voice::new_music(&music, 48_000, 0.8).unwrap()),
+            music: Some(Voice::new_music(&music, 48_000, 0.8, true, 0, 1.0).unwrap()),
             output_channels: 2,
             volume: 1.0,
             music_volume: 1.0,

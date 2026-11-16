@@ -127,13 +127,13 @@ loop = 0
 `PlayBGM` resolves `bgm` against the character, stage, and shared data
 directories (preferring `sound/`), stores the live state in `SimState.bgm`, and
 queues a `SoundCommand::PlayBgm`; an empty `bgm` stops playback. Volume is
-scaled by 1/100. `loop`, `loopstart`, `loopend`, `startposition`, `freqmul`,
-and `loopcount` are parsed and exposed through `BgmVar`, but the mixer only
-applies volume and loop points; non-looping playback, start offsets, and
-frequency scaling are not modeled.
+scaled by 1/100. `loop`, `loopstart`, `loopend`, `startposition`, `freqmul`, and `loopcount`
+are parsed and exposed through `BgmVar`. The mixer applies looping (or plays
+once when `loop = 0`), seeks to `startposition` (milliseconds), and scales the
+playback step by `freqmul`. `loopcount` is stored but not enforced.
 
-`ModifyBGM` updates the live volume (applied immediately) and the stored
-loop/frequency/count fields. `BgmVar(filename|volume|loop|loopstart|loopend|
+`ModifyBGM` updates the live volume, seeks with `position`, and changes
+`freqmul` immediately; loop/frequency/count fields are also stored. `BgmVar(filename|volume|loop|loopstart|loopend|
 freqmul|loopcount|startposition)` reads the live controller state when active,
 otherwise the stage `[Music]` definition.
 

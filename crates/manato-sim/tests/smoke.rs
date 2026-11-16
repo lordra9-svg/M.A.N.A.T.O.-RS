@@ -2733,7 +2733,15 @@ fn play_and_modify_bgm_emit_commands_and_live_state() {
     assert_eq!(num(&sim, "BgmVar(samplerate)"), 44_100.0);
     assert!(matches!(
         sim.sound_commands.as_slice(),
-        [manato_sim::SoundCommand::PlayBgm { .. }]
+        [manato_sim::SoundCommand::PlayBgm {
+            loop_music: true,
+            start_position: 0,
+            freq_mul,
+            loop_start: 100,
+            loop_end: 500,
+            volume: 80,
+            ..
+        }] if (*freq_mul - 1.5).abs() < 1e-5
     ));
 
     // Re-issuing the same track does not queue another load.
@@ -2749,14 +2757,21 @@ fn play_and_modify_bgm_emit_commands_and_live_state() {
             ("loopstart", "20"),
             ("loopend", "300"),
             ("loopcount", "3"),
+            ("position", "1500"),
+            ("freqmul", "0.75"),
         ],
     );
     assert_eq!(sim.bgm.volume, 40);
     assert_eq!(num(&sim, "BgmVar(volume)"), 40.0);
     assert_eq!(num(&sim, "BgmVar(loopcount)"), 3.0);
+    assert!((sim.bgm.freq_mul - 0.75).abs() < 1e-5);
     assert!(matches!(
         sim.sound_commands.as_slice(),
-        [manato_sim::SoundCommand::ModifyBgm { .. }]
+        [manato_sim::SoundCommand::ModifyBgm {
+            position: Some(1500),
+            freq_mul: Some(0.75),
+            ..
+        }]
     ));
 
     // An empty bgm string stops playback.

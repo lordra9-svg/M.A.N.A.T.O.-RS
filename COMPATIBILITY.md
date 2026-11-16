@@ -32,7 +32,7 @@ deliberate, not scheduling gaps:
 | Blocker | Rows | Reason |
 | --- | --- | --- |
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
-| BGM playback options | A-03 | Non-loop playback, `startposition`, and `freqmul` still need mixer support. |
+| BGM loop control | A-03 | `loopcount` enforcement and live loop-point changes need mixer support. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/`ModifyBGCtrl3D` and non-zero Z fields need a depth renderer; the engine is strictly 2D. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
@@ -158,7 +158,7 @@ priority details.
 | --- | --- | --- | --- | --- | --- |
 | A-01 | SND playback | Required | Required | Partial | SND + channels/priority; oracle pending |
 | A-02 | Character/effect sounds | Required | Required | Verified | Roster + hit/guard sound events and silent group -1 |
-| A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer + PlayBGM/ModifyBGM controllers + live BgmVar position/length/samplerate feedback; startposition/freqmul/non-loop playback not modeled |
+| A-03 | BGM/music | Required | Required | Partial | Symphonia decode + looping mixer + PlayBGM/ModifyBGM controllers + live BgmVar position/length/samplerate feedback + non-loop playback/startposition/freqmul; loopcount enforcement and live loop points pending |
 | A-04 | Pan/volume/channels | Required | Required | Partial | Channel priority, pan, master/music volume, tests |
 | A-05 | Pause/loop/modify sound | Required | Ikemen | Partial | PlaySnd loop, StopSnd/SndPan/ModifySnd, BGM pause/resume test |
 
