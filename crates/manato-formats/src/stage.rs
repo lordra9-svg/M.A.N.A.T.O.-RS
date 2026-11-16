@@ -14,7 +14,7 @@ use crate::def::{section_map, StageDefFile};
 use crate::sff::SffFile;
 use crate::text::{decode_text, parse_pair};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CameraDef {
     pub start: Vec2,
     pub bound_left: f32,
@@ -121,7 +121,7 @@ pub struct BgLayer {
     pub id: i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BgCtrl {
     pub layer: usize,
     /// First active tick (`time` first value).
@@ -314,6 +314,45 @@ pub struct Stage {
     pub layers: Vec<BgLayer>,
     pub bg_ctrls: Vec<BgCtrl>,
     pub path: PathBuf,
+}
+
+impl Default for Stage {
+    fn default() -> Self {
+        Self {
+            dir: PathBuf::new(),
+            name: String::new(),
+            display_name: String::new(),
+            author: String::new(),
+            localcoord: (320.0, 240.0),
+            camera: CameraDef::default(),
+            ground_level: 0.0,
+            left_bound: 0.0,
+            right_bound: 0.0,
+            screen_left: 0.0,
+            screen_right: 0.0,
+            zoffset: 0.0,
+            autoturn: false,
+            reset_bg: true,
+            debug_bg: false,
+            bg_clear_color: [0, 0, 0],
+            xscale: 1.0,
+            yscale: 1.0,
+            portrait_scale: 1.0,
+            p1_start: Vec2::ZERO,
+            p2_start: Vec2::ZERO,
+            p1_facing: 1,
+            p2_facing: -1,
+            shadow: ShadowDef::default(),
+            reflection: ReflectionDef::default(),
+            music: MusicDef::default(),
+            sprites: crate::sff::SffFile::default(),
+            animations: HashMap::new(),
+            constants: HashMap::new(),
+            layers: Vec::new(),
+            bg_ctrls: Vec::new(),
+            path: PathBuf::new(),
+        }
+    }
 }
 
 impl Stage {

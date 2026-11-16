@@ -6,8 +6,36 @@ use manato_formats::{Animation, Character, CommandDef, CommandStep, StateDef};
 use crate::expr::Value;
 use crate::hitdef::{HitDef, HitState};
 
+mod array_i32_60 {
+    use serde::Deserialize;
+
+    pub fn serialize<S: serde::Serializer>(value: &[i32; 60], s: S) -> Result<S::Ok, S::Error> {
+        s.collect_seq(value)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[i32; 60], D::Error> {
+        let values = Vec::<i32>::deserialize(d)?;
+        values
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("expected 60 values"))
+    }
+}
+
+mod array_f32_40 {
+    use serde::Deserialize;
+
+    pub fn serialize<S: serde::Serializer>(value: &[f32; 40], s: S) -> Result<S::Ok, S::Error> {
+        s.collect_seq(value)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<[f32; 40], D::Error> {
+        let values = Vec::<f32>::deserialize(d)?;
+        values
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("expected 40 values"))
+    }
+}
+
 /// One `TransformClsn` entry; `index < 0` applies to every box.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClsnTransform {
     pub index: i32,
     pub scale: Vec2,
@@ -16,14 +44,14 @@ pub struct ClsnTransform {
 /// One `OverrideClsn` entry. A zero rect deletes matching boxes; otherwise
 /// the rect replaces boxes (`index < 0` for every box) or adds a new box when
 /// `index` is past the end.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClsnOverride {
     pub index: i32,
     /// Normalized `(x1, y1, x2, y2)` in local coordinates.
     pub rect: [f32; 4],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum StateType {
     #[default]
     Stand,
@@ -54,7 +82,7 @@ impl StateType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum MoveType {
     #[default]
     Idle,
@@ -82,7 +110,7 @@ impl MoveType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum Physics {
     #[default]
     Stand,
@@ -104,7 +132,7 @@ impl Physics {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AttackState {
     /// `HitCount`: sum of `numhits` from the first contact of each swing.
     pub hit_count: i32,
@@ -120,7 +148,7 @@ pub struct AttackState {
     pub guard_count: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HistoryFrame {
     pub input: PlayerInput,
     pub dir: Dir8,
@@ -134,7 +162,7 @@ pub struct HistoryFrame {
 
 /// Mutable state of one fighter. This is the unit of rollback snapshots, so it
 /// must not contain references to OS resources or unordered collections.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AfterImageFrame {
     pub pos: Vec2,
     pub facing: i32,
@@ -145,7 +173,7 @@ pub struct AfterImageFrame {
     pub add: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AfterImageState {
     pub time: i32,
     pub interval: i32,
@@ -155,7 +183,7 @@ pub struct AfterImageState {
     pub add: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HitOverride {
     pub attr: String,
     /// Target state, or the current state when `keepstate` is set.
@@ -168,13 +196,13 @@ pub struct HitOverride {
     pub forceguard: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TargetBind {
     pub offset: Vec2,
     pub time: i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Fighter {
     pub char_id: usize,
     /// Character whose state/controller bank is used when `p2getp1state`
@@ -237,7 +265,9 @@ pub struct Fighter {
     pub defence_mul: f32,
     pub attack_mul: f32,
 
+    #[serde(with = "array_i32_60")]
     pub vars: [i32; 60],
+    #[serde(with = "array_f32_40")]
     pub fvars: [f32; 40],
     pub sysvars: [i32; 5],
     pub sysfvars: [f32; 5],

@@ -56,7 +56,7 @@ impl Constants {
 }
 
 /// One state controller inside a `[State ...]` section.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Controller {
     /// Controller type, lowercased (e.g. `changesate`, `velset`).
     pub kind: String,

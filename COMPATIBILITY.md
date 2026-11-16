@@ -32,7 +32,6 @@ deliberate, not scheduling gaps:
 | Blocker | Rows | Reason |
 | --- | --- | --- |
 | Sprite substitution | C-07, C-13 | `RemapSprite` and `AfterImage remappal` (sprite substitution) are not modeled; `RemapPal` recolors indexed sprites in place. |
-| Disk serialization | C-13, R-06 | `SaveFile`/`LoadFile` need a stable on-disk format; in-memory `SaveState`/`LoadState` and `MatchRestart` are implemented. |
 | BGM stream feedback | A-03 | `BgmVar(position|length|samplerate)` and non-loop playback need the mixer to report stream state back to the simulation. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/`ModifyBGCtrl3D` and non-zero Z fields need a depth renderer; the engine is strictly 2D. |
 | Ground plane model | C-13, K-04 | `GroundLevelOffset` needs a per-character ground plane that does not conflict with screen-bound clamping. |
@@ -113,7 +112,7 @@ priority details.
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |
 | C-11 | AssertSpecial flags | Required | Required | Partial | Full mapping + per-tick render flags + NoHardcodedKeys + GlobalNoShadow + TimerFreeze round-clock freeze |
 | C-12 | MakeDust/GameMakeAnim | Required | Required | Partial | MakeDust spacing/pos2 + GameMakeAnim placement tests; oracle pending |
-| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector/ChangeMovelist/RemapPal/SaveState/LoadState/MatchRestart/PlayBGM/ModifyBGM implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), ShaderSet (V-09 pending), RunState, RemapSprite (sprite substitution), 3D/depth controllers, SaveFile/LoadFile (disk serialization), and debug-only clipboard/console/assert helpers |
+| C-13 | Ikemen-only controllers | N/A | Ikemen | Partial | GuardPointsAdd/GuardPointsSet/GuardBreakSet/DizzyPointsAdd/DizzyPointsSet/DizzySet/ModifyPlayer maxima/attack/defence/ailevel/TargetGuardPointsAdd/TargetDizzyPointsAdd/TargetGuardPointsSet/TargetDizzyPointsSet/GetHitVarSet/RoundTimeAdd/RoundTimeSet/VictoryQuote/ScoreAdd/TargetScoreAdd/RedLifeAdd/RedLifeSet/TargetRedLifeAdd/MapSet/MapAdd/MapReset/ParentMapSet/Add/RootMapSet/Add/TeamMapSet/Add/Height/Camera/ModifyHitDef/ModifyReversalDef/ModifyShadow/ModifyReflection/ExplodBindTime/ModifyStageVar (camera/bounds subset)/ModifyStageBG (action/velocity/delta/start/scale/pos/layerno/spriteno/trans subset)/ModifyBGCtrl (id/time/value/x/y subset)/TransformSprite (xshear/focallength/projection subset)/TransformClsn (scale subset)/OverrideClsn (box replace/add/delete subset)/ShiftInput (key remap subset)/AllPalFX/BgPalFX (add/mul/alpha/time)/AssertCommand/AssertInput/AssertAnalogVector/ChangeMovelist/RemapPal/SaveState/LoadState/MatchRestart/PlayBGM/ModifyBGM implemented; remaining Ikemen-only controllers are blocked or out of scope: storyboard/dialogue controllers (F-12 pending), tagin/tagout (R-04 pending), ShaderSet (V-09 pending), RunState, RemapSprite (sprite substitution), 3D/depth controllers, and debug-only clipboard/console/assert helpers |
 
 ## 5. Collision and combat
 
@@ -138,7 +137,7 @@ priority details.
 | R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay + Win/WinKO/WinTime/WinPerfect/WinClutch/DecisiveRound triggers + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Partial | In scope by owner decision; stories/turns/tag flow not implemented yet |
 | R-05 | Continue/survival/arcade | Required | Required | Partial | In scope by owner decision; continue/survival/arcade flow not implemented yet |
-| R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + MatchRestart controller + `restart_match` API and R-key reset |
+| R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + MatchRestart controller + SaveFile/LoadFile + `restart_match` API and R-key reset |
 
 ## 7. Rendering
 

@@ -54,7 +54,9 @@ impl PlayerInput {
 }
 
 /// Nine-way direction after applying a player's facing.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum Dir8 {
     #[default]
     Neutral,

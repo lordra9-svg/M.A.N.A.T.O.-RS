@@ -3,7 +3,7 @@ use manato_formats::Controller;
 
 use crate::expr::{Expr, Value};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum AnimType {
     #[default]
     Light,
@@ -38,7 +38,7 @@ impl AnimType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum GroundType {
     None,
     #[default]
@@ -72,7 +72,7 @@ impl GroundType {
 }
 
 /// `affectteam` target-team filter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum TeamFilter {
     /// `E`: only the opposing team.
     #[default]
@@ -94,7 +94,7 @@ impl TeamFilter {
 }
 
 /// `priority = N[, Hit|Miss|Dodge]` clash type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum PriorityType {
     #[default]
     Hit,
@@ -113,7 +113,7 @@ impl PriorityType {
 }
 
 /// Attack attributes (`attr = S, NA`).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HitAttr {
     pub state_types: String,
     pub class: String,
@@ -138,7 +138,7 @@ impl HitAttr {
 
 /// A parsed `HitDef` controller. The `activation` counter distinguishes two
 /// consecutive uses of the same attack so `hitonce` is evaluated per swing.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HitDef {
     pub attr: HitAttr,
     /// Original `attr` text, reported by `GetHitVar(attr)`.
@@ -827,7 +827,7 @@ impl HitDef {
 }
 
 /// Values exposed through `GetHitVar(...)`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GetHitVars {
     pub anim_type: i32,
     /// `GetHitVar(ground.animtype)` — the HitDef's base reaction type.
@@ -1003,7 +1003,7 @@ impl GetHitVars {
 }
 
 /// Runtime hit bookkeeping for one fighter.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HitState {
     pub vars: GetHitVars,
     pub hit_pause: i32,

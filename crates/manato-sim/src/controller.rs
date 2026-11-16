@@ -274,6 +274,38 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
         "savestate" => sim.save_state_requested = true,
+        "savefile" => {
+            if control.get("path").is_some() {
+                let path = text_value(sim, who, control, "path");
+                if !path.is_empty() {
+                    let path = if std::path::Path::new(&path).is_absolute() {
+                        std::path::PathBuf::from(path)
+                    } else {
+                        sim.assets.characters[sim.fighters[who].char_id]
+                            .def
+                            .dir
+                            .join(path)
+                    };
+                    sim.save_file_requested = Some(path);
+                }
+            }
+        }
+        "loadfile" => {
+            if control.get("path").is_some() {
+                let path = text_value(sim, who, control, "path");
+                if !path.is_empty() {
+                    let path = if std::path::Path::new(&path).is_absolute() {
+                        std::path::PathBuf::from(path)
+                    } else {
+                        sim.assets.characters[sim.fighters[who].char_id]
+                            .def
+                            .dir
+                            .join(path)
+                    };
+                    sim.load_file_requested = Some(path);
+                }
+            }
+        }
         "loadstate" => sim.load_state_requested = true,
         "matchrestart" => sim.restart_requested = true,
         "remappal" => {

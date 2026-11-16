@@ -2,7 +2,7 @@
 ///
 /// M.U.G.E.N exposes `Random` to state scripts. Rollback requires the RNG state
 /// to be part of the snapshot, which it is because this type is `Clone`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Rng {
     state: u64,
 }

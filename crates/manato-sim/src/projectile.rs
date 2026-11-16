@@ -5,7 +5,7 @@ use manato_core::Vec2;
 use crate::hitdef::HitDef;
 
 /// Lifecycle state of a projectile after it stops being active.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ProjectileStatus {
     #[default]
     Active,
@@ -14,7 +14,7 @@ pub enum ProjectileStatus {
     Cancel,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Projectile {
     pub owner: usize,
     pub id: i32,

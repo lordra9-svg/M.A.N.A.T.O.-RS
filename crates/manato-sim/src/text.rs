@@ -3,7 +3,7 @@
 use manato_core::Vec2;
 
 /// A single on-screen text sprite.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TextObject {
     pub owner: usize,
     pub id: i32,

@@ -51,7 +51,7 @@ pub enum BinOp {
     BitXor,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Value {
     Int(i32),
     Float(f32),

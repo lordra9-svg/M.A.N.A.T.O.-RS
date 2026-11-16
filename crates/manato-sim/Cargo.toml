@@ -11,3 +11,4 @@ manato-formats = { path = "../manato-formats" }
 anyhow.workspace = true
 log.workspace = true
 serde.workspace = true
+bincode.workspace = true

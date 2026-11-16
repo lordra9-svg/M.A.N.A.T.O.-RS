@@ -1,7 +1,7 @@
 use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub, SubAssign};
 
 /// Two dimensional vector in M.U.G.E.N's screen space (x right, y down).
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -87,7 +87,7 @@ impl SubAssign for Vec2 {
 
 /// Axis-aligned rectangle in M.U.G.E.N coordinates. `x2`/`y2` are inclusive-exclusive
 /// screen coordinates; collision uses strict overlap.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Rect {
     pub x1: i32,
     pub y1: i32,

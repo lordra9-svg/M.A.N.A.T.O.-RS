@@ -36,12 +36,25 @@ checksum.
 ## 3. Limitations
 
 `MatchRestart` does not accept `stagedef`/`p1def`/`palN` overrides because
-assets are loaded once per process. `SaveFile`/`LoadFile` are not modeled; they
-need a stable on-disk serialization format.
+assets are loaded once per process.
 
-## 4. Test plan
+## 4. Disk snapshots
+
+`SaveFile` writes the whole simulation with `bincode` as
+`(format_version, asset_id, SimState)`. Assets are not embedded; `LoadFile`
+keeps the currently loaded assets and rejects a file whose `asset_id` (a hash
+of the character DEF paths and stage name) or format version differs. Requests
+are serviced at the same tick boundary as `SaveState`/`LoadState`. Relative
+paths resolve against the executing character's DEF directory.
+
+The format is versioned with a single integer (`1`); any struct change
+requires bumping it. Snapshot files are not portable across content roots.
+
+## 5. Test plan
 
 - Save, advance, load: checksum matches, and the next N ticks reproduce the
   original checksums.
 - `SaveState`/`LoadState` controllers applied at the tick boundary.
 - `MatchRestart` resets rounds, wins, winner, score, and life.
+- `SaveFile`/`LoadFile` roundtrip through a temporary file, controller
+  requests, and asset-id rejection.

@@ -171,7 +171,7 @@ impl Assets {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MatchOptions {
     pub rounds_to_win: u32,
     pub round_time: i32,
@@ -192,7 +192,7 @@ impl Default for MatchOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum RoundPhase {
     Intro,
     Fight,
@@ -200,7 +200,7 @@ pub enum RoundPhase {
     Over,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RoundState {
     pub phase: RoundPhase,
     pub number: u32,
@@ -260,7 +260,7 @@ impl RoundState {
 }
 
 /// Camera mode selected by the Ikemen-only `Camera` controller.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum CameraView {
     #[default]
     Fighting,
@@ -268,7 +268,7 @@ pub enum CameraView {
     Free,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CameraState {
     pub x: f32,
     pub y: f32,
@@ -290,7 +290,7 @@ pub struct CameraState {
 }
 
 /// A `Zoom` state-controller override (`docs/spec/render.md` §11.3).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ZoomOverride {
     pub target_pos: Vec2,
     pub target_scale: f32,
@@ -321,21 +321,21 @@ impl Default for CameraState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum EffectSource {
     FightFx,
     Character(usize),
     Stage,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum EffectBlend {
     Normal,
     Add,
     Sub,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ProjectionMode {
     Orthographic,
     Perspective,
@@ -352,7 +352,7 @@ impl ProjectionMode {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Effect {
     pub source: EffectSource,
     pub anim: i32,
@@ -460,14 +460,14 @@ impl Default for Effect {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SoundSource {
     Character(usize),
     FightFx,
     Common,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SoundEvent {
     pub source: SoundSource,
     pub group: i32,
@@ -482,7 +482,7 @@ pub struct SoundEvent {
 }
 
 /// Live background-music state driven by `PlayBGM`/`ModifyBGM`.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BgmState {
     pub active: bool,
     pub filename: String,
@@ -496,7 +496,7 @@ pub struct BgmState {
 }
 
 /// A non-playback sound operation emitted by a controller.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SoundCommand {
     Stop {
         source: SoundSource,
@@ -538,7 +538,7 @@ pub enum SoundCommand {
     StopBgm,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EnvColor {
     pub color: [f32; 4],
     pub time: i32,
@@ -546,7 +546,7 @@ pub struct EnvColor {
     pub under: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EnvShake {
     pub time: i32,
     /// Time when the shake started, used by `decay`.
@@ -580,7 +580,7 @@ impl Default for EnvShake {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct StageLayerState {
     pub offset: Vec2,
     pub velocity: Vec2,
@@ -635,7 +635,7 @@ pub const KO_PHASE_TICKS: i32 = 120;
 pub const COMBO_DISPLAY_TICKS: i32 = 60;
 
 /// Per-side combo counter state (`docs/spec/render.md` §6.8).
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ComboState {
     /// Current consecutive hits taken by the opposing side.
     pub hits: i32,
@@ -649,7 +649,7 @@ pub struct ComboState {
 }
 
 /// A transient fight-screen banner (`docs/spec/render.md` §6.10).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ActionMessage {
     pub text: String,
     /// Remaining display ticks.
@@ -659,7 +659,7 @@ pub struct ActionMessage {
 }
 
 /// One recorded round win, rendered by the fight screen (`§6.7`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct WinRecord {
     /// Win on time rather than by KO.
     pub time_over: bool,
@@ -671,7 +671,7 @@ pub struct WinRecord {
 pub const CLUTCH_THRESHOLD: f32 = 0.10;
 
 /// Delayed ("mid") bar fill state (`docs/spec/render.md` §6.1–§6.3).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BarFill {
     /// Delayed life ratio in `0..=1`.
     pub mid_life: f32,
@@ -697,7 +697,7 @@ impl Default for BarFill {
 /// Global palette effect used by `AllPalFX` and `BgPalFX`. `mul` is
 /// normalized (1.0 = identity), `add` stays in 0–255 units, and `alpha` is
 /// 0–1. `time = 0` means inactive.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GlobalPalFx {
     pub add: [f32; 3],
     pub mul: [f32; 3],
@@ -732,8 +732,9 @@ impl GlobalPalFx {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SimState {
+    #[serde(skip, default = "empty_assets")]
     pub assets: Arc<Assets>,
     /// Live camera definition; `ModifyStageVar` may change it during a match.
     pub stage_camera: manato_formats::stage::CameraDef,
@@ -796,6 +797,19 @@ pub struct SimState {
     save_state_requested: bool,
     load_state_requested: bool,
     restart_requested: bool,
+    save_file_requested: Option<PathBuf>,
+    load_file_requested: Option<PathBuf>,
+}
+
+fn empty_assets() -> Arc<Assets> {
+    Arc::new(Assets {
+        characters: Vec::new(),
+        stage: Stage::default(),
+        effects: EffectsBank::default(),
+        fight_sounds: SoundBank::default(),
+        data_dirs: Vec::new(),
+        screenpack: None,
+    })
 }
 
 impl SimState {
@@ -895,6 +909,8 @@ impl SimState {
             save_state_requested: false,
             load_state_requested: false,
             restart_requested: false,
+            save_file_requested: None,
+            load_file_requested: None,
         };
         state.start_round();
         state
@@ -1000,6 +1016,47 @@ impl SimState {
         true
     }
 
+    /// Stable identifier for the loaded assets (characters + stage paths).
+    fn asset_id(&self) -> u64 {
+        let mut h = StateHasher::new();
+        for character in &self.assets.characters {
+            h.write_bytes(character.def.path.to_string_lossy().as_bytes());
+            h.write_u8(0);
+        }
+        h.write_bytes(self.assets.stage.name.as_bytes());
+        h.finish()
+    }
+
+    /// Writes the simulation to `path` in the on-disk snapshot format.
+    pub fn save_state_file(&self, path: &std::path::Path) -> Result<()> {
+        let bytes = bincode::serialize(&(1u32, self.asset_id(), self))
+            .context("failed to encode state snapshot")?;
+        std::fs::write(path, bytes)
+            .with_context(|| format!("failed to write state file {}", path.display()))?;
+        Ok(())
+    }
+
+    /// Reads a snapshot written by [`Self::save_state_file`]. The current
+    /// assets are kept, and a snapshot from different content is rejected.
+    pub fn load_state_file(&mut self, path: &std::path::Path) -> Result<()> {
+        let bytes = std::fs::read(path)
+            .with_context(|| format!("failed to read state file {}", path.display()))?;
+        let (version, asset_id, mut state): (u32, u64, SimState) =
+            bincode::deserialize(&bytes).context("failed to decode state snapshot")?;
+        if version != 1 {
+            anyhow::bail!("unsupported state file version {version}");
+        }
+        if asset_id != self.asset_id() {
+            anyhow::bail!("state file was saved with different assets");
+        }
+        let assets = self.assets.clone();
+        state.assets = assets;
+        state.save_file_requested = None;
+        state.load_file_requested = None;
+        *self = state;
+        Ok(())
+    }
+
     /// Advances the match by exactly one 60 Hz tick.
     pub fn tick(&mut self, inputs: [PlayerInput; 2]) {
         if self.restart_requested {
@@ -1013,6 +1070,16 @@ impl SimState {
         if self.save_state_requested {
             self.save_state_requested = false;
             self.save_snapshot();
+        }
+        if let Some(path) = self.save_file_requested.take() {
+            if let Err(error) = self.save_state_file(&path) {
+                log::warn!("SaveFile failed: {error:#}");
+            }
+        }
+        if let Some(path) = self.load_file_requested.take() {
+            if let Err(error) = self.load_state_file(&path) {
+                log::warn!("LoadFile failed: {error:#}");
+            }
         }
         self.frame = self.frame.wrapping_add(1);
         for fighter in &mut self.fighters {

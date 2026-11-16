@@ -2750,6 +2750,67 @@ fn play_and_modify_bgm_emit_commands_and_live_state() {
 }
 
 #[test]
+fn savefile_and_loadfile_roundtrip_state() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    for _ in 0..12 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    sim.fighters[0].vars[7] = 99;
+    sim.fighters[1].life = 321;
+    let dir = std::env::temp_dir().join(format!("manato-savefile-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let path = dir.join("state.bin");
+
+    sim.save_state_file(&path).expect("save file");
+    let saved_checksum = sim.checksum();
+    assert!(path.exists());
+
+    sim.fighters[0].vars[7] = 0;
+    sim.fighters[1].life = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(sim.checksum(), saved_checksum);
+
+    sim.load_state_file(&path).expect("load file");
+    assert_eq!(sim.checksum(), saved_checksum);
+    assert_eq!(sim.fighters[0].vars[7], 99);
+    assert_eq!(sim.fighters[1].life, 321);
+
+    // The controllers queue file requests for the next tick boundary.
+    let run = |sim: &mut SimState, kind: &str, path: &str| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: vec![("path".into(), path.into())],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    let controller_path = dir.join("controller.bin");
+    sim.fighters[0].life = 500;
+    run(&mut sim, "savefile", controller_path.to_str().unwrap());
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(controller_path.exists());
+    let saved_life = sim.fighters[0].life;
+
+    sim.fighters[0].life = 12;
+    run(&mut sim, "loadfile", controller_path.to_str().unwrap());
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].life, saved_life);
+
+    // A file from different assets is rejected instead of corrupting state.
+    let mut other = SimState::new(assets, MatchOptions::default());
+    for _ in 0..10 {
+        other.tick([PlayerInput::default(); 2]);
+    }
+    other.save_state_file(&path).expect("save from same assets");
+    other.load_state_file(&path).expect("same assets load");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;
