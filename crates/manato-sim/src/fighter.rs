@@ -1072,6 +1072,14 @@ impl Fighter {
         let mut boxes: Vec<manato_formats::CollisionBox> = self
             .current_frame(char)
             .map(|frame| {
+                // `RemapSprite` substitutes the drawn sprite; the matching
+                // collision boxes come from the first animation frame that
+                // draws the destination sprite.
+                if let Some(boxes) =
+                    self.remapped_clsn_boxes(char, group, (frame.group, frame.index))
+                {
+                    return boxes;
+                }
                 if attack {
                     frame.clsn1.clone()
                 } else {
@@ -1111,6 +1119,30 @@ impl Fighter {
             }
         }
         boxes
+    }
+
+    /// Collision boxes for a substituted sprite. The destination frame is
+    /// searched within the fighter's current animation; if no frame draws the
+    /// remap destination `(group, index)` the original frame's boxes stay in
+    /// effect. Returns `None` when the sprite is not remapped.
+    fn remapped_clsn_boxes(
+        &self,
+        char: &Character,
+        clsn_group: usize,
+        source: (i32, i32),
+    ) -> Option<Vec<manato_formats::CollisionBox>> {
+        let (group, index) = *self.sprite_remap.get(&source)?;
+        let anim = char.animation(self.anim_no)?;
+        for frame in &anim.frames {
+            if frame.group == group && frame.index == index {
+                return Some(if clsn_group == 0 {
+                    frame.clsn1.clone()
+                } else {
+                    frame.clsn2.clone()
+                });
+            }
+        }
+        None
     }
 
     /// Converts an animation-local collision box to world space.

@@ -3085,6 +3085,99 @@ fn remapsprite_applies_named_presets() {
 }
 
 #[test]
+fn remapsprite_substitutes_collision_boxes() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-remapclsn-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    // Two otherwise-unused actions whose sprites differ only for the remap.
+    let mut air = std::fs::read_to_string(dir.join("kaen.air")).expect("read air");
+    air.push_str(
+        "\n[Begin Action 900]\n\
+         Clsn2Default: 1\n\
+          Clsn2[0] = -5, 0, 5, -20\n\
+         Clsn1: 1\n\
+          Clsn1[0] = -3, -30, 3, -3\n\
+         0,99,0,0,6\n\
+         Clsn2: 1\n\
+          Clsn2[0] = -30, 0, 30, -90\n\
+         Clsn1: 1\n\
+          Clsn1[0] = -10, -60, 10, -10\n\
+         0,98,0,0,6\n",
+    );
+    std::fs::write(dir.join("kaen.air"), air).expect("patch air");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    sim.fighters[0].anim_no = 900;
+    sim.fighters[0].anim_frame = 0;
+
+    let clsn = |sim: &SimState, group: &str, field: &str| {
+        manato_sim::trigger::int(sim, 0, &format!("ClsnVar({group}, 0, {field})"))
+    };
+    assert_eq!(clsn(&sim, "clsn2", "back"), -5);
+    assert_eq!(clsn(&sim, "clsn1", "back"), -3);
+    let frame_before = sim.fighters[0].anim_frame;
+    let elem_before = sim.fighters[0].anim_elem();
+
+    let control = manato_formats::Controller {
+        kind: "remapsprite".into(),
+        params: vec![
+            ("source".into(), "0,99".into()),
+            ("dest".into(), "0,98".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    // Both collision groups follow the substituted sprite.
+    assert_eq!(clsn(&sim, "clsn2", "back"), -30);
+    assert_eq!(clsn(&sim, "clsn2", "front"), 30);
+    assert_eq!(clsn(&sim, "clsn2", "bottom"), -90);
+    assert_eq!(clsn(&sim, "clsn1", "back"), -10);
+    // Animation timing is untouched by the remap.
+    assert_eq!(sim.fighters[0].anim_no, 900);
+    assert_eq!(sim.fighters[0].anim_frame, frame_before);
+    assert_eq!(sim.fighters[0].anim_elem(), elem_before);
+
+    // Reset restores the original boxes.
+    let reset = manato_formats::Controller {
+        kind: "remapsprite".into(),
+        params: vec![("reset".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    assert_eq!(clsn(&sim, "clsn2", "back"), -5);
+    assert_eq!(clsn(&sim, "clsn1", "back"), -3);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

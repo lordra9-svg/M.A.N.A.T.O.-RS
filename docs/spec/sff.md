@@ -288,8 +288,13 @@ fighter. Rendering (fighters and their afterimages) resolves through the map;
 unmapped keys use the animation's original sprite. `reset = 1` clears the map,
 which also happens at round start. `preset = "name"` loads a
 `[RemapPreset name]` table from the character DEF (keys are
-`srcGroup,srcIndex = dstGroup,dstIndex`). Per-frame collision-box substitution
-is not modeled.
+`srcGroup,srcIndex = dstGroup,dstIndex`).
+
+Collision boxes follow the substitution: when the current frame's sprite is
+remapped, Clsn1/Clsn2 boxes come from the first frame of the *same animation*
+that draws the destination sprite. If the animation has no such frame, the
+original frame's boxes stay in effect. Animation timing, state, and physics are
+unchanged.
 
 ## 5. Error handling
 
