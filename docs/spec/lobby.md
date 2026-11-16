@@ -48,7 +48,19 @@ protocol usable over the network (localhost relay is covered by tests).
 duplicate frames, counts gaps as `missed_frames`, and reports `lagging()` once
 more than 60 frames (one second) are missing.
 
-## 4. Not modeled
+## 4. Security notes
+
+- Datagrams are decoded with a 4 KiB bincode limit and fixint encoding, so a
+  hostile length prefix cannot force a large allocation.
+- `LobbyServer` authorizes mutations by sender address: `Leave`/`Ready` must
+  come from that member's peer, and `Start`/`Frame` must come from the host.
+  Frames are relayed only to spectators.
+- The protocol is unauthenticated plaintext UDP. Use it on trusted networks or
+  wrap it in a secure transport; IP spoofing cannot be prevented at this layer.
+- Joins are rate-unbounded beyond the 32-connection cap; hosts should add
+  per-address rate limiting when exposing a relay publicly.
+
+## 5. Not modeled
 
 - Lobby discovery/announcement, NAT traversal, and matchmaking.
 - Spectator state streaming (only frame/checksum metadata is relayed; full

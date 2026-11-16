@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
+use bincode::Options as _;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,7 +213,12 @@ impl LobbyMessage {
     }
 
     pub fn decode(bytes: &[u8]) -> Option<Self> {
-        bincode::deserialize(bytes).ok()
+        // Bound allocations from hostile length prefixes; datagrams are ≤4 KiB.
+        bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .with_limit(4096)
+            .deserialize(bytes)
+            .ok()
     }
 }
 
@@ -284,6 +290,12 @@ impl LobbyServer {
         addr: SocketAddr,
         message: LobbyMessage,
     ) -> Vec<(SocketAddr, LobbyMessage)> {
+        let sender = self
+            .peers
+            .iter()
+            .find(|(_, peer)| **peer == addr)
+            .map(|(id, _)| *id);
+        let host_addr = self.peers.get(&self.state.host).copied();
         match message {
             LobbyMessage::Join { name, spectator } => {
                 let Some(id) = self.state.join(&name, spectator) else {
@@ -301,25 +313,28 @@ impl LobbyServer {
                 replies
             }
             LobbyMessage::Leave { id } => {
-                if !self.state.leave(id) {
+                if sender != Some(id) || !self.state.leave(id) {
                     return Vec::new();
                 }
                 self.peers.remove(&id);
                 self.broadcast()
             }
             LobbyMessage::Ready { id, ready } => {
-                if !self.state.set_ready(id, ready) {
+                if sender != Some(id) || !self.state.set_ready(id, ready) {
                     return Vec::new();
                 }
                 self.broadcast()
             }
             LobbyMessage::Start { id } => {
-                if !self.state.start(id) {
+                if host_addr != Some(addr) || !self.state.start(id) {
                     return Vec::new();
                 }
                 self.broadcast()
             }
             LobbyMessage::Frame { frame, checksum } => {
+                if host_addr != Some(addr) {
+                    return Vec::new();
+                }
                 let message = LobbyMessage::Frame { frame, checksum };
                 self.state
                     .members
@@ -421,6 +436,45 @@ mod tests {
         let _ = spectator;
         assert!(lobby.leave(guest));
         assert_eq!(lobby.phase, LobbyPhase::Closed);
+    }
+
+    #[test]
+    fn rejects_spoofed_messages_and_oversized_lengths() {
+        let host_addr: SocketAddr = "127.0.0.1:9100".parse().unwrap();
+        let guest_addr: SocketAddr = "127.0.0.1:9101".parse().unwrap();
+        let (mut server, host) = LobbyServer::new("host", 2, host_addr);
+        let guest = server.state.join("guest", false).expect("guest");
+        server.peers.insert(guest, guest_addr);
+
+        // Another peer cannot ready someone else's id or start the match.
+        assert!(server
+            .handle(
+                guest_addr,
+                LobbyMessage::Ready {
+                    id: host,
+                    ready: true,
+                },
+            )
+            .is_empty());
+        let stranger: SocketAddr = "127.0.0.1:9102".parse().unwrap();
+        assert!(server
+            .handle(stranger, LobbyMessage::Start { id: host })
+            .is_empty());
+        // Non-host frames are not relayed to spectators.
+        assert!(server
+            .handle(
+                guest_addr,
+                LobbyMessage::Frame {
+                    frame: 1,
+                    checksum: 1,
+                },
+            )
+            .is_empty());
+
+        // Hostile length prefixes are rejected by the decode limit.
+        let mut bytes = 0u32.to_le_bytes().to_vec(); // Join variant
+        bytes.extend_from_slice(&u64::MAX.to_le_bytes());
+        assert!(LobbyMessage::decode(&bytes).is_none());
     }
 
     #[test]
