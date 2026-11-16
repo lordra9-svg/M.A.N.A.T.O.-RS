@@ -36,6 +36,14 @@ or unscoped `TBD` rows. Remaining `Partial` rows fall into three groups:
 Frozen out of scope: storyboards, tag/team modes, continue/survival/arcade,
 custom shaders, and spectators/lobby.
 
+## Prebuilt binaries
+
+Release builds are published on
+[GitHub Releases](https://github.com/lordra9-svg/M.A.N.A.T.O.-RS/releases):
+`manato-windows-x86_64.exe`, `manato-linux-x86_64` (glibc, recommended), and
+`manato-linux-x86_64-musl`. The musl build is static, but Vulkan drivers are
+glibc shared objects, so use the glibc build for GPU rendering.
+
 ## Quick start
 
 Requirements:

@@ -36,6 +36,7 @@ deliberate, not scheduling gaps:
 | Asset reload / serialization | C-13, R-06 | `MatchRestart`, `SaveState`/`LoadState`, and `SaveFile`/`LoadFile` need reloadable assets and a serialized simulation state. |
 | Audio streaming | A-03, T-08 | `PlayBGM`/`ModifyBGM` and live `BgmVar`/`SoundVar` fields need a streaming BGM engine; the mixer currently plays decoded one-shots. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/`ModifyBGCtrl3D` and non-zero Z fields need a depth renderer; the engine is strictly 2D. |
+| Ground plane model | C-13, K-04 | `GroundLevelOffset` needs a per-character ground plane that does not conflict with screen-bound clamping. |
 | Custom-state movelists | C-13 | `ChangeMovelist` needs multiple parsed command lists per character; only one CMD list is modeled. |
 | Storyboards | F-12, C-13 | Storyboard scenes, dialogue, and `ModifyStoryboard` need a front-end scene graph. |
 | Team/tag flow | R-04 | `Turn`/`TagIn`/`TagOut`, partner slots, and simul/turns round structure need multi-fighter team state. |
