@@ -885,6 +885,8 @@ pub struct Roster {
 pub struct RosterEntry {
     pub def: String,
     pub stage: Option<String>,
+    /// Optional per-opponent music override (third `select.def` field).
+    pub music: Option<String>,
     pub random: bool,
 }
 
@@ -935,6 +937,7 @@ impl Roster {
                 entries.push(RosterEntry {
                     def: String::new(),
                     stage: None,
+                    music: None,
                     random: true,
                 });
                 continue;
@@ -943,6 +946,10 @@ impl Roster {
                 def: def.to_string(),
                 stage: parts
                     .get(1)
+                    .map(|value| value.trim().trim_matches('"').to_string())
+                    .filter(|value| !value.is_empty()),
+                music: parts
+                    .get(2)
                     .map(|value| value.trim().trim_matches('"').to_string())
                     .filter(|value| !value.is_empty()),
                 random: false,
@@ -1590,14 +1597,15 @@ mod tests {
     fn roster_parses_lines_and_random() {
         let roster = Roster::parse_str(
             "[Characters]\nchars/kaen/kaen.def, stages/a.def\n\
-             randomselect\n\n; comment\nchars/nival/nival.def\n",
+             randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg\n",
         );
         assert_eq!(roster.entries.len(), 3);
         assert_eq!(roster.entries[0].def, "chars/kaen/kaen.def");
         assert_eq!(roster.entries[0].stage.as_deref(), Some("stages/a.def"));
         assert!(roster.entries[1].random);
+        assert_eq!(roster.entries[2].stage.as_deref(), Some("stage.def"));
+        assert_eq!(roster.entries[2].music.as_deref(), Some("theme.ogg"));
         assert_eq!(roster.entries[2].def, "chars/nival/nival.def");
-        assert_eq!(roster.entries[2].stage, None);
     }
 
     #[test]

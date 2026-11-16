@@ -153,6 +153,37 @@ impl ArcadeSession {
 
 pub const SCORE_TABLE_SIZE: usize = 5;
 
+/// Builds an arcade ladder from roster order. `random_flags[i]` marks a
+/// `randomselect` entry, which is replaced by a deterministic pick from the
+/// non-random roster (seeded by `seed`). `p1` is excluded.
+pub fn build_ladder(random_flags: &[bool], p1: usize, seed: u64) -> Vec<usize> {
+    let candidates: Vec<usize> = (0..random_flags.len())
+        .filter(|index| *index != p1 && !random_flags[*index])
+        .collect();
+    let mut state = seed | 1;
+    let mut next = || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (state >> 33) as usize
+    };
+    let mut ladder = Vec::new();
+    for (index, is_random) in random_flags.iter().enumerate() {
+        if index == p1 {
+            continue;
+        }
+        if *is_random && !candidates.is_empty() {
+            ladder.push(candidates[next() % candidates.len()]);
+        } else {
+            ladder.push(index);
+        }
+    }
+    if ladder.is_empty() {
+        ladder.push(p1);
+    }
+    ladder
+}
+
 /// Reads the persisted score table (highest first).
 pub fn load_score_table(path: &std::path::Path) -> Vec<u64> {
     let mut scores: Vec<u64> = std::fs::read_to_string(path)
@@ -270,6 +301,20 @@ mod tests {
         assert_eq!(session.score, (300 + 100 * 5) + (300 + 100 + 50 * 5));
         session.lose();
         assert_eq!(session.phase, ArcadePhase::GameOver);
+    }
+
+    #[test]
+    fn ladder_resolves_random_slots_deterministically() {
+        let flags = [false, false, true, false];
+        let ladder = build_ladder(&flags, 0, 42);
+        assert_eq!(ladder.len(), 3, "player 0 excluded, one slot per opponent");
+        assert!(!ladder.contains(&0), "player 0 excluded");
+        assert!(!ladder.contains(&2), "random marker replaced");
+        assert!(ladder.contains(&1) && ladder.contains(&3));
+        // Same seed produces the same ladder.
+        assert_eq!(ladder, build_ladder(&flags, 0, 42));
+        // A single-entry roster still yields one opponent.
+        assert_eq!(build_ladder(&[false], 0, 1), vec![0]);
     }
 
     #[test]

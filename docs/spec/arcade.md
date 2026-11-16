@@ -37,7 +37,12 @@ and M.U.G.E.N single-player modes.
 Selecting **Arcade** or **Survival** builds a ladder from the roster (every
 entry except the chosen player), and `start_match` uses `current_opponent()`.
 Each ladder match uses that opponent's `select.def` stage when one is assigned
-(falling back to the chosen stage).
+(falling back to the chosen stage), and its optional third-field music override
+(`char, stage, music`) plays instead of the stage BGM.
+
+`select.def` `randomselect` slots are resolved into concrete non-random
+opponents by `arcade::build_ladder(flags, p1, seed)`; the ladder keeps roster
+order for fixed entries and fills random slots deterministically for the run.
 Survival rotates to the next ladder opponent after each win and keeps the
 accumulated score/streak; arcade advances until the ladder is complete. When a match ends
 (after the result delay) the app records `win`/`lose`:
@@ -55,5 +60,5 @@ returns to the title. The title menu's **SCORES** entry renders the table.
 
 ## 4. Not modeled
 
-- Random/special arcade ordering and per-opponent music overrides beyond the
-  roster's stage assignment.
+- Special/ordered arcade ladders beyond `randomselect` substitution, and a
+  hidden final boss configuration.

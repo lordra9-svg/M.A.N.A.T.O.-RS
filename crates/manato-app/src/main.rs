@@ -833,6 +833,7 @@ impl Frontend {
                     .map(|def| RosterEntry {
                         def,
                         stage: None,
+                        music: None,
                         random: false,
                     })
                     .collect(),
@@ -1089,6 +1090,7 @@ struct App {
     pad_nav: [bool; 6],
     last_tick: Instant,
     accumulator: Duration,
+    music_override: Option<PathBuf>,
 }
 
 fn run_window(opts: Options) -> anyhow::Result<()> {
@@ -1144,6 +1146,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         pad_nav: [false; 6],
         last_tick: Instant::now(),
         accumulator: Duration::ZERO,
+        music_override: None,
     };
     if let Some(sim) = app.sim.as_ref() {
         app.play_stage_music(sim);
@@ -1155,7 +1158,8 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
 impl App {
     fn play_stage_music(&self, sim: &SimState) {
         let stage = &sim.assets.stage;
-        let Some(path) = &stage.music.path else {
+        let path = self.music_override.as_ref().or(stage.music.path.as_ref());
+        let Some(path) = path else {
             return;
         };
         match manato_audio::Music::load(path, stage.music.loop_start, stage.music.loop_end) {
@@ -1184,10 +1188,13 @@ impl App {
                 });
             if needs_session {
                 let p1 = frontend.p1;
-                let ladder: Vec<usize> = (0..frontend.roster.len())
-                    .filter(|index| *index != p1)
-                    .collect();
-                let ladder = if ladder.is_empty() { vec![p1] } else { ladder };
+                let random_flags: Vec<bool> =
+                    frontend.roster.iter().map(|entry| entry.random).collect();
+                let seed = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|duration| duration.as_nanos() as u64)
+                    .unwrap_or(1);
+                let ladder = manato_sim::arcade::build_ladder(&random_flags, p1, seed);
                 let survival = frontend.mode == Mode::Survival;
                 let config = ArcadeConfig {
                     credits: if survival { 1 } else { 3 },
@@ -1226,6 +1233,17 @@ impl App {
             .cloned()
             .unwrap_or_else(|| self.opts.stage.clone());
         let single_player = matches!(frontend.mode, Mode::Arcade | Mode::Survival);
+        let music_override = if single_player {
+            p2.music.as_ref().map(|music| {
+                if Path::new(music).is_absolute() {
+                    PathBuf::from(music)
+                } else {
+                    self.opts.root.join(music)
+                }
+            })
+        } else {
+            None
+        };
         let stage = if single_player {
             p2.stage
                 .clone()
@@ -1267,6 +1285,7 @@ impl App {
                 ai_sides: [false, mode != Mode::Versus],
             },
         );
+        self.music_override = music_override;
         self.play_stage_music(&sim);
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.load_assets(&sim);
@@ -2182,6 +2201,7 @@ mod tests {
         let entry = RosterEntry {
             def: "kaen.def".into(),
             stage: None,
+            music: None,
             random: false,
         };
         Frontend {
