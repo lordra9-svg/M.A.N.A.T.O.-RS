@@ -1461,36 +1461,103 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
 
 /// Draws in-match `Storyboard` overlays (text layers).
 fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimState) {
-    for overlay in &sim.storyboards {
+    for (index, overlay) in sim.storyboards.iter().enumerate() {
+        let Some(bank_index) = bank::OVERLAY_BASE.checked_add(index as u8) else {
+            continue;
+        };
         let Some(scene) = overlay.player.current(&overlay.storyboard) else {
             continue;
         };
         for layer in &scene.layers {
-            if !layer.visible_at(overlay.player.time) || layer.text.is_none() {
-                continue;
-            }
-            let text = layer.visible_text(overlay.player.time);
-            if text.is_empty() {
+            if !layer.visible_at(overlay.player.time) {
                 continue;
             }
             let local = layer.position_at(overlay.player.time);
-            let offset = Vec2::new(
-                local.x * overlay.scale.x * overlay.facing as f32,
-                local.y * overlay.scale.y,
+            let base = Vec2::new(
+                overlay.pos.x + local.x * overlay.scale.x * overlay.facing as f32,
+                overlay.pos.y + local.y * overlay.scale.y,
             );
-            let pos = if overlay.screen_space {
-                overlay.pos + offset
+            let anchor = if overlay.screen_space {
+                base
             } else {
-                sim.screen_pos(overlay.pos + offset)
+                sim.screen_pos(base)
             };
-            let scale = (layer.scale.y * overlay.scale.y).clamp(0.4, 4.0);
-            let tint = [
-                layer.color[0] as f32 / 255.0,
-                layer.color[1] as f32 / 255.0,
-                layer.color[2] as f32 / 255.0,
-                layer.color[3] as f32 / 255.0,
-            ];
-            painter.text(deps.font, &text, pos.x, pos.y, scale, tint);
+
+            let sprite_pose = if layer.anim >= 0 {
+                overlay
+                    .storyboard
+                    .animations
+                    .get(&layer.anim)
+                    .and_then(|anim| {
+                        let local_time = (overlay.player.time - layer.start_time).max(0);
+                        let interpolated = anim.pose_at(local_time)?;
+                        let frame = anim.frames.get(interpolated.frame)?;
+                        let sprite = overlay.storyboard.sprites.get(frame.group, frame.index)?;
+                        Some((sprite, Pose::from_pose(frame, &interpolated)))
+                    })
+            } else if let Some((group, sprite_index)) = layer.sprite {
+                overlay
+                    .storyboard
+                    .sprites
+                    .get(group, sprite_index)
+                    .map(|sprite| {
+                        (
+                            sprite,
+                            Pose {
+                                offset: Vec2::ZERO,
+                                flip_h: false,
+                                flip_v: false,
+                                blend: Blend::Normal,
+                                scale: Vec2::new(1.0, 1.0),
+                                alpha: 1.0,
+                                angle: 0.0,
+                            },
+                        )
+                    })
+            } else {
+                None
+            };
+            if let Some((sprite, pose)) = sprite_pose {
+                let scale = Vec2::new(
+                    layer.scale.x * overlay.scale.x * pose.scale.x,
+                    layer.scale.y * overlay.scale.y * pose.scale.y,
+                );
+                draw_sprite(
+                    painter,
+                    deps.atlas,
+                    bank_index,
+                    sprite,
+                    anchor,
+                    pose.offset,
+                    layer.facing * overlay.facing,
+                    scale,
+                    pose.flip_h,
+                    pose.flip_v,
+                    pose.blend,
+                    [
+                        layer.color[0] as f32 / 255.0,
+                        layer.color[1] as f32 / 255.0,
+                        layer.color[2] as f32 / 255.0,
+                        layer.color[3] as f32 / 255.0 * pose.alpha,
+                    ],
+                    pose.angle,
+                );
+            }
+
+            if layer.text.is_some() {
+                let text = layer.visible_text(overlay.player.time);
+                if text.is_empty() {
+                    continue;
+                }
+                let scale = (layer.scale.y * overlay.scale.y).clamp(0.4, 4.0);
+                let tint = [
+                    layer.color[0] as f32 / 255.0,
+                    layer.color[1] as f32 / 255.0,
+                    layer.color[2] as f32 / 255.0,
+                    layer.color[3] as f32 / 255.0,
+                ];
+                painter.text(deps.font, &text, anchor.x, anchor.y, scale, tint);
+            }
         }
     }
 }

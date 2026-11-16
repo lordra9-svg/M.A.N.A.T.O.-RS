@@ -74,6 +74,8 @@ pub struct Renderer {
     failed_shaders: HashSet<String>,
     /// Seconds since the match started, fed to custom shader uniforms.
     shader_time: f32,
+    /// Signature of in-match storyboard overlays baked into the atlas.
+    overlay_signature: Vec<(usize, String)>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -519,6 +521,7 @@ impl Renderer {
             custom_shaders: HashMap::new(),
             failed_shaders: HashSet::new(),
             shader_time: 0.0,
+            overlay_signature: Vec::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -544,6 +547,7 @@ impl Renderer {
             banks.push((bank::SCREENPACK, &screenpack.sprites));
         }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
+        self.overlay_signature.clear();
 
         self.screen_fonts.clear();
         if let Some(screenpack) = &assets.screenpack {
@@ -824,7 +828,49 @@ impl Renderer {
     }
 
     /// Draws one frame into the internal 320x240 target.
+    fn overlay_signature(sim: &SimState) -> Vec<(usize, String)> {
+        sim.storyboards
+            .iter()
+            .map(|overlay| {
+                (
+                    std::sync::Arc::as_ptr(&overlay.storyboard) as usize,
+                    overlay.storyboard.path.to_string_lossy().into_owned(),
+                )
+            })
+            .collect()
+    }
+
+    /// Rebuilds the atlas with one bank per in-match storyboard overlay.
+    fn rebuild_overlay_atlas(&mut self, sim: &SimState) {
+        let assets = &sim.assets;
+        let mut banks: Vec<(u8, &manato_formats::SffFile)> = vec![
+            (bank::STAGE, &assets.stage.sprites),
+            (bank::EFFECTS, &assets.effects.sprites),
+        ];
+        for (index, character) in assets.characters.iter().enumerate() {
+            let id = bank::CHARACTER_BASE as usize + index;
+            if id < bank::OVERLAY_BASE as usize {
+                banks.push((id as u8, &character.sprites));
+            }
+        }
+        if let Some(screenpack) = &assets.screenpack {
+            banks.push((bank::SCREENPACK, &screenpack.sprites));
+        }
+        for (index, overlay) in sim.storyboards.iter().enumerate() {
+            let id = bank::OVERLAY_BASE as usize + index;
+            if id <= u8::MAX as usize {
+                banks.push((id as u8, &overlay.storyboard.sprites));
+            }
+        }
+        self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
+    }
+
     pub fn render(&mut self, sim: &SimState) {
+        let signature = Self::overlay_signature(sim);
+        if signature != self.overlay_signature {
+            self.rebuild_overlay_atlas(sim);
+            self.overlay_signature = signature;
+        }
         self.apply_palette_remaps(sim);
         self.shader_time = sim.match_time as f32 / 60.0;
         let deps = SceneDeps {

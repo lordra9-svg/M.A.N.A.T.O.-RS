@@ -66,10 +66,13 @@ Overlays tick their own `StoryboardPlayer`, advance scene time, and are removed
 when the scene set completes. `ModifyStoryboard` matches overlays by `id`
 (`-1` = all owned) and updates position, scale, facing, and space.
 
-Only **text layers** are drawn in-match (using the built-in font); sprite
-layers, clears, and fades are not rendered for overlays yet.
+In-match overlays draw both **sprite/animation layers** and text layers at the
+overlay position/scale/facing in screen or world space. The renderer assigns
+one atlas bank per live overlay (`bank::OVERLAY_BASE + index`) and rebuilds the
+sprite atlas when the overlay set changes, so each overlay uses its own
+`[SceneDef] spr` SFF. Clears and fades are still not rendered for overlays.
 
 ## 6. Not modeled
 
 - Lua storyboard scripting, dynamic backgrounds, 3D models, `layerall.pos`,
-  interpolation, palFX, and sprite rendering for in-match overlays.
+  interpolation, and palFX. In-match overlay clears/fades are not drawn.

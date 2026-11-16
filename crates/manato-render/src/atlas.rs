@@ -18,6 +18,8 @@ pub mod bank {
     pub const SCREENPACK: u8 = 4;
     /// Storyboard sprites (`[SceneDef] spr`).
     pub const STORYBOARD: u8 = 5;
+    /// In-match storyboard overlay banks start here (one per overlay).
+    pub const OVERLAY_BASE: u8 = 64;
     /// Character sprites are stored at `CHARACTER_BASE + char_id`.
     pub const CHARACTER_BASE: u8 = 16;
 }

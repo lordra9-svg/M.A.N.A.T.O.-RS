@@ -3802,9 +3802,11 @@ fn storyboard_overlay_controller_ticks_and_modifies() {
     }
     std::fs::write(
         dir.join("story.def"),
-        "[Info]\nname = overlay\n[SceneDef]\nstartscene = 0\n\
+        "[Info]\nname = overlay\n[SceneDef]\nstartscene = 0\nspr = kaen.sff\n\
+         [Begin Action 10]\n0,0, 0,0, 4\n\
          [Scene 0]\nend.time = 3\nlayer0.text = \"HI\"\n\
-         layer0.offset = 100,100\nlayer0.textdelay = 0\n",
+         layer0.offset = 100,100\nlayer0.textdelay = 0\n\
+         layer1.anim = 10\nlayer1.offset = 160,120\n",
     )
     .expect("story");
 
@@ -3847,6 +3849,8 @@ fn storyboard_overlay_controller_ticks_and_modifies() {
     );
     assert_eq!(sim.storyboards.len(), 1);
     assert_eq!(sim.storyboards[0].id, 7);
+    assert!(sim.storyboards[0].storyboard.animations.contains_key(&10));
+    assert!(sim.storyboards[0].storyboard.sprites.contains(0, 0));
     let before = sim.checksum();
     run(
         &mut sim,
