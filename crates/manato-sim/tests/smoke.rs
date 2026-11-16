@@ -2794,15 +2794,20 @@ fn savefile_and_loadfile_roundtrip_state() {
     let Some(mut sim) = fight_phase() else {
         return;
     };
+    let dir = std::env::temp_dir().join(format!("manato-savefile-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    // The controller sandbox resolves relative paths under the character dir.
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.characters[0].def.dir = dir.clone();
+    }
     let assets = sim.assets.clone();
     for _ in 0..12 {
         sim.tick([PlayerInput::default(); 2]);
     }
     sim.fighters[0].vars[7] = 99;
     sim.fighters[1].life = 321;
-    let dir = std::env::temp_dir().join(format!("manato-savefile-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
     let path = dir.join("state.bin");
 
     sim.save_state_file(&path).expect("save file");
@@ -2830,15 +2835,25 @@ fn savefile_and_loadfile_roundtrip_state() {
     };
     let controller_path = dir.join("controller.bin");
     sim.fighters[0].life = 500;
-    run(&mut sim, "savefile", controller_path.to_str().unwrap());
+    run(&mut sim, "savefile", "controller.bin");
     sim.tick([PlayerInput::default(); 2]);
     assert!(controller_path.exists());
     let saved_life = sim.fighters[0].life;
 
     sim.fighters[0].life = 12;
-    run(&mut sim, "loadfile", controller_path.to_str().unwrap());
+    run(&mut sim, "loadfile", "controller.bin");
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(sim.fighters[0].life, saved_life);
+
+    // Path escapes and absolute paths are rejected.
+    let escape = dir.parent().unwrap().join("manato-escape.bin");
+    let _ = std::fs::remove_file(&escape);
+    run(&mut sim, "savefile", "../manato-escape.bin");
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!escape.exists(), "parent-directory escape is rejected");
+    run(&mut sim, "savefile", "/tmp/manato-absolute.bin");
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!std::path::Path::new("/tmp/manato-absolute.bin").exists());
 
     // A file from different assets is rejected instead of corrupting state.
     let mut other = SimState::new(assets, MatchOptions::default());

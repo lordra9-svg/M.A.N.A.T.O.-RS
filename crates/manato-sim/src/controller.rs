@@ -287,15 +287,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "savefile" => {
             if control.get("path").is_some() {
                 let path = text_value(sim, who, control, "path");
-                if !path.is_empty() {
-                    let path = if std::path::Path::new(&path).is_absolute() {
-                        std::path::PathBuf::from(path)
-                    } else {
-                        sim.assets.characters[sim.fighters[who].char_id]
-                            .def
-                            .dir
-                            .join(path)
-                    };
+                if let Some(path) = sandboxed_path(sim, who, &path) {
                     sim.save_file_requested = Some(path);
                 }
             }
@@ -303,15 +295,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "loadfile" => {
             if control.get("path").is_some() {
                 let path = text_value(sim, who, control, "path");
-                if !path.is_empty() {
-                    let path = if std::path::Path::new(&path).is_absolute() {
-                        std::path::PathBuf::from(path)
-                    } else {
-                        sim.assets.characters[sim.fighters[who].char_id]
-                            .def
-                            .dir
-                            .join(path)
-                    };
+                if let Some(path) = sandboxed_path(sim, who, &path) {
                     sim.load_file_requested = Some(path);
                 }
             }
@@ -2027,6 +2011,42 @@ fn override_clsn(sim: &mut SimState, who: usize, control: &Controller) {
         }
         _ => {}
     }
+}
+
+/// Resolves a `SaveFile`/`LoadFile` path inside the executing character's
+/// directory. Absolute paths and `..` escapes are rejected so untrusted
+/// content cannot read or overwrite arbitrary files.
+fn sandboxed_path(sim: &SimState, who: usize, raw: &str) -> Option<std::path::PathBuf> {
+    let raw = raw.trim().trim_matches('"');
+    if raw.is_empty() {
+        return None;
+    }
+    let base = &sim.assets.characters[sim.fighters[who].char_id].def.dir;
+    let base = base.canonicalize().unwrap_or_else(|_| base.clone());
+    let candidate = std::path::Path::new(raw);
+    if candidate.is_absolute() {
+        log::warn!("SaveFile/LoadFile rejects absolute path {raw}");
+        return None;
+    }
+    let mut normalized = base.clone();
+    for component in candidate.components() {
+        match component {
+            std::path::Component::Normal(part) => normalized.push(part),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !normalized.pop() || !normalized.starts_with(&base) {
+                    log::warn!("SaveFile/LoadFile rejects path escape {raw}");
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+    }
+    if !normalized.starts_with(&base) {
+        log::warn!("SaveFile/LoadFile rejects path escape {raw}");
+        return None;
+    }
+    Some(normalized)
 }
 
 /// Evaluates a controller string, stripping literal quotes.

@@ -57,8 +57,10 @@ more than 60 frames (one second) are missing.
   Frames are relayed only to spectators.
 - The protocol is unauthenticated plaintext UDP. Use it on trusted networks or
   wrap it in a secure transport; IP spoofing cannot be prevented at this layer.
-- Joins are rate-unbounded beyond the 32-connection cap; hosts should add
-  per-address rate limiting when exposing a relay publicly.
+- Joins are rate-limited per IP (5 joins per 10 seconds by default) and names
+  are capped at 32 characters so snapshot messages fit the 4 KiB datagram
+  limit. Hosts exposing a public relay should still add global bandwidth
+  limits.
 
 ## 5. Not modeled
 

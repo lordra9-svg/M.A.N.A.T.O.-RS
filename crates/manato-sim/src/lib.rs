@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use bincode::Options as _;
 use manato_core::{clamp, PlayerInput, Rng, StateHasher, Vec2, GAME_HEIGHT};
 use manato_formats::{Character, EffectsBank, SoundBank, Stage};
 
@@ -1125,10 +1126,22 @@ impl SimState {
     /// Reads a snapshot written by [`Self::save_state_file`]. The current
     /// assets are kept, and a snapshot from different content is rejected.
     pub fn load_state_file(&mut self, path: &std::path::Path) -> Result<()> {
+        const MAX_STATE_FILE: u64 = 64 * 1024 * 1024;
+        let metadata = std::fs::metadata(path)
+            .with_context(|| format!("failed to stat state file {}", path.display()))?;
+        if metadata.len() > MAX_STATE_FILE {
+            anyhow::bail!("state file is too large ({} bytes)", metadata.len());
+        }
         let bytes = std::fs::read(path)
             .with_context(|| format!("failed to read state file {}", path.display()))?;
-        let (version, asset_id, mut state): (u32, u64, SimState) =
-            bincode::deserialize(&bytes).context("failed to decode state snapshot")?;
+        // Bound decoding so a hostile length prefix cannot force huge
+        // allocations; the file size is the natural upper bound.
+        let decoder = bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .with_limit(bytes.len() as u64);
+        let (version, asset_id, mut state): (u32, u64, SimState) = decoder
+            .deserialize(&bytes)
+            .context("failed to decode state snapshot")?;
         if version != 1 {
             anyhow::bail!("unsupported state file version {version}");
         }

@@ -4,7 +4,8 @@
 //! transport; the UDP relay wiring is host-provided.
 
 use std::collections::HashMap;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::time::{Duration, Instant};
 
 use bincode::Options as _;
 use serde::{Deserialize, Serialize};
@@ -91,9 +92,11 @@ impl LobbyState {
         }
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
+        // Cap names so snapshot messages stay within the 4 KiB datagram limit.
+        let name: String = name.chars().take(32).collect();
         self.members.push(LobbyMember {
             id,
-            name: name.to_string(),
+            name,
             role: if spectator {
                 LobbyRole::Spectator
             } else {
@@ -258,6 +261,9 @@ impl SpectatorSync {
 pub struct LobbyServer {
     pub state: LobbyState,
     pub peers: HashMap<u32, SocketAddr>,
+    join_windows: HashMap<IpAddr, (Instant, u32)>,
+    join_limit: u32,
+    join_window: Duration,
 }
 
 impl LobbyServer {
@@ -265,7 +271,16 @@ impl LobbyServer {
         let (state, host) = LobbyState::new(host_name, max_players);
         let mut peers = HashMap::new();
         peers.insert(host, host_addr);
-        (Self { state, peers }, host)
+        (
+            Self {
+                state,
+                peers,
+                join_windows: HashMap::new(),
+                join_limit: 5,
+                join_window: Duration::from_secs(10),
+            },
+            host,
+        )
     }
 
     fn snapshot(&self) -> LobbyMessage {
@@ -285,10 +300,32 @@ impl LobbyServer {
     }
 
     /// Processes one message from `addr` and returns messages to send.
+    fn allow_join(&mut self, ip: IpAddr, now: Instant) -> bool {
+        let entry = self.join_windows.entry(ip).or_insert((now, 0));
+        if now.duration_since(entry.0) >= self.join_window {
+            *entry = (now, 0);
+        }
+        if entry.1 >= self.join_limit {
+            return false;
+        }
+        entry.1 += 1;
+        true
+    }
+
     pub fn handle(
         &mut self,
         addr: SocketAddr,
         message: LobbyMessage,
+    ) -> Vec<(SocketAddr, LobbyMessage)> {
+        self.handle_at(addr, message, Instant::now())
+    }
+
+    /// Time-injected variant used by tests and deterministic hosts.
+    pub fn handle_at(
+        &mut self,
+        addr: SocketAddr,
+        message: LobbyMessage,
+        now: Instant,
     ) -> Vec<(SocketAddr, LobbyMessage)> {
         let sender = self
             .peers
@@ -298,6 +335,9 @@ impl LobbyServer {
         let host_addr = self.peers.get(&self.state.host).copied();
         match message {
             LobbyMessage::Join { name, spectator } => {
+                if !self.allow_join(addr.ip(), now) {
+                    return Vec::new();
+                }
                 let Some(id) = self.state.join(&name, spectator) else {
                     return Vec::new();
                 };
@@ -436,6 +476,46 @@ mod tests {
         let _ = spectator;
         assert!(lobby.leave(guest));
         assert_eq!(lobby.phase, LobbyPhase::Closed);
+    }
+
+    #[test]
+    fn join_rate_limit_and_name_cap() {
+        let addr: SocketAddr = "127.0.0.1:9200".parse().unwrap();
+        let (mut server, _host) = LobbyServer::new("host", 16, addr);
+        let now = std::time::Instant::now();
+        let mut accepted = 0;
+        for index in 0..6 {
+            let replies = server.handle_at(
+                addr,
+                LobbyMessage::Join {
+                    name: "x".repeat(200),
+                    spectator: true,
+                },
+                now,
+            );
+            if !replies.is_empty() {
+                accepted += 1;
+            }
+            assert!(index < 5 || replies.is_empty());
+        }
+        assert_eq!(accepted, 5, "per-IP join rate limit");
+        assert!(server
+            .state
+            .members
+            .iter()
+            .all(|member| member.name.chars().count() <= 32));
+        // A later window resets the budget.
+        let later = now + std::time::Duration::from_secs(11);
+        assert!(!server
+            .handle_at(
+                addr,
+                LobbyMessage::Join {
+                    name: "late".into(),
+                    spectator: true,
+                },
+                later,
+            )
+            .is_empty());
     }
 
     #[test]

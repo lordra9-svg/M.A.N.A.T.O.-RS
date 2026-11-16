@@ -50,6 +50,13 @@ paths resolve against the executing character's DEF directory.
 The format is versioned with a single integer (`1`); any struct change
 requires bumping it. Snapshot files are not portable across content roots.
 
+Security: files larger than 64 MiB are rejected and decoding uses fixint
+bincode with a limit equal to the file size, so hostile length prefixes cannot
+force large allocations. The `SaveFile`/`LoadFile` controllers resolve relative
+paths inside the character's directory and reject absolute paths or `..`
+escapes; the host-facing `save_state_file`/`load_state_file` API still accepts
+any host-chosen path.
+
 ## 5. Test plan
 
 - Save, advance, load: checksum matches, and the next N ticks reproduce the
