@@ -8,6 +8,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod ai;
+pub mod arcade;
 pub mod collision;
 pub mod controller;
 pub mod expr;
