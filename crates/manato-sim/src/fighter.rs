@@ -398,6 +398,8 @@ pub struct Fighter {
     pub win_quote: i32,
     /// Active `ChangeMovelist` selection (0 = default).
     pub movelist: i32,
+    /// `RemapSprite` substitutions: source `(group, index)` → destination.
+    pub sprite_remap: BTreeMap<(i32, i32), (i32, i32)>,
     /// Per-fighter `Map()` storage; deterministic ordering for rollback.
     pub map: BTreeMap<String, Value>,
     /// Active `RemapPal` destination palette key.
@@ -583,6 +585,7 @@ impl Fighter {
             bind_facing: 0,
             win_quote: -1,
             movelist: 0,
+            sprite_remap: BTreeMap::new(),
             map: BTreeMap::new(),
             pal_remap: None,
             remap_palette: None,
@@ -883,6 +886,21 @@ impl Fighter {
         if char.animation(number).is_none() && number >= 0 {
             log::debug!("character {} has no animation {number}", char.name());
         }
+    }
+
+    /// Resolves a sprite after `RemapSprite` substitutions.
+    pub fn sprite_for<'a>(
+        &self,
+        char: &'a Character,
+        group: i32,
+        index: i32,
+    ) -> Option<&'a manato_formats::Sprite> {
+        let (group, index) = self
+            .sprite_remap
+            .get(&(group, index))
+            .copied()
+            .unwrap_or((group, index));
+        char.sprites.get(group, index)
     }
 
     pub fn current_anim<'a>(&self, char: &'a Character) -> Option<&'a Animation> {

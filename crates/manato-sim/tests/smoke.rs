@@ -2811,6 +2811,98 @@ fn savefile_and_loadfile_roundtrip_state() {
 }
 
 #[test]
+fn remapsprite_substitutes_sprite_lookups() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let char_id = sim.fighters[0].char_id;
+    let keys: Vec<(i32, i32)> = assets.characters[char_id]
+        .sprites
+        .sprites
+        .iter()
+        .map(|sprite| (sprite.group, sprite.index))
+        .collect();
+    let Some(&src) = keys.first() else {
+        return;
+    };
+    let Some(&dst) = keys.iter().find(|key| **key != src) else {
+        return;
+    };
+    let run = |sim: &mut SimState, params: Vec<(String, String)>| {
+        let control = manato_formats::Controller {
+            kind: "remapsprite".into(),
+            params,
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    let source = format!("{},{}", src.0, src.1);
+    let dest = format!("{},{}", dst.0, dst.1);
+    assert_eq!(
+        sim.fighters[0]
+            .sprite_for(&assets.characters[char_id], src.0, src.1)
+            .map(|sprite| (sprite.group, sprite.index)),
+        Some(src)
+    );
+    run(
+        &mut sim,
+        vec![
+            ("source".into(), source.clone()),
+            ("dest".into(), dest.clone()),
+        ],
+    );
+    assert_eq!(
+        sim.fighters[0]
+            .sprite_for(&assets.characters[char_id], src.0, src.1)
+            .map(|sprite| (sprite.group, sprite.index)),
+        Some(dst)
+    );
+    // Unmapped keys still resolve normally, and invalid destinations are
+    // ignored.
+    assert_eq!(
+        sim.fighters[0]
+            .sprite_for(&assets.characters[char_id], dst.0, dst.1)
+            .map(|sprite| (sprite.group, sprite.index)),
+        Some(dst)
+    );
+    // Remaps persist across ticks (they are cleared at round start/reset).
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(
+        sim.fighters[0]
+            .sprite_for(&assets.characters[char_id], src.0, src.1)
+            .map(|sprite| (sprite.group, sprite.index)),
+        Some(dst)
+    );
+    run(
+        &mut sim,
+        vec![
+            ("source".into(), source.clone()),
+            ("dest".into(), "-1,-1".into()),
+        ],
+    );
+    assert_eq!(sim.fighters[0].sprite_remap.len(), 1);
+
+    // The remap participates in the rollback checksum.
+    let before = sim.checksum();
+    run(&mut sim, vec![("reset".into(), "1".into())]);
+    assert_ne!(before, sim.checksum());
+    assert!(sim.fighters[0].sprite_remap.is_empty());
+
+    // Reset also happens at round start.
+    run(
+        &mut sim,
+        vec![
+            ("source".into(), source.clone()),
+            ("dest".into(), dest.clone()),
+        ],
+    );
+    sim.restart_match();
+    assert!(sim.fighters[0].sprite_remap.is_empty());
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

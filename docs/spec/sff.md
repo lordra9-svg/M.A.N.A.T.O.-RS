@@ -277,6 +277,14 @@ SFF v2 palette nodes are exposed as a `(group, index)` map, and ACT files
 declared in the character DEF (`pal1`..`palN`, raw 768-byte RGB or 1024-byte
 RGBA) are registered as `(1, N)` with index 0 forced transparent.
 
+## 4.6 Sprite substitution
+
+`RemapSprite` stores `(group, index) → (group, index)` substitutions on the
+fighter. Rendering (fighters and their afterimages) resolves through the map;
+unmapped keys use the animation's original sprite. `reset = 1` clears the map,
+which also happens at round start. Named presets and per-frame collision-box
+substitution are not modeled.
+
 ## 5. Error handling
 
 - Reject truncated headers, invalid signatures, unsupported versions.

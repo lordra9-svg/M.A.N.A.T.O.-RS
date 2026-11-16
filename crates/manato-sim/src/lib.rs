@@ -2419,6 +2419,7 @@ impl SimState {
             fighter.assert_flags = 0;
             fighter.asserted_commands.clear();
             fighter.asserted_input = PlayerInput::default();
+            fighter.sprite_remap.clear();
             fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;
             fighter.player_push = true;
@@ -3251,6 +3252,13 @@ impl SimState {
             h.write_f32(f.pal_alpha);
             h.write_i32(f.pal_time);
             h.write_i32(f.movelist);
+            h.write_u32(f.sprite_remap.len() as u32);
+            for ((sg, si), (dg, di)) in &f.sprite_remap {
+                h.write_i32(*sg);
+                h.write_i32(*si);
+                h.write_i32(*dg);
+                h.write_i32(*di);
+            }
             h.write_bool(f.remap_palette.is_some());
             if let Some(palette) = &f.remap_palette {
                 for color in palette {

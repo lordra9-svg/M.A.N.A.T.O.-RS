@@ -513,7 +513,7 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
         let Some(frame) = fighter.current_frame(sim.anim_character(who)) else {
             continue;
         };
-        let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+        let Some(sprite) = fighter.sprite_for(character, frame.group, frame.index) else {
             continue;
         };
         let pose = Pose::from_frame(frame);
@@ -702,7 +702,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
     let Some(frame) = anim.frames.get(fighter.anim_frame) else {
         return;
     };
-    let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+    let Some(sprite) = fighter.sprite_for(character, frame.group, frame.index) else {
         return;
     };
     let mut anchor = sim.screen_pos(fighter.pos);

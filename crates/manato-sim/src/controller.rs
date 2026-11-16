@@ -308,6 +308,27 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         }
         "loadstate" => sim.load_state_requested = true,
         "matchrestart" => sim.restart_requested = true,
+        "remapsprite" => {
+            if int_param(sim, who, control, "reset").unwrap_or(0) != 0 {
+                sim.fighters[who].sprite_remap.clear();
+            }
+            let pair = |key: &str| {
+                control.get(key).and_then(|raw| {
+                    let mut parts = raw.split(',');
+                    let first = parts.next().map(|part| trigger::int(sim, who, part))?;
+                    let second = parts
+                        .next()
+                        .map(|part| trigger::int(sim, who, part))
+                        .unwrap_or(-1);
+                    Some((first, second))
+                })
+            };
+            if let (Some(src), Some(dst)) = (pair("source"), pair("dest")) {
+                if src.0 >= 0 && src.1 >= 0 && dst.0 >= 0 && dst.1 >= 0 {
+                    sim.fighters[who].sprite_remap.insert(src, dst);
+                }
+            }
+        }
         "remappal" => {
             let pair = |key: &str| {
                 control.get(key).map(|raw| {
