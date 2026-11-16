@@ -267,6 +267,16 @@ PNG payloads begin with the 4-byte size prefix, then the PNG signature.
 
 Use the `png` crate for zlib/IDAT handling; do not reimplement PNG filtering.
 
+## 4.5 Indexed pixels and palettes
+
+Indexed sprites retain their decoded palette indices (`Sprite::indices`) and the
+palette they were decoded with (`Sprite::palette`). True-color sprites leave
+both empty. `Sprite::recolor_rgba(palette)` rebuilds RGBA for `RemapPal`.
+
+SFF v2 palette nodes are exposed as a `(group, index)` map, and ACT files
+declared in the character DEF (`pal1`..`palN`, raw 768-byte RGB or 1024-byte
+RGBA) are registered as `(1, N)` with index 0 forced transparent.
+
 ## 5. Error handling
 
 - Reject truncated headers, invalid signatures, unsupported versions.

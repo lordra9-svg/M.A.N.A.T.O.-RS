@@ -370,7 +370,10 @@ pub struct Fighter {
     pub movelist: i32,
     /// Per-fighter `Map()` storage; deterministic ordering for rollback.
     pub map: BTreeMap<String, Value>,
+    /// Active `RemapPal` destination palette key.
     pub pal_remap: Option<(i32, i32)>,
+    /// Colors applied to indexed sprites while `pal_remap` is active.
+    pub remap_palette: Option<Vec<[u8; 4]>>,
     /// Ticks since the last projectile contact (`-1` = never).
     pub proj_contact_time: i32,
     /// Ticks since the last projectile hit (`-1` = never).
@@ -552,6 +555,7 @@ impl Fighter {
             movelist: 0,
             map: BTreeMap::new(),
             pal_remap: None,
+            remap_palette: None,
             proj_contact_time: -1,
             proj_hit_time: -1,
             proj_guarded_time: -1,

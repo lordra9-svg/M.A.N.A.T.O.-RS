@@ -15,6 +15,8 @@ pub struct CharacterFiles {
     pub ai: Option<PathBuf>,
     /// `movelist`, `movelist0`, … selection files (`ChangeMovelist`).
     pub movelists: BTreeMap<i32, PathBuf>,
+    /// `pal1`..`palN` ACT palettes keyed by their 1-based index.
+    pub palettes: BTreeMap<i32, PathBuf>,
 }
 
 /// Parsed character `.def` file.
@@ -116,6 +118,21 @@ impl CharacterDef {
             }
         }
 
+        let mut palettes = BTreeMap::new();
+        for (key, value) in &files_section {
+            let Some(suffix) = key.strip_prefix("pal") else {
+                continue;
+            };
+            if suffix.is_empty() || !suffix.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
+            if let Ok(index) = suffix.parse::<i32>() {
+                if index > 0 && !value.trim().is_empty() {
+                    palettes.insert(index, resolve_path(&dir, value));
+                }
+            }
+        }
+
         let files = CharacterFiles {
             cmd: resolve("cmd"),
             cns: resolve("cns"),
@@ -126,6 +143,7 @@ impl CharacterDef {
             sound: resolve("sound"),
             ai: resolve("ai"),
             movelists,
+            palettes,
         };
 
         let palette_keymap = text

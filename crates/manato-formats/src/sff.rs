@@ -3,7 +3,7 @@
 //! This implementation follows `docs/spec/sff.md`, which is derived from the
 //! MIT-licensed Ikemen-GO source and public M.U.G.E.N format documentation.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use anyhow::{bail, Context};
@@ -22,9 +22,31 @@ pub struct Sprite {
     pub axis_x: i32,
     pub axis_y: i32,
     pub rgba: Vec<u8>,
+    /// Palette indices for indexed sprites (`RemapPal`); empty for true-color.
+    pub indices: Vec<u8>,
+    /// Palette the indices were decoded with.
+    pub palette: Vec<[u8; 4]>,
 }
 
 impl Sprite {
+    /// Rebuilds RGBA pixels from the retained index buffer and a palette.
+    /// Returns `None` for true-color sprites or palettes that cannot cover
+    /// every index.
+    pub fn recolor_rgba(&self, palette: &[[u8; 4]]) -> Option<Vec<u8>> {
+        if self.indices.len() != (self.width * self.height) as usize || palette.is_empty() {
+            return None;
+        }
+        let mut rgba = vec![0u8; self.indices.len() * 4];
+        for (pixel, index) in self.indices.iter().enumerate() {
+            let color = palette
+                .get(*index as usize)
+                .copied()
+                .unwrap_or([0, 0, 0, 0]);
+            rgba[pixel * 4..pixel * 4 + 4].copy_from_slice(&color);
+        }
+        Some(rgba)
+    }
+
     pub fn empty(group: i32, index: i32) -> Self {
         Self {
             group,
@@ -34,6 +56,8 @@ impl Sprite {
             axis_x: 0,
             axis_y: 0,
             rgba: Vec::new(),
+            indices: Vec::new(),
+            palette: Vec::new(),
         }
     }
 
@@ -46,6 +70,8 @@ impl Sprite {
             axis_x,
             axis_y,
             rgba: vec![0; (width * height * 4) as usize],
+            indices: Vec::new(),
+            palette: Vec::new(),
         }
     }
 }
@@ -55,6 +81,8 @@ impl Sprite {
 pub struct SffFile {
     pub version: u8,
     pub sprites: Vec<Sprite>,
+    /// SFF v2 palette nodes keyed by `(group, index)`.
+    pub palettes: BTreeMap<(i32, i32), Vec<[u8; 4]>>,
     by_key: HashMap<(i32, i32), usize>,
 }
 
@@ -82,6 +110,7 @@ impl SffFile {
         Self {
             version: 2,
             sprites,
+            palettes: BTreeMap::new(),
             by_key,
         }
     }
@@ -97,6 +126,7 @@ impl SffFile {
         let mut out = Self {
             version,
             sprites: Vec::new(),
+            palettes: BTreeMap::new(),
             by_key: HashMap::new(),
         };
         match version {
@@ -170,7 +200,7 @@ impl SffFile {
                 self.push_link(group, index, axis_x, axis_y, link);
             } else {
                 match decode_pcx(payload, same_palette.then_some(previous_palette.as_deref())) {
-                    Ok((width, height, rgba, palette)) => {
+                    Ok((width, height, rgba, indices, palette)) => {
                         if let Some(palette) = palette {
                             previous_palette = Some(palette);
                         }
@@ -182,6 +212,8 @@ impl SffFile {
                             axis_x,
                             axis_y,
                             rgba,
+                            indices,
+                            palette: previous_palette.clone().unwrap_or_default(),
                         });
                     }
                     Err(error) => {
@@ -212,8 +244,9 @@ impl SffFile {
         let tdata_offset = u32_at(data, 60) as usize;
         let minor2 = data[13];
 
-        let mut palettes =
+        let (mut palettes, palette_map) =
             parse_v2_palettes(data, palette_offset, palette_count, ldata_offset, minor2);
+        self.palettes = palette_map;
 
         for i in 0..sprite_count.min(MAX_SPRITES) {
             let Some(node) = slice(data, sprite_offset + i * 28, 28) else {
@@ -261,32 +294,59 @@ impl SffFile {
                 .or_else(|| palettes.first().and_then(|p| p.as_deref()))
                 .unwrap_or(&[]);
 
-            let rgba = match format {
-                0 => decode_raw(payload, width, height, depth, palette),
-                2 => decode_indexed(payload, width, height, palette, Codec::Rle8),
-                3 => decode_indexed(payload, width, height, palette, Codec::Rle5),
-                4 => decode_indexed(payload, width, height, palette, Codec::Lz5),
+            let (out_w, out_h, rgba, indices) = match format {
+                0 => {
+                    let (w, h, rgba, indices) = decode_raw(payload, width, height, depth, palette);
+                    (w, h, rgba, indices)
+                }
+                2 => {
+                    let (w, h, rgba, indices) =
+                        decode_indexed(payload, width, height, palette, Codec::Rle8);
+                    (w, h, rgba, indices)
+                }
+                3 => {
+                    let (w, h, rgba, indices) =
+                        decode_indexed(payload, width, height, palette, Codec::Rle5);
+                    (w, h, rgba, indices)
+                }
+                4 => {
+                    let (w, h, rgba, indices) =
+                        decode_indexed(payload, width, height, palette, Codec::Lz5);
+                    (w, h, rgba, indices)
+                }
                 10..=12 => match decode_png(payload.get(4..).unwrap_or(&[]), palette) {
-                    Ok((w, h, pixels)) => (w, h, pixels),
+                    Ok((w, h, pixels, indices)) => (w, h, pixels, indices.unwrap_or_default()),
                     Err(error) => {
                         log::warn!("SFF v2: PNG decode failed for {group},{index}: {error}");
-                        (width, height, vec![0; (width * height * 4) as usize])
+                        (
+                            width,
+                            height,
+                            vec![0; (width * height * 4) as usize],
+                            Vec::new(),
+                        )
                     }
                 },
                 other => {
                     log::warn!("SFF v2: unsupported pixel format {other} for {group},{index}");
-                    (width, height, vec![0; (width * height * 4) as usize])
+                    (
+                        width,
+                        height,
+                        vec![0; (width * height * 4) as usize],
+                        Vec::new(),
+                    )
                 }
             };
 
             self.sprites.push(Sprite {
                 group,
                 index,
-                width: rgba.0,
-                height: rgba.1,
+                width: out_w,
+                height: out_h,
                 axis_x,
                 axis_y,
-                rgba: rgba.2,
+                rgba,
+                indices,
+                palette: palette.to_vec(),
             });
         }
 
@@ -316,12 +376,15 @@ fn parse_v2_palettes(
     palette_count: usize,
     ldata_offset: usize,
     minor2: u8,
-) -> Vec<Option<Vec<[u8; 4]>>> {
+) -> V2Palettes {
     let mut palettes: Vec<Option<Vec<[u8; 4]>>> = vec![None; palette_count.min(MAX_PALETTES)];
+    let mut by_key = BTreeMap::new();
     for i in 0..palettes.len() {
         let Some(node) = slice(data, palette_offset + i * 16, 16) else {
             break;
         };
+        let group = u16_at(node, 0) as i32;
+        let index = u16_at(node, 2) as i32;
         let colors = u16_at(node, 4) as usize;
         let link = u16_at(node, 6) as usize;
         let data_offset = u32_at(node, 8) as usize;
@@ -329,6 +392,7 @@ fn parse_v2_palettes(
 
         if data_len == 0 {
             if let Some(Some(source)) = palettes.get(link).cloned() {
+                by_key.insert((group, index), source.clone());
                 palettes[i] = Some(source);
             }
             continue;
@@ -346,9 +410,10 @@ fn parse_v2_palettes(
             }
             palette.push([p[2], p[1], p[0], alpha]);
         }
+        by_key.insert((group, index), palette.clone());
         palettes[i] = Some(palette);
     }
-    palettes
+    (palettes, by_key)
 }
 
 enum Codec {
@@ -363,11 +428,11 @@ fn decode_indexed(
     height: u32,
     palette: &[[u8; 4]],
     codec: Codec,
-) -> (u32, u32, Vec<u8>) {
+) -> (u32, u32, Vec<u8>, Vec<u8>) {
     let count = (width * height) as usize;
     let mut indices = vec![0u8; count];
     if raw.len() < 4 {
-        return (width, height, vec![0; count * 4]);
+        return (width, height, vec![0; count * 4], indices);
     }
     let stream = &raw[4..];
     let ok = match codec {
@@ -383,7 +448,7 @@ fn decode_indexed(
         let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
         rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
     }
-    (width, height, rgba)
+    (width, height, rgba, indices)
 }
 
 fn decode_raw(
@@ -392,14 +457,17 @@ fn decode_raw(
     height: u32,
     depth: u8,
     palette: &[[u8; 4]],
-) -> (u32, u32, Vec<u8>) {
+) -> (u32, u32, Vec<u8>, Vec<u8>) {
     let count = (width * height) as usize;
     let mut rgba = vec![0u8; count * 4];
+    let mut indices = Vec::new();
     match depth {
         8 => {
+            indices = vec![0u8; count];
             for i in 0..count {
-                let index = raw.get(i).copied().unwrap_or(0) as usize;
-                let color = palette.get(index).copied().unwrap_or([0, 0, 0, 0]);
+                let index = raw.get(i).copied().unwrap_or(0);
+                indices[i] = index;
+                let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
                 rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
             }
         }
@@ -418,10 +486,14 @@ fn decode_raw(
         }
         _ => {}
     }
-    (width, height, rgba)
+    (width, height, rgba, indices)
 }
 
-pub(crate) type DecodedPcx = (u32, u32, Vec<u8>, Option<Vec<[u8; 4]>>);
+type PaletteMap = BTreeMap<(i32, i32), Vec<[u8; 4]>>;
+type V2Palettes = (Vec<Option<Vec<[u8; 4]>>>, PaletteMap);
+type PngPixels = (u32, u32, Vec<u8>, Option<Vec<u8>>);
+
+pub(crate) type DecodedPcx = (u32, u32, Vec<u8>, Vec<u8>, Option<Vec<[u8; 4]>>);
 
 pub(crate) fn decode_pcx(
     data: &[u8],
@@ -488,7 +560,7 @@ pub(crate) fn decode_pcx(
         let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
         rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
     }
-    Ok((width as u32, height as u32, rgba, Some(palette)))
+    Ok((width as u32, height as u32, rgba, indices, Some(palette)))
 }
 
 fn extract_pcx_palette(data: &[u8]) -> Option<Vec<[u8; 4]>> {
@@ -523,7 +595,7 @@ fn default_palette() -> Vec<[u8; 4]> {
         .collect()
 }
 
-fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<(u32, u32, Vec<u8>)> {
+fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<PngPixels> {
     use std::io::Cursor;
 
     let decoder = png::Decoder::new(Cursor::new(raw));
@@ -535,16 +607,20 @@ fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<(u32, u32, Vec<
     let height = info.height;
     let mut rgba = vec![0u8; (width * height * 4) as usize];
 
+    let mut indices = None;
     match info.color_type {
         png::ColorType::Indexed => {
             if info.bit_depth != png::BitDepth::Eight {
                 bail!("unsupported indexed PNG depth {:?}", info.bit_depth);
             }
+            let mut decoded = vec![0u8; (width * height) as usize];
             for i in 0..(width * height) as usize {
-                let index = data.get(i).copied().unwrap_or(0) as usize;
-                let color = palette.get(index).copied().unwrap_or([0, 0, 0, 0]);
+                let index = data.get(i).copied().unwrap_or(0);
+                decoded[i] = index;
+                let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
                 rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
             }
+            indices = Some(decoded);
         }
         png::ColorType::Rgba => rgba.copy_from_slice(data),
         png::ColorType::Rgb => {
@@ -570,7 +646,7 @@ fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<(u32, u32, Vec<
             }
         }
     }
-    Ok((width, height, rgba))
+    Ok((width, height, rgba, indices))
 }
 
 pub fn rle8_decode(src: &[u8], dst: &mut [u8]) -> bool {
@@ -1007,6 +1083,16 @@ mod tests {
         let first_sprite = sff.get(0, 0).expect("first sprite");
         assert_eq!(&first_sprite.rgba[0..4], &[255, 0, 0, 255]);
         assert_eq!(&first_sprite.rgba[4..8], &[0, 255, 0, 255]);
+        // Index/palette data is retained for RemapPal.
+        assert_eq!(first_sprite.indices, vec![1, 2]);
+        assert_eq!(first_sprite.palette[1], [255, 0, 0, 255]);
+        let mut swapped = first_sprite.palette.clone();
+        swapped[1] = [10, 20, 30, 255];
+        swapped[2] = [40, 50, 60, 255];
+        assert_eq!(
+            first_sprite.recolor_rgba(&swapped).expect("recolor"),
+            vec![10, 20, 30, 255, 40, 50, 60, 255]
+        );
 
         let second_sprite = sff.get(0, 1).expect("same-palette sprite");
         assert_eq!(&second_sprite.rgba[0..4], &[0, 0, 255, 255]);

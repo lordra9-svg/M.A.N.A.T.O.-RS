@@ -271,6 +271,37 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "transformclsn" => transform_clsn(sim, who, control),
         "overrideclsn" => override_clsn(sim, who, control),
         "shiftinput" => shift_input(sim, who, control),
+        "remappal" => {
+            let pair = |key: &str| {
+                control.get(key).map(|raw| {
+                    let mut parts = raw.split(',');
+                    let first = parts
+                        .next()
+                        .map(|part| trigger::int(sim, who, part))
+                        .unwrap_or(-1);
+                    let second = parts
+                        .next()
+                        .map(|part| trigger::int(sim, who, part))
+                        .unwrap_or(0);
+                    (first, second)
+                })
+            };
+            let src = pair("source").unwrap_or((-1, 0));
+            let mut dst = pair("dest").unwrap_or((-1, 0));
+            if src.0 == -1 && dst.0 == -1 {
+                sim.fighters[who].pal_remap = None;
+                sim.fighters[who].remap_palette = None;
+                return;
+            }
+            if dst.0 == -1 {
+                dst = src;
+            }
+            let palette = sim.character(who).palettes.get(&dst).cloned();
+            if let Some(palette) = palette {
+                sim.fighters[who].pal_remap = Some(dst);
+                sim.fighters[who].remap_palette = Some(palette);
+            }
+        }
         "changemovelist" => {
             let value = int_param(sim, who, control, "value").unwrap_or(0);
             if sim.character(who).movelists.contains_key(&value) {
@@ -331,7 +362,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         }
         "palfx" => pal_fx(sim, who, control),
         "trans" => trans(sim, who, control),
-        "remappal" | "forcefeedback" => {}
+        "forcefeedback" => {}
         "projectile" => projectile(sim, who, control, assets),
         "modifyprojectile" => modify_projectile(sim, who, control, assets),
         "playerpush" => {

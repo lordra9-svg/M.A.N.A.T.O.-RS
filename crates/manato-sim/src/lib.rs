@@ -3105,6 +3105,14 @@ impl SimState {
             h.write_f32(f.pal_alpha);
             h.write_i32(f.pal_time);
             h.write_i32(f.movelist);
+            h.write_bool(f.remap_palette.is_some());
+            if let Some(palette) = &f.remap_palette {
+                for color in palette {
+                    for channel in color {
+                        h.write_u8(*channel);
+                    }
+                }
+            }
             for value in f.pal_base_add {
                 h.write_f32(value);
             }

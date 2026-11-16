@@ -38,6 +38,7 @@ pub struct SpriteAtlas {
     pub pages: Vec<AtlasPage>,
     pub page_size: u32,
     sprites: HashMap<(u8, i32, i32), AtlasSprite>,
+    placements: HashMap<(u8, i32, i32), (u32, u32, u32)>,
     sampler: wgpu::Sampler,
 }
 
@@ -134,6 +135,10 @@ impl SpriteAtlas {
         });
 
         let page_size_f = page_size as f32;
+        let mut placement_map = HashMap::new();
+        for p in &placements {
+            placement_map.insert((p.bank, p.group, p.index), (p.page, p.x, p.y));
+        }
         let mut sprites = HashMap::new();
         for p in &placements {
             sprites.insert(
@@ -231,12 +236,55 @@ impl SpriteAtlas {
             pages,
             page_size,
             sprites,
+            placements: placement_map,
             sampler,
         }
     }
 
     pub fn get(&self, bank: u8, group: i32, index: i32) -> Option<AtlasSprite> {
         self.sprites.get(&(bank, group, index)).copied()
+    }
+
+    /// Re-uploads one sprite's pixels in place. The atlas layout, UVs, and
+    /// bind groups are unchanged.
+    pub fn update_sprite(
+        &self,
+        queue: &wgpu::Queue,
+        bank: u8,
+        group: i32,
+        index: i32,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) {
+        let Some(&(page, x, y)) = self.placements.get(&(bank, group, index)) else {
+            return;
+        };
+        let Some(page) = self.pages.get(page as usize) else {
+            return;
+        };
+        if rgba.len() != (width * height * 4) as usize {
+            return;
+        }
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &page.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 
     pub fn page_bind_group(&self, page: u32) -> &wgpu::BindGroup {

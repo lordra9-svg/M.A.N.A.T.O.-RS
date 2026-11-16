@@ -57,6 +57,8 @@ pub struct Renderer {
     atlas: SpriteAtlas,
     font: FontAtlas,
     screen_fonts: std::collections::BTreeMap<u32, ScreenFont>,
+    /// Last palette applied to each character sprite bank.
+    applied_palettes: std::collections::HashMap<u8, Option<Vec<[u8; 4]>>>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -349,6 +351,7 @@ impl Renderer {
             atlas,
             font,
             screen_fonts: std::collections::BTreeMap::new(),
+            applied_palettes: std::collections::HashMap::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -435,8 +438,60 @@ impl Renderer {
         self.atlas.pages.len()
     }
 
+    /// Recolors character sprite banks when `RemapPal` changes. Only the
+    /// affected bank is re-uploaded, and clearing the remap restores the
+    /// original pixels.
+    fn apply_palette_remaps(&mut self, sim: &SimState) {
+        use crate::atlas::bank;
+        let mut desired: std::collections::HashMap<u8, Option<Vec<[u8; 4]>>> =
+            std::collections::HashMap::new();
+        for fighter in &sim.fighters {
+            let bank = bank::CHARACTER_BASE + fighter.char_id as u8;
+            let entry = desired.entry(bank).or_insert(None);
+            if let Some(palette) = &fighter.remap_palette {
+                *entry = Some(palette.clone());
+            }
+        }
+        for (bank, palette) in desired {
+            if self.applied_palettes.get(&bank) == Some(&palette) {
+                continue;
+            }
+            let Some(char_id) = (bank.checked_sub(bank::CHARACTER_BASE)).map(|id| id as usize)
+            else {
+                continue;
+            };
+            let Some(character) = sim.assets.characters.get(char_id) else {
+                continue;
+            };
+            let was_remapped = self
+                .applied_palettes
+                .get(&bank)
+                .is_some_and(Option::is_some);
+            for sprite in &character.sprites.sprites {
+                let rgba = match &palette {
+                    Some(palette) => sprite.recolor_rgba(palette),
+                    None if was_remapped && !sprite.indices.is_empty() => Some(sprite.rgba.clone()),
+                    None => None,
+                };
+                if let Some(rgba) = rgba {
+                    self.atlas.update_sprite(
+                        &self.queue,
+                        bank,
+                        sprite.group,
+                        sprite.index,
+                        sprite.width,
+                        sprite.height,
+                        &rgba,
+                    );
+                }
+            }
+            self.applied_palettes.insert(bank, palette);
+        }
+    }
+
     /// Draws one frame into the internal 320x240 target.
     pub fn render(&mut self, sim: &SimState) {
+        self.apply_palette_remaps(sim);
         let deps = SceneDeps {
             atlas: &self.atlas,
             font: &self.font,

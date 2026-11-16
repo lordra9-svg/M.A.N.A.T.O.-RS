@@ -21,6 +21,9 @@ pub struct Character {
     pub commands: Vec<CommandDef>,
     /// `movelist`, `movelist0`, … file contents selected by `ChangeMovelist`.
     pub movelists: BTreeMap<i32, String>,
+    /// Palettes keyed by `(group, index)`: SFF v2 nodes plus ACT files
+    /// (`pal1` → `(1, 1)`).
+    pub palettes: BTreeMap<(i32, i32), Vec<[u8; 4]>>,
     pub animations: HashMap<i32, Animation>,
     pub sprites: SffFile,
     pub sounds: SoundBank,
@@ -133,6 +136,23 @@ impl Character {
             }
         }
 
+        let mut palettes = sprites.palettes.clone();
+        for (index, path) in &def.files.palettes {
+            let Some(found) = resolve(path) else {
+                log::warn!("palette file not found: {}", path.display());
+                continue;
+            };
+            match std::fs::read(&found) {
+                Ok(bytes) => match parse_act_palette(&bytes) {
+                    Some(colors) => {
+                        palettes.insert((1, *index), colors);
+                    }
+                    None => log::warn!("invalid ACT palette {}", found.display()),
+                },
+                Err(error) => log::warn!("failed to read palette {}: {error}", found.display()),
+            }
+        }
+
         let mut movelists = BTreeMap::new();
         for (id, path) in &def.files.movelists {
             if let Some(found) = resolve(path) {
@@ -156,6 +176,7 @@ impl Character {
             states,
             commands,
             movelists,
+            palettes,
             animations,
             sprites,
             sounds,
@@ -182,6 +203,33 @@ impl Character {
     pub fn localcoord(&self) -> (f32, f32) {
         self.def.localcoord
     }
+}
+
+/// Parses a raw ACT palette (768 RGB bytes, optionally 1024 with alpha).
+/// Index 0 is forced transparent, matching the SFF palette rules.
+fn parse_act_palette(bytes: &[u8]) -> Option<Vec<[u8; 4]>> {
+    let step = match bytes.len() {
+        768 => 3,
+        1024 => 4,
+        _ => return None,
+    };
+    let mut palette = Vec::with_capacity(256);
+    for i in 0..256 {
+        let at = i * step;
+        palette.push([
+            bytes[at],
+            bytes[at + 1],
+            bytes[at + 2],
+            if i == 0 {
+                0
+            } else if step == 4 {
+                bytes[at + 3]
+            } else {
+                255
+            },
+        ]);
+    }
+    Some(palette)
 }
 
 /// Extracts the default-language `[Quotes]` victory entries (`victory0` …

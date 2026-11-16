@@ -192,6 +192,11 @@ Required controller families for the approved matrix:
 - `MakeDust`, `GameMakeAnim`
 - `AfterImage`, `AfterImageTime`
 - `PalFX`, `RemapPal`, `Trans`
+  `RemapPal` selects a destination palette by `(group, index)` — SFF v2
+  palette nodes or DEF `palN` files (`(1, N)`). Unknown destinations are
+  ignored; `source = dest = -1, 0` clears the remap. The renderer recolors
+  the affected character sprite bank in place and restores it when cleared.
+  `RemapSprite` is not modeled.
   `PalFX` models `add`/`sinadd`, `mul`/`sinmul` (0–256 units, 256 =
   identity), and `alpha` (0–1). `color`, `hue`, `invertall`, `invertblend`,
   `sincolor`, and `sinhue` are unmodeled.

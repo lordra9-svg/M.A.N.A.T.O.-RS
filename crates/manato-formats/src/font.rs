@@ -94,7 +94,7 @@ impl BitmapFont {
         }
         let pcx_end = pcx_offset.saturating_add(pcx_length).min(data.len());
         let pcx = &data[pcx_offset..pcx_end];
-        let (atlas_width, atlas_height, atlas_rgba, _) =
+        let (atlas_width, atlas_height, atlas_rgba, _, _) =
             decode_pcx(pcx, None).context("failed to decode the font atlas PCX")?;
 
         let text_end = text_offset.saturating_add(text_length).min(data.len());
@@ -353,6 +353,8 @@ fn crop_sprite(
         axis_x: 0,
         axis_y: 0,
         rgba: out,
+        indices: Vec::new(),
+        palette: Vec::new(),
     }
 }
 

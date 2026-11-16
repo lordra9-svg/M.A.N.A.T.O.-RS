@@ -2468,6 +2468,90 @@ fn changemovelist_selects_loaded_character_lists() {
 }
 
 #[test]
+fn remappal_selects_act_palettes() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-remappal-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp character dir");
+    for entry in std::fs::read_dir(&source).expect("read character dir") {
+        let entry = entry.expect("dir entry");
+        if entry.file_type().expect("file type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy character file");
+        }
+    }
+    // Raw ACT palette: index 1 becomes a distinctive color.
+    let mut act = vec![0u8; 768];
+    act[3..6].copy_from_slice(&[10, 20, 30]);
+    std::fs::write(dir.join("alt.act"), &act).expect("write ACT");
+    let def = dir.join("kaen.def");
+    let text = std::fs::read_to_string(&def).expect("read def");
+    std::fs::write(&def, text.replace("[Files]", "[Files]\npal2 = alt.act")).expect("patch def");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: def,
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets load")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let palette = assets.characters[sim.fighters[0].char_id]
+        .palettes
+        .get(&(1, 2))
+        .cloned()
+        .expect("ACT palette registered");
+    assert_eq!(palette[1], [10, 20, 30, 255]);
+    assert!(sim.fighters[0].remap_palette.is_none());
+
+    let run = |sim: &mut SimState, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: "remappal".into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(&mut sim, vec![("source", "1, 1"), ("dest", "1, 2")]);
+    assert_eq!(sim.fighters[0].pal_remap, Some((1, 2)));
+    assert_eq!(
+        sim.fighters[0].remap_palette.as_ref().expect("palette")[1],
+        [10, 20, 30, 255]
+    );
+
+    // Unknown destination palettes are ignored.
+    run(&mut sim, vec![("source", "1, 1"), ("dest", "1, 9")]);
+    assert_eq!(sim.fighters[0].pal_remap, Some((1, 2)));
+
+    // `source = -1, dest = -1` clears the remap.
+    run(&mut sim, vec![("source", "-1, 0"), ("dest", "-1, 0")]);
+    assert!(sim.fighters[0].remap_palette.is_none());
+    assert!(sim.fighters[0].pal_remap.is_none());
+
+    // The selection participates in the rollback checksum.
+    run(&mut sim, vec![("source", "1, 1"), ("dest", "1, 2")]);
+    let before = sim.checksum();
+    run(&mut sim, vec![("source", "-1, 0"), ("dest", "-1, 0")]);
+    assert_ne!(before, sim.checksum());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;
