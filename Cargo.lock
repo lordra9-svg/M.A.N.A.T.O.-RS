@@ -1389,6 +1389,7 @@ name = "manato-net"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "ggrs",
  "log",
  "manato-core",

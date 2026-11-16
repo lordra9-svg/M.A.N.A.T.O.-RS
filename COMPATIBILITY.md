@@ -37,7 +37,7 @@ deliberate, not scheduling gaps:
 | Team/tag flow | R-04 | Active/standby rosters, TagIn/TagOut swaps, Turns KO advancement, and partner lifebars work; simultaneous teams, content-driven rosters, and tag animations remain unmodeled. |
 | Arcade flow | R-05 | Ladder/continue/survival state, app progression, roster-order opponents with randomselect substitution, per-opponent stages and music, survival rotation, a persisted top-five score table with SCORES screen, and the continue overlay exist; special/final-boss ordering remains unmodeled. |
 | GLSL uniform layer | V-09 | `.glsl`/`.frag` fragments execute with explicit Vulkan-style bindings, a built-in vertex stage, a `shaderparam` uniform block, and pal/tex1/tex2 placeholder bindings; Ikemen's implicit `uniform` set, dedicated shader textures, and grab passes are not modeled. |
-| Spectators/lobby | N-03 | Spectator transport and lobby state need a netplay session layer. |
+| Spectators/lobby | N-03 | Lobby state/protocol and spectator frame sync exist; UDP relay/discovery and state streaming remain unmodeled. |
 | Debug-only helpers | C-13 | Clipboard, console-print, and assert controllers are authoring aids rather than engine behavior. |
 
 Oracle-only rows (`F-09`, `K-01`..`K-09`, `V-05`, `V-08`, `A-01`, `A-03`,
@@ -171,7 +171,7 @@ priority details.
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
 | N-02 | P2P input exchange | Required | Required | Partial | Localhost GGRS loopback test; internet/latency matrix pending |
-| N-03 | Spectators/lobby | N/A | Ikemen | Partial | In scope by owner decision; spectator/lobby transport not implemented yet |
+| N-03 | Spectators/lobby | N/A | Ikemen | Partial | Transport-agnostic lobby state (host/guest/spectator roles, capacity, ready/start, host transfer), bincode join/leave/ready/start/frame messages, and spectator frame sync with lag tracking; UDP relay/discovery and spectator state streaming not modeled |
 
 ## 10. Acceptance content
 
