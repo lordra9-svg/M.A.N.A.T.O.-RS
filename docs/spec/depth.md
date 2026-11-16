@@ -92,9 +92,10 @@ Stage layers use the same transform when a depth is assigned. The layer's
 start position is projected about the camera centre and ground line, its scale
 is multiplied by `z_scale`, and its painter depth becomes
 `0.5 + z * 0.001` (clamped `0.05..0.95`) for that layer only; other layers keep
-their region plane.
+their region plane. Projectile sprites and fighter reflections use the same
+perspective and per-object painter depth.
 
-### 3.3 Effects, shadows, and texts
+### 3.3 Effects, shadows, texts, projectiles, and reflections
 
 `Explod pos` and `Text pos` accept a third z component; explods default to the
 owner's (or `postype = p2`'s) `z` and add the offset, and bound explods follow
@@ -139,12 +140,8 @@ binding layer. `shaderparam` and extra texture inputs are also not modeled.
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
   applied (values persist until changed or the round restarts). Ikemen
   targets 3D model nodes here, which this engine does not load.
-- Perspective for reflections and projectile sprites (effects, shadows, and
-  texts are covered).
 - Fighter `p2depth`/`depthbound` clamping (the flag is stored but does not
   constrain movement).
-- Projectile z rendering/perspective (depth affects collisions and bounds
-  only).
 - Hit `zoff` (hit position offset) is always zero; `zvel`/`zaccel` and
   `fall.zvel` report the values applied by the connecting HitDef.
 - Custom shader execution, `shaderparam`, and texture inputs.

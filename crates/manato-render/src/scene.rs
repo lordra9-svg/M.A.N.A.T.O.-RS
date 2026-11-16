@@ -471,11 +471,22 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         };
         let pose = Pose::from_pose(frame, &interpolated);
         let zoom = sim.camera.scale;
-        let anchor = sim.screen_pos(projectile.pos);
-        let scale = Vec2::new(
-            pose.scale.x * projectile.scale.x * zoom,
-            pose.scale.y * projectile.scale.y * zoom,
+        let stage = &sim.assets.stage;
+        let (anchor, scale) = depth_transform(
+            sim.screen_pos(projectile.pos),
+            Vec2::new(
+                pose.scale.x * projectile.scale.x * zoom,
+                pose.scale.y * projectile.scale.y * zoom,
+            ),
+            projectile.z,
+            stage,
+            GAME_WIDTH * 0.5,
+            sim.ground_screen_y(),
         );
+        let restore = painter.depth();
+        if projectile.z != 0.0 {
+            painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
+        }
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
         let bank = bank::CHARACTER_BASE + projectile.owner as u8;
         let color = global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.all_pal);
@@ -516,6 +527,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
                 pose.flip_v,
                 color,
             );
+            painter.set_depth(restore);
             continue;
         }
 
@@ -570,12 +582,26 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             continue;
         };
         let pose = Pose::from_frame(frame);
-        let mut anchor = sim.screen_pos(fighter.pos) + fighter.reflection_offset * sim.camera.scale;
-        anchor.y = sim.ground_screen_y() * 2.0 - anchor.y;
+        let stage = &sim.assets.stage;
+        let ground = sim.ground_screen_y();
+        let (mut anchor, z_scale) = depth_transform(
+            sim.screen_pos(fighter.pos) + fighter.reflection_offset * sim.camera.scale,
+            Vec2::new(1.0, 1.0),
+            fighter.z,
+            stage,
+            GAME_WIDTH * 0.5,
+            ground,
+        );
+        let z_scale = z_scale.x;
+        anchor.y = ground * 2.0 - anchor.y;
         let base_scale = Vec2::new(
             character.constants.get_or("size.xscale", 1.0) * fighter.size_xscale,
             character.constants.get_or("size.yscale", 1.0) * fighter.size_yscale,
-        );
+        ) * z_scale;
+        let restore = painter.depth();
+        if fighter.z != 0.0 {
+            painter.set_depth((0.5 + fighter.z * 0.001).clamp(0.05, 0.95));
+        }
         draw_sprite(
             painter,
             atlas,
@@ -599,6 +625,7 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             ],
             pose.angle,
         );
+        painter.set_depth(restore);
     }
 }
 
@@ -775,6 +802,25 @@ fn painter_depth(painter: &mut Painter, state: &manato_sim::StageLayerState) -> 
         painter.set_depth((0.5 + z * 0.001).clamp(0.05, 0.95));
     }
     restore
+}
+
+/// Applies stage depth perspective to an object anchor and scale.
+fn depth_transform(
+    anchor: Vec2,
+    scale: Vec2,
+    z: f32,
+    stage: &Stage,
+    pivot_x: f32,
+    ground: f32,
+) -> (Vec2, Vec2) {
+    let z_scale = stage.z_scale(z);
+    if (z_scale - 1.0).abs() <= f32::EPSILON {
+        return (anchor, scale);
+    }
+    (
+        project_depth(anchor, z_scale, stage.z_y_offset(z), pivot_x, ground),
+        scale * z_scale,
+    )
 }
 
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
@@ -1387,6 +1433,33 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn depth_transform_projects_objects_and_scale() {
+        let stage = manato_formats::Stage {
+            z_top: 0.0,
+            z_bottom: 100.0,
+            z_top_scale: 1.0,
+            z_bottom_scale: 0.5,
+            depth_to_screen: 0.25,
+            ..manato_formats::Stage::default()
+        };
+        let anchor = Vec2::new(200.0, 180.0);
+        let scale = Vec2::new(2.0, 2.0);
+
+        // z = 0 is the near plane with scale 1.
+        let (same, same_scale) = depth_transform(anchor, scale, 0.0, &stage, 160.0, 200.0);
+        assert!((same.x - anchor.x).abs() < 1e-5);
+        assert!((same.y - anchor.y).abs() < 1e-5);
+        assert!((same_scale.x - 2.0).abs() < 1e-5);
+
+        // At the far plane the object shrinks toward the pivot/ground and
+        // shifts by `depthtoscreen`.
+        let (far, far_scale) = depth_transform(anchor, scale, 100.0, &stage, 160.0, 200.0);
+        assert!((far.x - 180.0).abs() < 1e-5);
+        assert!((far.y - 215.0).abs() < 1e-5);
+        assert!((far_scale.x - 1.0).abs() < 1e-5);
+    }
 
     #[test]
     fn depth_projection_scales_about_camera_and_ground() {
