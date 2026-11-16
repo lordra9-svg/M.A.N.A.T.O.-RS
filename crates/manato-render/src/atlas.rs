@@ -16,6 +16,8 @@ pub mod bank {
     pub const EFFECTS: u8 = 3;
     /// Screenpack sprites (`system.def` `[Files] spr`).
     pub const SCREENPACK: u8 = 4;
+    /// Storyboard sprites (`[SceneDef] spr`).
+    pub const STORYBOARD: u8 = 5;
     /// Character sprites are stored at `CHARACTER_BASE + char_id`.
     pub const CHARACTER_BASE: u8 = 16;
 }

@@ -14,6 +14,7 @@ pub mod screenpack;
 pub mod sff;
 pub mod snd;
 pub mod stage;
+pub mod storyboard;
 pub mod text;
 
 pub use air::{AnimFrame, Animation, CollisionBox, FramePose};

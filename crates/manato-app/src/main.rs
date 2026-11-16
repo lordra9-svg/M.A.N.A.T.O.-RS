@@ -36,6 +36,7 @@ struct Options {
     frames: Option<u32>,
     synctest: Option<u32>,
     screenshot: Option<PathBuf>,
+    storyboard: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -59,6 +60,7 @@ impl Default for Options {
             frames: None,
             synctest: None,
             screenshot: None,
+            storyboard: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -365,6 +367,10 @@ impl Options {
                     opts.screenshot = Some(PathBuf::from(value(i)?));
                     i += 2;
                 }
+                "--storyboard" => {
+                    opts.storyboard = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--scale" => {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
@@ -465,6 +471,7 @@ Modes:
   --frames <n>        Run n ticks headless, then exit
   --synctest <n>      Run n ticks through GGRS rollback verification
   --screenshot <png>  Save the final frame (headless)
+  --storyboard <def>  Play a storyboard headless (with --frames)
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -516,6 +523,9 @@ fn headless_inputs(sim: &SimState, ai_level: i32) -> [PlayerInput; 2] {
 }
 
 fn run_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
+    if let Some(storyboard) = &opts.storyboard {
+        return run_storyboard_headless(opts, frames, storyboard);
+    }
     if opts.menu {
         return run_frontend_headless(opts, frames);
     }
@@ -538,6 +548,36 @@ fn run_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
         sim.fighters[0].life,
         sim.fighters[1].life,
         sim.checksum()
+    );
+    Ok(())
+}
+
+fn run_storyboard_headless(
+    opts: &Options,
+    frames: u32,
+    storyboard_path: &str,
+) -> anyhow::Result<()> {
+    let path = if Path::new(storyboard_path).is_absolute() {
+        PathBuf::from(storyboard_path)
+    } else {
+        opts.root.join(storyboard_path)
+    };
+    let storyboard = manato_formats::storyboard::Storyboard::load(&path)
+        .with_context(|| format!("failed to load storyboard {}", path.display()))?;
+    let mut player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
+    let mut renderer = Renderer::new_offscreen()?;
+    renderer.load_storyboard(&storyboard);
+    for _ in 0..frames {
+        player.tick(&storyboard);
+    }
+    renderer.render_storyboard(&storyboard, &player);
+    if let Some(path) = &opts.screenshot {
+        renderer.screenshot(path)?;
+        println!("screenshot written to {}", path.display());
+    }
+    println!(
+        "storyboard={} scene={} time={} done={}",
+        storyboard.name, player.scene, player.time, player.done
     );
     Ok(())
 }

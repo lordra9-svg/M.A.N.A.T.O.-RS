@@ -700,7 +700,7 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
     }
 }
 
-fn draw_sprite(
+pub(crate) fn draw_sprite(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
     bank: u8,
@@ -733,7 +733,7 @@ fn draw_sprite(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn draw_sprite_at(
+pub(crate) fn draw_sprite_at(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
     bank: u8,
@@ -1428,6 +1428,132 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
             scale,
             [1.0, 0.92, 0.55, 1.0],
         );
+    }
+}
+
+/// Draws one storyboard scene frame: clear colour, layers, text, and fades.
+pub fn draw_storyboard(
+    painter: &mut Painter,
+    deps: &SceneDeps,
+    storyboard: &manato_formats::storyboard::Storyboard,
+    player: &manato_formats::storyboard::StoryboardPlayer,
+) {
+    painter.clear();
+    let Some(scene) = player.current(storyboard) else {
+        return;
+    };
+    if let Some(color) = scene.clear_color {
+        if scene.clear_alpha > 0 {
+            painter.rect(
+                Blend::Normal,
+                0.0,
+                0.0,
+                GAME_WIDTH,
+                GAME_HEIGHT,
+                [
+                    color[0] as f32 / 255.0,
+                    color[1] as f32 / 255.0,
+                    color[2] as f32 / 255.0,
+                    scene.clear_alpha as f32 / 255.0,
+                ],
+            );
+        }
+    }
+
+    let mut layers: Vec<&manato_formats::storyboard::StoryboardLayer> = scene
+        .layers
+        .iter()
+        .filter(|layer| layer.visible_at(player.time))
+        .collect();
+    layers.sort_by_key(|layer| layer.layer_no);
+    for layer in layers {
+        let anchor = layer.position_at(player.time);
+        let sprite_pose = if layer.anim >= 0 {
+            storyboard.animations.get(&layer.anim).and_then(|anim| {
+                let local = (player.time - layer.start_time).max(0);
+                let interpolated = anim.pose_at(local)?;
+                let frame = anim.frames.get(interpolated.frame)?;
+                let sprite = storyboard.sprites.get(frame.group, frame.index)?;
+                Some((sprite, Pose::from_pose(frame, &interpolated)))
+            })
+        } else if let Some((group, index)) = layer.sprite {
+            storyboard.sprites.get(group, index).map(|sprite| {
+                (
+                    sprite,
+                    Pose {
+                        offset: Vec2::ZERO,
+                        flip_h: false,
+                        flip_v: false,
+                        blend: Blend::Normal,
+                        scale: Vec2::new(1.0, 1.0),
+                        alpha: 1.0,
+                        angle: 0.0,
+                    },
+                )
+            })
+        } else {
+            None
+        };
+        if let Some((sprite, pose)) = sprite_pose {
+            let scale = Vec2::new(layer.scale.x * pose.scale.x, layer.scale.y * pose.scale.y);
+            draw_sprite(
+                painter,
+                deps.atlas,
+                bank::STORYBOARD,
+                sprite,
+                anchor,
+                pose.offset,
+                layer.facing,
+                scale,
+                pose.flip_h,
+                pose.flip_v,
+                pose.blend,
+                [
+                    layer.color[0] as f32 / 255.0,
+                    layer.color[1] as f32 / 255.0,
+                    layer.color[2] as f32 / 255.0,
+                    layer.color[3] as f32 / 255.0 * pose.alpha,
+                ],
+                pose.angle,
+            );
+        }
+        if layer.text.is_some() {
+            let text = layer.visible_text(player.time);
+            if !text.is_empty() {
+                let pixel_scale = (layer.scale.y.max(layer.scale.x) * 1.0).clamp(0.4, 4.0);
+                painter.text(
+                    deps.font,
+                    &text,
+                    anchor.x,
+                    anchor.y,
+                    pixel_scale,
+                    [
+                        layer.color[0] as f32 / 255.0,
+                        layer.color[1] as f32 / 255.0,
+                        layer.color[2] as f32 / 255.0,
+                        layer.color[3] as f32 / 255.0,
+                    ],
+                );
+            }
+        }
+    }
+
+    if let Some((color, alpha)) = player.fade_alpha(scene) {
+        if alpha > 0 {
+            painter.rect(
+                Blend::Normal,
+                0.0,
+                0.0,
+                GAME_WIDTH,
+                GAME_HEIGHT,
+                [
+                    color[0] as f32 / 255.0,
+                    color[1] as f32 / 255.0,
+                    color[2] as f32 / 255.0,
+                    alpha as f32 / 255.0,
+                ],
+            );
+        }
     }
 }
 

@@ -848,6 +848,32 @@ impl Renderer {
         self.present();
     }
 
+    /// Builds the atlas from a storyboard's sprite file.
+    pub fn load_storyboard(&mut self, storyboard: &manato_formats::storyboard::Storyboard) {
+        self.atlas = SpriteAtlas::build(
+            &self.device,
+            &self.queue,
+            &self.sprite_bgl,
+            &[(bank::STORYBOARD, &storyboard.sprites)],
+        );
+        self.screen_fonts.clear();
+    }
+
+    /// Draws one storyboard frame into the internal 320x240 target.
+    pub fn render_storyboard(
+        &mut self,
+        storyboard: &manato_formats::storyboard::Storyboard,
+        player: &manato_formats::storyboard::StoryboardPlayer,
+    ) {
+        let deps = SceneDeps {
+            atlas: &self.atlas,
+            font: &self.font,
+            screen_fonts: &self.screen_fonts,
+        };
+        scene::draw_storyboard(&mut self.painter, &deps, storyboard, player);
+        self.present();
+    }
+
     /// Draws a front-end title or select frame into the internal target.
     pub fn render_title(
         &mut self,
