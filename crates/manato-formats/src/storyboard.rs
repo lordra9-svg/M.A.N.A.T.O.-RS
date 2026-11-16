@@ -21,6 +21,17 @@ pub struct Fade {
 }
 
 #[derive(Debug, Clone)]
+pub struct StoryboardBgm {
+    pub path: PathBuf,
+    pub loop_music: bool,
+    pub volume: i32,
+    pub loop_start: i32,
+    pub loop_end: i32,
+    pub freq_mul: f32,
+    pub loop_count: i32,
+}
+
+#[derive(Debug, Clone)]
 pub struct StoryboardSound {
     pub group: i32,
     pub index: i32,
@@ -107,6 +118,7 @@ pub struct StoryboardScene {
     pub jump: Option<String>,
     pub layers: Vec<StoryboardLayer>,
     pub sounds: Vec<StoryboardSound>,
+    pub bgm: Option<StoryboardBgm>,
 }
 
 #[derive(Debug, Clone)]
@@ -202,6 +214,13 @@ impl Storyboard {
             };
             let mut layers: Vec<(usize, StoryboardLayer)> = Vec::new();
             let mut scene_sounds: Vec<(usize, StoryboardSound)> = Vec::new();
+            let mut bgm_path: Option<String> = None;
+            let mut bgm_loop = true;
+            let mut bgm_volume = 100;
+            let mut bgm_loop_start = 0;
+            let mut bgm_loop_end = 0;
+            let mut bgm_freq = 1.0;
+            let mut bgm_loop_count = -1;
             for entry in &section.entries {
                 let key = entry.key.trim().to_ascii_lowercase();
                 let value = entry.value.trim();
@@ -223,6 +242,13 @@ impl Storyboard {
                     "fadeout.color" => scene.fade_out.color = triplet_color(value),
                     "fadein.alpha" => scene.fade_in.alpha = alpha_pair(value),
                     "fadeout.alpha" => scene.fade_out.alpha = alpha_pair(value),
+                    "bgm" | "bgmusic" => bgm_path = Some(value.to_string()),
+                    "bgm.loop" => bgm_loop = value.parse::<i32>().unwrap_or(1) != 0,
+                    "bgm.volume" => bgm_volume = value.parse().unwrap_or(100),
+                    "bgm.loopstart" => bgm_loop_start = value.parse().unwrap_or(0),
+                    "bgm.loopend" => bgm_loop_end = value.parse().unwrap_or(0),
+                    "bgm.freqmul" => bgm_freq = value.parse().unwrap_or(1.0),
+                    "bgm.loopcount" => bgm_loop_count = value.parse().unwrap_or(-1),
                     _ => {
                         if let Some(rest) = key.strip_prefix("sound") {
                             let Some((index, field)) = rest.split_once('.') else {
@@ -316,6 +342,15 @@ impl Storyboard {
             scene.layers = layers.into_iter().map(|(_, layer)| layer).collect();
             scene_sounds.sort_by_key(|(index, _)| *index);
             scene.sounds = scene_sounds.into_iter().map(|(_, sound)| sound).collect();
+            scene.bgm = bgm_path.map(|path| StoryboardBgm {
+                path: resolve(&dir, &path),
+                loop_music: bgm_loop,
+                volume: bgm_volume,
+                loop_start: bgm_loop_start,
+                loop_end: bgm_loop_end,
+                freq_mul: bgm_freq,
+                loop_count: bgm_loop_count,
+            });
             scenes.push(scene);
         }
 
@@ -500,6 +535,9 @@ sound0.value = 5,2
 sound0.starttime = 3
 sound0.volume = 80
 sound0.pan = -0.5
+bgm = theme.ogg
+bgm.loop = 0
+bgm.volume = 80
 layer0.anim = 10
 layer0.offset = 100,120
 layer0.layerno = 1
@@ -537,6 +575,10 @@ layer0.scale = 2,2
         assert_eq!(sound.start_time, 3);
         assert!((sound.volume - 80.0).abs() < f32::EPSILON);
         assert!((sound.pan + 0.5).abs() < f32::EPSILON);
+        let bgm = story.scenes[0].bgm.as_ref().expect("bgm");
+        assert!(bgm.path.ends_with("theme.ogg"));
+        assert!(!bgm.loop_music);
+        assert_eq!(bgm.volume, 80);
         let _ = std::fs::remove_dir_all(def.parent().unwrap());
     }
 

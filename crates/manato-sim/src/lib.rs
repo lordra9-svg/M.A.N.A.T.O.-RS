@@ -181,6 +181,20 @@ pub struct TeamMember {
     pub power: f32,
 }
 
+#[derive(Debug, Clone)]
+pub struct StoryboardOverlay {
+    pub storyboard: Arc<manato_formats::storyboard::Storyboard>,
+    pub player: manato_formats::storyboard::StoryboardPlayer,
+    pub owner: usize,
+    pub id: i32,
+    pub pos: Vec2,
+    pub scale: Vec2,
+    pub facing: i32,
+    pub screen_space: bool,
+    pub bind_target: Option<usize>,
+    pub bind_time: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum TeamMode {
     #[default]
@@ -798,6 +812,9 @@ pub struct SimState {
     pub teams: [TeamRoster; 2],
     /// Per-side team mode (`Single`, `Turns`, `Tag`, `Simul`).
     pub team_modes: [TeamMode; 2],
+    /// In-match `Storyboard` overlays (text layers; not serialized).
+    #[serde(skip, default)]
+    pub storyboards: Vec<StoryboardOverlay>,
     pub frame: u64,
     /// Ticks since the match started (`FightTime`); not reset between rounds.
     pub match_time: i32,
@@ -934,6 +951,7 @@ impl SimState {
             fighters,
             teams,
             team_modes: [TeamMode::Single; 2],
+            storyboards: Vec::new(),
             frame: 0,
             match_time: 0,
             first_attack: None,
@@ -1238,6 +1256,13 @@ impl SimState {
         }
         self.update_round();
         self.update_camera();
+        for overlay in &mut self.storyboards {
+            overlay.player.tick(&overlay.storyboard);
+            if overlay.bind_time > 0 {
+                overlay.bind_time -= 1;
+            }
+        }
+        self.storyboards.retain(|overlay| !overlay.player.done);
         for side in 0..2 {
             let active = self.teams[side].active;
             if let Some(member) = self.teams[side].members.get_mut(active) {
@@ -3661,6 +3686,19 @@ impl SimState {
                 h.write_u8(frame.input.buttons);
                 h.write_u8(frame.pause_bits);
             }
+        }
+        h.write_u32(self.storyboards.len() as u32);
+        for overlay in &self.storyboards {
+            h.write_i32(overlay.id);
+            h.write_u32(overlay.owner as u32);
+            h.write_i32(overlay.player.time);
+            h.write_i32(overlay.player.scene as i32);
+            h.write_f32(overlay.pos.x);
+            h.write_f32(overlay.pos.y);
+            h.write_f32(overlay.scale.x);
+            h.write_f32(overlay.scale.y);
+            h.write_i32(overlay.facing);
+            h.write_bool(overlay.screen_space);
         }
         h.write_u8(self.team_modes[0] as u8);
         h.write_u8(self.team_modes[1] as u8);

@@ -396,6 +396,8 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             }
         }
         "text" => text_controller(sim, who, control),
+        "storyboard" => storyboard_controller(sim, who, control),
+        "modifystoryboard" => modify_storyboard(sim, who, control),
         "modifytext" => modify_text(sim, who, control),
         "removetext" => remove_text(sim, who, control),
         "assertcommand" => assert_command(sim, who, control),
@@ -2177,6 +2179,85 @@ fn split_pair(raw: &str) -> (String, String) {
     match raw.split_once(',') {
         Some((x, y)) => (x.trim().to_string(), y.trim().to_string()),
         None => (raw.trim().to_string(), "0".to_string()),
+    }
+}
+
+/// Resolves a storyboard path against the executing character's directory.
+fn resolve_storyboard_path(sim: &SimState, who: usize, path: &str) -> std::path::PathBuf {
+    let path = path.trim().trim_matches('"');
+    let path = std::path::Path::new(path);
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        sim.assets.characters[sim.fighters[who].char_id]
+            .def
+            .dir
+            .join(path)
+    }
+}
+
+/// `Storyboard`: spawns an in-match storyboard overlay (text layers).
+fn storyboard_controller(sim: &mut SimState, who: usize, control: &Controller) {
+    let path = text_value(sim, who, control, "path");
+    if path.is_empty() {
+        return;
+    }
+    let path = resolve_storyboard_path(sim, who, &path);
+    let storyboard = match manato_formats::storyboard::Storyboard::load(&path) {
+        Ok(storyboard) => storyboard,
+        Err(error) => {
+            log::warn!("Storyboard {} failed: {error:#}", path.display());
+            return;
+        }
+    };
+    let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
+    let (px, py) = control.get_pair("pos").unwrap_or((0.0, 0.0));
+    let (sx, sy) = control.get_pair("scale").unwrap_or((1.0, 1.0));
+    let id = int_param(sim, who, control, "id").unwrap_or(0);
+    let facing = int_param(sim, who, control, "facing").unwrap_or(1);
+    let screen_space = str_param(control, "space")
+        .map(|space| space.eq_ignore_ascii_case("screen"))
+        .unwrap_or(false);
+    let bind_time = int_param(sim, who, control, "bindtime").unwrap_or(0);
+    let bind_target = (bind_time != 0).then_some(who);
+    sim.storyboards.push(crate::StoryboardOverlay {
+        storyboard: std::sync::Arc::new(storyboard),
+        player,
+        owner: who,
+        id,
+        pos: Vec2::new(px, py),
+        scale: Vec2::new(sx, sy),
+        facing,
+        screen_space,
+        bind_target,
+        bind_time,
+    });
+}
+
+/// `ModifyStoryboard`: updates matching overlays owned by the fighter.
+fn modify_storyboard(sim: &mut SimState, who: usize, control: &Controller) {
+    let id = int_param(sim, who, control, "id").unwrap_or(-1);
+    let pos = control.get_pair("pos");
+    let scale = control.get_pair("scale");
+    let facing = int_param(sim, who, control, "facing");
+    let screen_space =
+        str_param(control, "space").map(|space| space.eq_ignore_ascii_case("screen"));
+    for overlay in &mut sim.storyboards {
+        if overlay.owner != who || (id >= 0 && overlay.id != id) {
+            continue;
+        }
+        if let Some((x, y)) = pos {
+            overlay.pos = Vec2::new(x, y);
+        }
+        if let Some((x, y)) = scale {
+            overlay.scale = Vec2::new(x, y);
+        }
+        if let Some(facing) = facing {
+            overlay.facing = facing;
+        }
+        if let Some(screen_space) = screen_space {
+            overlay.screen_space = screen_space;
+        }
     }
 }
 

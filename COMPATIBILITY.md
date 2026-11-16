@@ -33,7 +33,7 @@ deliberate, not scheduling gaps:
 | --- | --- | --- |
 | After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, stage `[Scaling]` perspective for fighters and layers, and layer `ModifyBGCtrl3D` (id + z/scale approximation) are implemented; GLTF 3D nodes are not modeled; effect/shadow/text/projectile/reflection perspective is implemented; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile z plus `projdepthbound`; fighter `DepthBound` clamps z to the stage range. `movecamera` is not modeled. |
-| Storyboards | F-12, C-13 | Front-end scenes, text fonts, and sound events render/play; Lua scripting, dynamic BGs/3D models, BGM, and `Storyboard`/`ModifyStoryboard` controllers remain unmodeled. |
+| Storyboards | F-12, C-13 | Front-end scenes, fonts, sounds, scene BGM, and in-match text overlays render/play; Lua scripting, dynamic BGs/3D models, and sprite overlays remain unmodeled. |
 | Team/tag flow | R-04 | Active/standby rosters, TagIn/TagOut swaps, Turns KO advancement, and partner lifebars work; simultaneous teams, content-driven rosters, and tag animations remain unmodeled. |
 | Arcade flow | R-05 | Ladder/continue/survival state, app progression, roster-order opponents with randomselect substitution, per-opponent stages and music, survival rotation, a persisted top-five score table with SCORES screen, and the continue overlay exist; special/final-boss ordering remains unmodeled. |
 | GLSL uniform layer | V-09 | `.glsl`/`.frag` fragments execute with explicit Vulkan-style bindings, a built-in vertex stage, a `shaderparam` uniform block, and pal/tex1/tex2 placeholder bindings; Ikemen's implicit `uniform` set, dedicated shader textures, and grab passes are not modeled. |
@@ -65,7 +65,7 @@ priority details.
 | F-09 | Stage DEF/BG layers | Required | Required | Partial | BGCtrl types + `time` windows/loops + ModifyBGCtrl retiming + delta/tile/window/mask/scale parser tests; oracle pending |
 | F-10 | `st1`..`st9` state files | Required | Required | Partial | Load-order, override, and execution integration test |
 | F-11 | Motifs/screenpack | Required | Required | Partial | `system.def`/`fight.def`/`select.def`, `.fnt` v1/v2, title/select/fight rendering, BGCtrl, `[Action]` banners incl. per-side/cap/expiry; storyboards tracked by F-12 |
-| F-12 | Storyboards | Required | Required | Partial | DEF `[SceneDef]`/`[Scene]` + inline AIR, sprite/anim layers, text with typing delay and `fontN` .fnt fonts, soundN events through the audio engine, fades, clear colour, scene end/jump player, and a storyboard renderer/`--storyboard` player; Lua scripting, dynamic BG/3D models, BGM events, and in-match Storyboard controllers not modeled |
+| F-12 | Storyboards | Required | Required | Partial | DEF `[SceneDef]`/`[Scene]` + inline AIR, sprite/anim layers, text with typing delay and `fontN` .fnt fonts, soundN events through the audio engine, scene BGM, fades, clear colour, scene end/jump player, a storyboard renderer/`--storyboard` player, and in-match `Storyboard`/`ModifyStoryboard` text overlays; Lua scripting, dynamic BG/3D models, and sprite overlays not modeled |
 | F-13 | Select/VS screens | Required | Required | Partial | Roster grid, cursors, portraits, names, timer, stage preview/selection; VS animation is out of the frozen scope |
 
 ## 2. State machine

@@ -3762,6 +3762,86 @@ fn turns_mode_advances_to_living_partner_before_ko() {
 }
 
 #[test]
+fn storyboard_overlay_controller_ticks_and_modifies() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let source = root.join("content/chars/kaen");
+    if !source.join("kaen.def").exists() {
+        eprintln!("skipping: bundled character missing");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("manato-overlay-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("dir");
+    for entry in std::fs::read_dir(&source).expect("dir") {
+        let entry = entry.expect("entry");
+        if entry.file_type().expect("type").is_file() {
+            std::fs::copy(entry.path(), dir.join(entry.file_name())).expect("copy");
+        }
+    }
+    std::fs::write(
+        dir.join("story.def"),
+        "[Info]\nname = overlay\n[SceneDef]\nstartscene = 0\n\
+         [Scene 0]\nend.time = 3\nlayer0.text = \"HI\"\n\
+         layer0.offset = 100,100\nlayer0.textdelay = 0\n",
+    )
+    .expect("story");
+
+    let config = MatchConfig {
+        mugen_root: root.clone(),
+        p1: dir.join("kaen.def"),
+        p2: PathBuf::from("content/chars/nival/nival.def"),
+        stage: PathBuf::from("content/stages/training/stage1.def"),
+        screenpack: None,
+        rounds_to_win: 2,
+        round_time: 99,
+    };
+    let mut options = MatchOptions::default();
+    options.ai_level = 0;
+    let mut sim = SimState::new(
+        std::sync::Arc::new(manato_sim::Assets::load(&config).expect("assets")),
+        options,
+    );
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    run(
+        &mut sim,
+        "storyboard",
+        vec![
+            ("path", "\"story.def\""),
+            ("id", "7"),
+            ("space", "\"screen\""),
+            ("pos", "10, 20"),
+        ],
+    );
+    assert_eq!(sim.storyboards.len(), 1);
+    assert_eq!(sim.storyboards[0].id, 7);
+    let before = sim.checksum();
+    run(
+        &mut sim,
+        "modifystoryboard",
+        vec![("id", "7"), ("pos", "30, 40"), ("scale", "2, 2")],
+    );
+    assert_eq!(sim.storyboards[0].pos, manato_core::Vec2::new(30.0, 40.0));
+    assert_eq!(sim.storyboards[0].scale, manato_core::Vec2::new(2.0, 2.0));
+    assert_ne!(before, sim.checksum());
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.storyboards.is_empty(), "overlay ends with its scene");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -569,6 +569,7 @@ fn run_storyboard_headless(
     let mut renderer = Renderer::new_offscreen()?;
     renderer.load_storyboard(&storyboard);
     let audio = AudioEngine::new();
+    let mut music_scene = usize::MAX;
     for _ in 0..frames {
         player.tick(&storyboard);
         for (group, index, volume, pan) in player.take_sounds() {
@@ -579,6 +580,31 @@ fn run_storyboard_headless(
                 (volume / 100.0).clamp(0.0, 1.0),
                 pan.clamp(-1.0, 1.0),
             );
+        }
+        if player.scene != music_scene {
+            music_scene = player.scene;
+            match storyboard
+                .scenes
+                .get(player.scene)
+                .and_then(|scene| scene.bgm.as_ref())
+            {
+                Some(bgm) => {
+                    match manato_audio::Music::load(&bgm.path, bgm.loop_start, bgm.loop_end) {
+                        Ok(music) => audio.play_music_with(
+                            &music,
+                            (bgm.volume as f32 / 100.0).clamp(0.0, 1.0),
+                            bgm.loop_music,
+                            0,
+                            bgm.freq_mul,
+                            bgm.loop_count,
+                        ),
+                        Err(error) => {
+                            log::warn!("storyboard BGM {} failed: {error:#}", bgm.path.display())
+                        }
+                    }
+                }
+                None => audio.stop_music(),
+            }
         }
     }
     renderer.render_storyboard(&storyboard, &player);

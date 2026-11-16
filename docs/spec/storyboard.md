@@ -29,6 +29,8 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
     (`index,r,g,b,a,...`; the built-in bitmap font is used for rendering).
 - `soundN.value = group,index`, `soundN.starttime`, `soundN.volume`
   (`volumescale` alias), `soundN.pan`.
+- `bgm` (or `bgmusic`) with `bgm.loop`, `bgm.volume`, `bgm.loopstart`,
+  `bgm.loopend`, `bgm.freqmul`, `bgm.loopcount`.
 - Inline AIR actions provide animation frames for `layerN.anim`.
 
 ## 3. Playback
@@ -45,7 +47,8 @@ alpha decreases over `fadein.time`; fade-out alpha increases over the last
 
 Scene sounds fire once when `time == starttime` and are exposed through
 `StoryboardPlayer::take_sounds()` as `(group, index, volume, pan)`; the app
-plays them from the storyboard's `snd` bank.
+plays them from the storyboard's `snd` bank. The app starts/stops scene BGM
+when the current scene changes, using the parsed loop/volume/frequency options.
 
 ## 4. Rendering
 
@@ -55,8 +58,18 @@ sorted by `layerno`, overlays fade alpha, and draws text with the storyboard
 `fontN` screen font when `layerN.font` selects one (otherwise the built-in
 bitmap font).
 
-## 5. Not modeled
+## 5. In-match overlays
 
-- Lua storyboard scripting, dynamic backgrounds, 3D models, BGM events,
-  `layerall.pos`, interpolation, palFX, and the in-match
-  `Storyboard`/`ModifyStoryboard` state controllers.
+The `Storyboard` controller (`path`, `id`, `space`, `pos`, `scale`, `facing`,
+`bindtime`) loads a storyboard and adds a `StoryboardOverlay` to the match.
+Overlays tick their own `StoryboardPlayer`, advance scene time, and are removed
+when the scene set completes. `ModifyStoryboard` matches overlays by `id`
+(`-1` = all owned) and updates position, scale, facing, and space.
+
+Only **text layers** are drawn in-match (using the built-in font); sprite
+layers, clears, and fades are not rendered for overlays yet.
+
+## 6. Not modeled
+
+- Lua storyboard scripting, dynamic backgrounds, 3D models, `layerall.pos`,
+  interpolation, palFX, and sprite rendering for in-match overlays.
