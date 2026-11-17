@@ -49,6 +49,7 @@ struct Options {
     netplay_bind: Option<String>,
     netplay_player: usize,
     relay: Option<String>,
+    relay_fallback: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -84,6 +85,7 @@ impl Default for Options {
             netplay_bind: None,
             netplay_player: 0,
             relay: None,
+            relay_fallback: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -434,6 +436,10 @@ impl Options {
                     opts.relay = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--relay-fallback" => {
+                    opts.relay_fallback = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay-player" => {
                     opts.netplay_player = value(i)?.parse::<usize>()?;
                     if opts.netplay_player > 1 {
@@ -553,6 +559,7 @@ Modes:
   --netplay-bind <addr>  Local UDP bind for --netplay (default 0.0.0.0:0)
   --netplay-player <n>   Local player slot for --netplay (0 or 1, default 0)
   --relay <bind>      Run a two-peer UDP forwarding relay (NAT fallback)
+  --relay-fallback <addr>  Use this relay if NAT punching fails
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -648,6 +655,16 @@ fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
         puncher.packets_received
     );
     drop(puncher);
+    let fallback = opts
+        .relay_fallback
+        .as_deref()
+        .map(str::parse::<std::net::SocketAddr>)
+        .transpose()?;
+    let mut handoff = handoff;
+    handoff.remote = manato_net::nat::choose_netplay_remote(punched, handoff.remote, fallback);
+    if !punched && fallback.is_some() {
+        println!("using relay fallback {}", handoff.remote);
+    }
     let mut netplay = manato_net::Netplay::from_handoff(sim, handoff, bind)?;
     let mut stepped = 0u32;
     let started = Instant::now();
@@ -1557,10 +1574,6 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
             .as_deref()
             .unwrap_or("0.0.0.0:0")
             .parse()?;
-        let handoff = manato_net::lobby::MatchHandoff {
-            local_player: opts.netplay_player,
-            remote,
-        };
         // Best-effort punch before the GGRS socket binds the same port.
         let mut puncher = manato_net::nat::NatPuncher::bind(bind, remote)?;
         let punched = puncher.punch(Duration::from_secs(2))?;
@@ -1571,6 +1584,19 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
             puncher.packets_received
         );
         drop(puncher);
+        let fallback = opts
+            .relay_fallback
+            .as_deref()
+            .map(str::parse::<std::net::SocketAddr>)
+            .transpose()?;
+        let remote = manato_net::nat::choose_netplay_remote(punched, remote, fallback);
+        if !punched && fallback.is_some() {
+            println!("using relay fallback {remote}");
+        }
+        let handoff = manato_net::lobby::MatchHandoff {
+            local_player: opts.netplay_player,
+            remote,
+        };
         Some(manato_net::Netplay::from_handoff(
             load_match(&opts)?,
             handoff,

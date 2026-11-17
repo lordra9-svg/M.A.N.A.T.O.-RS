@@ -146,9 +146,13 @@ player A:      manato --netplay relay-host:7000 --netplay-bind 0.0.0.0:7001 --ne
 player B:      manato --netplay relay-host:7000 --netplay-bind 0.0.0.0:7002 --netplay-player 1
 ```
 
+Pass `--relay-fallback <relay-addr>` to `--netplay`, `--matchmake-play`, or
+`--matchmake-window` to select the relay automatically when the two-second
+punch times out. The direct address is used when punching succeeds.
+
 This is a plaintext trusted relay, not a full TURN implementation: it accepts
 exactly two peers, has no authentication, and must be deployed by a trusted
-host. Automatic fallback from a failed punch to the relay is not modeled.
+host. TURN authentication and multi-peer relays are not modeled.
 
 ### Window netplay
 

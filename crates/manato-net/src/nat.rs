@@ -79,6 +79,20 @@ impl NatPuncher {
     }
 }
 
+/// Picks the direct peer address when punching succeeded, otherwise the
+/// configured relay fallback (if any).
+pub fn choose_netplay_remote(
+    punched: bool,
+    direct: SocketAddr,
+    relay_fallback: Option<SocketAddr>,
+) -> SocketAddr {
+    if punched {
+        direct
+    } else {
+        relay_fallback.unwrap_or(direct)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,6 +126,15 @@ mod tests {
         }
         assert!(a.punched && b.punched);
         assert!(a.packets_received > 0 && b.packets_received > 0);
+    }
+
+    #[test]
+    fn relay_fallback_is_used_only_after_a_failed_punch() {
+        let direct: SocketAddr = "203.0.113.5:7000".parse().unwrap();
+        let relay: SocketAddr = "198.51.100.9:7100".parse().unwrap();
+        assert_eq!(choose_netplay_remote(true, direct, Some(relay)), direct);
+        assert_eq!(choose_netplay_remote(false, direct, Some(relay)), relay);
+        assert_eq!(choose_netplay_remote(false, direct, None), direct);
     }
 
     #[test]
