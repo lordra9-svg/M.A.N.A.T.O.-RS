@@ -2,7 +2,7 @@
 
 #![cfg_attr(not(feature = "gamepad"), allow(dead_code))]
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -1224,6 +1224,67 @@ fn next_entry(frontend: &Frontend, cell: usize) -> Option<RosterEntry> {
     None
 }
 
+/// Runs sandboxed storyboard Lua once per simulation tick and applies the
+/// resulting overlay transform and scene jump to the simulation.
+#[derive(Default)]
+struct StoryboardScripts {
+    runtimes: HashMap<usize, Option<manato_formats::storyboard_lua::StoryboardLua>>,
+}
+
+impl StoryboardScripts {
+    fn tick(&mut self, overlays: &mut [manato_sim::StoryboardOverlay]) {
+        let mut live = HashSet::new();
+        for overlay in overlays {
+            let key = Arc::as_ptr(&overlay.storyboard) as usize;
+            live.insert(key);
+            let Some(source) = overlay.storyboard.lua_source.as_deref() else {
+                continue;
+            };
+            let runtime = self.runtimes.entry(key).or_insert_with(|| {
+                match manato_formats::storyboard_lua::StoryboardLua::load(source, "storyboard.lua")
+                {
+                    Ok(script) => Some(script),
+                    Err(error) => {
+                        log::warn!("storyboard lua failed: {error:#}");
+                        None
+                    }
+                }
+            });
+            let Some(script) = runtime else {
+                continue;
+            };
+            let mut ctx = manato_formats::storyboard_lua::StoryboardScriptContext::new(
+                overlay.player.scene,
+                overlay.player.time,
+                overlay.pos.x,
+                overlay.pos.y,
+            );
+            ctx.scale_x = overlay.scale.x;
+            ctx.scale_y = overlay.scale.y;
+            ctx.facing = overlay.facing;
+            ctx.alpha = overlay.script_alpha;
+            match script.update(&mut ctx) {
+                Ok(()) => {
+                    overlay.pos = manato_core::Vec2::new(ctx.x, ctx.y);
+                    overlay.scale = manato_core::Vec2::new(ctx.scale_x, ctx.scale_y);
+                    overlay.facing = ctx.facing;
+                    overlay.script_alpha = ctx.alpha.clamp(0.0, 1.0);
+                    if ctx.done {
+                        overlay.player.done = true;
+                    }
+                    if let Some(jump) = ctx.jump {
+                        if !overlay.player.jump_to(&overlay.storyboard, &jump) {
+                            log::warn!("storyboard lua jump to unknown scene {jump}");
+                        }
+                    }
+                }
+                Err(error) => log::warn!("storyboard lua update failed: {error:#}"),
+            }
+        }
+        self.runtimes.retain(|key, _| live.contains(key));
+    }
+}
+
 struct App {
     opts: Options,
     sim: Option<SimState>,
@@ -1243,6 +1304,7 @@ struct App {
     music_override: Option<PathBuf>,
     spectator: Option<manato_net::lobby::SpectatorClient>,
     broadcaster: Option<manato_net::lobby::SnapshotBroadcaster>,
+    storyboard_scripts: StoryboardScripts,
 }
 
 fn run_window(opts: Options) -> anyhow::Result<()> {
@@ -1323,6 +1385,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         music_override: None,
         spectator,
         broadcaster,
+        storyboard_scripts: StoryboardScripts::default(),
     };
     if let Some(sim) = app.sim.as_ref() {
         app.play_stage_music(sim);
@@ -2006,6 +2069,7 @@ impl App {
             merge_input(player_input(&self.keys, &self.opts.p2_keys), pads[1])
         };
         sim.tick([p1, p2]);
+        self.storyboard_scripts.tick(&mut sim.storyboards);
         if let Some(broadcaster) = self.broadcaster.as_mut() {
             if let Err(error) = broadcaster.poll() {
                 log::warn!("broadcast join poll failed: {error}");
@@ -2527,6 +2591,62 @@ mod tests {
             title_layers: vec![],
             select_layers: vec![],
         }
+    }
+
+    #[test]
+    fn storyboard_lua_applies_transform_and_scene_jump() {
+        let storyboard = manato_formats::storyboard::Storyboard {
+            path: std::path::PathBuf::from("test.def"),
+            name: "test".into(),
+            author: String::new(),
+            start_scene: 0,
+            sprites: manato_formats::SffFile::default(),
+            animations: HashMap::new(),
+            scenes: vec![
+                manato_formats::storyboard::StoryboardScene {
+                    name: "Scene 0".into(),
+                    ..Default::default()
+                },
+                manato_formats::storyboard::StoryboardScene {
+                    name: "Scene 1".into(),
+                    ..Default::default()
+                },
+            ],
+            font_files: std::collections::BTreeMap::new(),
+            sounds: manato_formats::SoundBank::default(),
+            lua_source: Some(
+                "function update(ctx)\n\
+                   ctx.x = ctx.x + 10\n\
+                   ctx.alpha = 0.5\n\
+                   if ctx.time >= 2 then ctx.jump = 'Scene 1' end\n\
+                 end\n"
+                    .into(),
+            ),
+        };
+        let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
+        let mut overlays = vec![manato_sim::StoryboardOverlay {
+            storyboard: Arc::new(storyboard),
+            player,
+            owner: 0,
+            id: 0,
+            pos: manato_core::Vec2::new(5.0, 6.0),
+            scale: manato_core::Vec2::new(1.0, 1.0),
+            facing: 1,
+            screen_space: true,
+            bind_target: None,
+            bind_time: 0,
+            script_alpha: 1.0,
+        }];
+        let mut scripts = StoryboardScripts::default();
+        scripts.tick(&mut overlays);
+        assert_eq!(overlays[0].pos.x, 15.0);
+        assert!((overlays[0].script_alpha - 0.5).abs() < f32::EPSILON);
+        assert_eq!(overlays[0].player.scene, 0);
+
+        overlays[0].player.time = 2;
+        scripts.tick(&mut overlays);
+        assert_eq!(overlays[0].player.scene, 1);
+        assert_eq!(overlays[0].player.time, 0);
     }
 
     #[test]

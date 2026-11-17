@@ -13,10 +13,6 @@ pub struct SceneDeps<'a> {
     pub atlas: &'a SpriteAtlas,
     pub font: &'a FontAtlas,
     pub screen_fonts: &'a std::collections::BTreeMap<u32, crate::screenfont::ScreenFont>,
-    /// Sandboxed Lua runtimes keyed by storyboard allocation (in-match overlays).
-    pub storyboard_scripts: &'a std::cell::RefCell<
-        std::collections::HashMap<usize, Option<manato_formats::storyboard_lua::StoryboardLua>>,
-    >,
 }
 
 #[derive(Clone, Copy)]
@@ -1500,52 +1496,10 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
         let Some(scene) = overlay.player.current(&overlay.storyboard) else {
             continue;
         };
-        // Sandboxed Lua can drive the overlay transform each rendered frame.
-        let mut pos = overlay.pos;
-        let mut overlay_scale = overlay.scale;
-        let mut overlay_facing = overlay.facing;
-        let mut overlay_alpha = 1.0_f32;
-        let mut overlay_done = false;
-        if overlay.storyboard.lua_source.is_some() {
-            let key = std::sync::Arc::as_ptr(&overlay.storyboard) as usize;
-            let mut scripts = deps.storyboard_scripts.borrow_mut();
-            let script = scripts.entry(key).or_insert_with(|| {
-                let source = overlay.storyboard.lua_source.as_deref()?;
-                match manato_formats::storyboard_lua::StoryboardLua::load(source, "storyboard.lua")
-                {
-                    Ok(script) => Some(script),
-                    Err(error) => {
-                        log::warn!("storyboard lua failed: {error:#}");
-                        None
-                    }
-                }
-            });
-            if let Some(script) = script {
-                let mut ctx = manato_formats::storyboard_lua::StoryboardScriptContext::new(
-                    overlay.player.scene,
-                    overlay.player.time,
-                    pos.x,
-                    pos.y,
-                );
-                ctx.scale_x = overlay_scale.x;
-                ctx.scale_y = overlay_scale.y;
-                ctx.facing = overlay_facing;
-                ctx.alpha = overlay_alpha;
-                match script.update(&mut ctx) {
-                    Ok(()) => {
-                        pos = Vec2::new(ctx.x, ctx.y);
-                        overlay_scale = Vec2::new(ctx.scale_x, ctx.scale_y);
-                        overlay_facing = ctx.facing;
-                        overlay_alpha = ctx.alpha.clamp(0.0, 1.0);
-                        overlay_done = ctx.done;
-                    }
-                    Err(error) => log::warn!("storyboard lua update failed: {error:#}"),
-                }
-            }
-        }
-        if overlay_done {
-            continue;
-        }
+        let pos = overlay.pos;
+        let overlay_scale = overlay.scale;
+        let overlay_facing = overlay.facing;
+        let overlay_alpha = overlay.script_alpha.clamp(0.0, 1.0);
         if let Some(color) = scene.clear_color {
             if scene.clear_alpha > 0 {
                 painter.rect(

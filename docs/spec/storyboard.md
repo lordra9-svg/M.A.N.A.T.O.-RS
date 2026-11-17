@@ -109,13 +109,12 @@ end
 ```
 
 `ctx` fields: `scene`, `time`, `x`, `y`, `scale_x`, `scale_y`, `facing`,
-`alpha`, `done`, and `jump`. Numeric transforms are read back every rendered
-frame for in-match overlays; `done = true` hides the overlay for that frame.
-`jump` is accepted by the context but scene switching from Lua is not modeled
-yet. Scripts are transient render-side state and are not included in rollback
-snapshots (storyboard overlays are already excluded).
+`alpha`, `done`, and `jump`. The app runs `update(ctx)` once per simulation
+tick for each in-match overlay, writes numeric transforms back to the overlay,
+hides it when `done = true`, and resolves `jump` to a named scene by resetting
+`StoryboardPlayer` scene/time. Scripts are transient app-side state and are not
+included in rollback snapshots (storyboard overlays are already excluded).
 
 ## 7. Not modeled
 
 - Dynamic backgrounds and 3D models.
-- Lua-driven scene jumps (the `jump` context field is parsed but unused).

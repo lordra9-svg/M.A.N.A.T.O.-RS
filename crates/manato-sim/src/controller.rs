@@ -2264,6 +2264,7 @@ fn storyboard_controller(sim: &mut SimState, who: usize, control: &Controller) {
         screen_space,
         bind_target,
         bind_time,
+        script_alpha: 1.0,
     });
 }
 

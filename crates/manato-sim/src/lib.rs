@@ -194,6 +194,8 @@ pub struct StoryboardOverlay {
     pub screen_space: bool,
     pub bind_target: Option<usize>,
     pub bind_time: i32,
+    /// Alpha multiplier applied by the storyboard Lua runtime.
+    pub script_alpha: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]

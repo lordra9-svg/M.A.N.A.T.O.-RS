@@ -618,6 +618,19 @@ impl StoryboardPlayer {
         storyboard.scenes.get(self.scene)
     }
 
+    /// Jumps to a named scene, resetting scene time. Returns false when the
+    /// name does not exist.
+    pub fn jump_to(&mut self, storyboard: &Storyboard, name: &str) -> bool {
+        let Some(index) = storyboard.scene(name) else {
+            return false;
+        };
+        self.scene = index;
+        self.time = 0;
+        self.done = false;
+        self.pending_sounds.clear();
+        true
+    }
+
     /// Advances one tick and moves to the next scene/jump when the current
     /// scene's `end.time` elapses.
     pub fn tick(&mut self, storyboard: &Storyboard) {
@@ -959,6 +972,21 @@ layer0.scale = 2,2
         let sample = layer.palfx_at(0);
         assert_eq!(sample.invert_blend, 3);
         assert!(sample.disables_shader_invert());
+    }
+
+    #[test]
+    fn player_jumps_to_named_scene() {
+        let def = write_storyboard("jump_to");
+        let story = Storyboard::load(&def).expect("load");
+        let mut player = StoryboardPlayer::new(&story);
+        assert_eq!(player.scene, 0);
+        player.time = 7;
+        assert!(player.jump_to(&story, "Scene 1"));
+        assert_eq!(player.scene, 1);
+        assert_eq!(player.time, 0);
+        assert!(!player.jump_to(&story, "missing"));
+        assert_eq!(player.scene, 1);
+        let _ = std::fs::remove_dir_all(def.parent().unwrap());
     }
 
     #[test]
