@@ -42,6 +42,7 @@ struct Options {
     broadcast: Option<String>,
     discover: Option<String>,
     stun: Option<String>,
+    matchmake: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -70,6 +71,7 @@ impl Default for Options {
             broadcast: None,
             discover: None,
             stun: None,
+            matchmake: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -396,6 +398,10 @@ impl Options {
                     opts.stun = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--matchmake" => {
+                    opts.matchmake = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--scale" => {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
@@ -501,6 +507,7 @@ Modes:
   --broadcast <addr>  Stream match snapshots to spectators (bind addr)
   --discover <addr>   Query LAN lobby discovery at addr and print results
   --stun <addr>       Report the public UDP address via a STUN server
+  --matchmake <addr>  Discover lobbies, list them, and spectate the best one
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -544,7 +551,34 @@ fn run_stun(server: &str) -> anyhow::Result<()> {
 
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-    let opts = Options::parse()?;
+    let mut opts = Options::parse()?;
+
+    if let Some(target) = opts.matchmake.clone() {
+        let target: std::net::SocketAddr = target.parse()?;
+        let lobbies = manato_net::discovery::Matchmaker::discover(target, Duration::from_secs(1))?;
+        if lobbies.is_empty() {
+            println!("no lobbies found at {target}");
+            return Ok(());
+        }
+        for lobby in &lobbies {
+            println!(
+                "{} @ {} players={} spectators={} phase={:?}",
+                lobby.name, lobby.address, lobby.players, lobby.spectators, lobby.phase
+            );
+        }
+        match manato_net::discovery::best_lobby(&lobbies) {
+            Some(best) => {
+                println!("joining {} @ {}", best.name, best.address);
+                if opts.spectate.is_none() {
+                    opts.spectate = Some(best.address.to_string());
+                }
+            }
+            None => {
+                println!("no joinable lobbies");
+                return Ok(());
+            }
+        }
+    }
 
     if let Some(target) = &opts.discover {
         return run_discovery(target);

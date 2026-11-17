@@ -100,9 +100,18 @@ extracts `XOR-MAPPED-ADDRESS` (or `MAPPED-ADDRESS`) for IPv4/IPv6.
 mapped public address. This reports the NAT mapping; it does not itself punch
 a hole or relay traffic.
 
-The app exposes `--discover <addr>` (print LAN lobbies for one second) and
-`--stun <addr>` (print the public UDP address). Matchmaking selection and
-automatic hole punching are not modeled.
+`Matchmaker`/`best_lobby` rank discovered lobbies: Closed lobbies are excluded,
+then Open > Starting > InMatch, then player count, spectator count, and name.
+
+The app exposes:
+
+- `--discover <addr>`: print LAN lobbies for one second,
+- `--stun <addr>`: print the public UDP address,
+- `--matchmake <addr>`: discover lobbies, list them, and start the spectator
+  client against the best joinable relay (unless `--spectate` overrides it).
+
+The matchmaking flow currently joins as a spectator. Player-slot joining and
+start coordination, plus automatic NAT hole punching, are not modeled.
 
 ## 4. Security notes
 

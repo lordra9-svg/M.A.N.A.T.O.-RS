@@ -174,6 +174,67 @@ impl DiscoveryBrowser {
     }
 }
 
+/// Matchmaking helper over [`DiscoveryBrowser`]. Lobbies are ranked by
+/// availability (Open before Starting before InMatch; Closed excluded), then
+/// by player count, spectator count, and name.
+pub struct Matchmaker {
+    browser: DiscoveryBrowser,
+}
+
+impl Matchmaker {
+    pub fn new() -> std::io::Result<Self> {
+        Ok(Self {
+            browser: DiscoveryBrowser::new()?,
+        })
+    }
+
+    /// Queries `target` and collects responses for `timeout`.
+    pub fn discover(target: SocketAddr, timeout: Duration) -> std::io::Result<Vec<DiscoveryInfo>> {
+        let mut browser = DiscoveryBrowser::new()?;
+        browser.query(target)?;
+        let started = std::time::Instant::now();
+        while started.elapsed() < timeout {
+            browser.poll()?;
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        Ok(browser.lobbies().to_vec())
+    }
+
+    pub fn refresh(&mut self, target: SocketAddr) -> std::io::Result<usize> {
+        self.browser.query(target)?;
+        self.browser.poll()
+    }
+
+    pub fn lobbies(&self) -> &[DiscoveryInfo] {
+        self.browser.lobbies()
+    }
+
+    /// Best joinable lobby, or `None` when every lobby is closed.
+    pub fn best(&self) -> Option<&DiscoveryInfo> {
+        best_lobby(self.browser.lobbies())
+    }
+}
+
+/// Ranks discovered lobbies for matchmaking.
+pub fn best_lobby(lobbies: &[DiscoveryInfo]) -> Option<&DiscoveryInfo> {
+    lobbies
+        .iter()
+        .filter(|lobby| lobby.phase != LobbyPhase::Closed)
+        .max_by(|a, b| {
+            let rank = |phase: LobbyPhase| match phase {
+                LobbyPhase::Open => 2,
+                LobbyPhase::Starting => 1,
+                LobbyPhase::InMatch => 0,
+                LobbyPhase::Closed => -1,
+            };
+            rank(a.phase)
+                .cmp(&rank(b.phase))
+                .then_with(|| a.players.cmp(&b.players))
+                .then_with(|| a.spectators.cmp(&b.spectators))
+                .then_with(|| b.name.cmp(&a.name))
+        })
+}
+
 /// Builds an RFC 5389 STUN binding request.
 pub fn stun_binding_request(transaction_id: [u8; 12]) -> [u8; 20] {
     let mut request = [0u8; 20];
@@ -308,6 +369,27 @@ mod tests {
         let mut long = info();
         long.name = "x".repeat(65);
         assert!(DiscoveryInfo::decode(&long.encode()).is_none());
+    }
+
+    #[test]
+    fn matchmaking_ranks_open_lobbies_first() {
+        let mut closed = info();
+        closed.name = "closed".into();
+        closed.address = "127.0.0.1:7001".parse().unwrap();
+        closed.phase = LobbyPhase::Closed;
+        let mut match_lobby = info();
+        match_lobby.name = "match".into();
+        match_lobby.address = "127.0.0.1:7002".parse().unwrap();
+        match_lobby.phase = LobbyPhase::InMatch;
+        match_lobby.players = 4;
+        let mut open = info();
+        open.name = "open".into();
+        open.address = "127.0.0.1:7003".parse().unwrap();
+        open.players = 1;
+        let lobbies = vec![closed, match_lobby, open.clone()];
+        assert_eq!(best_lobby(&lobbies), Some(&open));
+        assert_eq!(best_lobby(&[info()]), Some(&info()));
+        assert!(best_lobby(&[]).is_none());
     }
 
     #[test]
