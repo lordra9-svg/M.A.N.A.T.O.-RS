@@ -78,6 +78,8 @@ pub struct Renderer {
     status_line: Option<String>,
     /// Signature of in-match storyboard overlays baked into the atlas.
     overlay_signature: Vec<(usize, String)>,
+    /// Atlas bank for each `(overlay storyboard pointer, scene index)` bg.
+    overlay_bg_banks: HashMap<(usize, usize), u8>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -525,6 +527,7 @@ impl Renderer {
             shader_time: 0.0,
             status_line: None,
             overlay_signature: Vec::new(),
+            overlay_bg_banks: HashMap::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -551,6 +554,7 @@ impl Renderer {
         }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.overlay_signature.clear();
+        self.overlay_bg_banks.clear();
 
         self.screen_fonts.clear();
         if let Some(screenpack) = &assets.screenpack {
@@ -866,6 +870,23 @@ impl Renderer {
                 banks.push((id as u8, &overlay.storyboard.sprites));
             }
         }
+        self.overlay_bg_banks.clear();
+        let mut next_bg = bank::OVERLAY_BG_BASE as usize;
+        for overlay in &sim.storyboards {
+            let key = std::sync::Arc::as_ptr(&overlay.storyboard) as usize;
+            for (scene_index, scene) in overlay.storyboard.scenes.iter().enumerate() {
+                let Some(stage) = &scene.bg else {
+                    continue;
+                };
+                if next_bg > u8::MAX as usize {
+                    break;
+                }
+                banks.push((next_bg as u8, &stage.sprites));
+                self.overlay_bg_banks
+                    .insert((key, scene_index), next_bg as u8);
+                next_bg += 1;
+            }
+        }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
     }
 
@@ -887,6 +908,7 @@ impl Renderer {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
+            overlay_bg_banks: &self.overlay_bg_banks,
         };
         scene::build(&mut self.painter, sim, &deps);
         if let Some(line) = self.status_line.as_deref() {
@@ -952,6 +974,7 @@ impl Renderer {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
+            overlay_bg_banks: &self.overlay_bg_banks,
         };
         scene::draw_storyboard(&mut self.painter, &deps, storyboard, player);
         self.present();
@@ -1697,6 +1720,64 @@ void main() {
 "#;
         assert!(renderer.register_glsl_shader("implicit-scanline", source));
         assert!(renderer.custom_shaders.contains_key("implicit-scanline"));
+    }
+
+    #[test]
+    fn overlay_scene_background_renders_when_gpu_available() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        let stage = root.join("content/stages/training/stage1.def");
+        if !source.exists() || !stage.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-overlay-bg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let def = dir.join("story.def");
+        std::fs::write(
+            &def,
+            format!(
+                "[Info]\nname = Overlay Bg\n[SceneDef]\nstartscene = 0\n[Scene 0]\nend.time = 100\nbg.name = {}\nlayer0.text = \"BG\"\nlayer0.offset = 120,100\nlayer0.textdelay = 0\n",
+                stage.display()
+            ),
+        )
+        .expect("write");
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut sim = manato_sim::SimState::load(&config).expect("sim");
+        let assets = sim.assets.clone();
+        let control = manato_formats::Controller {
+            kind: "storyboard".into(),
+            params: vec![
+                ("path".into(), def.display().to_string()),
+                ("space".into(), "screen".into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+        assert_eq!(sim.storyboards.len(), 1);
+        renderer.load_assets(&sim);
+        renderer.render(&sim);
+        let key = (
+            std::sync::Arc::as_ptr(&sim.storyboards[0].storyboard) as usize,
+            0,
+        );
+        assert!(renderer.overlay_bg_banks.contains_key(&key));
+        let path = dir.join("overlay.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -104,6 +104,12 @@ sprite atlas when the overlay set changes, so each overlay uses its own
 `[SceneDef] spr` SFF. Scene `clearcolor`/`clearalpha` fill the screen before
 the overlay's layers, and `fadein`/`fadeout` alpha is drawn over them.
 
+Overlay scenes with `bg.name` also render their stage background beneath the
+overlay layers. Each `(overlay, scene)` background gets an atlas bank allocated
+from `bank::OVERLAY_BG_BASE`; its `BgCtrl` state is ticked from the overlay
+scene start, and the whole background follows the overlay's position, scale,
+facing, and script/Lua alpha.
+
 ## 6. Lua scripting
 
 `[SceneDef] lua = file.lua` (alias `script`) loads a sandboxed script. The
@@ -126,4 +132,3 @@ included in rollback snapshots (storyboard overlays are already excluded).
 ## 7. Not modeled
 
 - 3D models.
-- Scene backgrounds in in-match overlays (front-end storyboards render them).

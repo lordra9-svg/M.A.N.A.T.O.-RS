@@ -13,6 +13,8 @@ pub struct SceneDeps<'a> {
     pub atlas: &'a SpriteAtlas,
     pub font: &'a FontAtlas,
     pub screen_fonts: &'a std::collections::BTreeMap<u32, crate::screenfont::ScreenFont>,
+    /// Atlas banks for in-match overlay scene backgrounds.
+    pub overlay_bg_banks: &'a std::collections::HashMap<(usize, usize), u8>,
 }
 
 #[derive(Clone, Copy)]
@@ -1517,6 +1519,22 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                 );
             }
         }
+        let overlay_key = (
+            std::sync::Arc::as_ptr(&overlay.storyboard) as usize,
+            overlay.player.scene,
+        );
+        if let (Some(stage), Some(bank_id)) =
+            (&scene.bg, deps.overlay_bg_banks.get(&overlay_key).copied())
+        {
+            draw_storyboard_bg(
+                painter,
+                deps.atlas,
+                stage,
+                bank_id,
+                overlay.player.time,
+                Some((pos, overlay_scale, overlay_facing, overlay_alpha)),
+            );
+        }
         for layer in &scene.layers {
             if !layer.visible_at(overlay.player.time) {
                 continue;
@@ -1662,10 +1680,10 @@ fn draw_storyboard_bg(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
     stage: &manato_formats::stage::Stage,
-    scene_index: usize,
+    bank_id: u8,
     time: i32,
+    transform: Option<(Vec2, Vec2, i32, f32)>,
 ) {
-    let bank_id = bank::STORYBOARD_BG.saturating_add(scene_index as u8);
     let states = storyboard_bg_states(stage, time);
     let sin_offset = |motion: [f32; 3]| {
         if motion[1].abs() > f32::EPSILON {
@@ -1741,6 +1759,18 @@ fn draw_storyboard_bg(
             scale.x * layer.xscale * pose.scale.x,
             scale.y * layer.yscale * pose.scale.y,
         );
+        let (anchor, scale, facing, alpha) = match transform {
+            Some((pos, overlay_scale, facing, alpha)) => (
+                Vec2::new(
+                    pos.x + anchor.x * overlay_scale.x * facing as f32,
+                    pos.y + anchor.y * overlay_scale.y,
+                ),
+                Vec2::new(scale.x * overlay_scale.x, scale.y * overlay_scale.y),
+                facing,
+                alpha,
+            ),
+            None => (anchor, scale, 1, 1.0),
+        };
         draw_sprite(
             painter,
             atlas,
@@ -1748,12 +1778,12 @@ fn draw_storyboard_bg(
             sprite,
             anchor,
             pose.offset,
-            1,
+            facing,
             scale,
             pose.flip_h,
             pose.flip_v,
             blend_of(state.trans.unwrap_or(layer.trans)),
-            [1.0, 1.0, 1.0, pose.alpha],
+            [1.0, 1.0, 1.0, pose.alpha * alpha],
             pose.angle,
         );
     }
@@ -1788,7 +1818,14 @@ pub fn draw_storyboard(
     }
 
     if let Some(stage) = &scene.bg {
-        draw_storyboard_bg(painter, deps.atlas, stage, player.scene, player.time);
+        draw_storyboard_bg(
+            painter,
+            deps.atlas,
+            stage,
+            bank::STORYBOARD_BG.saturating_add(player.scene as u8),
+            player.time,
+            None,
+        );
     }
 
     let mut layers: Vec<&manato_formats::storyboard::StoryboardLayer> = scene

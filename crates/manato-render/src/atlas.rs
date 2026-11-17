@@ -22,6 +22,8 @@ pub mod bank {
     pub const STORYBOARD_BG: u8 = 6;
     /// In-match storyboard overlay banks start here (one per overlay).
     pub const OVERLAY_BASE: u8 = 64;
+    /// In-match overlay scene-background banks start here.
+    pub const OVERLAY_BG_BASE: u8 = 128;
     /// Character sprites are stored at `CHARACTER_BASE + char_id`.
     pub const CHARACTER_BASE: u8 = 16;
 }
