@@ -738,6 +738,7 @@ impl Renderer {
     /// `layout(binding = 1) uniform sampler samp`, inputs `uv` (location 0)
     /// and `color` (location 1), and a colour output at location 0.
     pub fn register_glsl_shader(&mut self, name: &str, source: &str) -> bool {
+        let source = preprocess_implicit_glsl(source);
         self.device.push_error_scope(wgpu::ErrorFilter::Validation);
         let fragment = self
             .device
@@ -1449,6 +1450,136 @@ fn create_shadow_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Te
     )
 }
 
+/// Rewrites Ikemen's OpenGL/GLES-style GLSL into the explicit Vulkan-style
+/// declarations this renderer's bind group layout expects. Supports implicit
+/// `in`/`out` locations, `sampler2D` texture/sampler pairs, `TextureSize`, and
+/// the common PalFX uniforms (mapped to `shaderparam` slots).
+fn preprocess_implicit_glsl(source: &str) -> String {
+    let has_version = source
+        .lines()
+        .any(|line| line.trim_start().starts_with("#version"));
+    let mut out = String::new();
+    if !has_version {
+        out.push_str("#version 450\n");
+    }
+    let mut prelude = Vec::new();
+    let mut udb_needed = false;
+    // Pick the GL branch of Ikemen's dual Vulkan/GL shader template.
+    let mut skip_vulkan = false;
+    let mut dual_branch = false;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("#if") && trimmed.contains("__VERSION__") {
+            skip_vulkan = true;
+            dual_branch = true;
+            continue;
+        }
+        if skip_vulkan {
+            if trimmed.starts_with("#else") {
+                skip_vulkan = false;
+                continue;
+            }
+            if trimmed.starts_with("#endif") {
+                skip_vulkan = false;
+                dual_branch = false;
+            }
+            continue;
+        }
+        if dual_branch && trimmed.starts_with("#endif") {
+            dual_branch = false;
+            continue;
+        }
+        if let Some(name) = trimmed
+            .strip_prefix("uniform sampler2D ")
+            .and_then(|rest| rest.strip_suffix(';'))
+            .map(str::trim)
+        {
+            let lower = name.to_ascii_lowercase();
+            let binding = match lower.as_str() {
+                "tex" | "texture" | "bgl_renderedtexture" => 0,
+                "tex1" => 3,
+                "tex2" => 5,
+                "pal" => 7,
+                _ => {
+                    // Unknown samplers keep their declaration and will be
+                    // reported by the shader compiler.
+                    out.push_str(line);
+                    out.push('\n');
+                    continue;
+                }
+            };
+            prelude.push(format!(
+                "layout(binding = {binding}) uniform texture2D {name}_tex;\n\
+                 layout(binding = {}) uniform sampler {name}_samp;\n\
+                 #define {name} sampler2D({name}_tex, {name}_samp)",
+                binding + 1
+            ));
+            continue;
+        }
+        let trimmed_no_semi = trimmed.strip_suffix(';').unwrap_or(trimmed).trim();
+        let mapped = match trimmed_no_semi {
+            "uniform vec2 TextureSize" => {
+                Some("#define TextureSize vec2(320.0, 240.0)".to_string())
+            }
+            "uniform vec4 add" => Some("#define add sp.param[0]".to_string()),
+            "uniform vec4 mult" => Some("#define mult sp.param[1]".to_string()),
+            "uniform float alpha" => Some("#define alpha sp.param[2].x".to_string()),
+            "uniform float neg" => Some("#define neg (sp.param[2].y != 0.0)".to_string()),
+            "uniform float gray" => Some("#define gray sp.param[2].z".to_string()),
+            "uniform float hue" => Some("#define hue sp.param[2].w".to_string()),
+            _ => None,
+        };
+        if let Some(mapped) = mapped {
+            if mapped.contains("sp.param") {
+                udb_needed = true;
+            }
+            prelude.push(mapped);
+            continue;
+        }
+        let implicit = match trimmed {
+            "in vec3 vTexCoord" | "in vec3 vTexCoord;" => {
+                Some("layout(location = 0) in vec2 vTexCoord;")
+            }
+            "in vec2 vTexCoord" | "in vec2 vTexCoord;" | "in vec2 uv" | "in vec2 uv;" => {
+                Some("layout(location = 0) in vec2 vTexCoord;")
+            }
+            "in vec4 color" | "in vec4 color;" => Some("layout(location = 1) in vec4 color;"),
+            "out vec4 FragColor" | "out vec4 FragColor;" => {
+                Some("layout(location = 0) out vec4 FragColor;")
+            }
+            _ => None,
+        };
+        if let Some(implicit) = implicit {
+            out.push_str(implicit);
+            out.push('\n');
+            continue;
+        }
+        if trimmed.contains("gl_FragColor") {
+            out.push_str(&line.replace("gl_FragColor", "fragColor"));
+            out.push('\n');
+            continue;
+        }
+        out.push_str(&line.replace("vTexCoord.z", "0.0"));
+        out.push('\n');
+    }
+    if udb_needed {
+        prelude.push(
+            "layout(binding = 2) uniform ShaderParams { vec4 param[4]; vec4 misc; } sp;"
+                .to_string(),
+        );
+    }
+    if !prelude.is_empty() {
+        // Insert after the version directive.
+        if let Some(position) = out.find('\n') {
+            out.insert_str(position + 1, &(prelude.join("\n") + "\n"));
+        } else {
+            out.push_str(&prelude.join("\n"));
+            out.push('\n');
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1517,6 +1648,56 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let size = std::fs::metadata(&path).expect("file").len();
         assert!(size > 1000, "continue screen should not be blank");
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn implicit_glsl_preprocessor_adds_bindings_and_locations() {
+        let source = r#"
+uniform vec2 TextureSize;
+uniform sampler2D Texture;
+in vec3 vTexCoord;
+out vec4 FragColor;
+void main() {
+    vec4 c = texture(Texture, vTexCoord.xy);
+    FragColor = c + vec4(vTexCoord.z) + vec4(TextureSize, 0.0, 0.0);
+}
+"#;
+        let out = preprocess_implicit_glsl(source);
+        assert!(out.starts_with("#version 450"));
+        assert!(out.contains("layout(binding = 0) uniform texture2D Texture_tex;"));
+        assert!(out.contains("layout(binding = 1) uniform sampler Texture_samp;"));
+        assert!(out.contains("#define Texture sampler2D(Texture_tex, Texture_samp)"));
+        assert!(out.contains("layout(location = 0) in vec2 vTexCoord;"));
+        assert!(out.contains("layout(location = 0) out vec4 FragColor;"));
+        assert!(out.contains("#define TextureSize vec2(320.0, 240.0)"));
+        assert!(!out.contains("vTexCoord.z"));
+    }
+
+    #[test]
+    fn implicit_glsl_scanline_shader_compiles_when_gpu_available() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let source = r#"
+#if __VERSION__ >= 450
+layout(push_constant, std430) uniform u { vec2 TextureSize; };
+layout(binding = 0) uniform sampler2D Texture;
+layout(location = 0) in vec3 vTexCoord;
+layout(location = 0) out vec4 FragColor;
+#else
+uniform vec2 TextureSize;
+uniform sampler2D Texture;
+in vec3 vTexCoord;
+out vec4 FragColor;
+#endif
+void main() {
+    vec4 rgb = texture(Texture, vTexCoord.xy);
+    FragColor = rgb * 0.5 + vec4(TextureSize / 640.0, 0.0, 0.0);
+}
+"#;
+        assert!(renderer.register_glsl_shader("implicit-scanline", source));
+        assert!(renderer.custom_shaders.contains_key("implicit-scanline"));
     }
 
     #[test]

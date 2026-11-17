@@ -128,8 +128,21 @@ checksum. The renderer compiles a selected shader on first use when the
 - bindings: `@group(0) @binding(0)` texture2d, `(1)` sampler.
 
 GLSL files are also executed as fragment shaders (`.glsl`, `.frag`, `.fs`). The
-renderer pairs them with a built-in GLSL vertex shader and requires explicit
-Vulkan-style bindings/locations:
+renderer pairs them with a built-in GLSL vertex shader. Both explicit
+Vulkan-style bindings/locations and Ikemen's implicit OpenGL/GLES style are
+accepted. Implicit shaders are rewritten before compilation:
+
+- missing `#version` gets `#version 450`,
+- `uniform sampler2D NAME` maps to explicit texture/sampler pairs for
+  `tex`/`Texture` (0/1), `tex1` (3/4), `tex2` (5/6), and `pal` (7/8),
+- implicit `in vec3 vTexCoord`/`in vec2 uv`/`in vec4 color` and
+  `out vec4 FragColor` get locations 0/1/0, with `vTexCoord.z` reading `0.0`,
+- `TextureSize` maps to 320x240, and `add`/`mult`/`alpha`/`neg`/`gray`/`hue`
+  map to `shaderparam` slots `param[0]`, `param[1]`, `param[2].x/.y/.z/.w`,
+- Ikemen's dual `#if __VERSION__ >= 450 ... #else ... #endif` template keeps the
+  GL branch.
+
+Explicit shaders can still declare the full binding set:
 
 ```glsl
 #version 450
@@ -160,16 +173,14 @@ the depth buffer; selecting a shader splits the painter's draw ranges so only
 that fighter's quads use it. Compilation failures fall back to the default
 sprite pipeline.
 
-Ikemen's OpenGL-GLSL fragment convention still needs a compatibility layer:
-its shaders use implicit uniform locations and additional uniforms. `param`
+Implicit-location GLSL is normalized by the preprocessor above. `param`
 (`shaderparam`) and `pal`/`tex1`/`tex2` bindings are provided, but the latter
-alias the atlas page until sprite/palette textures are wired, and grab passes
-(`bgl_RenderedTexture`) are not modeled.
+alias the atlas page until dedicated sprite/palette textures are wired, and
+grab passes (`bgl_RenderedTexture`) are not modeled.
 
 ## 5. Not modeled
 
-- Ikemen's implicit-location GLSL uniform set, real `pal`/`tex1`/`tex2`
-  textures, and grab passes.
+- Real `pal`/`tex1`/`tex2` textures and grab passes.
 - GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
   `ctrlid` selects BG layers by `id` (`-1` = all) and
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
