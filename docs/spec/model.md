@@ -34,7 +34,9 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Skinning: `JOINTS_0`/`WEIGHTS_0` and `inverseBindMatrices` deform vertices
   with up to four weighted joints per vertex, driven by the animated node
   hierarchy.
-- Morph targets and additional animation clips.
+- Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
+  weights or by the first clip's `weights` channel.
+- Additional animation clips.
 - PBR lighting, metallic/roughness, normal/emissive maps, and environment maps.
 - `ModifyBGCtrl3D` targeting individual model nodes (node transforms are
   driven by glTF animation, not stage controllers).

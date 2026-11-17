@@ -42,6 +42,16 @@ pub struct ModelDraw {
     pub node: usize,
     pub texture: Option<ModelTexture>,
     skin: Option<ModelSkin>,
+    /// Morph-target position deltas, one list per target and vertex.
+    targets: Vec<Vec<[f32; 3]>>,
+    /// Default morph weights (node override or mesh default).
+    weights: Vec<f32>,
+}
+
+#[derive(Debug, Clone)]
+struct WeightTrack {
+    node: usize,
+    keys: Vec<(f32, Vec<f32>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +79,7 @@ struct Track {
 #[derive(Debug, Clone)]
 struct ModelAnimation {
     tracks: Vec<Track>,
+    weight_tracks: Vec<WeightTrack>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,8 +118,21 @@ impl ModelAsset {
                 let delta = world * base.inverse();
                 draw.vertices
                     .iter()
-                    .map(|vertex| {
-                        let local = Vec3::from_array(vertex.pos);
+                    .enumerate()
+                    .map(|(vertex_index, vertex)| {
+                        let mut local = Vec3::from_array(vertex.pos);
+                        if !draw.targets.is_empty() {
+                            let weights = self.morph_weights(draw, time);
+                            for (target_index, target) in draw.targets.iter().enumerate() {
+                                let weight = weights.get(target_index).copied().unwrap_or(0.0);
+                                if weight == 0.0 {
+                                    continue;
+                                }
+                                if let Some(delta) = target.get(vertex_index) {
+                                    local += weight * Vec3::from_array(*delta);
+                                }
+                            }
+                        }
                         let transformed = match &draw.skin {
                             Some(skin) => {
                                 let mut sum = Vec3::ZERO;
@@ -210,6 +234,50 @@ impl ModelAsset {
     }
 }
 
+impl ModelAsset {
+    fn morph_weights(&self, draw: &ModelDraw, time: f32) -> Vec<f32> {
+        if let Some(animation) = &self.animation {
+            if let Some(track) = animation
+                .weight_tracks
+                .iter()
+                .find(|track| track.node == draw.node)
+            {
+                if let Some(value) = sample_weight_track(&track.keys, time) {
+                    return value;
+                }
+            }
+        }
+        draw.weights.clone()
+    }
+}
+
+fn sample_weight_track(keys: &[(f32, Vec<f32>)], time: f32) -> Option<Vec<f32>> {
+    if keys.is_empty() {
+        return None;
+    }
+    if time <= keys[0].0 || keys.len() == 1 {
+        return Some(keys[0].1.clone());
+    }
+    for pair in keys.windows(2) {
+        let (start, a) = &pair[0];
+        let (end, b) = &pair[1];
+        if time < *end {
+            let t = if *end > *start {
+                (time - *start) / (*end - *start)
+            } else {
+                0.0
+            };
+            let len = a.len().min(b.len());
+            return Some(
+                (0..len)
+                    .map(|index| a[index] + (b[index] - a[index]) * t)
+                    .collect(),
+            );
+        }
+    }
+    keys.last().map(|(_, value)| value.clone())
+}
+
 fn sample_track(keys: &[(f32, [f32; 4])], time: f32) -> Option<[f32; 4]> {
     if keys.is_empty() {
         return None;
@@ -307,6 +375,16 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     inverse_bind,
                 })
             });
+            let targets: Vec<Vec<[f32; 3]>> = primitive
+                .reader(|buffer| Some(&buffers[buffer.index()]))
+                .read_morph_targets()
+                .filter_map(|(positions, _, _)| positions.map(|values| values.collect()))
+                .collect();
+            let morph_weights: Vec<f32> = node
+                .weights()
+                .or_else(|| mesh.weights())
+                .map(|weights| weights.to_vec())
+                .unwrap_or_default();
             let material = primitive.material();
             let color = material.pbr_metallic_roughness().base_color_factor();
             let color = [
@@ -345,6 +423,8 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     node: node_index_value,
                     texture,
                     skin: skin.clone(),
+                    targets,
+                    weights: morph_weights.clone(),
                 });
             }
         }
@@ -355,6 +435,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
 
     let animation = document.animations().next().and_then(|animation| {
         let mut tracks = Vec::new();
+        let mut weight_tracks = Vec::new();
         for channel in animation.channels() {
             let target = channel.target();
             let Some(&node) = node_index.get(&target.node().index()) else {
@@ -365,6 +446,41 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 continue;
             };
             let times: Vec<f32> = inputs.collect();
+            if target.property() == gltf::animation::Property::MorphTargetWeights {
+                if let Some(gltf::animation::util::ReadOutputs::MorphTargetWeights(values)) =
+                    reader.read_outputs()
+                {
+                    let values: Vec<f32> = match values {
+                        gltf::animation::util::MorphTargetWeights::I8(values) => {
+                            values.map(|value| value as f32).collect()
+                        }
+                        gltf::animation::util::MorphTargetWeights::U8(values) => {
+                            values.map(|value| value as f32).collect()
+                        }
+                        gltf::animation::util::MorphTargetWeights::I16(values) => {
+                            values.map(|value| value as f32).collect()
+                        }
+                        gltf::animation::util::MorphTargetWeights::U16(values) => {
+                            values.map(|value| value as f32).collect()
+                        }
+                        gltf::animation::util::MorphTargetWeights::F32(values) => values.collect(),
+                    };
+                    let target_count = target
+                        .node()
+                        .mesh()
+                        .and_then(|mesh| mesh.primitives().next())
+                        .map(|primitive| primitive.morph_targets().len())
+                        .unwrap_or(1)
+                        .max(1);
+                    let keys = times
+                        .into_iter()
+                        .zip(values.chunks(target_count))
+                        .map(|(time, values)| (time, values.to_vec()))
+                        .collect();
+                    weight_tracks.push(WeightTrack { node, keys });
+                }
+                continue;
+            }
             let property = match target.property() {
                 gltf::animation::Property::Translation => Property::Translation,
                 gltf::animation::Property::Rotation => Property::Rotation,
@@ -393,10 +509,13 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 keys,
             });
         }
-        if tracks.is_empty() {
+        if tracks.is_empty() && weight_tracks.is_empty() {
             None
         } else {
-            Some(ModelAnimation { tracks })
+            Some(ModelAnimation {
+                tracks,
+                weight_tracks,
+            })
         }
     });
 
@@ -634,6 +753,56 @@ mod tests {
         assert_eq!((texture.width, texture.height), (1, 1));
         assert_eq!(&texture.rgba[..4], &[255, 0, 0, 255]);
         assert_eq!(asset.sample(0.0)[0].len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn morph_target_weight_animation_moves_vertices() {
+        let dir = std::env::temp_dir().join(format!("manato-model-morph-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("morph.gltf");
+        std::fs::write(
+            &path,
+            r#"{
+  "asset": {"version": "2.0"},
+  "buffers": [
+    {"uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAEAAAAAA", "byteLength": 36},
+    {"uri": "data:application/octet-stream;base64,AAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAA", "byteLength": 36},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAgD8=", "byteLength": 8},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAgD8=", "byteLength": 8}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteLength": 36, "target": 34962},
+    {"buffer": 1, "byteLength": 36, "target": 34962},
+    {"buffer": 2, "byteLength": 8},
+    {"buffer": 3, "byteLength": 8}
+  ],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,0,0], "max": [1,2,0]},
+    {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC3"},
+    {"bufferView": 2, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [1]},
+    {"bufferView": 3, "componentType": 5126, "count": 2, "type": "SCALAR"}
+  ],
+  "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [1,1,1,1]}}],
+  "meshes": [{"weights": [0.0], "primitives": [{"attributes": {"POSITION": 0}, "targets": [{"POSITION": 1}], "material": 0, "mode": 4}]}],
+  "nodes": [{"mesh": 0, "weights": [0.0]}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0,
+  "animations": [{"channels": [{"sampler": 0, "target": {"node": 0, "path": "weights"}}],
+                  "samplers": [{"input": 2, "output": 3, "interpolation": "LINEAR"}]}]
+}"#,
+        )
+        .expect("model");
+        let asset = load(&path).expect("load");
+        assert_eq!(asset.draws.len(), 1);
+        assert_eq!(asset.draws[0].targets.len(), 1);
+        let start = asset.sample(0.0)[0][0].pos;
+        let end = asset.sample(1.0)[0][0].pos;
+        assert!(
+            (end[0] - start[0]).abs() > 1.0,
+            "morph weight animated the target"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
