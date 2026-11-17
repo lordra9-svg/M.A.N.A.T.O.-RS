@@ -38,6 +38,8 @@ struct Options {
     synctest: Option<u32>,
     screenshot: Option<PathBuf>,
     storyboard: Option<String>,
+    spectate: Option<String>,
+    broadcast: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -62,6 +64,8 @@ impl Default for Options {
             synctest: None,
             screenshot: None,
             storyboard: None,
+            spectate: None,
+            broadcast: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -372,6 +376,14 @@ impl Options {
                     opts.storyboard = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--spectate" => {
+                    opts.spectate = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--broadcast" => {
+                    opts.broadcast = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--scale" => {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
@@ -473,6 +485,8 @@ Modes:
   --synctest <n>      Run n ticks through GGRS rollback verification
   --screenshot <png>  Save the final frame (headless)
   --storyboard <def>  Play a storyboard headless (with --frames)
+  --spectate <addr>   Watch a host streaming snapshots (host:port)
+  --broadcast <addr>  Stream match snapshots to spectators (bind addr)
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -1227,6 +1241,8 @@ struct App {
     last_tick: Instant,
     accumulator: Duration,
     music_override: Option<PathBuf>,
+    spectator: Option<manato_net::lobby::SpectatorClient>,
+    broadcaster: Option<manato_net::lobby::SnapshotBroadcaster>,
 }
 
 fn run_window(opts: Options) -> anyhow::Result<()> {
@@ -1246,6 +1262,28 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
     });
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
+    let spectator = opts
+        .spectate
+        .as_deref()
+        .map(
+            |addr| -> anyhow::Result<manato_net::lobby::SpectatorClient> {
+                let client = manato_net::lobby::SpectatorClient::connect(addr.parse()?)?;
+                log::info!("spectating host {addr} from {}", client.local_addr()?);
+                Ok(client)
+            },
+        )
+        .transpose()?;
+    let broadcaster = opts
+        .broadcast
+        .as_deref()
+        .map(
+            |addr| -> anyhow::Result<manato_net::lobby::SnapshotBroadcaster> {
+                let broadcaster = manato_net::lobby::SnapshotBroadcaster::bind(addr.parse()?)?;
+                log::info!("broadcasting at {}", broadcaster.local_addr()?);
+                Ok(broadcaster)
+            },
+        )
+        .transpose()?;
     let audio = AudioEngine::new();
     log::info!(
         "audio backend: {} ({} Hz)",
@@ -1283,6 +1321,8 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         last_tick: Instant::now(),
         accumulator: Duration::ZERO,
         music_override: None,
+        spectator,
+        broadcaster,
     };
     if let Some(sim) = app.sim.as_ref() {
         app.play_stage_music(sim);
@@ -1890,6 +1930,14 @@ impl App {
     }
 
     fn step(&mut self) {
+        if let Some(spectator) = self.spectator.as_mut() {
+            if let Some(sim) = self.sim.as_mut() {
+                if let Err(error) = spectator.poll(sim) {
+                    log::warn!("spectator receive failed: {error:#}");
+                }
+            }
+            return;
+        }
         self.poll_pad_menu();
         if let Some(frontend) = self.frontend.as_mut() {
             if frontend.screen == FrontendScreen::Continue {
@@ -1958,6 +2006,14 @@ impl App {
             merge_input(player_input(&self.keys, &self.opts.p2_keys), pads[1])
         };
         sim.tick([p1, p2]);
+        if let Some(broadcaster) = self.broadcaster.as_mut() {
+            if let Err(error) = broadcaster.poll() {
+                log::warn!("broadcast join poll failed: {error}");
+            }
+            if let Err(error) = broadcaster.broadcast(sim, sim.frame as i32) {
+                log::warn!("broadcast failed: {error:#}");
+            }
+        }
         self.audio.play_events(sim);
         if sim.bgm.active {
             if let Some(status) = self.audio.bgm_status() {
@@ -2059,6 +2115,19 @@ impl App {
                 return;
             }
         };
+        let status = self
+            .spectator
+            .as_ref()
+            .map(|spectator| spectator.status_text())
+            .or_else(|| {
+                self.broadcaster.as_ref().map(|broadcaster| {
+                    format!(
+                        "BROADCASTING · {} spectator(s)",
+                        broadcaster.spectator_count()
+                    )
+                })
+            });
+        renderer.set_status_line(status);
         if let Some(sim) = &self.sim {
             renderer.render(sim);
         } else if let Some(frontend) = &self.frontend {

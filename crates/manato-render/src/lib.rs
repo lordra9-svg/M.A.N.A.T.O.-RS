@@ -74,6 +74,8 @@ pub struct Renderer {
     failed_shaders: HashSet<String>,
     /// Seconds since the match started, fed to custom shader uniforms.
     shader_time: f32,
+    /// Optional diagnostic line drawn over the match (spectator/broadcast status).
+    status_line: Option<String>,
     /// Signature of in-match storyboard overlays baked into the atlas.
     overlay_signature: Vec<(usize, String)>,
     solid: wgpu::BindGroup,
@@ -521,6 +523,7 @@ impl Renderer {
             custom_shaders: HashMap::new(),
             failed_shaders: HashSet::new(),
             shader_time: 0.0,
+            status_line: None,
             overlay_signature: Vec::new(),
             solid,
             shadow,
@@ -865,6 +868,12 @@ impl Renderer {
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
     }
 
+    /// Sets a short status line drawn in the top-left corner, used by the
+    /// spectator and host broadcast modes.
+    pub fn set_status_line(&mut self, line: Option<String>) {
+        self.status_line = line;
+    }
+
     pub fn render(&mut self, sim: &SimState) {
         let signature = Self::overlay_signature(sim);
         if signature != self.overlay_signature {
@@ -879,6 +888,10 @@ impl Renderer {
             screen_fonts: &self.screen_fonts,
         };
         scene::build(&mut self.painter, sim, &deps);
+        if let Some(line) = self.status_line.as_deref() {
+            self.painter
+                .text(&self.font, line, 4.0, 4.0, 1.0, [1.0, 1.0, 1.0, 0.9]);
+        }
         // Compile any selected custom shaders before the render pass.
         let mut names: Vec<String> = self
             .painter

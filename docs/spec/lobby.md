@@ -66,6 +66,24 @@ snapshot cap applies on both ends.
 duplicate frames, counts gaps as `missed_frames`, and reports `lagging()` once
 more than 60 frames (one second) are missing.
 
+### Direct spectator mode
+
+`SnapshotBroadcaster` binds a UDP socket and streams the current simulation
+directly to spectators that send a `Join { spectator: true }` datagram. It
+drains joins/leaves with `poll()` and sends a complete snapshot every
+`interval_ticks` frames (6 by default) with `broadcast()`; dropped datagrams
+are recovered by later re-broadcasts.
+
+`SpectatorClient::connect(host)` joins that socket, polls datagrams into a
+`SpectatorSnapshotReceiver`, applies complete snapshots with the spectator's
+own assets, verifies the checksum, and retries the join periodically.
+`status_text()` reports the current frame/checksum or the waiting state.
+
+The app exposes this as `--broadcast <bind-addr>` on the host and
+`--spectate <host-addr>` on the viewer. The viewer does not tick locally; it
+renders the restored snapshots and draws the status line in the top-left
+corner.
+
 ## 4. Security notes
 
 - Datagrams are decoded with a 4 KiB bincode limit and fixint encoding, so a

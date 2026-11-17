@@ -556,6 +556,185 @@ impl SpectatorSnapshotReceiver {
     }
 }
 
+/// Continuous host-side snapshot broadcaster over a direct UDP socket.
+///
+/// Spectators join by sending [`LobbyMessage::Join`]; the host sends chunked
+/// [`LobbyMessage::Snapshot`] messages every `interval_ticks` simulation
+/// frames. This is the transport used by the in-app `--broadcast` mode.
+pub struct SnapshotBroadcaster {
+    socket: UdpSocket,
+    spectators: Vec<SocketAddr>,
+    pub interval_ticks: i32,
+    last_frame: i32,
+}
+
+impl SnapshotBroadcaster {
+    pub fn bind(addr: SocketAddr) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind(addr)?;
+        socket.set_nonblocking(true)?;
+        Ok(Self {
+            socket,
+            spectators: Vec::new(),
+            interval_ticks: 6,
+            last_frame: -1,
+        })
+    }
+
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket.local_addr()
+    }
+
+    pub fn spectator_count(&self) -> usize {
+        self.spectators.len()
+    }
+
+    /// Registers joining spectators and removes leaving ones.
+    pub fn poll(&mut self) -> std::io::Result<()> {
+        let mut buffer = [0u8; 4096];
+        loop {
+            match self.socket.recv_from(&mut buffer) {
+                Ok((len, addr)) => {
+                    let Some(message) = LobbyMessage::decode(&buffer[..len]) else {
+                        continue;
+                    };
+                    match message {
+                        LobbyMessage::Join {
+                            spectator: true, ..
+                        } => {
+                            if !self.spectators.contains(&addr) {
+                                self.spectators.push(addr);
+                            }
+                        }
+                        LobbyMessage::Leave { .. } => {
+                            self.spectators.retain(|peer| *peer != addr);
+                        }
+                        _ => {}
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(())
+    }
+
+    /// Sends the current snapshot when the interval has elapsed. Returns the
+    /// number of datagrams sent.
+    pub fn broadcast(&mut self, sim: &manato_sim::SimState, frame: i32) -> anyhow::Result<usize> {
+        if self.spectators.is_empty() {
+            return Ok(0);
+        }
+        if self.last_frame >= 0 && frame - self.last_frame < self.interval_ticks {
+            return Ok(0);
+        }
+        let messages = snapshot_messages(sim, frame)?;
+        let mut sent = 0;
+        for address in &self.spectators {
+            for message in &messages {
+                let bytes = message.encode();
+                if self.socket.send_to(&bytes, address).is_ok() {
+                    sent += 1;
+                }
+            }
+        }
+        self.last_frame = frame;
+        Ok(sent)
+    }
+}
+
+/// Spectator client for the direct broadcaster socket.
+pub struct SpectatorClient {
+    socket: UdpSocket,
+    host: SocketAddr,
+    receiver: SpectatorSnapshotReceiver,
+    last_join: Instant,
+    pub frame: i32,
+    pub checksum: u64,
+    pub connected: bool,
+}
+
+impl SpectatorClient {
+    pub fn connect(host: SocketAddr) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_nonblocking(true)?;
+        let client = Self {
+            socket,
+            host,
+            receiver: SpectatorSnapshotReceiver::default(),
+            last_join: Instant::now(),
+            frame: -1,
+            checksum: 0,
+            connected: false,
+        };
+        client.send_join();
+        Ok(client)
+    }
+
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket.local_addr()
+    }
+
+    fn send_join(&self) {
+        let message = LobbyMessage::Join {
+            name: "spectator".into(),
+            spectator: true,
+        };
+        let _ = self.socket.send_to(&message.encode(), self.host);
+    }
+
+    /// Polls snapshots and restores complete states. Returns true when a
+    /// snapshot was applied this call.
+    pub fn poll(&mut self, sim: &mut manato_sim::SimState) -> anyhow::Result<bool> {
+        let mut restored = false;
+        let mut buffer = [0u8; 4096];
+        loop {
+            match self.socket.recv_from(&mut buffer) {
+                Ok((len, _)) => {
+                    let Some(message) = LobbyMessage::decode(&buffer[..len]) else {
+                        continue;
+                    };
+                    if let LobbyMessage::Snapshot {
+                        frame, checksum, ..
+                    } = &message
+                    {
+                        self.frame = *frame;
+                        self.checksum = *checksum;
+                    }
+                    if self.receiver.accept(sim, &message)? {
+                        restored = true;
+                        self.connected = true;
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        // Retry the join until the first snapshot arrives, then once a second
+        // to survive a restarted host.
+        let retry = if self.connected {
+            Duration::from_secs(1)
+        } else {
+            Duration::from_millis(250)
+        };
+        if self.last_join.elapsed() >= retry {
+            self.send_join();
+            self.last_join = Instant::now();
+        }
+        Ok(restored)
+    }
+
+    pub fn status_text(&self) -> String {
+        if self.connected {
+            format!(
+                "SPECTATING frame {} checksum {:016x}",
+                self.frame, self.checksum
+            )
+        } else {
+            format!("SPECTATING - waiting for host {}", self.host)
+        }
+    }
+}
+
 /// Reassembles host snapshot chunks for a spectator, rejecting stale frames,
 /// duplicates, oversized payloads, and checksum mismatches.
 #[derive(Debug, Clone, Default)]
@@ -767,6 +946,75 @@ mod tests {
         }
         assert!(restored);
         assert_eq!(spectator.checksum(), checksum);
+    }
+
+    #[test]
+    fn direct_broadcaster_streams_snapshots_at_interval() {
+        use std::path::PathBuf;
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            eprintln!("skipping: bundled content missing");
+            return;
+        }
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: PathBuf::from("content/chars/nival/nival.def"),
+            stage: PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut host = manato_sim::SimState::load(&config).expect("host state");
+        for _ in 0..4 {
+            host.tick([manato_core::PlayerInput::default(); 2]);
+        }
+        let checksum = host.checksum();
+
+        let mut broadcaster =
+            SnapshotBroadcaster::bind("127.0.0.1:0".parse().unwrap()).expect("broadcaster");
+        let address = broadcaster.local_addr().expect("addr");
+        let mut client = SpectatorClient::connect(address).expect("client");
+        for _ in 0..50 {
+            broadcaster.poll().expect("poll joins");
+            if broadcaster.spectator_count() == 1 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(broadcaster.spectator_count(), 1);
+
+        let mut spectator = manato_sim::SimState::load(&config).expect("spectator state");
+        let mut restored = false;
+        // UDP can drop chunks; the periodic re-broadcast fills the gaps.
+        for round in 0..12 {
+            assert!(broadcaster.broadcast(&host, round * 6).expect("broadcast") > 0);
+            for _ in 0..200 {
+                if client.poll(&mut spectator).expect("client poll") {
+                    restored = true;
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            if restored {
+                break;
+            }
+        }
+        assert!(restored, "spectator receives a complete snapshot");
+        assert!(client.connected);
+        assert!(client.frame >= 0);
+        assert_eq!(spectator.checksum(), checksum);
+        assert!(client.status_text().contains("SPECTATING frame "));
+
+        // The interval suppresses duplicate frames and resumes later.
+        let current = client.frame;
+        assert_eq!(
+            broadcaster.broadcast(&host, current).expect("suppressed"),
+            0
+        );
+        host.tick([manato_core::PlayerInput::default(); 2]);
+        assert!(broadcaster.broadcast(&host, current + 6).expect("interval") > 0);
     }
 
     #[test]
