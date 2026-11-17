@@ -76,6 +76,9 @@ pub struct Renderer {
     shader_time: f32,
     /// Optional diagnostic line drawn over the match (spectator/broadcast status).
     status_line: Option<String>,
+    /// Sandboxed Lua runtimes for in-match storyboard overlays.
+    storyboard_scripts:
+        std::cell::RefCell<HashMap<usize, Option<manato_formats::storyboard_lua::StoryboardLua>>>,
     /// Signature of in-match storyboard overlays baked into the atlas.
     overlay_signature: Vec<(usize, String)>,
     solid: wgpu::BindGroup,
@@ -524,6 +527,7 @@ impl Renderer {
             failed_shaders: HashSet::new(),
             shader_time: 0.0,
             status_line: None,
+            storyboard_scripts: std::cell::RefCell::new(HashMap::new()),
             overlay_signature: Vec::new(),
             solid,
             shadow,
@@ -886,6 +890,7 @@ impl Renderer {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
+            storyboard_scripts: &self.storyboard_scripts,
         };
         scene::build(&mut self.painter, sim, &deps);
         if let Some(line) = self.status_line.as_deref() {
@@ -946,6 +951,7 @@ impl Renderer {
             atlas: &self.atlas,
             font: &self.font,
             screen_fonts: &self.screen_fonts,
+            storyboard_scripts: &self.storyboard_scripts,
         };
         scene::draw_storyboard(&mut self.painter, &deps, storyboard, player);
         self.present();

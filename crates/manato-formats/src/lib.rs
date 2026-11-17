@@ -15,6 +15,7 @@ pub mod sff;
 pub mod snd;
 pub mod stage;
 pub mod storyboard;
+pub mod storyboard_lua;
 pub mod text;
 
 pub use air::{AnimFrame, Animation, CollisionBox, FramePose};

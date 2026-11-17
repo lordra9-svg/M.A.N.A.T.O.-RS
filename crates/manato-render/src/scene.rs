@@ -13,6 +13,10 @@ pub struct SceneDeps<'a> {
     pub atlas: &'a SpriteAtlas,
     pub font: &'a FontAtlas,
     pub screen_fonts: &'a std::collections::BTreeMap<u32, crate::screenfont::ScreenFont>,
+    /// Sandboxed Lua runtimes keyed by storyboard allocation (in-match overlays).
+    pub storyboard_scripts: &'a std::cell::RefCell<
+        std::collections::HashMap<usize, Option<manato_formats::storyboard_lua::StoryboardLua>>,
+    >,
 }
 
 #[derive(Clone, Copy)]
@@ -1496,6 +1500,52 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
         let Some(scene) = overlay.player.current(&overlay.storyboard) else {
             continue;
         };
+        // Sandboxed Lua can drive the overlay transform each rendered frame.
+        let mut pos = overlay.pos;
+        let mut overlay_scale = overlay.scale;
+        let mut overlay_facing = overlay.facing;
+        let mut overlay_alpha = 1.0_f32;
+        let mut overlay_done = false;
+        if overlay.storyboard.lua_source.is_some() {
+            let key = std::sync::Arc::as_ptr(&overlay.storyboard) as usize;
+            let mut scripts = deps.storyboard_scripts.borrow_mut();
+            let script = scripts.entry(key).or_insert_with(|| {
+                let source = overlay.storyboard.lua_source.as_deref()?;
+                match manato_formats::storyboard_lua::StoryboardLua::load(source, "storyboard.lua")
+                {
+                    Ok(script) => Some(script),
+                    Err(error) => {
+                        log::warn!("storyboard lua failed: {error:#}");
+                        None
+                    }
+                }
+            });
+            if let Some(script) = script {
+                let mut ctx = manato_formats::storyboard_lua::StoryboardScriptContext::new(
+                    overlay.player.scene,
+                    overlay.player.time,
+                    pos.x,
+                    pos.y,
+                );
+                ctx.scale_x = overlay_scale.x;
+                ctx.scale_y = overlay_scale.y;
+                ctx.facing = overlay_facing;
+                ctx.alpha = overlay_alpha;
+                match script.update(&mut ctx) {
+                    Ok(()) => {
+                        pos = Vec2::new(ctx.x, ctx.y);
+                        overlay_scale = Vec2::new(ctx.scale_x, ctx.scale_y);
+                        overlay_facing = ctx.facing;
+                        overlay_alpha = ctx.alpha.clamp(0.0, 1.0);
+                        overlay_done = ctx.done;
+                    }
+                    Err(error) => log::warn!("storyboard lua update failed: {error:#}"),
+                }
+            }
+        }
+        if overlay_done {
+            continue;
+        }
         if let Some(color) = scene.clear_color {
             if scene.clear_alpha > 0 {
                 painter.rect(
@@ -1520,8 +1570,8 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
             let local = layer.position_at(overlay.player.time);
             let local = local + scene.layer_all_pos;
             let base = Vec2::new(
-                overlay.pos.x + local.x * overlay.scale.x * overlay.facing as f32,
-                overlay.pos.y + local.y * overlay.scale.y,
+                pos.x + local.x * overlay_scale.x * overlay_facing as f32,
+                pos.y + local.y * overlay_scale.y,
             );
             let anchor = if overlay.screen_space {
                 base
@@ -1565,8 +1615,8 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
             };
             if let Some((sprite, pose)) = sprite_pose {
                 let scale = Vec2::new(
-                    layer.scale.x * overlay.scale.x * pose.scale.x,
-                    layer.scale.y * overlay.scale.y * pose.scale.y,
+                    layer.scale.x * overlay_scale.x * pose.scale.x,
+                    layer.scale.y * overlay_scale.y * pose.scale.y,
                 );
                 let palfx = layer.palfx_at(overlay.player.time);
                 painter.set_palfx(
@@ -1582,7 +1632,7 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     sprite,
                     anchor,
                     pose.offset,
-                    layer.facing * overlay.facing,
+                    layer.facing * overlay_facing,
                     scale,
                     pose.flip_h,
                     pose.flip_v,
@@ -1591,7 +1641,7 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                         palfx.mul[0] / 256.0,
                         palfx.mul[1] / 256.0,
                         palfx.mul[2] / 256.0,
-                        pose.alpha,
+                        pose.alpha * overlay_alpha,
                     ],
                     pose.angle,
                 );
@@ -1609,7 +1659,7 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     layer.color[0] as f32 / 255.0 * palfx.mul[0] / 256.0,
                     layer.color[1] as f32 / 255.0 * palfx.mul[1] / 256.0,
                     layer.color[2] as f32 / 255.0 * palfx.mul[2] / 256.0,
-                    layer.color[3] as f32 / 255.0,
+                    layer.color[3] as f32 / 255.0 * overlay_alpha,
                 ];
                 painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
                 painter.text(deps.font, &text, anchor.x, anchor.y, scale, tint);

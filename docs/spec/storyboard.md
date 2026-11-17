@@ -96,6 +96,26 @@ sprite atlas when the overlay set changes, so each overlay uses its own
 `[SceneDef] spr` SFF. Scene `clearcolor`/`clearalpha` fill the screen before
 the overlay's layers, and `fadein`/`fadeout` alpha is drawn over them.
 
-## 6. Not modeled
+## 6. Lua scripting
 
-- Lua storyboard scripting, dynamic backgrounds, and 3D models.
+`[SceneDef] lua = file.lua` (alias `script`) loads a sandboxed script. The
+runtime exposes only `table`, `string`, and `math`, rejects `io`, `os`, and
+`require`, and caps Lua heap allocations at 4 MiB. The script may define:
+
+```lua
+function update(ctx)
+    ctx.x = ctx.x + math.sin(ctx.time / 8) * 4
+end
+```
+
+`ctx` fields: `scene`, `time`, `x`, `y`, `scale_x`, `scale_y`, `facing`,
+`alpha`, `done`, and `jump`. Numeric transforms are read back every rendered
+frame for in-match overlays; `done = true` hides the overlay for that frame.
+`jump` is accepted by the context but scene switching from Lua is not modeled
+yet. Scripts are transient render-side state and are not included in rollback
+snapshots (storyboard overlays are already excluded).
+
+## 7. Not modeled
+
+- Dynamic backgrounds and 3D models.
+- Lua-driven scene jumps (the `jump` context field is parsed but unused).

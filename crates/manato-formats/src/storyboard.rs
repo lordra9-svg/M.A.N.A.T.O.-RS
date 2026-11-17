@@ -291,6 +291,8 @@ pub struct Storyboard {
     pub font_files: BTreeMap<i32, PathBuf>,
     /// `[SceneDef] snd` bank.
     pub sounds: SoundBank,
+    /// `[SceneDef] lua`/`script` source, executed by the sandboxed runtime.
+    pub lua_source: Option<String>,
 }
 
 impl Storyboard {
@@ -335,6 +337,19 @@ impl Storyboard {
             Some(path) if path.exists() => SoundBank::load(&path)?,
             _ => SoundBank::default(),
         };
+        let lua_source = get(scene_def, "lua")
+            .or_else(|| get(scene_def, "script"))
+            .filter(|name| !name.is_empty())
+            .and_then(|name| {
+                let path = resolve(&dir, &name);
+                match std::fs::read_to_string(&path) {
+                    Ok(source) => Some(source),
+                    Err(error) => {
+                        log::warn!("storyboard lua {}: {error}", path.display());
+                        None
+                    }
+                }
+            });
         let mut font_files = BTreeMap::new();
         if let Some(section) = scene_def {
             for entry in &section.entries {
@@ -563,6 +578,7 @@ impl Storyboard {
             scenes,
             font_files,
             sounds,
+            lua_source,
         })
     }
 
@@ -781,6 +797,7 @@ author = Tester
 [SceneDef]
 startscene = 0
 font0 = red.fnt
+lua = script.lua
 [Begin Action 10]
 0,0, 0,0, 4, , , 1,1, 0
 Interpolate Offset
@@ -823,6 +840,11 @@ layer0.scale = 2,2
 "#,
         )
         .expect("write");
+        std::fs::write(
+            dir.join("script.lua"),
+            "function update(ctx)\n  ctx.x = ctx.x + 1\nend\n",
+        )
+        .expect("write lua");
         def
     }
 
@@ -860,6 +882,10 @@ layer0.scale = 2,2
         assert_eq!(story.scenes[1].layers[0].sprite, Some((0, 1)));
         assert_eq!(story.scene("Scene 1"), Some(1));
         assert!(story.font_files.contains_key(&0));
+        assert!(story
+            .lua_source
+            .as_deref()
+            .is_some_and(|source| source.contains("function update")));
         assert_eq!(story.scenes[0].sounds.len(), 1);
         let sound = &story.scenes[0].sounds[0];
         assert_eq!((sound.group, sound.index), (5, 2));
