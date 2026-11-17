@@ -49,6 +49,8 @@ pub struct DrawRange {
     pub shader: Option<String>,
     /// `ShaderSet shaderparam` values bound with the custom shader.
     pub shader_params: Option<[f32; 16]>,
+    /// Sprite palette used for the custom `pal` binding.
+    pub palette: Option<(u8, (i32, i32))>,
 }
 
 /// Accumulates quads and the state changes needed to draw them.
@@ -62,6 +64,7 @@ pub struct Painter {
     shader_params: Option<[f32; 16]>,
     fx: [f32; 4],
     fx2: [f32; 4],
+    palette: Option<(u8, (i32, i32))>,
 }
 
 impl Default for Painter {
@@ -76,6 +79,7 @@ impl Default for Painter {
             shader_params: None,
             fx: [0.0, 0.0, 0.0, 1.0],
             fx2: [0.0, 0.0, 0.0, 0.0],
+            palette: None,
         }
     }
 }
@@ -91,6 +95,12 @@ impl Painter {
         self.shader_params = None;
         self.fx = [0.0, 0.0, 0.0, 1.0];
         self.fx2 = [0.0, 0.0, 0.0, 0.0];
+        self.palette = None;
+    }
+
+    /// Selects the sprite palette bound as `pal` for custom shaders.
+    pub fn set_palette(&mut self, palette: Option<(u8, (i32, i32))>) {
+        self.palette = palette;
     }
 
     /// Applies a PalFX transform to subsequent quads. `add` is in 0..256
@@ -142,6 +152,7 @@ impl Painter {
                 && last.scissor == self.scissor
                 && last.shader == self.shader
                 && last.shader_params == self.shader_params
+                && last.palette == self.palette
                 && last.start + last.count == self.vertices.len() as u32
             {
                 last.count += 6;
@@ -157,6 +168,7 @@ impl Painter {
             scissor: self.scissor,
             shader: self.shader.clone(),
             shader_params: self.shader_params,
+            palette: self.palette,
         });
     }
 

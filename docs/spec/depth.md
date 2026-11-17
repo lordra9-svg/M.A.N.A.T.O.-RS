@@ -165,8 +165,10 @@ void main() {
 
 `ShaderSet shaderparam = count, index, value[, index, value...]` fills the
 `param` array (16 slots). `misc` is `(time_seconds, 320, 240, aspect)`.
-`pal`/`tex1`/`tex2` are currently bound to the sprite's atlas page as
-placeholders; dedicated palette and shader textures are not loaded yet.
+`pal` is a real 256x1 RGBA palette strip uploaded from the sprite's SFF
+palette (per bank and palette key), so palette-index shaders sample the actual
+colors. `tex1`/`tex2` are still bound to the sprite's atlas page as
+placeholders; dedicated shader texture references are not loaded yet.
 
 Compiled shaders are cached per name and usable with normal/add/sub blends and
 the depth buffer; selecting a shader splits the painter's draw ranges so only
@@ -174,13 +176,13 @@ that fighter's quads use it. Compilation failures fall back to the default
 sprite pipeline.
 
 Implicit-location GLSL is normalized by the preprocessor above. `param`
-(`shaderparam`) and `pal`/`tex1`/`tex2` bindings are provided, but the latter
-alias the atlas page until dedicated sprite/palette textures are wired, and
-grab passes (`bgl_RenderedTexture`) are not modeled.
+(`shaderparam`) and a real `pal` palette texture are provided; `tex1`/`tex2`
+still alias the atlas page until shader texture references are wired, and grab
+passes (`bgl_RenderedTexture`) are not modeled.
 
 ## 5. Not modeled
 
-- Real `pal`/`tex1`/`tex2` textures and grab passes.
+- Real `tex1`/`tex2` shader texture references and grab passes.
 - GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
   `ctrlid` selects BG layers by `id` (`-1` = all) and
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not

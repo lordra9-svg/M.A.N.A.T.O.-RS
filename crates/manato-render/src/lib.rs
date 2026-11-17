@@ -1168,6 +1168,10 @@ impl Renderer {
                     return None;
                 };
                 let view = self.atlas.page_view(page)?;
+                let palette_view = range
+                    .palette
+                    .and_then(|(bank, key)| self.atlas.palette_view(bank, key))
+                    .unwrap_or(view);
                 let mut data = [0f32; 20];
                 if let Some(params) = range.shader_params {
                     data[..16].copy_from_slice(&params);
@@ -1191,7 +1195,7 @@ impl Renderer {
                     (4, wgpu::BindingResource::Sampler(&self.shader_sampler)),
                     (5, wgpu::BindingResource::TextureView(view)),
                     (6, wgpu::BindingResource::Sampler(&self.shader_sampler)),
-                    (7, wgpu::BindingResource::TextureView(view)),
+                    (7, wgpu::BindingResource::TextureView(palette_view)),
                     (8, wgpu::BindingResource::Sampler(&self.shader_sampler)),
                 ]
                 .map(|(binding, resource)| wgpu::BindGroupEntry { binding, resource });
@@ -1670,6 +1674,100 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let size = std::fs::metadata(&path).expect("file").len();
         assert!(size > 1000, "continue screen should not be blank");
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn indexed_sprites_upload_real_palette_textures() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let sim = manato_sim::SimState::load(&config).expect("sim");
+        renderer.load_assets(&sim);
+        let bank = atlas::bank::CHARACTER_BASE;
+        let sprite = sim.assets.characters[0]
+            .sprites
+            .sprites
+            .iter()
+            .find(|sprite| sprite.palette_key.is_some() && !sprite.palette.is_empty())
+            .expect("indexed sprite");
+        assert!(renderer
+            .atlas
+            .palette_view(bank, sprite.palette_key.expect("palette key"))
+            .is_some());
+    }
+
+    #[test]
+    fn custom_shader_pal_binding_renders_when_gpu_available() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-pal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let shader_path = dir.join("pal.frag");
+        std::fs::write(
+            &shader_path,
+            r#"#version 450
+layout(location = 0) in vec2 uv;
+layout(location = 1) in vec4 color;
+layout(binding = 0) uniform texture2D tex;
+layout(binding = 1) uniform sampler samp;
+layout(binding = 7) uniform texture2D pal;
+layout(binding = 8) uniform sampler palsamp;
+layout(location = 0) out vec4 frag;
+void main() {
+    vec4 c = texture(sampler2D(tex, samp), uv);
+    vec3 p = texture(sampler2D(pal, palsamp), vec2(uv.x, 0.5)).rgb;
+    frag = vec4(c.rgb * 0.5 + p * 0.5, c.a) * color;
+}
+"#,
+        )
+        .expect("shader");
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut sim = manato_sim::SimState::load(&config).expect("sim");
+        {
+            let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("assets");
+            assets.characters[0]
+                .def
+                .shaders
+                .insert("pal-test".into(), shader_path);
+        }
+        sim.fighters[0].shader = Some("pal-test".into());
+        renderer.load_assets(&sim);
+        renderer.render(&sim);
+        let path = dir.join("pal.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

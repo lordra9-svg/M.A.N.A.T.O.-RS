@@ -48,6 +48,7 @@ pub struct SpriteAtlas {
     pub page_size: u32,
     sprites: HashMap<(u8, i32, i32), AtlasSprite>,
     placements: HashMap<(u8, i32, i32), (u32, u32, u32)>,
+    palettes: HashMap<(u8, (i32, i32)), wgpu::TextureView>,
     sampler: wgpu::Sampler,
 }
 
@@ -242,11 +243,63 @@ impl SpriteAtlas {
             );
         }
 
+        // Palette strips for shader `pal` bindings.
+        let mut palettes = HashMap::new();
+        for (bank, sff) in banks {
+            for sprite in &sff.sprites {
+                let Some(key) = sprite.palette_key else {
+                    continue;
+                };
+                if palettes.contains_key(&(*bank, key)) || sprite.palette.is_empty() {
+                    continue;
+                }
+                let mut pixels = vec![0u8; 256 * 4];
+                for (index, color) in sprite.palette.iter().take(256).enumerate() {
+                    pixels[index * 4..index * 4 + 4].copy_from_slice(color);
+                }
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("manato sprite palette"),
+                    size: wgpu::Extent3d {
+                        width: 256,
+                        height: 1,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &pixels,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(256 * 4),
+                        rows_per_image: Some(1),
+                    },
+                    wgpu::Extent3d {
+                        width: 256,
+                        height: 1,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                palettes.insert((*bank, key), texture.create_view(&Default::default()));
+            }
+        }
+
         Self {
             pages,
             page_size,
             sprites,
             placements: placement_map,
+            palettes,
             sampler,
         }
     }
@@ -254,6 +307,11 @@ impl SpriteAtlas {
     /// Texture view of an atlas page (custom shader bind groups).
     pub fn page_view(&self, page: u32) -> Option<&wgpu::TextureView> {
         self.pages.get(page as usize).map(|page| &page.view)
+    }
+
+    /// Palette strip for a bank/palette key, used by custom `pal` bindings.
+    pub fn palette_view(&self, bank: u8, key: (i32, i32)) -> Option<&wgpu::TextureView> {
+        self.palettes.get(&(bank, key))
     }
 
     pub fn get(&self, bank: u8, group: i32, index: i32) -> Option<AtlasSprite> {

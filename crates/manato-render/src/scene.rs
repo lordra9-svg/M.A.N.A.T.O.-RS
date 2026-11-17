@@ -721,6 +721,7 @@ pub(crate) fn draw_sprite(
     let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
         return;
     };
+    painter.set_palette(sprite.palette_key.map(|key| (bank, key)));
     let (dest, flipped) = sprite_dest(anchor, offset, sprite, facing, scale, flip_h, flip_v);
     draw_atlas_quad(
         painter,
@@ -753,6 +754,7 @@ pub(crate) fn draw_sprite_at(
     let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
         return;
     };
+    painter.set_palette(sprite.palette_key.map(|key| (bank, key)));
     let w = sprite.width as f32 * scale_x;
     let h = sprite.height as f32 * scale_y;
     draw_atlas_quad(
