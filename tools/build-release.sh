@@ -19,6 +19,21 @@ export PKG_CONFIG_PATH
 
 rustup target add x86_64-pc-windows-gnu x86_64-unknown-linux-musl >/dev/null
 
+# mlua vendors Lua, so the musl target needs a musl C toolchain. Prefer a
+# musl-cross toolchain (installed under ~/.local/share/manato) and fall back to
+# Debian's musl-gcc wrapper.
+MUSL_BIN="${MUSL_BIN:-$HOME/.local/share/manato/x86_64-linux-musl-cross/bin}"
+if [[ -x "$MUSL_BIN/x86_64-linux-musl-gcc" ]]; then
+  export PATH="$MUSL_BIN:$PATH"
+  export CC_x86_64_unknown_linux_musl="$MUSL_BIN/x86_64-linux-musl-gcc"
+elif command -v musl-gcc >/dev/null 2>&1; then
+  export CC_x86_64_unknown_linux_musl=musl-gcc
+else
+  echo "error: musl C toolchain not found (set MUSL_BIN or install musl-tools)" >&2
+  exit 1
+fi
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER="$CC_x86_64_unknown_linux_musl"
+
 echo "==> Linux (glibc, dynamic)"
 cargo build --release -p manato-app
 echo "==> Linux (musl, static)"
