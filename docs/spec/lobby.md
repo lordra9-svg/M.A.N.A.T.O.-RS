@@ -122,9 +122,11 @@ opponent's relay IP and announced GGRS port. `LobbyClient::match_handoff()`
 turns that into `MatchHandoff { local_player, remote }`, and
 `Netplay::from_handoff(sim, handoff, bind)` opens the GGRS session.
 
-Automatic NAT hole punching is not modeled, and the app's headless
-`--matchmake-play` mode reports the lobby state rather than entering the match
-loop itself.
+`--matchmake-play` also auto-enters after the handoff: it reserves a local GGRS
+port, announces it, readies, waits up to 15 seconds for `Peer`, builds
+`Netplay::from_handoff`, and runs a bounded five-second headless loop with AI
+local inputs, reporting frames/checksum. Window-mode netplay input wiring and
+automatic NAT hole punching are not modeled.
 
 ## 4. Security notes
 

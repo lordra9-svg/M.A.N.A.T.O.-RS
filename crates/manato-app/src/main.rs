@@ -547,7 +547,7 @@ fn run_discovery(target: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_matchmake_play(target: &str) -> anyhow::Result<()> {
+fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
     let target: std::net::SocketAddr = target.parse()?;
     let lobbies = manato_net::discovery::Matchmaker::discover(target, Duration::from_secs(1))?;
     for lobby in &lobbies {
@@ -562,17 +562,60 @@ fn run_matchmake_play(target: &str) -> anyhow::Result<()> {
     };
     let mut client = manato_net::lobby::LobbyClient::connect(best.address, "player", false)?;
     println!("joining {} @ {}", best.name, best.address);
+
+    // Reserve a local port for the GGRS socket, then announce it.
+    let local_port = {
+        let probe = std::net::UdpSocket::bind("0.0.0.0:0")?;
+        probe.local_addr()?.port()
+    };
     let started = Instant::now();
     let mut ready_sent = false;
-    while started.elapsed() < Duration::from_secs(3) {
+    let mut handoff = None;
+    while started.elapsed() < Duration::from_secs(15) {
         client.poll()?;
         if client.id.is_some() && !ready_sent {
+            client.announce_netplay(local_port);
             client.set_ready(true);
             ready_sent = true;
         }
+        if let Some(value) = client.match_handoff() {
+            handoff = Some(value);
+            break;
+        }
         std::thread::sleep(Duration::from_millis(10));
     }
-    println!("{}", client.status_text());
+    let Some(handoff) = handoff else {
+        println!("{}", client.status_text());
+        println!("lobby did not start a match within 15s");
+        return Ok(());
+    };
+
+    // Auto-enter: build a GGRS session from the handoff and run a bounded
+    // headless loop with AI local inputs.
+    println!(
+        "entering netplay: local player {} remote {}",
+        handoff.local_player, handoff.remote
+    );
+    let sim = load_match(opts)?;
+    let bind = std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, local_port));
+    let mut netplay = manato_net::Netplay::from_handoff(sim, handoff, bind)?;
+    let mut stepped = 0u32;
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(5) && !netplay.sim().finished {
+        let input = ai::input_for(netplay.sim(), handoff.local_player, opts.ai_level.max(1));
+        if netplay.step(input)? {
+            stepped += 1;
+        }
+        if netplay.sim().finished {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(16));
+    }
+    println!(
+        "netplay stopped: frames={stepped} checksum={:016x} finished={}",
+        netplay.sim().checksum(),
+        netplay.sim().finished
+    );
     Ok(())
 }
 
@@ -617,7 +660,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if let Some(target) = &opts.matchmake_play {
-        return run_matchmake_play(target);
+        return run_matchmake_play(target, &opts);
     }
 
     if let Some(target) = &opts.discover {
