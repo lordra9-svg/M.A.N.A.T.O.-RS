@@ -512,11 +512,15 @@ Driven by `[Select Info]`, drawn over `[SelectBGdef]`.
 
 ### 8.1 Roster (`select.def`)
 
-`[Characters]` lines: `<def>[, <stage>][, <order>]`.
+`[Characters]` lines: `<def>[, <stage>][, <music>][, <key> = <value>...]`.
 
 - Blank lines and `;` comments are ignored.
 - The special token `randomselect` on its own line inserts one random slot.
-- `order` is ignored; the roster keeps file order.
+- Positional fields after the def are stage then music; later `key = value`
+  fields are character parameters.
+- `single = 1` marks a single-mode-only character: it cannot be used as a team
+  partner and its selection forces Single mode for that side. `order` is
+  ignored; the roster keeps file order.
 - A missing character def at match start is a load error, reported once.
 
 Stage resolution: the stage named on the selected roster line, otherwise the

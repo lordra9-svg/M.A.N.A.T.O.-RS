@@ -906,6 +906,9 @@ pub struct RosterEntry {
     /// Optional per-opponent music override (third `select.def` field).
     pub music: Option<String>,
     pub random: bool,
+    /// `single = 1`: the character may only be used in Single team mode and
+    /// cannot be chosen as a team partner.
+    pub single: bool,
 }
 
 impl Roster {
@@ -982,20 +985,46 @@ impl Roster {
                     stage: None,
                     music: None,
                     random: true,
+                    single: false,
                 });
                 continue;
             }
+            // Fields after the def path are either positional (stage, music)
+            // or `key = value` character parameters. `single = 1` marks a
+            // character as single-mode-only.
+            let mut stage = None;
+            let mut music = None;
+            let mut single = false;
+            for part in parts.iter().skip(1) {
+                let part = part.trim();
+                if part.is_empty() {
+                    continue;
+                }
+                if let Some((key, value)) = part.split_once('=') {
+                    let key = key.trim().to_ascii_lowercase();
+                    let value = value.trim().trim_matches('"');
+                    if key == "single" {
+                        single = matches!(
+                            value.to_ascii_lowercase().as_str(),
+                            "1" | "true" | "yes" | "on"
+                        );
+                    }
+                    continue;
+                }
+                let value =
+                    Some(part.trim_matches('"').to_string()).filter(|value| !value.is_empty());
+                if stage.is_none() {
+                    stage = value;
+                } else if music.is_none() {
+                    music = value;
+                }
+            }
             entries.push(RosterEntry {
                 def: def.to_string(),
-                stage: parts
-                    .get(1)
-                    .map(|value| value.trim().trim_matches('"').to_string())
-                    .filter(|value| !value.is_empty()),
-                music: parts
-                    .get(2)
-                    .map(|value| value.trim().trim_matches('"').to_string())
-                    .filter(|value| !value.is_empty()),
+                stage,
+                music,
                 random: false,
+                single,
             });
         }
         Self {
@@ -1645,16 +1674,22 @@ mod tests {
         let roster = Roster::parse_str(
             "[Characters]\nchars/kaen/kaen.def, stages/a.def\n\
              randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg\n\
+             chars/solo/solo.def, , , single = 1\n\
              [Arcade]\norder = random\nspecial = chars/subboss/subboss.def\n\
              finalboss = chars/boss/boss.def\n",
         );
-        assert_eq!(roster.entries.len(), 3);
+        assert_eq!(roster.entries.len(), 4);
         assert_eq!(roster.entries[0].def, "chars/kaen/kaen.def");
         assert_eq!(roster.entries[0].stage.as_deref(), Some("stages/a.def"));
         assert!(roster.entries[1].random);
         assert_eq!(roster.entries[2].stage.as_deref(), Some("stage.def"));
         assert_eq!(roster.entries[2].music.as_deref(), Some("theme.ogg"));
         assert_eq!(roster.entries[2].def, "chars/nival/nival.def");
+        assert!(!roster.entries[2].single);
+        assert_eq!(roster.entries[3].def, "chars/solo/solo.def");
+        assert!(roster.entries[3].single);
+        assert!(roster.entries[3].stage.is_none());
+        assert!(roster.entries[3].music.is_none());
         assert_eq!(roster.arcade.order, ArcadeOrderMode::Random);
         assert_eq!(
             roster.arcade.special.as_deref(),

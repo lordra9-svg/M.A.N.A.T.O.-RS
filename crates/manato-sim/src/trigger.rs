@@ -1969,8 +1969,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         } else {
             1
         }),
-        "memberno" => Value::Int(sim.teams[f.side.min(1)].active as i32 + 1),
-        // Only the active member is simulated; standby members are not ticked.
+        "memberno" => Value::Int(f.team_index as i32 + 1),
+        // Only active members are simulated; standby members are not ticked.
         "standby" => Value::Bool(false),
         "localcoordx" => Value::Int(sim.assets.characters[f.char_id].localcoord().0 as i32),
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
@@ -2197,7 +2197,15 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
                     crate::RoundPhase::Ko | crate::RoundPhase::Over
                 ),
         ),
-        "teammode" => Value::Str("single".into()),
+        "teammode" => Value::Str(
+            match sim.team_modes[f.side.min(1)] {
+                crate::TeamMode::Single => "single",
+                crate::TeamMode::Turns => "turns",
+                crate::TeamMode::Tag => "tag",
+                crate::TeamMode::Simul => "simul",
+            }
+            .into(),
+        ),
         // The simulator only models versus-style 1v1 play, where P1's side
         // (team side 1) is the home team. Arcade's CPU-home rule is not
         // representable because the engine does not track the CPU slot.

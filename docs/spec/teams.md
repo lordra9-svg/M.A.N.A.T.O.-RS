@@ -30,10 +30,12 @@ not ticked, drawn, or collided.
 
 The title Options screen exposes `P1 TEAM`, `P2 TEAM`, `P1 PARTNER`, and
 `P2 PARTNER`: team mode cycles Single → Turns → Tag → Simul, and partner cycles
-through the select.def roster. On match start the selected partner character is
-loaded into `Assets`, the side roster becomes `[leader, partner]`, and
-`SimState.team_modes` receives the chosen modes. Single-mode sides ignore the
-partner selection.
+through the select.def roster, skipping entries marked `single = 1`. On match
+start the selected partner character is loaded into `Assets`, the side roster
+becomes `[leader, partner]`, and `SimState.team_modes` receives the chosen
+modes. A leader marked `single = 1` in `select.def` forces that side to Single
+mode regardless of the options screen, and such entries are never loaded as
+partners. Single-mode sides ignore the partner selection.
 
 The active member's life/red-life/power are synchronized into the roster each
 tick, so standby lifebars and turn selection see current values.
@@ -67,7 +69,7 @@ active fighter's bar, using the synced roster life/life-max values.
 ## 5. Not modeled
 
 - More than two simultaneous members per side.
-- Alternate-character loading from `select.def` team configuration; rosters are
+- Alternate-character loading beyond the explicit leader/partner pair; rosters are
   assigned through the API (tests and hosts).
 - Partner tag animations, tag-in invulnerability windows, and team-specific
   round/score rules.

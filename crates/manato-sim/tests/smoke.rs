@@ -3926,6 +3926,10 @@ fn simul_teams_spawn_partners_and_require_team_ko() {
     // Opponent selection picks the nearest living member of the other side.
     assert!(sim.opponent_of(0) == 1 || sim.opponent_of(0) == 3);
     assert!(sim.opponent_of(partner) == 1 || sim.opponent_of(partner) == 3);
+    assert!(manato_sim::trigger::flag(&sim, 0, "teammode = simul"));
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "memberno"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, partner, "memberno"), 2);
+    assert_eq!(manato_sim::trigger::int(&sim, partner, "teamsize"), 2);
 
     for _ in 0..60 {
         sim.tick([PlayerInput::default(); 2]);

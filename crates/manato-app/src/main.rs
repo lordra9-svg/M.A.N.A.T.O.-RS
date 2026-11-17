@@ -866,6 +866,7 @@ impl Frontend {
                         stage: None,
                         music: None,
                         random: false,
+                        single: false,
                     })
                     .collect(),
                 stages: Vec::new(),
@@ -1085,9 +1086,29 @@ impl Frontend {
         if side >= 2 || self.roster.is_empty() {
             return;
         }
-        let current = self.partners[side].unwrap_or(0) as i32;
-        let next = (current + delta).rem_euclid(self.roster.len() as i32);
+        let len = self.roster.len() as i32;
+        let mut next = self.partners[side].unwrap_or(0) as i32;
+        // Single-mode-only characters cannot be team partners.
+        for _ in 0..len {
+            next = (next + delta).rem_euclid(len);
+            if !self.roster[next as usize].single {
+                break;
+            }
+        }
         self.partners[side] = Some(next as usize);
+    }
+
+    /// Team modes after applying select.def single-only rules for the chosen
+    /// leaders. A single-only leader forces Single mode for its side.
+    fn effective_team_modes(&self) -> [manato_sim::TeamMode; 2] {
+        let mut modes = self.team_modes;
+        for (side, mode) in modes.iter_mut().enumerate() {
+            let cell = if side == 0 { self.p1 } else { self.p2 };
+            if chosen_entry(self, cell).is_some_and(|entry| entry.single) {
+                *mode = manato_sim::TeamMode::Single;
+            }
+        }
+        modes
     }
 
     fn move_cursor(&mut self, side: usize, dx: i32, dy: i32) {
@@ -1392,7 +1413,7 @@ impl App {
             rounds_to_win: rounds,
             round_time,
         };
-        let team_modes = frontend.team_modes;
+        let team_modes = frontend.effective_team_modes();
         let partner_entries = [
             frontend.partners[0].and_then(|index| chosen_entry(frontend, index)),
             frontend.partners[1].and_then(|index| chosen_entry(frontend, index)),
@@ -1413,6 +1434,9 @@ impl App {
             let Some(entry) = &partner_entries[side] else {
                 continue;
             };
+            if entry.single {
+                continue;
+            }
             let path = if Path::new(&entry.def).is_absolute() {
                 PathBuf::from(&entry.def)
             } else {
@@ -2372,6 +2396,7 @@ mod tests {
             stage: None,
             music: None,
             random: false,
+            single: false,
         };
         Frontend {
             screen: FrontendScreen::Title,
@@ -2454,6 +2479,28 @@ mod tests {
             frontend.cycle_partner(0, 1);
         }
         assert_eq!(frontend.partners[0], changed, "partner cycling wraps");
+    }
+
+    #[test]
+    fn single_only_roster_entries_force_single_mode_and_skip_partners() {
+        let mut frontend = test_frontend();
+        frontend.roster[1].single = true;
+        frontend.partners[0] = Some(0);
+        frontend.cycle_partner(0, 1);
+        assert_eq!(frontend.partners[0], Some(2), "single-only partner skipped");
+
+        frontend.p1 = 1;
+        frontend.p2 = 0;
+        frontend.team_modes = [manato_sim::TeamMode::Simul, manato_sim::TeamMode::Tag];
+        assert_eq!(
+            frontend.effective_team_modes(),
+            [manato_sim::TeamMode::Single, manato_sim::TeamMode::Tag]
+        );
+        frontend.p2 = 1;
+        assert_eq!(
+            frontend.effective_team_modes(),
+            [manato_sim::TeamMode::Single; 2]
+        );
     }
 
     #[test]
