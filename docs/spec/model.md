@@ -1,7 +1,7 @@
 # 3D models
 
-**Status: APPROVED (partial).** Static glTF triangle meshes with base-color
-textures are loaded and rendered behind the 2D scene.
+**Status: APPROVED (partial).** glTF triangle meshes with base-color textures
+and the first node animation are loaded and rendered behind the 2D scene.
 
 ## Loading
 
@@ -28,7 +28,11 @@ textures are loaded and rendered behind the 2D scene.
 
 ## Not modeled
 
-- Node transforms, skinning, morph targets, and glTF animations.
+- The first glTF animation's translation/rotation/scale channels are sampled
+  (step/linear) and applied through the node hierarchy each frame. Animation
+  time follows the match clock (or storyboard scene clock) in seconds.
+- Skinning, morph targets, and additional animation clips.
 - PBR lighting, metallic/roughness, normal/emissive maps, and environment maps.
-- `ModifyBGCtrl3D` targeting individual model nodes.
+- `ModifyBGCtrl3D` targeting individual model nodes (node transforms are
+  driven by glTF animation, not stage controllers).
 - 3D placement/offset/rotation/scale fields from the stage/storyboard DEF.

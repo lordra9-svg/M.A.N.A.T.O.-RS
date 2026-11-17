@@ -89,6 +89,8 @@ pub struct Renderer {
     model_sampler: wgpu::Sampler,
     model_white_view: wgpu::TextureView,
     model_draws: Vec<(wgpu::Buffer, u32, wgpu::BindGroup)>,
+    model_asset: Option<model::ModelAsset>,
+    model_time: f32,
     /// Standalone textures for `ShaderSet tex1`/`tex2` sprite references.
     shader_textures: HashMap<(u8, i32, i32), wgpu::TextureView>,
     solid: wgpu::BindGroup,
@@ -640,6 +642,8 @@ impl Renderer {
             model_sampler,
             model_white_view,
             model_draws: Vec::new(),
+            model_asset: None,
+            model_time: 0.0,
             solid,
             shadow,
             blit_pipeline,
@@ -1021,6 +1025,7 @@ impl Renderer {
         }
         self.apply_palette_remaps(sim);
         self.shader_time = sim.match_time as f32 / 60.0;
+        self.update_model(sim.match_time as f32 / 60.0);
         for fighter in &sim.fighters {
             if fighter.shader.is_none() {
                 continue;
@@ -1064,7 +1069,8 @@ impl Renderer {
         match model::load(path) {
             Ok(asset) => {
                 self.model_draws.clear();
-                for draw in &asset.draws {
+                let samples = asset.sample(0.0);
+                for (draw, vertices) in asset.draws.iter().zip(samples.iter()) {
                     let view = match &draw.texture {
                         Some(texture) if texture.width > 0 && texture.height > 0 => {
                             let gpu_texture =
@@ -1121,11 +1127,13 @@ impl Renderer {
                         ],
                     });
                     self.model_draws.push((
-                        model::upload_model(&self.device, &draw.vertices),
-                        draw.vertices.len() as u32,
+                        model::upload_model(&self.device, vertices),
+                        vertices.len() as u32,
                         bind_group,
                     ));
                 }
+                self.model_asset = Some(asset);
+                self.model_time = 0.0;
             }
             Err(error) => {
                 log::warn!("model {}: {error:#}", path.display());
@@ -1134,8 +1142,26 @@ impl Renderer {
         }
     }
 
+    fn update_model(&mut self, time: f32) {
+        let Some(asset) = &self.model_asset else {
+            return;
+        };
+        if (time - self.model_time).abs() < f32::EPSILON {
+            return;
+        }
+        self.model_time = time;
+        let samples = asset.sample(time);
+        for ((buffer, count, _), vertices) in self.model_draws.iter().zip(samples.iter()) {
+            if vertices.len() as u32 == *count {
+                self.queue
+                    .write_buffer(buffer, 0, bytemuck::cast_slice(vertices));
+            }
+        }
+    }
+
     pub fn clear_model(&mut self) {
         self.model_draws.clear();
+        self.model_asset = None;
     }
 
     /// Builds the atlas from a storyboard's sprite file.
@@ -1182,6 +1208,7 @@ impl Renderer {
         storyboard: &manato_formats::storyboard::Storyboard,
         player: &manato_formats::storyboard::StoryboardPlayer,
     ) {
+        self.update_model(player.time as f32 / 60.0);
         let deps = SceneDeps {
             atlas: &self.atlas,
             font: &self.font,

@@ -18,4 +18,5 @@ bytemuck.workspace = true
 pollster.workspace = true
 image.workspace = true
 gltf.workspace = true
+glam.workspace = true
 font8x8 = "0.3"
