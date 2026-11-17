@@ -80,8 +80,14 @@ when the scene set completes. `ModifyStoryboard` matches overlays by `id`
 Layer PalFX is applied per sprite/text quad by the sprite shader in the
 Ikemen order: hue rotation, invert, saturation (`color`), add, then multiply.
 Because it runs on sampled texels it affects the source sprite and text glyphs
-rather than only the tint. `invertblend` is parsed but does not change the
-blend mode yet.
+rather than only the tint.
+
+`palfx.invertblend` follows Ikemen's blend-pass mapping: negative values
+(`<= -2`) become `3` while `invertall` is active. On additive/subtractive
+sprite passes, values `>= 1` swap Add and Sub, negate the additive color, and
+`3` also disables the shader invert because reverse-subtract blending already
+inverts the result. Normal-blended sprites and text are unaffected by the
+blend swap.
 
 In-match overlays draw both **sprite/animation layers** and text layers at the
 overlay position/scale/facing in screen or world space. The renderer assigns
@@ -93,5 +99,3 @@ the overlay's layers, and `fadein`/`fadeout` alpha is drawn over them.
 ## 6. Not modeled
 
 - Lua storyboard scripting, dynamic backgrounds, and 3D models.
-- `palfx.invertblend` blend-mode variants; the transform itself does not
-  depend on the sprite blend mode.

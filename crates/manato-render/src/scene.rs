@@ -1460,6 +1460,34 @@ fn draw_hud(painter: &mut Painter, font: &FontAtlas, sim: &SimState) {
 }
 
 /// Draws in-match `Storyboard` overlays (text layers).
+/// Applies `palfx.invertblend` to a sprite's blend mode. Values `>= 1` swap
+/// additive and subtractive passes, matching Ikemen's subtract handling.
+fn palfx_blend(palfx: &manato_formats::storyboard::PalFxSample, blend: Blend) -> Blend {
+    if !palfx.swaps_blend_passes() {
+        return blend;
+    }
+    match blend {
+        Blend::Add => Blend::Sub,
+        Blend::Sub => Blend::Add,
+        Blend::Normal => Blend::Normal,
+    }
+}
+
+/// Negates PalFX add on swapped subtractive passes so the inversion is not
+/// applied twice. Normal-blended quads are unchanged.
+fn palfx_sprite_add(palfx: &manato_formats::storyboard::PalFxSample, blend: Blend) -> [f32; 3] {
+    if palfx.swaps_blend_passes() && blend != Blend::Normal {
+        [-palfx.add[0], -palfx.add[1], -palfx.add[2]]
+    } else {
+        palfx.add
+    }
+}
+
+/// `invertblend = 3` relies on subtractive blending for inversion.
+fn palfx_sprite_invert(palfx: &manato_formats::storyboard::PalFxSample, blend: Blend) -> bool {
+    palfx.invert && !(palfx.disables_shader_invert() && blend != Blend::Normal)
+}
+
 fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimState) {
     for (index, overlay) in sim.storyboards.iter().enumerate() {
         let Some(bank_index) = bank::OVERLAY_BASE.checked_add(index as u8) else {
@@ -1541,7 +1569,12 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     layer.scale.y * overlay.scale.y * pose.scale.y,
                 );
                 let palfx = layer.palfx_at(overlay.player.time);
-                painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
+                painter.set_palfx(
+                    palfx_sprite_add(&palfx, pose.blend),
+                    palfx.color,
+                    palfx.hue,
+                    palfx_sprite_invert(&palfx, pose.blend),
+                );
                 draw_sprite(
                     painter,
                     deps.atlas,
@@ -1553,7 +1586,7 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     scale,
                     pose.flip_h,
                     pose.flip_v,
-                    pose.blend,
+                    palfx_blend(&palfx, pose.blend),
                     [
                         palfx.mul[0] / 256.0,
                         palfx.mul[1] / 256.0,
@@ -1669,7 +1702,12 @@ pub fn draw_storyboard(
         if let Some((sprite, pose)) = sprite_pose {
             let scale = Vec2::new(layer.scale.x * pose.scale.x, layer.scale.y * pose.scale.y);
             let palfx = layer.palfx_at(player.time);
-            painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
+            painter.set_palfx(
+                palfx_sprite_add(&palfx, pose.blend),
+                palfx.color,
+                palfx.hue,
+                palfx_sprite_invert(&palfx, pose.blend),
+            );
             draw_sprite(
                 painter,
                 deps.atlas,
@@ -1681,7 +1719,7 @@ pub fn draw_storyboard(
                 scale,
                 pose.flip_h,
                 pose.flip_v,
-                pose.blend,
+                palfx_blend(&palfx, pose.blend),
                 [
                     palfx.mul[0] / 256.0,
                     palfx.mul[1] / 256.0,
@@ -2004,5 +2042,46 @@ mod tests {
             test_projectile(0, 1),
         ];
         assert_eq!(projectile_draw_order(&equal, false), vec![2, 0, 1]);
+    }
+}
+
+#[cfg(test)]
+mod palfx_tests {
+    use super::*;
+    use manato_formats::storyboard::PalFxSample;
+
+    #[test]
+    fn invertblend_swaps_add_sub_passes_only() {
+        let identity = PalFxSample::identity();
+        assert_eq!(palfx_blend(&identity, Blend::Add), Blend::Add);
+        let swapped = PalFxSample {
+            add: [10.0, 20.0, 30.0],
+            invert: true,
+            invert_blend: 1,
+            ..identity
+        };
+        assert_eq!(palfx_blend(&swapped, Blend::Add), Blend::Sub);
+        assert_eq!(palfx_blend(&swapped, Blend::Sub), Blend::Add);
+        assert_eq!(palfx_blend(&swapped, Blend::Normal), Blend::Normal);
+        assert_eq!(
+            palfx_sprite_add(&swapped, Blend::Sub),
+            [-10.0, -20.0, -30.0]
+        );
+        assert_eq!(
+            palfx_sprite_add(&swapped, Blend::Normal),
+            [10.0, 20.0, 30.0]
+        );
+        assert!(palfx_sprite_invert(&swapped, Blend::Sub));
+    }
+
+    #[test]
+    fn invertblend_three_disables_shader_invert_on_sub_passes() {
+        let sample = PalFxSample {
+            invert: true,
+            invert_blend: 3,
+            ..PalFxSample::identity()
+        };
+        assert!(!palfx_sprite_invert(&sample, Blend::Sub));
+        assert!(palfx_sprite_invert(&sample, Blend::Normal));
     }
 }

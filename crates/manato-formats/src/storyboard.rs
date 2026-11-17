@@ -91,6 +91,9 @@ pub struct PalFxSample {
     /// Hue shift as a fraction of a full turn.
     pub hue: f32,
     pub invert: bool,
+    /// Effective `palfx.invertblend`: `>= 1` swaps add/subtract passes and
+    /// `3` additionally disables the shader invert.
+    pub invert_blend: i32,
 }
 
 impl PalFxSample {
@@ -101,6 +104,7 @@ impl PalFxSample {
             color: 1.0,
             hue: 0.0,
             invert: false,
+            invert_blend: 0,
         }
     }
 
@@ -110,6 +114,18 @@ impl PalFxSample {
             && self.color == 1.0
             && self.hue == 0.0
             && !self.invert
+            && self.invert_blend == 0
+    }
+
+    /// `invertblend >= 1` swaps the add and subtract blend passes.
+    pub fn swaps_blend_passes(&self) -> bool {
+        self.invert_blend >= 1
+    }
+
+    /// `invertblend == 3` disables the shader invert because subtractive
+    /// blending already inverts the colors.
+    pub fn disables_shader_invert(&self) -> bool {
+        self.invert_blend == 3
     }
 }
 
@@ -193,6 +209,12 @@ impl StoryboardLayer {
             color: self.palfx_color + color_phase * (self.palfx_sincolor / 256.0),
             hue: self.palfx_hue + hue_phase * (self.palfx_sinhue / 512.0),
             invert: self.palfx_invertall,
+            // Ikemen maps negative blend variants to 3 when inversion is on.
+            invert_blend: if self.palfx_invertblend <= -2 && self.palfx_invertall {
+                3
+            } else {
+                self.palfx_invertblend
+            },
         };
         sample.mul = [
             sample.mul[0].clamp(0.0, 256.0),
@@ -890,6 +912,27 @@ layer0.scale = 2,2
         // time = 0 disables the effect immediately.
         layer.palfx_time = 0;
         assert_eq!(layer.palfx_at(0), PalFxSample::identity());
+    }
+
+    #[test]
+    fn layer_palfx_invertblend_variants() {
+        let mut layer = StoryboardLayer::default();
+        assert!(!layer.palfx_at(0).swaps_blend_passes());
+        layer.palfx_invertblend = 1;
+        let sample = layer.palfx_at(0);
+        assert!(sample.swaps_blend_passes());
+        assert!(!sample.disables_shader_invert());
+        layer.palfx_invertblend = 3;
+        let sample = layer.palfx_at(0);
+        assert!(sample.swaps_blend_passes());
+        assert!(sample.disables_shader_invert());
+        // Negative variants become 3 only while invertall is active.
+        layer.palfx_invertblend = -2;
+        assert_eq!(layer.palfx_at(0).invert_blend, -2);
+        layer.palfx_invertall = true;
+        let sample = layer.palfx_at(0);
+        assert_eq!(sample.invert_blend, 3);
+        assert!(sample.disables_shader_invert());
     }
 
     #[test]
