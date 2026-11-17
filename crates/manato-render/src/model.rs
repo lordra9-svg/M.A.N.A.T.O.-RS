@@ -18,6 +18,8 @@ pub struct ModelVertex {
     pub pos: [f32; 3],
     pub uv: [f32; 2],
     pub color: [f32; 4],
+    pub joints: [u16; 4],
+    pub weights: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -28,11 +30,18 @@ pub struct ModelTexture {
 }
 
 #[derive(Debug, Clone)]
+pub struct ModelSkin {
+    joints: Vec<usize>,
+    inverse_bind: Vec<Mat4>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ModelDraw {
     /// Node-local vertex positions plus UV/color.
     pub vertices: Vec<ModelVertex>,
     pub node: usize,
     pub texture: Option<ModelTexture>,
+    skin: Option<ModelSkin>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,7 +109,29 @@ impl ModelAsset {
                     .iter()
                     .map(|vertex| {
                         let local = Vec3::from_array(vertex.pos);
-                        let transformed = delta.transform_point3(local);
+                        let transformed = match &draw.skin {
+                            Some(skin) => {
+                                let mut sum = Vec3::ZERO;
+                                for slot in 0..4 {
+                                    let weight = vertex.weights[slot];
+                                    if weight <= 0.0 {
+                                        continue;
+                                    }
+                                    let joint = vertex.joints[slot] as usize;
+                                    let Some(&joint_node) = skin.joints.get(joint) else {
+                                        continue;
+                                    };
+                                    let Some(bind) = skin.inverse_bind.get(joint) else {
+                                        continue;
+                                    };
+                                    let joint_world =
+                                        worlds.get(joint_node).copied().unwrap_or(Mat4::IDENTITY);
+                                    sum += weight * (joint_world * *bind).transform_point3(local);
+                                }
+                                sum
+                            }
+                            None => delta.transform_point3(local),
+                        };
                         let mut out = *vertex;
                         out.pos = [
                             GAME_WIDTH as f32 * 0.5
@@ -239,6 +270,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
         let Some(mesh) = node.mesh() else {
             continue;
         };
+        let node_skin = node.skin();
         for primitive in mesh.primitives() {
             if primitive.mode() != gltf::mesh::Mode::Triangles {
                 continue;
@@ -252,6 +284,29 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .read_tex_coords(0)
                 .map(|coords| coords.into_f32().collect())
                 .unwrap_or_default();
+            let joints: Vec<[u16; 4]> = reader
+                .read_joints(0)
+                .map(|values| values.into_u16().collect())
+                .unwrap_or_default();
+            let weights: Vec<[f32; 4]> = reader
+                .read_weights(0)
+                .map(|values| values.into_f32().collect())
+                .unwrap_or_default();
+            let skin = node_skin.as_ref().and_then(|skin| {
+                let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
+                let inverse_bind: Vec<Mat4> = reader
+                    .read_inverse_bind_matrices()?
+                    .map(|matrix| Mat4::from_cols_array_2d(&matrix))
+                    .collect();
+                let joints = skin
+                    .joints()
+                    .filter_map(|joint| node_index.get(&joint.index()).copied())
+                    .collect();
+                Some(ModelSkin {
+                    joints,
+                    inverse_bind,
+                })
+            });
             let material = primitive.material();
             let color = material.pbr_metallic_roughness().base_color_factor();
             let color = [
@@ -274,10 +329,13 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
             let vertices: Vec<ModelVertex> = indices
                 .into_iter()
                 .filter_map(|index| {
-                    positions.get(index as usize).map(|position| ModelVertex {
+                    let index = index as usize;
+                    positions.get(index).map(|position| ModelVertex {
                         pos: *position,
-                        uv: uvs.get(index as usize).copied().unwrap_or([0.0, 0.0]),
+                        uv: uvs.get(index).copied().unwrap_or([0.0, 0.0]),
                         color,
+                        joints: joints.get(index).copied().unwrap_or([0; 4]),
+                        weights: weights.get(index).copied().unwrap_or([0.0; 4]),
                     })
                 })
                 .collect();
@@ -286,6 +344,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     vertices,
                     node: node_index_value,
                     texture,
+                    skin: skin.clone(),
                 });
             }
         }
@@ -575,6 +634,63 @@ mod tests {
         assert_eq!((texture.width, texture.height), (1, 1));
         assert_eq!(&texture.rgba[..4], &[255, 0, 0, 255]);
         assert_eq!(asset.sample(0.0)[0].len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn skinned_joint_animation_moves_vertices() {
+        let dir = std::env::temp_dir().join(format!("manato-model-skin-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("skinned.gltf");
+        std::fs::write(
+            &path,
+            r#"{
+  "asset": {"version": "2.0"},
+  "buffers": [
+    {"uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAEAAAAAA", "byteLength": 36},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "byteLength": 24},
+    {"uri": "data:application/octet-stream;base64,AACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAA", "byteLength": 48},
+    {"uri": "data:application/octet-stream;base64,AACAPwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAAAAAACAPw==", "byteLength": 64},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAgD8=", "byteLength": 8},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAA", "byteLength": 24}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteLength": 36, "target": 34962},
+    {"buffer": 1, "byteLength": 24, "target": 34962},
+    {"buffer": 2, "byteLength": 48, "target": 34962},
+    {"buffer": 3, "byteLength": 64},
+    {"buffer": 4, "byteLength": 8},
+    {"buffer": 5, "byteLength": 24}
+  ],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,0,0], "max": [1,2,0]},
+    {"bufferView": 1, "componentType": 5123, "count": 3, "type": "VEC4"},
+    {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"},
+    {"bufferView": 3, "componentType": 5126, "count": 1, "type": "MAT4"},
+    {"bufferView": 4, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [1]},
+    {"bufferView": 5, "componentType": 5126, "count": 2, "type": "VEC3"}
+  ],
+  "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [1,1,1,1]}}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "JOINTS_0": 1, "WEIGHTS_0": 2}, "material": 0, "mode": 4}]}],
+  "nodes": [{"mesh": 0, "skin": 0}, {"name": "joint"}],
+  "skins": [{"joints": [1], "inverseBindMatrices": 3}],
+  "scenes": [{"nodes": [0, 1]}],
+  "scene": 0,
+  "animations": [{"channels": [{"sampler": 0, "target": {"node": 1, "path": "translation"}}],
+                  "samplers": [{"input": 4, "output": 5, "interpolation": "LINEAR"}]}]
+}"#,
+        )
+        .expect("model");
+        let asset = load(&path).expect("load");
+        assert_eq!(asset.draws.len(), 1);
+        assert!(asset.draws[0].skin.is_some());
+        let start = asset.sample(0.0)[0][0].pos;
+        let end = asset.sample(1.0)[0][0].pos;
+        assert!(
+            (end[0] - start[0]).abs() > 1.0,
+            "joint animation deformed the mesh"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
