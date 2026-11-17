@@ -142,9 +142,19 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     for who in order {
         painter.set_shader(sim.fighters[who].shader.clone());
         painter.set_shader_params(Some(sim.fighters[who].shader_params));
+        let bank = bank::CHARACTER_BASE + sim.fighters[who].char_id as u8;
+        painter.set_shader_textures(
+            sim.fighters[who]
+                .shader_tex1
+                .map(|(group, index)| (bank, group, index)),
+            sim.fighters[who]
+                .shader_tex2
+                .map(|(group, index)| (bank, group, index)),
+        );
         draw_fighter(painter, deps.atlas, sim, who);
         painter.set_shader(None);
         painter.set_shader_params(None);
+        painter.set_shader_textures(None, None);
     }
 
     painter.set_depth(0.45);

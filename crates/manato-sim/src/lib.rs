@@ -1596,6 +1596,8 @@ impl SimState {
                 fighter.shader_time -= 1;
                 if fighter.shader_time == 0 {
                     fighter.shader = None;
+                    fighter.shader_tex1 = None;
+                    fighter.shader_tex2 = None;
                 }
             }
             // `Width`/`Height` are per-tick overrides: Ikemen resets them
@@ -2967,6 +2969,8 @@ impl SimState {
             fighter.shader = None;
             fighter.shader_time = 0;
             fighter.shader_params = [0.0; 16];
+            fighter.shader_tex1 = None;
+            fighter.shader_tex2 = None;
             fighter.sprite_remap.clear();
             fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;

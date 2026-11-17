@@ -2541,6 +2541,8 @@ fn shader_set(sim: &mut SimState, who: usize, control: &Controller) {
         sim.fighters[who].shader = None;
         sim.fighters[who].shader_time = 0;
         sim.fighters[who].shader_params = [0.0; 16];
+        sim.fighters[who].shader_tex1 = None;
+        sim.fighters[who].shader_tex2 = None;
         return;
     }
     if !sim.character(who).def.shaders.contains_key(&name) {
@@ -2562,6 +2564,20 @@ fn shader_set(sim: &mut SimState, who: usize, control: &Controller) {
                 }
             }
         }
+    }
+    // Sprite references used by the `tex1`/`tex2` shader samplers.
+    let tex = |key: &str| {
+        control.get_pair(key).and_then(|(g, i)| {
+            let group = g as i32;
+            let index = i as i32;
+            (group >= 0 && index >= 0).then_some((group, index))
+        })
+    };
+    if let Some(tex1) = tex("tex1") {
+        sim.fighters[who].shader_tex1 = Some(tex1);
+    }
+    if let Some(tex2) = tex("tex2") {
+        sim.fighters[who].shader_tex2 = Some(tex2);
     }
     sim.fighters[who].shader = Some(name);
     sim.fighters[who].shader_time = if time < 0 { -1 } else { time.max(1) };

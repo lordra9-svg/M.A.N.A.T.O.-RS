@@ -3285,16 +3285,25 @@ fn depth_shaderset_and_z_components() {
     run(
         &mut sim,
         "shaderset",
-        vec![("shader", "\"fire\""), ("time", "2")],
+        vec![
+            ("shader", "\"fire\""),
+            ("time", "2"),
+            ("tex1", "0,0"),
+            ("tex2", "0,1"),
+        ],
     );
     assert_eq!(shader(&sim), "fire");
     assert_eq!(sim.fighters[0].shader_time, 2);
+    assert_eq!(sim.fighters[0].shader_tex1, Some((0, 0)));
+    assert_eq!(sim.fighters[0].shader_tex2, Some((0, 1)));
     run(&mut sim, "shaderset", vec![("shader", "\"missing\"")]);
     assert_eq!(shader(&sim), "fire");
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(shader(&sim), "fire");
     sim.tick([PlayerInput::default(); 2]);
     assert_eq!(shader(&sim), "");
+    assert_eq!(sim.fighters[0].shader_tex1, None);
+    assert_eq!(sim.fighters[0].shader_tex2, None);
 
     // Shader selection is checksum-covered.
     run(&mut sim, "shaderset", vec![("shader", "\"fire\"")]);

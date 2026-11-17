@@ -51,6 +51,9 @@ pub struct DrawRange {
     pub shader_params: Option<[f32; 16]>,
     /// Sprite palette used for the custom `pal` binding.
     pub palette: Option<(u8, (i32, i32))>,
+    /// Referenced sprite `(bank, group, index)` for `tex1`/`tex2`.
+    pub shader_tex1: Option<(u8, i32, i32)>,
+    pub shader_tex2: Option<(u8, i32, i32)>,
 }
 
 /// Accumulates quads and the state changes needed to draw them.
@@ -65,6 +68,8 @@ pub struct Painter {
     fx: [f32; 4],
     fx2: [f32; 4],
     palette: Option<(u8, (i32, i32))>,
+    shader_tex1: Option<(u8, i32, i32)>,
+    shader_tex2: Option<(u8, i32, i32)>,
 }
 
 impl Default for Painter {
@@ -80,6 +85,8 @@ impl Default for Painter {
             fx: [0.0, 0.0, 0.0, 1.0],
             fx2: [0.0, 0.0, 0.0, 0.0],
             palette: None,
+            shader_tex1: None,
+            shader_tex2: None,
         }
     }
 }
@@ -96,6 +103,18 @@ impl Painter {
         self.fx = [0.0, 0.0, 0.0, 1.0];
         self.fx2 = [0.0, 0.0, 0.0, 0.0];
         self.palette = None;
+        self.shader_tex1 = None;
+        self.shader_tex2 = None;
+    }
+
+    /// Selects referenced sprite textures for custom shader `tex1`/`tex2`.
+    pub fn set_shader_textures(
+        &mut self,
+        tex1: Option<(u8, i32, i32)>,
+        tex2: Option<(u8, i32, i32)>,
+    ) {
+        self.shader_tex1 = tex1;
+        self.shader_tex2 = tex2;
     }
 
     /// Selects the sprite palette bound as `pal` for custom shaders.
@@ -153,6 +172,8 @@ impl Painter {
                 && last.shader == self.shader
                 && last.shader_params == self.shader_params
                 && last.palette == self.palette
+                && last.shader_tex1 == self.shader_tex1
+                && last.shader_tex2 == self.shader_tex2
                 && last.start + last.count == self.vertices.len() as u32
             {
                 last.count += 6;
@@ -169,6 +190,8 @@ impl Painter {
             shader: self.shader.clone(),
             shader_params: self.shader_params,
             palette: self.palette,
+            shader_tex1: self.shader_tex1,
+            shader_tex2: self.shader_tex2,
         });
     }
 

@@ -422,6 +422,11 @@ pub struct Fighter {
     pub shader_time: i32,
     /// `ShaderSet shaderparam` values (index → value, 16 slots).
     pub shader_params: [f32; 16],
+    /// `ShaderSet tex1`/`tex2` sprite references `(group, index)`.
+    #[serde(default)]
+    pub shader_tex1: Option<(i32, i32)>,
+    #[serde(default)]
+    pub shader_tex2: Option<(i32, i32)>,
     /// Active `ChangeMovelist` selection (0 = default).
     pub movelist: i32,
     /// `RemapSprite` substitutions: source `(group, index)` → destination.
@@ -624,6 +629,8 @@ impl Fighter {
             shader: None,
             shader_time: 0,
             shader_params: [0.0; 16],
+            shader_tex1: None,
+            shader_tex2: None,
             movelist: 0,
             sprite_remap: BTreeMap::new(),
             map: BTreeMap::new(),

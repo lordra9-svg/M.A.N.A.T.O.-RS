@@ -80,6 +80,8 @@ pub struct Renderer {
     overlay_signature: Vec<(usize, String)>,
     /// Atlas bank for each `(overlay storyboard pointer, scene index)` bg.
     overlay_bg_banks: HashMap<(usize, usize), u8>,
+    /// Standalone textures for `ShaderSet tex1`/`tex2` sprite references.
+    shader_textures: HashMap<(u8, i32, i32), wgpu::TextureView>,
     solid: wgpu::BindGroup,
     shadow: wgpu::BindGroup,
 
@@ -528,6 +530,7 @@ impl Renderer {
             status_line: None,
             overlay_signature: Vec::new(),
             overlay_bg_banks: HashMap::new(),
+            shader_textures: HashMap::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -555,6 +558,7 @@ impl Renderer {
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.overlay_signature.clear();
         self.overlay_bg_banks.clear();
+        self.shader_textures.clear();
 
         self.screen_fonts.clear();
         if let Some(screenpack) = &assets.screenpack {
@@ -904,6 +908,18 @@ impl Renderer {
         }
         self.apply_palette_remaps(sim);
         self.shader_time = sim.match_time as f32 / 60.0;
+        for fighter in &sim.fighters {
+            if fighter.shader.is_none() {
+                continue;
+            }
+            let bank = bank::CHARACTER_BASE + fighter.char_id as u8;
+            for (group, index) in [fighter.shader_tex1, fighter.shader_tex2]
+                .into_iter()
+                .flatten()
+            {
+                self.ensure_shader_texture(sim, (bank, group, index));
+            }
+        }
         let deps = SceneDeps {
             atlas: &self.atlas,
             font: &self.font,
@@ -1134,6 +1150,64 @@ impl Renderer {
         self.present();
     }
 
+    fn ensure_shader_texture(&mut self, sim: &SimState, key: (u8, i32, i32)) {
+        if self.shader_textures.contains_key(&key) {
+            return;
+        }
+        let (bank, group, index) = key;
+        let Some(char_index) = (bank as usize).checked_sub(bank::CHARACTER_BASE as usize) else {
+            return;
+        };
+        let Some(sprite) = sim
+            .assets
+            .characters
+            .get(char_index)
+            .and_then(|character| character.sprites.get(group, index))
+        else {
+            return;
+        };
+        if sprite.width == 0 || sprite.height == 0 {
+            return;
+        }
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("manato shader reference texture"),
+            size: wgpu::Extent3d {
+                width: sprite.width,
+                height: sprite.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        if sprite.rgba.len() == (sprite.width * sprite.height * 4) as usize {
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &sprite.rgba,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(sprite.width * 4),
+                    rows_per_image: Some(sprite.height),
+                },
+                wgpu::Extent3d {
+                    width: sprite.width,
+                    height: sprite.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        self.shader_textures
+            .insert(key, texture.create_view(&Default::default()));
+    }
+
     /// Uploads the accumulated vertices and records the frame commands.
     fn present(&mut self) {
         let bytes = cast_slice(&self.painter.vertices);
@@ -1172,6 +1246,14 @@ impl Renderer {
                     .palette
                     .and_then(|(bank, key)| self.atlas.palette_view(bank, key))
                     .unwrap_or(view);
+                let tex1_view = range
+                    .shader_tex1
+                    .and_then(|key| self.shader_textures.get(&key))
+                    .unwrap_or(view);
+                let tex2_view = range
+                    .shader_tex2
+                    .and_then(|key| self.shader_textures.get(&key))
+                    .unwrap_or(view);
                 let mut data = [0f32; 20];
                 if let Some(params) = range.shader_params {
                     data[..16].copy_from_slice(&params);
@@ -1191,9 +1273,9 @@ impl Renderer {
                     (0, wgpu::BindingResource::TextureView(view)),
                     (1, wgpu::BindingResource::Sampler(&self.shader_sampler)),
                     (2, buffer.as_entire_binding()),
-                    (3, wgpu::BindingResource::TextureView(view)),
+                    (3, wgpu::BindingResource::TextureView(tex1_view)),
                     (4, wgpu::BindingResource::Sampler(&self.shader_sampler)),
-                    (5, wgpu::BindingResource::TextureView(view)),
+                    (5, wgpu::BindingResource::TextureView(tex2_view)),
                     (6, wgpu::BindingResource::Sampler(&self.shader_sampler)),
                     (7, wgpu::BindingResource::TextureView(palette_view)),
                     (8, wgpu::BindingResource::Sampler(&self.shader_sampler)),
@@ -1674,6 +1756,72 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let size = std::fs::metadata(&path).expect("file").len();
         assert!(size > 1000, "continue screen should not be blank");
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn custom_shader_tex1_and_tex2_bind_referenced_sprites() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-tex1-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let shader_path = dir.join("tex.frag");
+        std::fs::write(
+            &shader_path,
+            r#"#version 450
+layout(location = 0) in vec2 uv;
+layout(location = 1) in vec4 color;
+layout(binding = 0) uniform texture2D tex;
+layout(binding = 1) uniform sampler samp;
+layout(binding = 3) uniform texture2D tex1;
+layout(binding = 4) uniform sampler tex1samp;
+layout(binding = 5) uniform texture2D tex2;
+layout(binding = 6) uniform sampler tex2samp;
+layout(location = 0) out vec4 frag;
+void main() {
+    vec4 c = texture(sampler2D(tex, samp), uv);
+    vec4 a = texture(sampler2D(tex1, tex1samp), uv);
+    vec4 b = texture(sampler2D(tex2, tex2samp), uv);
+    frag = vec4(c.rgb * 0.4 + a.rgb * 0.3 + b.rgb * 0.3, c.a) * color;
+}
+"#,
+        )
+        .expect("shader");
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut sim = manato_sim::SimState::load(&config).expect("sim");
+        {
+            let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("assets");
+            assets.characters[0]
+                .def
+                .shaders
+                .insert("tex-test".into(), shader_path);
+        }
+        sim.fighters[0].shader = Some("tex-test".into());
+        sim.fighters[0].shader_tex1 = Some((0, 0));
+        sim.fighters[0].shader_tex2 = Some((0, 0));
+        renderer.load_assets(&sim);
+        renderer.render(&sim);
+        let bank = atlas::bank::CHARACTER_BASE;
+        assert!(renderer.shader_textures.contains_key(&(bank, 0, 0)));
+        let path = dir.join("tex.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
