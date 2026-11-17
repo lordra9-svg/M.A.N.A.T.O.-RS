@@ -295,6 +295,8 @@ pub struct Storyboard {
     pub sounds: SoundBank,
     /// `[SceneDef] lua`/`script` source, executed by the sandboxed runtime.
     pub lua_source: Option<String>,
+    /// `[SceneDef] model`: optional glTF scene model.
+    pub model: Option<PathBuf>,
 }
 
 impl Storyboard {
@@ -352,6 +354,9 @@ impl Storyboard {
                     }
                 }
             });
+        let model = get(scene_def, "model")
+            .filter(|value| !value.is_empty())
+            .map(|value| resolve(&dir, &value));
         let mut font_files = BTreeMap::new();
         if let Some(section) = scene_def {
             for entry in &section.entries {
@@ -593,6 +598,7 @@ impl Storyboard {
             font_files,
             sounds,
             lua_source,
+            model,
         })
     }
 
@@ -986,6 +992,25 @@ layer0.scale = 2,2
         let sample = layer.palfx_at(0);
         assert_eq!(sample.invert_blend, 3);
         assert!(sample.disables_shader_invert());
+    }
+
+    #[test]
+    fn parses_scene_model_reference() {
+        let dir = std::env::temp_dir().join(format!("manato-story-model-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let def = dir.join("story.def");
+        std::fs::write(
+            &def,
+            "[Info]\nname = Model\n[SceneDef]\nstartscene = 0\nmodel = scene.gltf\n[Scene 0]\nend.time = 10\n",
+        )
+        .expect("write");
+        let story = Storyboard::load(&def).expect("load");
+        assert_eq!(
+            story.model.as_deref(),
+            Some(dir.join("scene.gltf").as_path())
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

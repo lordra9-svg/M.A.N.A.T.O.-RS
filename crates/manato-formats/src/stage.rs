@@ -307,6 +307,8 @@ pub struct Stage {
     pub reset_bg: bool,
     pub debug_bg: bool,
     pub bg_clear_color: [u8; 3],
+    /// `[Model] model`: optional glTF scene model.
+    pub model: Option<PathBuf>,
     pub xscale: f32,
     pub yscale: f32,
     pub portrait_scale: f32,
@@ -353,6 +355,7 @@ impl Default for Stage {
             reset_bg: true,
             debug_bg: false,
             bg_clear_color: [0, 0, 0],
+            model: None,
             xscale: 1.0,
             yscale: 1.0,
             portrait_scale: 1.0,
@@ -591,6 +594,20 @@ impl Stage {
             reset_bg: num(&stage_info, "resetbg", 1.0) != 0.0,
             debug_bg: num(bgdef, "debugbg", 0.0) != 0.0,
             bg_clear_color: parse_color(bgdef.get("bgclearcolor")),
+            model: def
+                .text
+                .find("model")
+                .map(section_map)
+                .and_then(|map| map.get("model").cloned())
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| {
+                    let path = Path::new(value.trim());
+                    if path.is_absolute() {
+                        path.to_path_buf()
+                    } else {
+                        def.dir.join(path)
+                    }
+                }),
             xscale: num(&stage_info, "xscale", 1.0),
             yscale: num(&stage_info, "yscale", 1.0),
             portrait_scale: num(&stage_info, "portraitscale", 0.41666),
@@ -877,6 +894,33 @@ mod tests {
         let music = stage.music.path.expect("music path");
         assert!(music.ends_with("sub/theme.ogg"), "got {music:?}");
         assert_eq!(stage.music.volume, 90);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parses_model_reference() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/stages/training/stage1.def");
+        if !source.exists() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("manato-stage-model-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let mut text = std::fs::read_to_string(&source).expect("def");
+        text.push_str("\n[Model]\nmodel = triangle.gltf\n");
+        let def = dir.join("stage.def");
+        std::fs::write(&def, text).expect("write");
+        std::fs::copy(
+            root.join("content/stages/training/stage1.sff"),
+            dir.join("stage1.sff"),
+        )
+        .expect("sff");
+        let stage = Stage::load(&def, std::slice::from_ref(&dir)).expect("stage");
+        assert_eq!(
+            stage.model.as_deref(),
+            Some(dir.join("triangle.gltf").as_path())
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

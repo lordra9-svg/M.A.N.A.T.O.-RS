@@ -17,4 +17,5 @@ wgpu.workspace = true
 bytemuck.workspace = true
 pollster.workspace = true
 image.workspace = true
+gltf.workspace = true
 font8x8 = "0.3"

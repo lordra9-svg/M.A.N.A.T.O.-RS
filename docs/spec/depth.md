@@ -190,7 +190,8 @@ before the current one (one frame of latency).
 ## 5. Not modeled
 
 
-- GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
+- glTF skins, animations, textures, and per-node 3D controls; static meshes
+  are supported per `docs/spec/model.md`. `ModifyBGCtrl3D` is modeled as a layer controller:
   `ctrlid` selects BG layers by `id` (`-1` = all) and
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
   applied (values persist until changed or the round restarts). Ikemen

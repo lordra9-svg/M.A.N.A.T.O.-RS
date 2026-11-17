@@ -10,6 +10,7 @@ pub mod atlas;
 pub mod draw;
 pub mod fightscreen;
 pub mod frontend;
+pub mod model;
 pub mod scene;
 pub mod screenfont;
 pub mod text;
@@ -83,6 +84,9 @@ pub struct Renderer {
     overlay_signature: Vec<(usize, String)>,
     /// Atlas bank for each `(overlay storyboard pointer, scene index)` bg.
     overlay_bg_banks: HashMap<(usize, usize), u8>,
+    model_pipeline: wgpu::RenderPipeline,
+    model_buffer: Option<wgpu::Buffer>,
+    model_vertices: u32,
     /// Standalone textures for `ShaderSet tex1`/`tex2` sprite references.
     shader_textures: HashMap<(u8, i32, i32), wgpu::TextureView>,
     solid: wgpu::BindGroup,
@@ -297,6 +301,7 @@ impl Renderer {
             bind_group_layouts: &[&custom_bgl],
             push_constant_ranges: &[],
         });
+        let model_pipeline = model::create_pipeline(&device, GAME_FORMAT);
         let shader_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("manato shader sampler"),
             mag_filter: wgpu::FilterMode::Nearest,
@@ -586,6 +591,9 @@ impl Renderer {
             overlay_signature: Vec::new(),
             overlay_bg_banks: HashMap::new(),
             shader_textures: HashMap::new(),
+            model_pipeline,
+            model_buffer: None,
+            model_vertices: 0,
             solid,
             shadow,
             blit_pipeline,
@@ -614,6 +622,10 @@ impl Renderer {
         self.overlay_signature.clear();
         self.overlay_bg_banks.clear();
         self.shader_textures.clear();
+        self.clear_model();
+        if let Some(path) = &assets.stage.model {
+            self.load_model(path);
+        }
 
         self.screen_fonts.clear();
         if let Some(screenpack) = &assets.screenpack {
@@ -1001,6 +1013,25 @@ impl Renderer {
         self.present();
     }
 
+    /// Loads and bakes a static glTF model for the current scene/stage.
+    pub fn load_model(&mut self, path: &Path) {
+        match model::load(path) {
+            Ok(asset) => {
+                self.model_vertices = asset.vertices.len() as u32;
+                self.model_buffer = Some(model::upload_model(&self.device, &asset));
+            }
+            Err(error) => {
+                log::warn!("model {}: {error:#}", path.display());
+                self.clear_model();
+            }
+        }
+    }
+
+    pub fn clear_model(&mut self) {
+        self.model_buffer = None;
+        self.model_vertices = 0;
+    }
+
     /// Builds the atlas from a storyboard's sprite file.
     pub fn load_storyboard(&mut self, storyboard: &manato_formats::storyboard::Storyboard) {
         let mut banks: Vec<(u8, &manato_formats::SffFile)> =
@@ -1014,6 +1045,10 @@ impl Renderer {
             }
         }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
+        self.clear_model();
+        if let Some(path) = &storyboard.model {
+            self.load_model(path);
+        }
         self.screen_fonts.clear();
         for (index, path) in &storyboard.font_files {
             match manato_formats::font::BitmapFont::load(path) {
@@ -1394,6 +1429,11 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+            if let (Some(buffer), true) = (&self.model_buffer, self.model_vertices > 0) {
+                pass.set_pipeline(&self.model_pipeline);
+                pass.set_vertex_buffer(0, buffer.slice(..));
+                pass.draw(0..self.model_vertices, 0..1);
+            }
             if !ranges.is_empty() {
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             }
@@ -2157,6 +2197,60 @@ void main() {
         );
         assert!(renderer.overlay_bg_banks.contains_key(&key));
         let path = dir.join("overlay.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn gltf_model_loads_and_renders_when_gpu_available() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-model-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let model = dir.join("triangle.gltf");
+        std::fs::write(
+            &model,
+            r#"{
+  "asset": {"version": "2.0"},
+  "buffers": [{"uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAEAAAAAA", "byteLength": 36}],
+  "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36, "target": 34962}],
+  "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,0,0], "max": [1,2,0]}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [1,0,0,1]}}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0, "mode": 4}]}],
+  "nodes": [{"mesh": 0}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0
+}"#,
+        )
+        .expect("model");
+        renderer.load_model(&model);
+        assert_eq!(renderer.model_vertices, 3);
+        let storyboard = manato_formats::storyboard::Storyboard {
+            path: dir.join("story.def"),
+            name: "model".into(),
+            author: String::new(),
+            start_scene: 0,
+            sprites: manato_formats::SffFile::default(),
+            animations: HashMap::new(),
+            scenes: vec![manato_formats::storyboard::StoryboardScene {
+                name: "Scene 0".into(),
+                end_time: 10,
+                ..Default::default()
+            }],
+            font_files: std::collections::BTreeMap::new(),
+            sounds: manato_formats::SoundBank::default(),
+            lua_source: None,
+            model: Some(model),
+        };
+        let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
+        renderer.load_storyboard(&storyboard);
+        assert_eq!(renderer.model_vertices, 3);
+        renderer.render_storyboard(&storyboard, &player);
+        let path = dir.join("model.png");
         renderer.screenshot(&path).expect("screenshot");
         assert!(std::fs::metadata(&path).expect("file").len() > 1000);
         let _ = std::fs::remove_dir_all(&dir);
