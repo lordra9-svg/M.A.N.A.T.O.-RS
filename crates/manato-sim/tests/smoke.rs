@@ -3771,9 +3771,9 @@ fn tagout_state_animation_delays_the_swap() {
             .iter()
             .find(|(_, anim)| {
                 anim.frames.iter().all(|frame| frame.duration >= 0)
-                    && (1..=60).contains(&anim.total_ticks())
+                    && (1..=60).contains(&anim.total_time())
             })
-            .map(|(number, anim)| (*number, anim.total_ticks()))
+            .map(|(number, anim)| (*number, anim.total_time()))
             .expect("short animation");
         character.states.insert(
             5999,
@@ -3828,6 +3828,70 @@ fn tagout_state_animation_delays_the_swap() {
     assert_eq!(sim.fighters[0].char_id, nival, "swap follows the animation");
     assert_eq!(sim.teams[0].active, 1);
     assert!(sim.tag_transitions[0].is_none());
+}
+
+#[test]
+fn tagin_state_grants_animation_length_invulnerability() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival]);
+
+    // Inject a tag-in state on the incoming partner.
+    let ticks = {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[nival];
+        let (anim_no, ticks) = character
+            .animations
+            .iter()
+            .find(|(_, anim)| {
+                anim.frames.iter().all(|frame| frame.duration >= 0)
+                    && (1..=60).contains(&anim.total_time())
+            })
+            .map(|(number, anim)| (*number, anim.total_time()))
+            .expect("short animation");
+        character.states.insert(
+            5998,
+            manato_formats::StateDef {
+                number: 5998,
+                params: vec![
+                    ("type".into(), "S".into()),
+                    ("physics".into(), "N".into()),
+                    ("movetype".into(), "I".into()),
+                    ("ctrl".into(), "0".into()),
+                ],
+                controllers: vec![manato_formats::Controller {
+                    kind: "changeanim".into(),
+                    params: vec![("value".into(), anim_no.to_string())],
+                    line: 0,
+                }],
+                line: 0,
+                source: "tagin-test".into(),
+            },
+        );
+        ticks
+    };
+
+    assert!(sim.tag_in(0, Some(5998), true));
+    assert_eq!(sim.fighters[0].char_id, nival);
+    assert_eq!(sim.fighters[0].tag_invuln, ticks);
+
+    let mut hitdef = manato_sim::hitdef::HitDef::default();
+    hitdef.damage = 100;
+    let life = sim.fighters[0].life;
+    let pos = sim.fighters[1].pos;
+    let facing = sim.fighters[1].facing;
+    manato_sim::collision::apply_hit_at(&mut sim, 1, 0, &hitdef, false, pos, facing, true);
+    assert_eq!(
+        sim.fighters[0].life, life,
+        "tag-in invulnerability blocks hits"
+    );
+
+    sim.fighters[0].tag_invuln = 0;
+    manato_sim::collision::apply_hit_at(&mut sim, 1, 0, &hitdef, false, pos, facing, true);
+    assert!(sim.fighters[0].life < life, "hits land after the window");
 }
 
 #[test]

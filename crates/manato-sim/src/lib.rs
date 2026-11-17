@@ -749,6 +749,8 @@ pub const CLUTCH_THRESHOLD: f32 = 0.10;
 
 /// Fallback tag-out animation length when the state has no readable ChangeAnim.
 pub const TAG_TRANSITION_TICKS: i32 = 20;
+/// Fallback tag-in invulnerability length without a readable incoming animation.
+pub const TAG_INVULN_TICKS: i32 = 20;
 
 /// Delayed ("mid") bar fill state (`docs/spec/render.md` §6.1–§6.3).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1620,6 +1622,9 @@ impl SimState {
                 overrides.clear();
             }
             fighter.input_shift.clear();
+            if fighter.tag_invuln > 0 {
+                fighter.tag_invuln -= 1;
+            }
             if let Some((_, t)) = fighter.hit.not_hit_by.as_mut() {
                 *t -= 1;
                 if *t <= 0 {
@@ -2621,9 +2626,25 @@ impl SimState {
 
     /// Swaps the active roster member (TagIn/TagOut). The incoming fighter is
     /// rebuilt from its character and keeps the outgoing position/facing.
-    /// Tag in: immediately swap to the next roster member.
+    /// Tag in: immediately swap to the next roster member. A provided
+    /// incoming state also grants invulnerability for its first animation.
     pub fn tag_in(&mut self, who: usize, incoming_state: Option<i32>, ctrl: bool) -> bool {
-        self.tag_swap(who, incoming_state, ctrl)
+        let swapped = self.tag_swap(who, incoming_state, ctrl);
+        if swapped {
+            self.arm_tag_invuln(who, incoming_state);
+        }
+        swapped
+    }
+
+    fn arm_tag_invuln(&mut self, who: usize, state: Option<i32>) {
+        let Some(state) = state.filter(|state| *state >= 0) else {
+            return;
+        };
+        let char_id = self.fighters[who].char_id;
+        let ticks = self
+            .state_anim_ticks(char_id, state)
+            .unwrap_or(TAG_INVULN_TICKS);
+        self.fighters[who].tag_invuln = ticks.max(1);
     }
 
     /// Tag out: when `outgoing_state` is set, the outgoing fighter enters it,
@@ -2676,7 +2697,11 @@ impl SimState {
             .trim()
             .parse::<i32>()
             .ok()?;
-        Some(character.animation(anim_no)?.total_ticks())
+        let anim = character.animation(anim_no)?;
+        if anim.is_infinite() {
+            return None;
+        }
+        Some(anim.total_time().max(1))
     }
 
     fn update_tag_transitions(&mut self) {
@@ -2714,6 +2739,9 @@ impl SimState {
         self.teams[side].active = member_index;
         let member = self.teams[side].members[member_index].clone();
         self.rebuild_active_with(who, &member, incoming_state, ctrl, member_index);
+        if let Some(state) = incoming_state {
+            self.arm_tag_invuln(who, Some(state));
+        }
     }
 
     pub fn tag_swap(&mut self, who: usize, incoming_state: Option<i32>, ctrl: bool) -> bool {
@@ -3677,6 +3705,7 @@ impl SimState {
         }
         for f in &self.fighters {
             h.write_u32(f.team_index as u32);
+            h.write_i32(f.tag_invuln);
             h.write_u32(f.side as u32);
             h.write_f32(f.pos.x);
             h.write_f32(f.pos.y);

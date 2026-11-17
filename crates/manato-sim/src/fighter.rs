@@ -213,6 +213,9 @@ pub struct Fighter {
     /// Roster member index for non-helper team fighters (0 = leader).
     #[serde(default)]
     pub team_index: usize,
+    /// Remaining tag-in invulnerability ticks.
+    #[serde(default)]
+    pub tag_invuln: i32,
     pub active: bool,
     /// Difficulty of the AI driving this slot; 0 when AI is off. Helpers
     /// inherit their owner's level.
@@ -485,6 +488,7 @@ impl Fighter {
             side,
             slot,
             team_index: 0,
+            tag_invuln: 0,
             active: true,
             ai_level: 0,
             pos,
