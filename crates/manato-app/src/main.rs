@@ -40,6 +40,8 @@ struct Options {
     storyboard: Option<String>,
     spectate: Option<String>,
     broadcast: Option<String>,
+    discover: Option<String>,
+    stun: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -66,6 +68,8 @@ impl Default for Options {
             storyboard: None,
             spectate: None,
             broadcast: None,
+            discover: None,
+            stun: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -384,6 +388,14 @@ impl Options {
                     opts.broadcast = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--discover" => {
+                    opts.discover = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--stun" => {
+                    opts.stun = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--scale" => {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
@@ -487,6 +499,8 @@ Modes:
   --storyboard <def>  Play a storyboard headless (with --frames)
   --spectate <addr>   Watch a host streaming snapshots (host:port)
   --broadcast <addr>  Stream match snapshots to spectators (bind addr)
+  --discover <addr>   Query LAN lobby discovery at addr and print results
+  --stun <addr>       Report the public UDP address via a STUN server
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -498,9 +512,46 @@ Controls (window mode):
     );
 }
 
+fn run_discovery(target: &str) -> anyhow::Result<()> {
+    let target: std::net::SocketAddr = target.parse()?;
+    let mut browser = manato_net::discovery::DiscoveryBrowser::new()?;
+    browser.query(target)?;
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_secs(1) {
+        browser.poll()?;
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if browser.lobbies().is_empty() {
+        println!("no lobbies found at {target}");
+    }
+    for lobby in browser.lobbies() {
+        println!(
+            "{} @ {} players={} spectators={} phase={:?}",
+            lobby.name, lobby.address, lobby.players, lobby.spectators, lobby.phase
+        );
+    }
+    Ok(())
+}
+
+fn run_stun(server: &str) -> anyhow::Result<()> {
+    let server: std::net::SocketAddr = server.parse()?;
+    match manato_net::discovery::stun_public_address(server, Duration::from_secs(2))? {
+        Some(address) => println!("public address: {address}"),
+        None => println!("STUN server {server} did not answer with a mapped address"),
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let opts = Options::parse()?;
+
+    if let Some(target) = &opts.discover {
+        return run_discovery(target);
+    }
+    if let Some(server) = &opts.stun {
+        return run_stun(server);
+    }
 
     if let Some(frames) = opts.frames {
         return run_headless(&opts, frames);

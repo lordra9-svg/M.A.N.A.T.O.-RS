@@ -3,6 +3,7 @@
 //! The simulation is already deterministic and cheap to clone, so a snapshot is
 //! just a [`SimState`]. Assets live behind an `Arc` and are never cloned.
 
+pub mod discovery;
 pub mod lobby;
 
 use std::net::SocketAddr;

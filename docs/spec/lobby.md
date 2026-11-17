@@ -84,6 +84,26 @@ The app exposes this as `--broadcast <bind-addr>` on the host and
 renders the restored snapshots and draws the status line in the top-left
 corner.
 
+### LAN discovery
+
+`DiscoveryResponder` answers UDP requests equal to `MANATO_DISCOVER_V1` with a
+`MANATO_LOBBY_V1:`-prefixed, fixint-bincode `DiscoveryInfo` (name, relay
+address, player/spectator counts, phase). Responses are capped at 4 KiB and
+names at 64 characters. `DiscoveryBrowser` broadcasts the request and collects
+up to 64 unique relay addresses. The default LAN port is UDP 27015.
+
+### NAT address discovery
+
+`stun_binding_request` builds an RFC 5389 request and `parse_stun_mapped`
+extracts `XOR-MAPPED-ADDRESS` (or `MAPPED-ADDRESS`) for IPv4/IPv6.
+`stun_public_address(server, timeout)` sends one request and returns the
+mapped public address. This reports the NAT mapping; it does not itself punch
+a hole or relay traffic.
+
+The app exposes `--discover <addr>` (print LAN lobbies for one second) and
+`--stun <addr>` (print the public UDP address). Matchmaking selection and
+automatic hole punching are not modeled.
+
 ## 4. Security notes
 
 - Datagrams are decoded with a 4 KiB bincode limit and fixint encoding, so a
