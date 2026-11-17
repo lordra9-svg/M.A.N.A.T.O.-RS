@@ -48,6 +48,7 @@ struct Options {
     netplay: Option<String>,
     netplay_bind: Option<String>,
     netplay_player: usize,
+    relay: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -82,6 +83,7 @@ impl Default for Options {
             netplay: None,
             netplay_bind: None,
             netplay_player: 0,
+            relay: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -428,6 +430,10 @@ impl Options {
                     opts.netplay_bind = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--relay" => {
+                    opts.relay = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay-player" => {
                     opts.netplay_player = value(i)?.parse::<usize>()?;
                     if opts.netplay_player > 1 {
@@ -546,6 +552,7 @@ Modes:
   --netplay <addr>    Window netplay against remote GGRS address
   --netplay-bind <addr>  Local UDP bind for --netplay (default 0.0.0.0:0)
   --netplay-player <n>   Local player slot for --netplay (0 or 1, default 0)
+  --relay <bind>      Run a two-peer UDP forwarding relay (NAT fallback)
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -662,6 +669,16 @@ fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn run_relay(bind: &str) -> anyhow::Result<()> {
+    let bind: std::net::SocketAddr = bind.parse()?;
+    let mut relay = manato_net::relay::UdpForwarder::bind(bind)?;
+    println!("relay listening on {}", relay.local_addr()?);
+    loop {
+        relay.poll()?;
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
 fn run_stun(server: &str) -> anyhow::Result<()> {
     let server: std::net::SocketAddr = server.parse()?;
     match manato_net::discovery::stun_public_address(server, Duration::from_secs(2))? {
@@ -721,6 +738,9 @@ fn main() -> anyhow::Result<()> {
     }
     if let Some(server) = &opts.stun {
         return run_stun(server);
+    }
+    if let Some(bind) = &opts.relay {
+        return run_relay(bind);
     }
 
     if let Some(frames) = opts.frames {

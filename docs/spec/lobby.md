@@ -131,7 +131,24 @@ headless loop with AI local inputs, reporting frames/checksum.
 `NatPuncher` sends `MANATO_PUNCH_V1` datagrams, answers with
 `MANATO_PUNCH_ACK_V1`, and marks the path open when either arrives. This opens
 simple NAT mappings when both peers run the flow; symmetric NATs and
-firewalls that drop unsolicited traffic still need a relay/TURN service.
+firewalls that drop unsolicited traffic still need a relay.
+
+### Relay fallback
+
+`UdpForwarder` is a two-peer UDP relay for failed hole punches. The first two
+sources that send to it are registered, and subsequent datagrams are forwarded
+to the other peer. The app exposes it as `--relay <bind-addr>`. Both players
+then use the relay address as their `--netplay` remote:
+
+```text
+relay-host:    manato --relay 0.0.0.0:7000
+player A:      manato --netplay relay-host:7000 --netplay-bind 0.0.0.0:7001 --netplay-player 0
+player B:      manato --netplay relay-host:7000 --netplay-bind 0.0.0.0:7002 --netplay-player 1
+```
+
+This is a plaintext trusted relay, not a full TURN implementation: it accepts
+exactly two peers, has no authentication, and must be deployed by a trusted
+host. Automatic fallback from a failed punch to the relay is not modeled.
 
 ### Window netplay
 
