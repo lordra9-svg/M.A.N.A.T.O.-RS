@@ -29,13 +29,14 @@ not ticked, drawn, or collided.
   length, so simul sizes beyond the front-end's single partner selection are
   available programmatically. Manual tag control during simul is not modeled.
 
-The title Options screen exposes `P1 TEAM`, `P2 TEAM`, `P1 PARTNER`,
-`P2 PARTNER`, `P1 PARTNER 2`, and `P2 PARTNER 2`: team mode cycles
-Single → Turns → Tag → Simul, and each partner slot cycles through the
-select.def roster, skipping entries marked `single = 1`. On match start the
-selected partner characters are loaded into `Assets`, the side roster becomes
-`[leader, partner, partner2]`, and `SimState.team_modes` receives the chosen
-modes. A leader marked `single = 1` in `select.def` forces that side to Single
+The title Options screen exposes `P1 TEAM`, `P2 TEAM`, and three partner
+slots per side (`P1 PARTNER`, `P1 PARTNER 2`, `P1 PARTNER 3`, and the same for
+P2): team mode cycles Single → Turns → Tag → Simul, and each partner slot
+cycles through the select.def roster, skipping entries marked `single = 1`. On
+match start every selected partner character is loaded into `Assets`, the side
+roster becomes `[leader, partner, partner2, partner3]`, and
+`SimState.team_modes` receives the chosen modes. Slots whose entry is
+single-only or fails to load are skipped. A leader marked `single = 1` in `select.def` forces that side to Single
 mode regardless of the options screen, and such entries are never loaded as
 partners. Single-mode sides ignore partner selection.
 
@@ -82,9 +83,9 @@ active fighter's bar, using the synced roster life/life-max values.
 
 ## 5. Not modeled
 
-- Front-end selection of more than two partners per side (the roster API and
+- Front-end selection of more than three partners per side (the roster API and
   simul spawning have no such limit).
-- Alternate-character loading beyond the explicit leader/partner pair; rosters are
+- Alternate-character loading beyond the explicit leader/partner slots; rosters are
   assigned through the API (tests and hosts).
 - Team-specific round/score rules.
 - Tag-out animations longer than the state's first `ChangeAnim` (the swap is

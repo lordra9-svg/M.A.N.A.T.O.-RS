@@ -727,6 +727,9 @@ enum FrontendScreen {
     Scores,
 }
 
+/// Maximum selectable partners per side from the options screen.
+const MAX_PARTNERS: usize = 3;
+
 struct Frontend {
     screen: FrontendScreen,
     screenpack: Screenpack,
@@ -754,8 +757,7 @@ struct Frontend {
     options_music: u32,
     options_fullscreen: bool,
     team_modes: [manato_sim::TeamMode; 2],
-    partners: [Option<usize>; 2],
-    partners2: [Option<usize>; 2],
+    partners: [[Option<usize>; MAX_PARTNERS]; 2],
     result_timer: i32,
     result_resolved: bool,
     arcade: Option<ArcadeSession>,
@@ -978,8 +980,10 @@ impl Frontend {
             options_music: 100,
             options_fullscreen: false,
             team_modes: [manato_sim::TeamMode::Single; 2],
-            partners: [Some(p2_start), Some(0)],
-            partners2: [Some(0), Some(p2_start)],
+            partners: [
+                [Some(p2_start), Some(0), Some(0)],
+                [Some(0), Some(p2_start), Some(0)],
+            ],
             result_timer: 0,
             result_resolved: false,
             arcade: None,
@@ -1014,48 +1018,36 @@ impl Frontend {
 
     fn options_view(&self) -> OptionsView {
         let yes_no = |value: bool| if value { "YES" } else { "NO" }.to_string();
+        let mut items = vec![
+            ("ROUNDS".into(), self.options_rounds.to_string()),
+            ("ROUND TIME".into(), self.options_round_time.to_string()),
+            ("CPU LEVEL".into(), self.options_ai.to_string()),
+            ("SOUND VOLUME".into(), self.options_sound.to_string()),
+            ("MUSIC VOLUME".into(), self.options_music.to_string()),
+            ("FULLSCREEN".into(), yes_no(self.options_fullscreen)),
+            ("P1 TEAM".into(), team_name(self.team_modes[0])),
+            ("P2 TEAM".into(), team_name(self.team_modes[1])),
+        ];
+        for (side, label) in ["P1", "P2"].into_iter().enumerate() {
+            for slot in 0..MAX_PARTNERS {
+                let suffix = if slot == 0 {
+                    String::new()
+                } else {
+                    format!(" {}", slot + 1)
+                };
+                let value = self
+                    .names
+                    .get(self.partners[side][slot].unwrap_or(0))
+                    .map(|entry| entry.name.clone())
+                    .unwrap_or_else(|| "--".into());
+                items.push((format!("{label} PARTNER{suffix}"), value));
+            }
+        }
+        items.push(("BACK".into(), String::new()));
         OptionsView {
             selected: self.options_index,
             frame: self.frame,
-            items: vec![
-                ("ROUNDS".into(), self.options_rounds.to_string()),
-                ("ROUND TIME".into(), self.options_round_time.to_string()),
-                ("CPU LEVEL".into(), self.options_ai.to_string()),
-                ("SOUND VOLUME".into(), self.options_sound.to_string()),
-                ("MUSIC VOLUME".into(), self.options_music.to_string()),
-                ("FULLSCREEN".into(), yes_no(self.options_fullscreen)),
-                ("P1 TEAM".into(), team_name(self.team_modes[0])),
-                ("P2 TEAM".into(), team_name(self.team_modes[1])),
-                (
-                    "P1 PARTNER".into(),
-                    self.names
-                        .get(self.partners[0].unwrap_or(0))
-                        .map(|entry| entry.name.clone())
-                        .unwrap_or_else(|| "--".into()),
-                ),
-                (
-                    "P2 PARTNER".into(),
-                    self.names
-                        .get(self.partners[1].unwrap_or(0))
-                        .map(|entry| entry.name.clone())
-                        .unwrap_or_else(|| "--".into()),
-                ),
-                (
-                    "P1 PARTNER 2".into(),
-                    self.names
-                        .get(self.partners2[0].unwrap_or(0))
-                        .map(|entry| entry.name.clone())
-                        .unwrap_or_else(|| "--".into()),
-                ),
-                (
-                    "P2 PARTNER 2".into(),
-                    self.names
-                        .get(self.partners2[1].unwrap_or(0))
-                        .map(|entry| entry.name.clone())
-                        .unwrap_or_else(|| "--".into()),
-                ),
-                ("BACK".into(), String::new()),
-            ],
+            items,
         }
     }
 
@@ -1098,12 +1090,12 @@ impl Frontend {
         self.team_modes[side] = modes[next as usize];
     }
 
-    fn cycle_partner(&mut self, side: usize, delta: i32) {
-        if side >= 2 || self.roster.is_empty() {
+    fn cycle_partner(&mut self, side: usize, slot: usize, delta: i32) {
+        if side >= 2 || slot >= MAX_PARTNERS || self.roster.is_empty() {
             return;
         }
         let len = self.roster.len() as i32;
-        let mut next = self.partners[side].unwrap_or(0) as i32;
+        let mut next = self.partners[side][slot].unwrap_or(0) as i32;
         // Single-mode-only characters cannot be team partners.
         for _ in 0..len {
             next = (next + delta).rem_euclid(len);
@@ -1111,22 +1103,7 @@ impl Frontend {
                 break;
             }
         }
-        self.partners[side] = Some(next as usize);
-    }
-
-    fn cycle_partner2(&mut self, side: usize, delta: i32) {
-        if side >= 2 || self.roster.is_empty() {
-            return;
-        }
-        let len = self.roster.len() as i32;
-        let mut next = self.partners2[side].unwrap_or(0) as i32;
-        for _ in 0..len {
-            next = (next + delta).rem_euclid(len);
-            if !self.roster[next as usize].single {
-                break;
-            }
-        }
-        self.partners2[side] = Some(next as usize);
+        self.partners[side][slot] = Some(next as usize);
     }
 
     /// Team modes after applying select.def single-only rules for the chosen
@@ -1445,16 +1422,12 @@ impl App {
             round_time,
         };
         let team_modes = frontend.effective_team_modes();
-        let partner_entries = [
-            [
-                frontend.partners[0].and_then(|index| chosen_entry(frontend, index)),
-                frontend.partners2[0].and_then(|index| chosen_entry(frontend, index)),
-            ],
-            [
-                frontend.partners[1].and_then(|index| chosen_entry(frontend, index)),
-                frontend.partners2[1].and_then(|index| chosen_entry(frontend, index)),
-            ],
-        ];
+        let partner_entries: [Vec<Option<RosterEntry>>; 2] = [0, 1].map(|side| {
+            frontend.partners[side]
+                .iter()
+                .map(|index| index.and_then(|index| chosen_entry(frontend, index)))
+                .collect()
+        });
         let mut assets = match Assets::load(&config) {
             Ok(assets) => assets,
             Err(error) => {
@@ -1643,10 +1616,10 @@ impl App {
             5 => frontend.options_fullscreen = !frontend.options_fullscreen,
             6 => frontend.cycle_team(0, delta),
             7 => frontend.cycle_team(1, delta),
-            8 => frontend.cycle_partner(0, delta),
-            9 => frontend.cycle_partner(1, delta),
-            10 => frontend.cycle_partner2(0, delta),
-            11 => frontend.cycle_partner2(1, delta),
+            index @ 8..=13 => {
+                let offset = index - 8;
+                frontend.cycle_partner(offset / MAX_PARTNERS, offset % MAX_PARTNERS, delta);
+            }
             _ => {}
         }
         if frontend.options_index == 3 {
@@ -1773,7 +1746,7 @@ impl App {
                         if self
                             .frontend
                             .as_ref()
-                            .is_some_and(|f| f.options_index == 12)
+                            .is_some_and(|f| f.options_index == 8 + 2 * MAX_PARTNERS)
                         {
                             if let Some(frontend) = self.frontend.as_mut() {
                                 frontend.screen = FrontendScreen::Title;
@@ -2474,8 +2447,7 @@ mod tests {
             options_music: 100,
             options_fullscreen: false,
             team_modes: [manato_sim::TeamMode::Single; 2],
-            partners: [None, None],
-            partners2: [None, None],
+            partners: [[None; MAX_PARTNERS]; 2],
             result_timer: 0,
             result_resolved: false,
             arcade: None,
@@ -2513,49 +2485,50 @@ mod tests {
         frontend.cycle_team(0, -1);
         assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Simul);
 
-        let first = frontend.partners[0];
-        frontend.cycle_partner(0, 1);
-        assert_ne!(frontend.partners[0], first);
-        let changed = frontend.partners[0];
-        for _ in 0..frontend.roster.len() {
-            frontend.cycle_partner(0, 1);
+        for slot in 0..MAX_PARTNERS {
+            let first = frontend.partners[0][slot];
+            frontend.cycle_partner(0, slot, 1);
+            assert_ne!(frontend.partners[0][slot], first);
+            let changed = frontend.partners[0][slot];
+            for _ in 0..frontend.roster.len() {
+                frontend.cycle_partner(0, slot, 1);
+            }
+            assert_eq!(
+                frontend.partners[0][slot], changed,
+                "partner slot {slot} cycling wraps"
+            );
         }
-        assert_eq!(frontend.partners[0], changed, "partner cycling wraps");
-
-        let first_second = frontend.partners2[0];
-        frontend.cycle_partner2(0, 1);
-        assert_ne!(frontend.partners2[0], first_second);
-        let changed_second = frontend.partners2[0];
-        for _ in 0..frontend.roster.len() {
-            frontend.cycle_partner2(0, 1);
-        }
-        assert_eq!(
-            frontend.partners2[0], changed_second,
-            "second partner cycling wraps"
-        );
     }
 
     #[test]
-    fn options_expose_second_partner_slots() {
+    fn options_expose_all_partner_slots() {
         let frontend = test_frontend();
         let view = frontend.options_view();
-        assert_eq!(view.items.len(), 13);
-        assert_eq!(view.items[10].0, "P1 PARTNER 2");
-        assert_eq!(view.items[11].0, "P2 PARTNER 2");
-        assert_eq!(view.items[12].0, "BACK");
+        assert_eq!(view.items.len(), 8 + 2 * MAX_PARTNERS + 1);
+        assert_eq!(view.items[8].0, "P1 PARTNER");
+        assert_eq!(view.items[9].0, "P1 PARTNER 2");
+        assert_eq!(view.items[10].0, "P1 PARTNER 3");
+        assert_eq!(view.items[11].0, "P2 PARTNER");
+        assert_eq!(view.items[12].0, "P2 PARTNER 2");
+        assert_eq!(view.items[13].0, "P2 PARTNER 3");
+        assert_eq!(view.items[14].0, "BACK");
     }
 
     #[test]
     fn single_only_roster_entries_force_single_mode_and_skip_partners() {
         let mut frontend = test_frontend();
         frontend.roster[1].single = true;
-        frontend.partners[0] = Some(0);
-        frontend.cycle_partner(0, 1);
-        assert_eq!(frontend.partners[0], Some(2), "single-only partner skipped");
-        frontend.partners2[0] = Some(0);
-        frontend.cycle_partner2(0, 1);
+        frontend.partners[0][0] = Some(0);
+        frontend.cycle_partner(0, 0, 1);
         assert_eq!(
-            frontend.partners2[0],
+            frontend.partners[0][0],
+            Some(2),
+            "single-only partner skipped"
+        );
+        frontend.partners[0][1] = Some(0);
+        frontend.cycle_partner(0, 1, 1);
+        assert_eq!(
+            frontend.partners[0][1],
             Some(2),
             "single-only second partner skipped"
         );
