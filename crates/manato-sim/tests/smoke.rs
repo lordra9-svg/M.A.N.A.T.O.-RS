@@ -3955,6 +3955,74 @@ fn simul_teams_spawn_partners_and_require_team_ko() {
 }
 
 #[test]
+fn simul_teams_spawn_every_roster_member() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival, kaen]);
+    sim.assign_team(1, &[nival, kaen, nival]);
+    sim.team_modes = [manato_sim::TeamMode::Simul; 2];
+    sim.restart_match();
+    assert_eq!(sim.fighters.len(), 6, "leader plus two partners per side");
+
+    let side0: Vec<usize> = sim
+        .fighters
+        .iter()
+        .enumerate()
+        .filter(|(_, fighter)| fighter.side == 0 && fighter.owner.is_none())
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(side0.len(), 3);
+    for &index in &side0 {
+        assert!(sim.fighters[index].active);
+        assert_eq!(manato_sim::trigger::int(&sim, index, "teamsize"), 3);
+        assert_eq!(
+            manato_sim::trigger::int(&sim, index, "memberno") as usize,
+            sim.fighters[index].team_index + 1
+        );
+    }
+    let positions: Vec<f32> = side0.iter().map(|&i| sim.fighters[i].pos.x).collect();
+    assert!(
+        positions[0] != positions[1]
+            && positions[1] != positions[2]
+            && positions[0] != positions[2],
+        "simul members spawn at staggered positions: {positions:?}"
+    );
+    for &index in &side0 {
+        assert!(sim.opponent_of(index) < 6);
+        assert_ne!(sim.fighters[sim.opponent_of(index)].side, 0);
+    }
+
+    for _ in 0..60 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    for &index in &side0 {
+        let member = sim.fighters[index].team_index;
+        assert_eq!(sim.teams[0].members[member].life, sim.fighters[index].life);
+    }
+
+    // Two KO'd members still leave the side alive.
+    for fighter in &mut sim.fighters {
+        if fighter.side == 1 && fighter.team_index < 2 {
+            fighter.life = 0;
+        }
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    // The last member ends the round.
+    for fighter in &mut sim.fighters {
+        if fighter.side == 1 && fighter.team_index == 2 {
+            fighter.life = 0;
+        }
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -20,13 +20,14 @@ not ticked, drawn, or collided.
 - `Turns` auto-advances to the next living standby member when the active
   member is KO'd; the round only ends when no living member remains.
 - `Tag` keeps manual `TagIn`/`TagOut` control.
-- `Simul` spawns roster member 1 as an additional active CPU fighter at
-  round start (one partner per side). Both members tick, collide, are
-  targetable, render, and drive the camera. The round ends only when every
-  active member of a side is KO'd; time-over compares total team life.
-  Partners use the configured AI level (at least 1); `ai_sides` does not
-  disable them. More than two active members and manual tag control during
-  simul are not modeled.
+- `Simul` spawns every roster member after the leader as an active CPU
+  fighter at round start, staggered behind the leader. Every member ticks,
+  collides, is targetable, renders, and drives the camera. The round ends only
+  when every active member of a side is KO'd; time-over compares total team
+  life across all roster members. Partners use the configured AI level (at
+  least 1); `ai_sides` does not disable them. `assign_team` accepts any roster
+  length, so simul sizes beyond the front-end's single partner selection are
+  available programmatically. Manual tag control during simul is not modeled.
 
 The title Options screen exposes `P1 TEAM`, `P2 TEAM`, `P1 PARTNER`, and
 `P2 PARTNER`: team mode cycles Single → Turns → Tag → Simul, and partner cycles
@@ -68,7 +69,7 @@ active fighter's bar, using the synced roster life/life-max values.
 
 ## 5. Not modeled
 
-- More than two simultaneous members per side.
+- Front-end selection of more than one partner per side.
 - Alternate-character loading beyond the explicit leader/partner pair; rosters are
   assigned through the API (tests and hosts).
 - Partner tag animations, tag-in invulnerability windows, and team-specific

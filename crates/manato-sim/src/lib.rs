@@ -2235,14 +2235,21 @@ impl SimState {
     }
 
     fn team_total_life(&self, side: usize) -> i32 {
-        let active = self.teams[side].active;
         let mut total = 0;
         for (index, member) in self.teams[side].members.iter().enumerate() {
-            total += if index == active {
-                self.fighters[side].life.max(0)
-            } else {
-                member.life.max(0)
-            };
+            // Simultaneous members are live fighters; standby members keep
+            // their stored life until they are swapped in.
+            let life = self
+                .fighters
+                .iter()
+                .find(|fighter| {
+                    fighter.owner.is_none()
+                        && fighter.side.min(1) == side
+                        && fighter.team_index == index
+                })
+                .map(|fighter| fighter.life)
+                .unwrap_or(member.life);
+            total += life.max(0);
         }
         total
     }
@@ -2673,24 +2680,25 @@ impl SimState {
         self.start_round();
     }
 
-    /// Spawns one CPU partner per `Simul` side from roster member 1.
+    /// Spawns a CPU fighter for every `Simul` roster member after the leader.
     fn spawn_simul_partners(&mut self) {
         let mut spawn = Vec::new();
         for side in 0..2 {
             if self.team_modes[side] != TeamMode::Simul {
                 continue;
             }
-            let Some(member) = self.teams[side].members.get(1).cloned() else {
-                continue;
-            };
-            let exists = self.fighters.iter().any(|fighter| {
-                fighter.owner.is_none() && fighter.side == side && fighter.team_index == 1
-            });
-            if !exists {
-                spawn.push((side, member));
+            for (team_index, member) in self.teams[side].members.iter().enumerate().skip(1) {
+                let exists = self.fighters.iter().any(|fighter| {
+                    fighter.owner.is_none()
+                        && fighter.side == side
+                        && fighter.team_index == team_index
+                });
+                if !exists {
+                    spawn.push((side, team_index, member.clone()));
+                }
             }
         }
-        for (side, member) in spawn {
+        for (side, team_index, member) in spawn {
             let stage = &self.assets.stage;
             let start = if side == 0 {
                 stage.p1_start
@@ -2703,13 +2711,15 @@ impl SimState {
                 stage.p2_facing
             };
             let facing = if facing == 0 { 1 } else { facing };
-            let pos = Vec2::new(start.x - facing as f32 * 35.0, start.y);
+            // Stagger members behind the leader so every fighter is visible.
+            let offset = 35.0 + 30.0 * (team_index.saturating_sub(1)) as f32;
+            let pos = Vec2::new(start.x - facing as f32 * offset, start.y);
             let char_id = member.char_id;
             let Some(character) = self.assets.characters.get(char_id) else {
                 continue;
             };
             let mut fighter = Fighter::new(character, char_id, side, side, pos, facing);
-            fighter.team_index = 1;
+            fighter.team_index = team_index;
             fighter.ai_level = self.options.ai_level.max(1);
             fighter.life = member.life.clamp(0, fighter.life_max.max(1));
             fighter.red_life = member.red_life.clamp(fighter.life, fighter.life_max);
