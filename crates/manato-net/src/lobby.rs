@@ -556,6 +556,134 @@ impl SpectatorSnapshotReceiver {
     }
 }
 
+/// Minimal lobby client for player-slot matchmaking.
+///
+/// Joins a relay, tracks `Welcome`/`State` messages, and can mark itself ready.
+pub struct LobbyClient {
+    socket: UdpSocket,
+    relay: SocketAddr,
+    name: String,
+    spectator: bool,
+    pub id: Option<u32>,
+    pub host: Option<u32>,
+    pub phase: Option<LobbyPhase>,
+    pub members: Vec<LobbyMember>,
+    pub ready: bool,
+}
+
+impl LobbyClient {
+    pub fn connect(relay: SocketAddr, name: &str, spectator: bool) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_nonblocking(true)?;
+        let client = Self {
+            socket,
+            relay,
+            name: name.chars().take(32).collect(),
+            spectator,
+            id: None,
+            host: None,
+            phase: None,
+            members: Vec::new(),
+            ready: false,
+        };
+        client.send(&LobbyMessage::Join {
+            name: client.name.clone(),
+            spectator,
+        });
+        Ok(client)
+    }
+
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket.local_addr()
+    }
+
+    fn send(&self, message: &LobbyMessage) {
+        let _ = self.socket.send_to(&message.encode(), self.relay);
+    }
+
+    /// Drains lobby messages and returns how many were processed.
+    pub fn poll(&mut self) -> anyhow::Result<usize> {
+        let mut buffer = [0u8; 4096];
+        let mut count = 0;
+        loop {
+            match self.socket.recv_from(&mut buffer) {
+                Ok((len, _)) => {
+                    let Some(message) = LobbyMessage::decode(&buffer[..len]) else {
+                        continue;
+                    };
+                    match message {
+                        LobbyMessage::Welcome { id, host } => {
+                            self.id = Some(id);
+                            self.host = Some(host);
+                        }
+                        LobbyMessage::State {
+                            host,
+                            phase,
+                            members,
+                        } => {
+                            self.host = Some(host);
+                            self.phase = Some(phase);
+                            self.members = members;
+                        }
+                        _ => {}
+                    }
+                    count += 1;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(count)
+    }
+
+    pub fn set_ready(&mut self, ready: bool) {
+        if let Some(id) = self.id {
+            self.ready = ready;
+            self.send(&LobbyMessage::Ready { id, ready });
+        }
+    }
+
+    /// Sends Start when this client is the host (and an id is assigned).
+    pub fn start(&self) -> bool {
+        match (self.id, self.host) {
+            (Some(id), Some(host)) if id == host => {
+                self.send(&LobbyMessage::Start { id });
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn player_count(&self) -> usize {
+        self.members
+            .iter()
+            .filter(|member| member.role != LobbyRole::Spectator)
+            .count()
+    }
+
+    pub fn is_spectator(&self) -> bool {
+        self.spectator
+    }
+
+    pub fn status_text(&self) -> String {
+        let role = if self.spectator {
+            "spectator"
+        } else {
+            "player"
+        };
+        match (self.id, self.phase) {
+            (Some(id), Some(phase)) => format!(
+                "lobby {role} id {id} {:?} players={} spectators={}",
+                phase,
+                self.player_count(),
+                self.members.len().saturating_sub(self.player_count())
+            ),
+            (Some(id), None) => format!("lobby id {id} waiting for state"),
+            _ => "lobby: waiting for welcome".into(),
+        }
+    }
+}
+
 /// Continuous host-side snapshot broadcaster over a direct UDP socket.
 ///
 /// Spectators join by sending [`LobbyMessage::Join`]; the host sends chunked
@@ -1015,6 +1143,55 @@ mod tests {
         );
         host.tick([manato_core::PlayerInput::default(); 2]);
         assert!(broadcaster.broadcast(&host, current + 6).expect("interval") > 0);
+    }
+
+    #[test]
+    fn lobby_client_joins_readies_and_sees_start() {
+        let relay = UdpRelay::bind("127.0.0.1:0".parse().unwrap()).expect("relay");
+        let addr = relay.local_addr().expect("addr");
+        let (mut server, _host) = LobbyServer::new("host", 2, addr);
+        let mut client = LobbyClient::connect(addr, "guest", false).expect("client");
+        for _ in 0..100 {
+            relay.poll(&mut server).expect("relay");
+            client.poll().expect("client");
+            if client.id.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert!(client.id.is_some());
+        assert_eq!(client.host, Some(0));
+        client.set_ready(true);
+        for _ in 0..50 {
+            relay.poll(&mut server).expect("relay");
+            client.poll().expect("client");
+            if server.state.player_count() == 2 && server.state.all_players_ready() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert!(server.state.all_players_ready());
+        // Host coordination: host marks ready and starts; the client observes.
+        let replies = server.handle(addr, LobbyMessage::Ready { id: 0, ready: true });
+        for (target, message) in &replies {
+            relay.send_to(message, *target).expect("relay ready");
+        }
+        let replies = server.handle(addr, LobbyMessage::Start { id: 0 });
+        assert!(!replies.is_empty());
+        for (target, message) in &replies {
+            relay.send_to(message, *target).expect("relay start");
+        }
+        for _ in 0..50 {
+            relay.poll(&mut server).expect("relay");
+            client.poll().expect("client");
+            if client.phase == Some(LobbyPhase::Starting) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(client.phase, Some(LobbyPhase::Starting));
+        assert!(client.status_text().contains("Starting"));
+        assert!(!client.start(), "guest cannot start the lobby");
     }
 
     #[test]

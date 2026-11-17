@@ -110,8 +110,13 @@ The app exposes:
 - `--matchmake <addr>`: discover lobbies, list them, and start the spectator
   client against the best joinable relay (unless `--spectate` overrides it).
 
-The matchmaking flow currently joins as a spectator. Player-slot joining and
-start coordination, plus automatic NAT hole punching, are not modeled.
+`LobbyClient` covers player slots: it joins a relay, tracks `Welcome`/`State`,
+marks itself ready, and sends `Start` when it is the host. The app's
+`--matchmake-play <discovery-addr>` discovers lobbies, prints them, joins the
+best relay as a player, marks ready, and reports the resulting lobby state.
+Hosts can coordinate `Start` through `LobbyState`/`LobbyServer` once every
+player is ready. Handing a `Starting` lobby into an actual netplay match, and
+automatic NAT hole punching, are not modeled.
 
 ## 4. Security notes
 

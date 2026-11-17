@@ -43,6 +43,7 @@ struct Options {
     discover: Option<String>,
     stun: Option<String>,
     matchmake: Option<String>,
+    matchmake_play: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -72,6 +73,7 @@ impl Default for Options {
             discover: None,
             stun: None,
             matchmake: None,
+            matchmake_play: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -402,6 +404,10 @@ impl Options {
                     opts.matchmake = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--matchmake-play" => {
+                    opts.matchmake_play = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--scale" => {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
@@ -508,6 +514,7 @@ Modes:
   --discover <addr>   Query LAN lobby discovery at addr and print results
   --stun <addr>       Report the public UDP address via a STUN server
   --matchmake <addr>  Discover lobbies, list them, and spectate the best one
+  --matchmake-play <addr>  Discover, join the best lobby as a player, and ready
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -537,6 +544,35 @@ fn run_discovery(target: &str) -> anyhow::Result<()> {
             lobby.name, lobby.address, lobby.players, lobby.spectators, lobby.phase
         );
     }
+    Ok(())
+}
+
+fn run_matchmake_play(target: &str) -> anyhow::Result<()> {
+    let target: std::net::SocketAddr = target.parse()?;
+    let lobbies = manato_net::discovery::Matchmaker::discover(target, Duration::from_secs(1))?;
+    for lobby in &lobbies {
+        println!(
+            "{} @ {} players={} spectators={} phase={:?}",
+            lobby.name, lobby.address, lobby.players, lobby.spectators, lobby.phase
+        );
+    }
+    let Some(best) = manato_net::discovery::best_lobby(&lobbies) else {
+        println!("no joinable lobbies");
+        return Ok(());
+    };
+    let mut client = manato_net::lobby::LobbyClient::connect(best.address, "player", false)?;
+    println!("joining {} @ {}", best.name, best.address);
+    let started = Instant::now();
+    let mut ready_sent = false;
+    while started.elapsed() < Duration::from_secs(3) {
+        client.poll()?;
+        if client.id.is_some() && !ready_sent {
+            client.set_ready(true);
+            ready_sent = true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    println!("{}", client.status_text());
     Ok(())
 }
 
@@ -578,6 +614,10 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
         }
+    }
+
+    if let Some(target) = &opts.matchmake_play {
+        return run_matchmake_play(target);
     }
 
     if let Some(target) = &opts.discover {
