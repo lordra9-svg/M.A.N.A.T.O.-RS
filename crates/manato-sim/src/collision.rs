@@ -11,7 +11,7 @@ use crate::{SimState, SoundEvent, SoundSource};
 pub fn resolve(sim: &mut SimState) {
     for attacker in 0..sim.fighters.len() {
         let defender = sim.opponent_of(attacker);
-        if defender >= 2 || attacker == defender {
+        if attacker == defender {
             continue;
         }
         if !sim.fighters[attacker].active || !sim.fighters[defender].active {
@@ -1045,7 +1045,7 @@ pub fn resolve_projectiles(sim: &mut SimState) {
             continue;
         }
         let defender = sim.opponent_of(owner);
-        if defender >= 2 || !sim.fighters[defender].active {
+        if !sim.fighters[defender].active {
             continue;
         }
         if !affect_team_allows(sim, owner, defender, &hitdef) {

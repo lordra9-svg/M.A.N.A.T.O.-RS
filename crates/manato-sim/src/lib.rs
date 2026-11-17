@@ -1041,14 +1041,35 @@ impl SimState {
     pub fn opponent_of(&self, who: usize) -> usize {
         // Helpers (including nested helpers owned by another helper) inherit
         // their owner's side, so the side is the only stable way to find the
-        // opposing player. Using the owner index directly underflows once an
-        // owner is itself a helper.
-        let side = self
-            .fighters
-            .get(who)
-            .map(|fighter| fighter.side)
-            .unwrap_or(who);
-        1 - side.min(1)
+        // opposing player. With simultaneous teams, pick the nearest active
+        // opposing team member; fall back to the side leader.
+        let Some(fighter) = self.fighters.get(who) else {
+            return 0;
+        };
+        let side = fighter.side.min(1);
+        let x = fighter.pos.x;
+        self.fighters
+            .iter()
+            .enumerate()
+            .filter(|(_, other)| other.side.min(1) != side && other.owner.is_none() && other.active)
+            .min_by(|(_, a), (_, b)| {
+                (a.pos.x - x)
+                    .abs()
+                    .partial_cmp(&(b.pos.x - x).abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(index, _)| index)
+            .unwrap_or(1 - side)
+    }
+
+    /// Whether a side still has a living, non-helper team member.
+    pub fn side_alive(&self, side: usize) -> bool {
+        self.fighters.iter().any(|fighter| {
+            fighter.side.min(1) == side
+                && fighter.owner.is_none()
+                && fighter.active
+                && (fighter.life > 0 || fighter.assert_flags & fighter::ASSERT_NOKO != 0)
+        })
     }
 
     pub fn root_of(&self, who: usize) -> usize {
@@ -1073,7 +1094,10 @@ impl SimState {
     }
 
     pub fn helper_count(&self) -> usize {
-        self.fighters.len().saturating_sub(2)
+        self.fighters
+            .iter()
+            .filter(|fighter| fighter.owner.is_some())
+            .count()
     }
 
     pub fn helper_by_id(&self, owner: usize, id: i32) -> Option<usize> {
@@ -1223,7 +1247,24 @@ impl SimState {
             inputs
         };
         let super_paused = self.super_pause > 0;
-        for (i, input) in inputs.iter().enumerate() {
+        // Leaders use the supplied inputs; simultaneous partners are CPU-driven.
+        let mut all_inputs = Vec::with_capacity(self.fighters.len());
+        for index in 0..self.fighters.len() {
+            let input = if index < 2 {
+                inputs[index]
+            } else if self.fighters[index].owner.is_none() && self.fighters[index].active {
+                let level = self.fighters[index].ai_level;
+                if level > 0 {
+                    crate::ai::input_for(self, index, level)
+                } else {
+                    PlayerInput::default()
+                }
+            } else {
+                PlayerInput::default()
+            };
+            all_inputs.push(input);
+        }
+        for (i, input) in all_inputs.iter().enumerate() {
             let hit_paused = self.fighters[i].hit.hit_pause > 0;
             let can_move = self.pause_mover == Some(i) && self.pause_movetime > 0;
             let pause_bits = u8::from(hit_paused) | (u8::from(super_paused && !can_move) << 1);
@@ -1297,9 +1338,13 @@ impl SimState {
         }
         self.storyboards.retain(|overlay| !overlay.player.done);
         for side in 0..2 {
-            let active = self.teams[side].active;
-            if let Some(member) = self.teams[side].members.get_mut(active) {
-                *member = TeamMember::from_fighter(&self.fighters[side]);
+            for fighter in &self.fighters {
+                if fighter.owner.is_some() || fighter.side.min(1) != side {
+                    continue;
+                }
+                if let Some(member) = self.teams[side].members.get_mut(fighter.team_index) {
+                    *member = TeamMember::from_fighter(fighter);
+                }
             }
         }
         self.update_effects();
@@ -2185,7 +2230,7 @@ impl SimState {
         if let Some(next) = next {
             self.teams[side].active = next;
             let member = self.teams[side].members[next].clone();
-            self.rebuild_active_with(side, &member, None, true);
+            self.rebuild_active_with(side, &member, None, true, next);
         }
     }
 
@@ -2221,12 +2266,7 @@ impl SimState {
                 if !timer_frozen {
                     self.round.timer -= 1;
                 }
-                let dead: Vec<usize> = (0..2)
-                    .filter(|&i| {
-                        self.fighters[i].life <= 0
-                            && self.fighters[i].assert_flags & fighter::ASSERT_NOKO == 0
-                    })
-                    .collect();
+                let dead: Vec<usize> = (0..2).filter(|&side| !self.side_alive(side)).collect();
                 if !dead.is_empty() {
                     let winner = if dead.len() == 1 {
                         Some(1 - dead[0])
@@ -2566,7 +2606,7 @@ impl SimState {
         let next = (active + 1) % self.teams[side].members.len();
         self.teams[side].active = next;
         let member = self.teams[side].members[next].clone();
-        self.rebuild_active_with(who, &member, incoming_state, ctrl);
+        self.rebuild_active_with(who, &member, incoming_state, ctrl, next);
         true
     }
 
@@ -2576,7 +2616,7 @@ impl SimState {
             .get(self.teams[who.min(1)].active)
             .cloned();
         if let Some(member) = member {
-            self.rebuild_active_with(who, &member, None, true);
+            self.rebuild_active_with(who, &member, None, true, self.teams[who.min(1)].active);
         }
     }
 
@@ -2586,6 +2626,7 @@ impl SimState {
         member: &TeamMember,
         incoming_state: Option<i32>,
         ctrl: bool,
+        team_index: usize,
     ) {
         let Some(character) = self.assets.characters.get(member.char_id) else {
             return;
@@ -2595,6 +2636,7 @@ impl SimState {
             (old.side, old.slot, old.pos, old.facing, old.ai_level);
         let mut fighter = fighter::Fighter::new(character, member.char_id, side, slot, pos, facing);
         fighter.ai_level = ai_level;
+        fighter.team_index = team_index;
         fighter.life = member.life.clamp(0, fighter.life_max.max(1));
         fighter.red_life = member.red_life.clamp(fighter.life, fighter.life_max);
         fighter.power = member.power.min(MAX_POWER);
@@ -2631,6 +2673,52 @@ impl SimState {
         self.start_round();
     }
 
+    /// Spawns one CPU partner per `Simul` side from roster member 1.
+    fn spawn_simul_partners(&mut self) {
+        let mut spawn = Vec::new();
+        for side in 0..2 {
+            if self.team_modes[side] != TeamMode::Simul {
+                continue;
+            }
+            let Some(member) = self.teams[side].members.get(1).cloned() else {
+                continue;
+            };
+            let exists = self.fighters.iter().any(|fighter| {
+                fighter.owner.is_none() && fighter.side == side && fighter.team_index == 1
+            });
+            if !exists {
+                spawn.push((side, member));
+            }
+        }
+        for (side, member) in spawn {
+            let stage = &self.assets.stage;
+            let start = if side == 0 {
+                stage.p1_start
+            } else {
+                stage.p2_start
+            };
+            let facing = if side == 0 {
+                stage.p1_facing
+            } else {
+                stage.p2_facing
+            };
+            let facing = if facing == 0 { 1 } else { facing };
+            let pos = Vec2::new(start.x - facing as f32 * 35.0, start.y);
+            let char_id = member.char_id;
+            let Some(character) = self.assets.characters.get(char_id) else {
+                continue;
+            };
+            let mut fighter = Fighter::new(character, char_id, side, side, pos, facing);
+            fighter.team_index = 1;
+            fighter.ai_level = self.options.ai_level.max(1);
+            fighter.life = member.life.clamp(0, fighter.life_max.max(1));
+            fighter.red_life = member.red_life.clamp(fighter.life, fighter.life_max);
+            fighter.power = member.power.min(MAX_POWER);
+            fighter.enter_state(0, character, false);
+            self.fighters.push(fighter);
+        }
+    }
+
     fn start_round(&mut self) {
         if self.round.number > 1 {
             for side in 0..2 {
@@ -2658,6 +2746,7 @@ impl SimState {
                 .get_or("data.life", char.constants.get_or("life", 1000.0))
                 as i32;
             let fighter = &mut self.fighters[slot];
+            fighter.team_index = 0;
             fighter.life_max = default_life.max(1);
             let power = fighter.power;
             let start = if slot == 0 {
@@ -2760,6 +2849,7 @@ impl SimState {
             fighter.enter_state(0, char, false);
             fighter.ctrl = true;
         }
+        self.spawn_simul_partners();
         self.round.phase = RoundPhase::Intro;
         self.round.phase_timer = 40;
         self.round.timer = self.round.round_time * 60;
@@ -2917,8 +3007,20 @@ impl SimState {
                     fighter.pos.y + fighter.height_player.y,
                 )
             } else {
-                let mid_x = (self.fighters[0].pos.x + self.fighters[1].pos.x) * 0.5;
-                let highest = self.fighters[0].pos.y.min(self.fighters[1].pos.y);
+                let members: Vec<&Fighter> = self
+                    .fighters
+                    .iter()
+                    .filter(|fighter| fighter.owner.is_none() && fighter.active)
+                    .collect();
+                let mid_x = if members.is_empty() {
+                    self.fighters[0].pos.x
+                } else {
+                    members.iter().map(|fighter| fighter.pos.x).sum::<f32>() / members.len() as f32
+                };
+                let highest = members
+                    .iter()
+                    .map(|fighter| fighter.pos.y)
+                    .fold(0.0_f32, f32::min);
                 // Visible extents of the non-helper fighters, including their
                 // body boxes. Helpers never drive the fighting camera.
                 let mut left = f32::INFINITY;
@@ -3440,6 +3542,8 @@ impl SimState {
             h.write_i32(p.hitdef.damage);
         }
         for f in &self.fighters {
+            h.write_u32(f.team_index as u32);
+            h.write_u32(f.side as u32);
             h.write_f32(f.pos.x);
             h.write_f32(f.pos.y);
             h.write_f32(f.height_player.x);

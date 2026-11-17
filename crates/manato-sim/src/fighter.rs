@@ -210,6 +210,9 @@ pub struct Fighter {
     pub state_char_id: Option<usize>,
     pub side: usize,
     pub slot: usize,
+    /// Roster member index for non-helper team fighters (0 = leader).
+    #[serde(default)]
+    pub team_index: usize,
     pub active: bool,
     /// Difficulty of the AI driving this slot; 0 when AI is off. Helpers
     /// inherit their owner's level.
@@ -481,6 +484,7 @@ impl Fighter {
             state_char_id: None,
             side,
             slot,
+            team_index: 0,
             active: true,
             ai_level: 0,
             pos,

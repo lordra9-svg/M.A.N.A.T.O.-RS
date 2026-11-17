@@ -3905,6 +3905,52 @@ fn clipboard_debug_controllers_store_and_clear_output() {
 }
 
 #[test]
+fn simul_teams_spawn_partners_and_require_team_ko() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival]);
+    sim.assign_team(1, &[nival, kaen]);
+    sim.team_modes = [manato_sim::TeamMode::Simul; 2];
+    sim.restart_match();
+    assert_eq!(sim.fighters.len(), 4, "leader and partner per side");
+    let partner = sim
+        .fighters
+        .iter()
+        .position(|fighter| fighter.side == 0 && fighter.team_index == 1)
+        .expect("side-0 partner");
+    assert!(sim.fighters[partner].active);
+    assert_ne!(sim.fighters[partner].pos.x, sim.fighters[0].pos.x);
+    // Opponent selection picks the nearest living member of the other side.
+    assert!(sim.opponent_of(0) == 1 || sim.opponent_of(0) == 3);
+    assert!(sim.opponent_of(partner) == 1 || sim.opponent_of(partner) == 3);
+
+    for _ in 0..60 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.fighters[partner].active);
+    // The roster mirrors both active members.
+    assert_eq!(sim.teams[0].members[1].life, sim.fighters[partner].life);
+
+    // KO the side-1 leader only: the partner keeps the side alive.
+    sim.fighters[1].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_ne!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    // KO the partner too: the round ends for side 1.
+    let side1_partner = sim
+        .fighters
+        .iter()
+        .position(|fighter| fighter.side == 1 && fighter.team_index == 1)
+        .expect("side-1 partner");
+    sim.fighters[side1_partner].life = 0;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.round.phase, manato_sim::RoundPhase::Ko);
+    assert_eq!(sim.round.winner, Some(0));
+}
+
+#[test]
 fn shiftinput_remaps_next_frame_inputs() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -16,10 +16,17 @@ initial active fighter; standby members are stat-only roster entries and are
 not ticked, drawn, or collided.
 
 `SimState.team_modes[side]` selects `Single`, `Turns`, `Tag`, or `Simul`.
-`Turns` auto-advances to the next living standby member when the active member
-is KO'd, and the round only ends when no living member remains. `Tag` keeps
-manual `TagIn`/`TagOut` control. `Simul` is declared for content compatibility
-but not simulated (one active fighter per side).
+
+- `Turns` auto-advances to the next living standby member when the active
+  member is KO'd; the round only ends when no living member remains.
+- `Tag` keeps manual `TagIn`/`TagOut` control.
+- `Simul` spawns roster member 1 as an additional active CPU fighter at
+  round start (one partner per side). Both members tick, collide, are
+  targetable, render, and drive the camera. The round ends only when every
+  active member of a side is KO'd; time-over compares total team life.
+  Partners use the configured AI level (at least 1); `ai_sides` does not
+  disable them. More than two active members and manual tag control during
+  simul are not modeled.
 
 The active member's life/red-life/power are synchronized into the roster each
 tick, so standby lifebars and turn selection see current values.
@@ -52,7 +59,7 @@ active fighter's bar, using the synced roster life/life-max values.
 
 ## 5. Not modeled
 
-- Simultaneous (simul) teams: two or more fighters active per side.
+- More than two simultaneous members per side.
 - Alternate-character loading from `select.def` team configuration; rosters are
   assigned through the API (tests and hosts).
 - Partner tag animations, tag-in invulnerability windows, and team-specific
