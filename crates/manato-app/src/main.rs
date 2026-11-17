@@ -755,6 +755,7 @@ struct Frontend {
     options_fullscreen: bool,
     team_modes: [manato_sim::TeamMode; 2],
     partners: [Option<usize>; 2],
+    partners2: [Option<usize>; 2],
     result_timer: i32,
     result_resolved: bool,
     arcade: Option<ArcadeSession>,
@@ -978,6 +979,7 @@ impl Frontend {
             options_fullscreen: false,
             team_modes: [manato_sim::TeamMode::Single; 2],
             partners: [Some(p2_start), Some(0)],
+            partners2: [Some(0), Some(p2_start)],
             result_timer: 0,
             result_resolved: false,
             arcade: None,
@@ -1035,6 +1037,20 @@ impl Frontend {
                     "P2 PARTNER".into(),
                     self.names
                         .get(self.partners[1].unwrap_or(0))
+                        .map(|entry| entry.name.clone())
+                        .unwrap_or_else(|| "--".into()),
+                ),
+                (
+                    "P1 PARTNER 2".into(),
+                    self.names
+                        .get(self.partners2[0].unwrap_or(0))
+                        .map(|entry| entry.name.clone())
+                        .unwrap_or_else(|| "--".into()),
+                ),
+                (
+                    "P2 PARTNER 2".into(),
+                    self.names
+                        .get(self.partners2[1].unwrap_or(0))
                         .map(|entry| entry.name.clone())
                         .unwrap_or_else(|| "--".into()),
                 ),
@@ -1096,6 +1112,21 @@ impl Frontend {
             }
         }
         self.partners[side] = Some(next as usize);
+    }
+
+    fn cycle_partner2(&mut self, side: usize, delta: i32) {
+        if side >= 2 || self.roster.is_empty() {
+            return;
+        }
+        let len = self.roster.len() as i32;
+        let mut next = self.partners2[side].unwrap_or(0) as i32;
+        for _ in 0..len {
+            next = (next + delta).rem_euclid(len);
+            if !self.roster[next as usize].single {
+                break;
+            }
+        }
+        self.partners2[side] = Some(next as usize);
     }
 
     /// Team modes after applying select.def single-only rules for the chosen
@@ -1415,8 +1446,14 @@ impl App {
         };
         let team_modes = frontend.effective_team_modes();
         let partner_entries = [
-            frontend.partners[0].and_then(|index| chosen_entry(frontend, index)),
-            frontend.partners[1].and_then(|index| chosen_entry(frontend, index)),
+            [
+                frontend.partners[0].and_then(|index| chosen_entry(frontend, index)),
+                frontend.partners2[0].and_then(|index| chosen_entry(frontend, index)),
+            ],
+            [
+                frontend.partners[1].and_then(|index| chosen_entry(frontend, index)),
+                frontend.partners2[1].and_then(|index| chosen_entry(frontend, index)),
+            ],
         ];
         let mut assets = match Assets::load(&config) {
             Ok(assets) => assets,
@@ -1426,29 +1463,28 @@ impl App {
             }
         };
         // Load selected partners as extra characters for team modes.
-        let mut partner_ids = [None, None];
+        let mut partner_ids: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
         for side in 0..2 {
             if team_modes[side] == manato_sim::TeamMode::Single {
                 continue;
             }
-            let Some(entry) = &partner_entries[side] else {
-                continue;
-            };
-            if entry.single {
-                continue;
-            }
-            let path = if Path::new(&entry.def).is_absolute() {
-                PathBuf::from(&entry.def)
-            } else {
-                self.opts.root.join(&entry.def)
-            };
-            match manato_formats::Character::load(&path, &assets.data_dirs) {
-                Ok(character) => {
-                    partner_ids[side] = Some(assets.characters.len());
-                    assets.characters.push(character);
+            for entry in partner_entries[side].iter().flatten() {
+                if entry.single {
+                    continue;
                 }
-                Err(error) => {
-                    log::warn!("failed to load partner {}: {error:#}", path.display());
+                let path = if Path::new(&entry.def).is_absolute() {
+                    PathBuf::from(&entry.def)
+                } else {
+                    self.opts.root.join(&entry.def)
+                };
+                match manato_formats::Character::load(&path, &assets.data_dirs) {
+                    Ok(character) => {
+                        partner_ids[side].push(assets.characters.len());
+                        assets.characters.push(character);
+                    }
+                    Err(error) => {
+                        log::warn!("failed to load partner {}: {error:#}", path.display());
+                    }
                 }
             }
         }
@@ -1463,10 +1499,13 @@ impl App {
         );
         if team_modes != [manato_sim::TeamMode::Single; 2] {
             sim.team_modes = team_modes;
-            for (side, partner) in partner_ids.iter().enumerate() {
-                if let Some(partner) = partner {
-                    sim.assign_team(side, &[side, *partner]);
+            for (side, partners) in partner_ids.iter().enumerate() {
+                if partners.is_empty() {
+                    continue;
                 }
+                let mut roster = vec![sim.fighters[side].char_id];
+                roster.extend_from_slice(partners);
+                sim.assign_team(side, &roster);
             }
             sim.restart_match();
         }
@@ -1606,6 +1645,8 @@ impl App {
             7 => frontend.cycle_team(1, delta),
             8 => frontend.cycle_partner(0, delta),
             9 => frontend.cycle_partner(1, delta),
+            10 => frontend.cycle_partner2(0, delta),
+            11 => frontend.cycle_partner2(1, delta),
             _ => {}
         }
         if frontend.options_index == 3 {
@@ -1732,7 +1773,7 @@ impl App {
                         if self
                             .frontend
                             .as_ref()
-                            .is_some_and(|f| f.options_index == 10)
+                            .is_some_and(|f| f.options_index == 12)
                         {
                             if let Some(frontend) = self.frontend.as_mut() {
                                 frontend.screen = FrontendScreen::Title;
@@ -2434,6 +2475,7 @@ mod tests {
             options_fullscreen: false,
             team_modes: [manato_sim::TeamMode::Single; 2],
             partners: [None, None],
+            partners2: [None, None],
             result_timer: 0,
             result_resolved: false,
             arcade: None,
@@ -2479,6 +2521,28 @@ mod tests {
             frontend.cycle_partner(0, 1);
         }
         assert_eq!(frontend.partners[0], changed, "partner cycling wraps");
+
+        let first_second = frontend.partners2[0];
+        frontend.cycle_partner2(0, 1);
+        assert_ne!(frontend.partners2[0], first_second);
+        let changed_second = frontend.partners2[0];
+        for _ in 0..frontend.roster.len() {
+            frontend.cycle_partner2(0, 1);
+        }
+        assert_eq!(
+            frontend.partners2[0], changed_second,
+            "second partner cycling wraps"
+        );
+    }
+
+    #[test]
+    fn options_expose_second_partner_slots() {
+        let frontend = test_frontend();
+        let view = frontend.options_view();
+        assert_eq!(view.items.len(), 13);
+        assert_eq!(view.items[10].0, "P1 PARTNER 2");
+        assert_eq!(view.items[11].0, "P2 PARTNER 2");
+        assert_eq!(view.items[12].0, "BACK");
     }
 
     #[test]
@@ -2488,6 +2552,13 @@ mod tests {
         frontend.partners[0] = Some(0);
         frontend.cycle_partner(0, 1);
         assert_eq!(frontend.partners[0], Some(2), "single-only partner skipped");
+        frontend.partners2[0] = Some(0);
+        frontend.cycle_partner2(0, 1);
+        assert_eq!(
+            frontend.partners2[0],
+            Some(2),
+            "single-only second partner skipped"
+        );
 
         frontend.p1 = 1;
         frontend.p2 = 0;

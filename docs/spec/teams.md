@@ -29,14 +29,15 @@ not ticked, drawn, or collided.
   length, so simul sizes beyond the front-end's single partner selection are
   available programmatically. Manual tag control during simul is not modeled.
 
-The title Options screen exposes `P1 TEAM`, `P2 TEAM`, `P1 PARTNER`, and
-`P2 PARTNER`: team mode cycles Single → Turns → Tag → Simul, and partner cycles
-through the select.def roster, skipping entries marked `single = 1`. On match
-start the selected partner character is loaded into `Assets`, the side roster
-becomes `[leader, partner]`, and `SimState.team_modes` receives the chosen
+The title Options screen exposes `P1 TEAM`, `P2 TEAM`, `P1 PARTNER`,
+`P2 PARTNER`, `P1 PARTNER 2`, and `P2 PARTNER 2`: team mode cycles
+Single → Turns → Tag → Simul, and each partner slot cycles through the
+select.def roster, skipping entries marked `single = 1`. On match start the
+selected partner characters are loaded into `Assets`, the side roster becomes
+`[leader, partner, partner2]`, and `SimState.team_modes` receives the chosen
 modes. A leader marked `single = 1` in `select.def` forces that side to Single
 mode regardless of the options screen, and such entries are never loaded as
-partners. Single-mode sides ignore the partner selection.
+partners. Single-mode sides ignore partner selection.
 
 The active member's life/red-life/power are synchronized into the roster each
 tick, so standby lifebars and turn selection see current values.
@@ -69,7 +70,8 @@ active fighter's bar, using the synced roster life/life-max values.
 
 ## 5. Not modeled
 
-- Front-end selection of more than one partner per side.
+- Front-end selection of more than two partners per side (the roster API and
+  simul spawning have no such limit).
 - Alternate-character loading beyond the explicit leader/partner pair; rosters are
   assigned through the API (tests and hosts).
 - Partner tag animations, tag-in invulnerability windows, and team-specific
