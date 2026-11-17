@@ -833,6 +833,9 @@ pub struct SimState {
     pub tag_transitions: [Option<TagTransition>; 2],
     /// Per-side team mode (`Single`, `Turns`, `Tag`, `Simul`).
     pub team_modes: [TeamMode; 2],
+    /// `ModifyBGCtrl3D` overrides for 3D model nodes (`ctrlid` → z/xscale/yscale).
+    #[serde(default)]
+    pub model_nodes: std::collections::HashMap<i32, (f32, f32, f32)>,
     /// In-match `Storyboard` overlays (text layers; not serialized).
     #[serde(skip, default)]
     pub storyboards: Vec<StoryboardOverlay>,
@@ -977,6 +980,7 @@ impl SimState {
             tag_transitions: [None, None],
             team_modes: [TeamMode::Single; 2],
             storyboards: Vec::new(),
+            model_nodes: std::collections::HashMap::new(),
             frame: 0,
             match_time: 0,
             first_attack: None,
@@ -2884,6 +2888,7 @@ impl SimState {
         }
         self.fighters.truncate(2);
         self.tag_transitions = [None, None];
+        self.model_nodes.clear();
         for team in &mut self.teams {
             team.active = 0;
         }
@@ -3699,6 +3704,12 @@ impl SimState {
             h.write_i32(p.remove_time);
             h.write_i32(p.hits);
             h.write_i32(p.hitdef.damage);
+        }
+        for (id, (z, xs, ys)) in &self.model_nodes {
+            h.write_i32(*id);
+            h.write_f32(*z);
+            h.write_f32(*xs);
+            h.write_f32(*ys);
         }
         for transition in &self.tag_transitions {
             h.write_bool(transition.is_some());

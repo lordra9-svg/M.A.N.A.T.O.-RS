@@ -104,7 +104,11 @@ pub struct ModelAsset {
 
 impl ModelAsset {
     /// Vertex data for every draw at `time` seconds into the first animation.
-    pub fn sample(&self, time: f32) -> Vec<Vec<ModelVertex>> {
+    pub fn sample(
+        &self,
+        time: f32,
+        node_overrides: &std::collections::HashMap<i32, (f32, f32, f32)>,
+    ) -> Vec<Vec<ModelVertex>> {
         let worlds = self.world_transforms(time);
         let Some(placement) = &self.placement else {
             return Vec::new();
@@ -166,6 +170,16 @@ impl ModelAsset {
                             placement.ground - (transformed.y - placement.min_y) * placement.scale,
                             0.98,
                         ];
+                        let node_id = draw.node as i32;
+                        if let Some((z, xscale, yscale)) = node_overrides
+                            .get(&node_id)
+                            .or_else(|| node_overrides.get(&-1))
+                        {
+                            let center = [GAME_WIDTH as f32 * 0.5, placement.ground];
+                            out.pos[0] = center[0] + (out.pos[0] - center[0]) * xscale;
+                            out.pos[1] = center[1] + (out.pos[1] - center[1]) * yscale;
+                            out.pos[2] = (0.98 - z * 0.001).clamp(0.05, 0.98);
+                        }
                         let normal = Vec3::from_array(vertex.normal);
                         let world_normal = match &draw.skin {
                             Some(skin) => {
@@ -793,6 +807,37 @@ mod tests {
     }
 
     #[test]
+    fn node_overrides_apply_scale_and_depth() {
+        let dir = std::env::temp_dir().join(format!("manato-model-ctrl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("model.gltf");
+        std::fs::write(
+            &path,
+            r#"{
+  "asset": {"version": "2.0"},
+  "buffers": [{"uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAEAAAAAA", "byteLength": 36}],
+  "bufferViews": [{"buffer": 0, "byteLength": 36, "target": 34962}],
+  "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,0,0], "max": [1,2,0]}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [1,1,1,1]}}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0, "mode": 4}]}],
+  "nodes": [{"mesh": 0}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0
+}"#,
+        )
+        .expect("model");
+        let asset = load(&path).expect("load");
+        let base = asset.sample(0.0, &Default::default());
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert(0, (10.0, 2.0, 2.0));
+        let scaled = asset.sample(0.0, &overrides);
+        assert!((scaled[0][0].pos[0] - base[0][0].pos[0]).abs() > 1.0);
+        assert!((scaled[0][0].pos[2] - 0.97).abs() < 1e-5);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn loads_base_color_texture_and_uvs() {
         let dir = std::env::temp_dir().join(format!("manato-model-tex-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -827,7 +872,7 @@ mod tests {
         let texture = asset.draws[0].texture.as_ref().expect("texture");
         assert_eq!((texture.width, texture.height), (1, 1));
         assert_eq!(&texture.rgba[..4], &[255, 0, 0, 255]);
-        assert_eq!(asset.sample(0.0)[0].len(), 3);
+        assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -872,8 +917,8 @@ mod tests {
         let asset = load(&path).expect("load");
         assert_eq!(asset.draws.len(), 1);
         assert_eq!(asset.draws[0].targets.len(), 1);
-        let start = asset.sample(0.0)[0][0].pos;
-        let end = asset.sample(1.0)[0][0].pos;
+        let start = asset.sample(0.0, &Default::default())[0][0].pos;
+        let end = asset.sample(1.0, &Default::default())[0][0].pos;
         assert!(
             (end[0] - start[0]).abs() > 1.0,
             "morph weight animated the target"
@@ -929,8 +974,8 @@ mod tests {
         let asset = load(&path).expect("load");
         assert_eq!(asset.draws.len(), 1);
         assert!(asset.draws[0].skin.is_some());
-        let start = asset.sample(0.0)[0][0].pos;
-        let end = asset.sample(1.0)[0][0].pos;
+        let start = asset.sample(0.0, &Default::default())[0][0].pos;
+        let end = asset.sample(1.0, &Default::default())[0][0].pos;
         assert!(
             (end[0] - start[0]).abs() > 1.0,
             "joint animation deformed the mesh"
@@ -972,8 +1017,8 @@ mod tests {
         )
         .expect("model");
         let asset = load(&path).expect("load");
-        let start = asset.sample(0.0)[0][0].pos;
-        let middle = asset.sample(1.0)[0][0].pos;
+        let start = asset.sample(0.0, &Default::default())[0][0].pos;
+        let middle = asset.sample(1.0, &Default::default())[0][0].pos;
         assert!(
             (middle[0] - start[0]).abs() > 1.0,
             "animation translated the node"

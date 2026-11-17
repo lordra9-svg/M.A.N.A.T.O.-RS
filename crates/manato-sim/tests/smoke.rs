@@ -3555,6 +3555,7 @@ fn modifybgctrl3d_sets_layer_depth_and_scale() {
     let state = &sim.stage_layers[0];
     assert_eq!(state.z, Some(40.0));
     assert_eq!(state.z_scale, Some(manato_core::Vec2::new(2.0, 1.5)));
+    assert_eq!(sim.model_nodes.get(&layer_id), Some(&(40.0, 2.0, 1.5)));
     for (index, layer) in assets.stage.layers.iter().enumerate() {
         if layer.id == layer_id {
             assert_eq!(sim.stage_layers[index].z, Some(40.0));
@@ -3577,11 +3578,13 @@ fn modifybgctrl3d_sets_layer_depth_and_scale() {
         .iter()
         .all(|layer| layer.z == Some(-20.0)
             && layer.z_scale == Some(manato_core::Vec2::new(1.0, 1.0))));
+    assert_eq!(sim.model_nodes.get(&-1), Some(&(-20.0, 1.0, 1.0)));
     assert_ne!(before, sim.checksum());
 
     // Round restart rebuilds the layers and clears the 3D overrides.
     sim.restart_match();
     assert!(sim.stage_layers.iter().all(|layer| layer.z.is_none()));
+    assert!(sim.model_nodes.is_empty());
 }
 
 #[test]

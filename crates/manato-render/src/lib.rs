@@ -1025,7 +1025,7 @@ impl Renderer {
         }
         self.apply_palette_remaps(sim);
         self.shader_time = sim.match_time as f32 / 60.0;
-        self.update_model(sim.match_time as f32 / 60.0);
+        self.update_model(sim.match_time as f32 / 60.0, &sim.model_nodes);
         for fighter in &sim.fighters {
             if fighter.shader.is_none() {
                 continue;
@@ -1069,7 +1069,7 @@ impl Renderer {
         match model::load(path) {
             Ok(asset) => {
                 self.model_draws.clear();
-                let samples = asset.sample(0.0);
+                let samples = asset.sample(0.0, &Default::default());
                 for (draw, vertices) in asset.draws.iter().zip(samples.iter()) {
                     let view = match &draw.texture {
                         Some(texture) if texture.width > 0 && texture.height > 0 => {
@@ -1142,7 +1142,11 @@ impl Renderer {
         }
     }
 
-    fn update_model(&mut self, time: f32) {
+    fn update_model(
+        &mut self,
+        time: f32,
+        node_overrides: &std::collections::HashMap<i32, (f32, f32, f32)>,
+    ) {
         let Some(asset) = &self.model_asset else {
             return;
         };
@@ -1150,7 +1154,7 @@ impl Renderer {
             return;
         }
         self.model_time = time;
-        let samples = asset.sample(time);
+        let samples = asset.sample(time, node_overrides);
         for ((buffer, count, _), vertices) in self.model_draws.iter().zip(samples.iter()) {
             if vertices.len() as u32 == *count {
                 self.queue
@@ -1208,7 +1212,7 @@ impl Renderer {
         storyboard: &manato_formats::storyboard::Storyboard,
         player: &manato_formats::storyboard::StoryboardPlayer,
     ) {
-        self.update_model(player.time as f32 / 60.0);
+        self.update_model(player.time as f32 / 60.0, &Default::default());
         let deps = SceneDeps {
             atlas: &self.atlas,
             font: &self.font,

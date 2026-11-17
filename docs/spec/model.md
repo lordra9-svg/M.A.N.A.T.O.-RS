@@ -42,6 +42,8 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Additional animation clips.
 - Full PBR BRDFs, image-based environment lighting, normal/emissive/ORM maps,
   and multiple lights.
-- `ModifyBGCtrl3D` targeting individual model nodes (node transforms are
-  driven by glTF animation, not stage controllers).
+- `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
+  (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
+  baked screen extent around the model center and offsets its depth. Animation
+  still drives the node TRS; the controller only adds the render override.
 - 3D placement/offset/rotation/scale fields from the stage/storyboard DEF.

@@ -2966,6 +2966,10 @@ fn modify_bg_ctrl_3d(sim: &mut SimState, who: usize, control: &Controller) {
             state.z_scale = Some(Vec2::new(xscale, yscale));
         }
     }
+    // 3D model nodes use ctrlid as the glTF node index (-1 = all nodes).
+    if id >= -1 {
+        sim.model_nodes.insert(id, (z, xscale, yscale));
+    }
 }
 
 /// Sets or inserts one controller parameter.
