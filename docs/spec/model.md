@@ -1,7 +1,7 @@
 # 3D models
 
-**Status: APPROVED (partial).** Static glTF triangle meshes are loaded and
-rendered behind the 2D scene.
+**Status: APPROVED (partial).** Static glTF triangle meshes with base-color
+textures are loaded and rendered behind the 2D scene.
 
 ## Loading
 
@@ -13,7 +13,10 @@ rendered behind the 2D scene.
 ## Rendering
 
 - Every triangle primitive in `mode = TRIANGLES` contributes three vertices
-  with the material's `baseColorFactor`.
+  with `baseColorFactor` and `TEXCOORD_0`.
+- `baseColorTexture` images are decoded to RGBA and uploaded per material;
+  primitives without a texture use a white 1x1 fallback. The shader is unlit:
+  `texture(baseColor, uv) * baseColorFactor`.
 - The mesh bounding box is centered horizontally, scaled so its largest axis
   spans 70% of the 240px screen height, and placed standing at 88% screen
   height.
@@ -26,6 +29,6 @@ rendered behind the 2D scene.
 ## Not modeled
 
 - Node transforms, skinning, morph targets, and glTF animations.
-- Textures, PBR lighting, and environment maps.
+- PBR lighting, metallic/roughness, normal/emissive maps, and environment maps.
 - `ModifyBGCtrl3D` targeting individual model nodes.
 - 3D placement/offset/rotation/scale fields from the stage/storyboard DEF.

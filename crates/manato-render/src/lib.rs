@@ -85,8 +85,10 @@ pub struct Renderer {
     /// Atlas bank for each `(overlay storyboard pointer, scene index)` bg.
     overlay_bg_banks: HashMap<(usize, usize), u8>,
     model_pipeline: wgpu::RenderPipeline,
-    model_buffer: Option<wgpu::Buffer>,
-    model_vertices: u32,
+    model_bgl: wgpu::BindGroupLayout,
+    model_sampler: wgpu::Sampler,
+    model_white_view: wgpu::TextureView,
+    model_draws: Vec<(wgpu::Buffer, u32, wgpu::BindGroup)>,
     /// Standalone textures for `ShaderSet tex1`/`tex2` sprite references.
     shader_textures: HashMap<(u8, i32, i32), wgpu::TextureView>,
     solid: wgpu::BindGroup,
@@ -301,7 +303,49 @@ impl Renderer {
             bind_group_layouts: &[&custom_bgl],
             push_constant_ranges: &[],
         });
-        let model_pipeline = model::create_pipeline(&device, GAME_FORMAT);
+        let model_bgl = model::create_bind_group_layout(&device);
+        let model_pipeline = model::create_pipeline(&device, GAME_FORMAT, &model_bgl);
+        let model_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("manato model sampler"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        let white_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("manato model white"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &white_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &[255u8, 255, 255, 255],
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+        let model_white_view = white_texture.create_view(&Default::default());
         let shader_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("manato shader sampler"),
             mag_filter: wgpu::FilterMode::Nearest,
@@ -592,8 +636,10 @@ impl Renderer {
             overlay_bg_banks: HashMap::new(),
             shader_textures: HashMap::new(),
             model_pipeline,
-            model_buffer: None,
-            model_vertices: 0,
+            model_bgl,
+            model_sampler,
+            model_white_view,
+            model_draws: Vec::new(),
             solid,
             shadow,
             blit_pipeline,
@@ -1017,8 +1063,69 @@ impl Renderer {
     pub fn load_model(&mut self, path: &Path) {
         match model::load(path) {
             Ok(asset) => {
-                self.model_vertices = asset.vertices.len() as u32;
-                self.model_buffer = Some(model::upload_model(&self.device, &asset));
+                self.model_draws.clear();
+                for draw in &asset.draws {
+                    let view = match &draw.texture {
+                        Some(texture) if texture.width > 0 && texture.height > 0 => {
+                            let gpu_texture =
+                                self.device.create_texture(&wgpu::TextureDescriptor {
+                                    label: Some("manato model base color"),
+                                    size: wgpu::Extent3d {
+                                        width: texture.width,
+                                        height: texture.height,
+                                        depth_or_array_layers: 1,
+                                    },
+                                    mip_level_count: 1,
+                                    sample_count: 1,
+                                    dimension: wgpu::TextureDimension::D2,
+                                    format: wgpu::TextureFormat::Rgba8Unorm,
+                                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                        | wgpu::TextureUsages::COPY_DST,
+                                    view_formats: &[],
+                                });
+                            self.queue.write_texture(
+                                wgpu::TexelCopyTextureInfo {
+                                    texture: &gpu_texture,
+                                    mip_level: 0,
+                                    origin: wgpu::Origin3d::ZERO,
+                                    aspect: wgpu::TextureAspect::All,
+                                },
+                                &texture.rgba,
+                                wgpu::TexelCopyBufferLayout {
+                                    offset: 0,
+                                    bytes_per_row: Some(texture.width * 4),
+                                    rows_per_image: Some(texture.height),
+                                },
+                                wgpu::Extent3d {
+                                    width: texture.width,
+                                    height: texture.height,
+                                    depth_or_array_layers: 1,
+                                },
+                            );
+                            gpu_texture.create_view(&Default::default())
+                        }
+                        _ => self.model_white_view.clone(),
+                    };
+                    let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("manato model material"),
+                        layout: &self.model_bgl,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&self.model_sampler),
+                            },
+                        ],
+                    });
+                    self.model_draws.push((
+                        model::upload_model(&self.device, &draw.vertices),
+                        draw.vertices.len() as u32,
+                        bind_group,
+                    ));
+                }
             }
             Err(error) => {
                 log::warn!("model {}: {error:#}", path.display());
@@ -1028,8 +1135,7 @@ impl Renderer {
     }
 
     pub fn clear_model(&mut self) {
-        self.model_buffer = None;
-        self.model_vertices = 0;
+        self.model_draws.clear();
     }
 
     /// Builds the atlas from a storyboard's sprite file.
@@ -1429,10 +1535,13 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            if let (Some(buffer), true) = (&self.model_buffer, self.model_vertices > 0) {
+            if !self.model_draws.is_empty() {
                 pass.set_pipeline(&self.model_pipeline);
-                pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..self.model_vertices, 0..1);
+                for (buffer, count, bind_group) in &self.model_draws {
+                    pass.set_bind_group(0, bind_group, &[]);
+                    pass.set_vertex_buffer(0, buffer.slice(..));
+                    pass.draw(0..*count, 0..1);
+                }
             }
             if !ranges.is_empty() {
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -2228,7 +2337,8 @@ void main() {
         )
         .expect("model");
         renderer.load_model(&model);
-        assert_eq!(renderer.model_vertices, 3);
+        assert_eq!(renderer.model_draws.len(), 1);
+        assert_eq!(renderer.model_draws[0].1, 3);
         let storyboard = manato_formats::storyboard::Storyboard {
             path: dir.join("story.def"),
             name: "model".into(),
@@ -2248,7 +2358,7 @@ void main() {
         };
         let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
         renderer.load_storyboard(&storyboard);
-        assert_eq!(renderer.model_vertices, 3);
+        assert_eq!(renderer.model_draws.len(), 1);
         renderer.render_storyboard(&storyboard, &player);
         let path = dir.join("model.png");
         renderer.screenshot(&path).expect("screenshot");
