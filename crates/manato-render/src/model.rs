@@ -20,6 +20,7 @@ pub struct ModelVertex {
     pub color: [f32; 4],
     pub joints: [u16; 4],
     pub weights: [f32; 4],
+    pub normal: [f32; 3],
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +47,8 @@ pub struct ModelDraw {
     targets: Vec<Vec<[f32; 3]>>,
     /// Default morph weights (node override or mesh default).
     weights: Vec<f32>,
+    metallic: f32,
+    roughness: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -163,6 +166,32 @@ impl ModelAsset {
                             placement.ground - (transformed.y - placement.min_y) * placement.scale,
                             0.98,
                         ];
+                        let normal = Vec3::from_array(vertex.normal);
+                        let world_normal = match &draw.skin {
+                            Some(skin) => {
+                                let mut sum = Vec3::ZERO;
+                                for slot in 0..4 {
+                                    let weight = vertex.weights[slot];
+                                    if weight <= 0.0 {
+                                        continue;
+                                    }
+                                    let joint = vertex.joints[slot] as usize;
+                                    let (Some(&joint_node), Some(bind)) =
+                                        (skin.joints.get(joint), skin.inverse_bind.get(joint))
+                                    else {
+                                        continue;
+                                    };
+                                    let joint_world =
+                                        worlds.get(joint_node).copied().unwrap_or(Mat4::IDENTITY);
+                                    sum += weight * (joint_world * *bind).transform_vector3(normal);
+                                }
+                                sum
+                            }
+                            None => delta.transform_vector3(normal),
+                        }
+                        .normalize_or_zero();
+                        out.color =
+                            shade_color(world_normal, out.color, draw.metallic, draw.roughness);
                         out
                     })
                     .collect()
@@ -278,6 +307,30 @@ fn sample_weight_track(keys: &[(f32, Vec<f32>)], time: f32) -> Option<Vec<f32>> 
     keys.last().map(|(_, value)| value.clone())
 }
 
+/// Simple directional + ambient model lighting. Metallic surfaces reduce the
+/// diffuse term and add a small roughness-driven highlight.
+fn shade_color(normal: Vec3, base: [f32; 4], metallic: f32, roughness: f32) -> [f32; 4] {
+    let normal = if normal.length_squared() > 0.0 {
+        normal.normalize()
+    } else {
+        Vec3::Y
+    };
+    let light = Vec3::new(0.3, 0.8, 0.5).normalize();
+    let diffuse = normal.dot(light).max(0.0);
+    let metallic = metallic.clamp(0.0, 1.0);
+    let roughness = roughness.clamp(0.0, 1.0);
+    let ambient = 0.35;
+    let diffuse_strength = 1.0 - metallic * 0.6;
+    let specular = (1.0 - roughness) * 0.25 * diffuse.powi(8);
+    let light = ambient + 0.6 * diffuse * diffuse_strength + specular;
+    [
+        (base[0] * light).clamp(0.0, 1.0),
+        (base[1] * light).clamp(0.0, 1.0),
+        (base[2] * light).clamp(0.0, 1.0),
+        base[3],
+    ]
+}
+
 fn sample_track(keys: &[(f32, [f32; 4])], time: f32) -> Option<[f32; 4]> {
     if keys.is_empty() {
         return None;
@@ -385,8 +438,15 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .or_else(|| mesh.weights())
                 .map(|weights| weights.to_vec())
                 .unwrap_or_default();
+            let normals: Vec<[f32; 3]> = reader
+                .read_normals()
+                .map(|values| values.collect())
+                .unwrap_or_default();
             let material = primitive.material();
-            let color = material.pbr_metallic_roughness().base_color_factor();
+            let pbr = material.pbr_metallic_roughness();
+            let metallic = pbr.metallic_factor();
+            let roughness = pbr.roughness_factor();
+            let color = pbr.base_color_factor();
             let color = [
                 color[0].clamp(0.0, 1.0),
                 color[1].clamp(0.0, 1.0),
@@ -414,6 +474,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                         color,
                         joints: joints.get(index).copied().unwrap_or([0; 4]),
                         weights: weights.get(index).copied().unwrap_or([0.0; 4]),
+                        normal: normals.get(index).copied().unwrap_or([0.0, 1.0, 0.0]),
                     })
                 })
                 .collect();
@@ -425,6 +486,8 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     skin: skin.clone(),
                     targets,
                     weights: morph_weights.clone(),
+                    metallic,
+                    roughness,
                 });
             }
         }
@@ -716,6 +779,18 @@ pub fn upload_model(device: &wgpu::Device, vertices: &[ModelVertex]) -> wgpu::Bu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn directional_lighting_uses_normals_and_pbr_factors() {
+        let lit = shade_color(Vec3::new(0.0, 0.8, 0.5).normalize(), [1.0; 4], 0.0, 1.0);
+        assert!(lit[0] < 1.0 && lit[0] > 0.35);
+        let unlit = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0);
+        assert!((unlit[0] - 0.35).abs() < 1e-5);
+        let metallic = shade_color(Vec3::new(0.0, 0.8, 0.5).normalize(), [1.0; 4], 1.0, 1.0);
+        assert!(metallic[0] < lit[0]);
+        let glossy = shade_color(Vec3::new(0.0, 0.8, 0.5).normalize(), [1.0; 4], 0.0, 0.0);
+        assert!(glossy[0] > lit[0]);
+    }
 
     #[test]
     fn loads_base_color_texture_and_uvs() {

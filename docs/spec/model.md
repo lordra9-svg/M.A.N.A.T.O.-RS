@@ -12,11 +12,14 @@ and the first node animation are loaded and rendered behind the 2D scene.
 
 ## Rendering
 
-- Every triangle primitive in `mode = TRIANGLES` contributes three vertices
-  with `baseColorFactor` and `TEXCOORD_0`.
+- Every triangle primitive in `mode = TRIANGLES` contributes vertices with
+  `baseColorFactor`, `TEXCOORD_0`, and `NORMAL` (default +Y).
 - `baseColorTexture` images are decoded to RGBA and uploaded per material;
-  primitives without a texture use a white 1x1 fallback. The shader is unlit:
-  `texture(baseColor, uv) * baseColorFactor`.
+  primitives without a texture use a white 1x1 fallback.
+- Lighting is computed per vertex before upload: a fixed directional light
+  (0.3, 0.8, 0.5) plus 0.35 ambient, with `metallicFactor` reducing diffuse
+  and `roughnessFactor` controlling a small highlight. The final fragment is
+  `texture(baseColor, uv) * shadedColor`.
 - The mesh bounding box is centered horizontally, scaled so its largest axis
   spans 70% of the 240px screen height, and placed standing at 88% screen
   height.
@@ -37,7 +40,8 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 - Additional animation clips.
-- PBR lighting, metallic/roughness, normal/emissive maps, and environment maps.
+- Full PBR BRDFs, image-based environment lighting, normal/emissive/ORM maps,
+  and multiple lights.
 - `ModifyBGCtrl3D` targeting individual model nodes (node transforms are
   driven by glTF animation, not stage controllers).
 - 3D placement/offset/rotation/scale fields from the stage/storyboard DEF.
