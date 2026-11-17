@@ -753,6 +753,8 @@ struct Frontend {
     options_sound: u32,
     options_music: u32,
     options_fullscreen: bool,
+    team_modes: [manato_sim::TeamMode; 2],
+    partners: [Option<usize>; 2],
     result_timer: i32,
     result_resolved: bool,
     arcade: Option<ArcadeSession>,
@@ -973,6 +975,8 @@ impl Frontend {
             options_sound: 100,
             options_music: 100,
             options_fullscreen: false,
+            team_modes: [manato_sim::TeamMode::Single; 2],
+            partners: [Some(p2_start), Some(0)],
             result_timer: 0,
             result_resolved: false,
             arcade: None,
@@ -1017,6 +1021,22 @@ impl Frontend {
                 ("SOUND VOLUME".into(), self.options_sound.to_string()),
                 ("MUSIC VOLUME".into(), self.options_music.to_string()),
                 ("FULLSCREEN".into(), yes_no(self.options_fullscreen)),
+                ("P1 TEAM".into(), team_name(self.team_modes[0])),
+                ("P2 TEAM".into(), team_name(self.team_modes[1])),
+                (
+                    "P1 PARTNER".into(),
+                    self.names
+                        .get(self.partners[0].unwrap_or(0))
+                        .map(|entry| entry.name.clone())
+                        .unwrap_or_else(|| "--".into()),
+                ),
+                (
+                    "P2 PARTNER".into(),
+                    self.names
+                        .get(self.partners[1].unwrap_or(0))
+                        .map(|entry| entry.name.clone())
+                        .unwrap_or_else(|| "--".into()),
+                ),
                 ("BACK".into(), String::new()),
             ],
         }
@@ -1041,6 +1061,33 @@ impl Frontend {
         }
         let next = self.stage_index as i32 + delta;
         self.stage_index = next.rem_euclid(self.stages.len() as i32) as usize;
+    }
+
+    fn cycle_team(&mut self, side: usize, delta: i32) {
+        if side >= 2 {
+            return;
+        }
+        let modes = [
+            manato_sim::TeamMode::Single,
+            manato_sim::TeamMode::Turns,
+            manato_sim::TeamMode::Tag,
+            manato_sim::TeamMode::Simul,
+        ];
+        let current = modes
+            .iter()
+            .position(|mode| *mode == self.team_modes[side])
+            .unwrap_or(0) as i32;
+        let next = (current + delta).rem_euclid(modes.len() as i32);
+        self.team_modes[side] = modes[next as usize];
+    }
+
+    fn cycle_partner(&mut self, side: usize, delta: i32) {
+        if side >= 2 || self.roster.is_empty() {
+            return;
+        }
+        let current = self.partners[side].unwrap_or(0) as i32;
+        let next = (current + delta).rem_euclid(self.roster.len() as i32);
+        self.partners[side] = Some(next as usize);
     }
 
     fn move_cursor(&mut self, side: usize, dx: i32, dy: i32) {
@@ -1081,6 +1128,16 @@ fn screen_layer_states(
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn team_name(mode: manato_sim::TeamMode) -> String {
+    match mode {
+        manato_sim::TeamMode::Single => "SINGLE",
+        manato_sim::TeamMode::Turns => "TURNS",
+        manato_sim::TeamMode::Tag => "TAG",
+        manato_sim::TeamMode::Simul => "SIMUL",
+    }
+    .into()
 }
 
 fn roster_index_by_def(roster: &[RosterEntry], def: &str) -> Option<usize> {
@@ -1335,14 +1392,43 @@ impl App {
             rounds_to_win: rounds,
             round_time,
         };
-        let assets = match Assets::load(&config) {
+        let team_modes = frontend.team_modes;
+        let partner_entries = [
+            frontend.partners[0].and_then(|index| chosen_entry(frontend, index)),
+            frontend.partners[1].and_then(|index| chosen_entry(frontend, index)),
+        ];
+        let mut assets = match Assets::load(&config) {
             Ok(assets) => assets,
             Err(error) => {
                 log::error!("failed to start match: {error:#}");
                 return;
             }
         };
-        let sim = SimState::new(
+        // Load selected partners as extra characters for team modes.
+        let mut partner_ids = [None, None];
+        for side in 0..2 {
+            if team_modes[side] == manato_sim::TeamMode::Single {
+                continue;
+            }
+            let Some(entry) = &partner_entries[side] else {
+                continue;
+            };
+            let path = if Path::new(&entry.def).is_absolute() {
+                PathBuf::from(&entry.def)
+            } else {
+                self.opts.root.join(&entry.def)
+            };
+            match manato_formats::Character::load(&path, &assets.data_dirs) {
+                Ok(character) => {
+                    partner_ids[side] = Some(assets.characters.len());
+                    assets.characters.push(character);
+                }
+                Err(error) => {
+                    log::warn!("failed to load partner {}: {error:#}", path.display());
+                }
+            }
+        }
+        let mut sim = SimState::new(
             Arc::new(assets),
             MatchOptions {
                 rounds_to_win: rounds,
@@ -1351,6 +1437,15 @@ impl App {
                 ai_sides: [false, mode != Mode::Versus],
             },
         );
+        if team_modes != [manato_sim::TeamMode::Single; 2] {
+            sim.team_modes = team_modes;
+            for (side, partner) in partner_ids.iter().enumerate() {
+                if let Some(partner) = partner {
+                    sim.assign_team(side, &[side, *partner]);
+                }
+            }
+            sim.restart_match();
+        }
         self.music_override = music_override;
         self.play_stage_music(&sim);
         if let Some(renderer) = self.renderer.as_mut() {
@@ -1483,6 +1578,10 @@ impl App {
                     (frontend.options_music as i32 + delta * 10).clamp(0, 100) as u32
             }
             5 => frontend.options_fullscreen = !frontend.options_fullscreen,
+            6 => frontend.cycle_team(0, delta),
+            7 => frontend.cycle_team(1, delta),
+            8 => frontend.cycle_partner(0, delta),
+            9 => frontend.cycle_partner(1, delta),
             _ => {}
         }
         if frontend.options_index == 3 {
@@ -1606,7 +1705,11 @@ impl App {
                     KeyCode::KeyA | KeyCode::ArrowLeft => self.adjust_option(-1),
                     KeyCode::KeyD | KeyCode::ArrowRight => self.adjust_option(1),
                     KeyCode::Enter | KeyCode::Space | KeyCode::KeyJ => {
-                        if self.frontend.as_ref().is_some_and(|f| f.options_index == 6) {
+                        if self
+                            .frontend
+                            .as_ref()
+                            .is_some_and(|f| f.options_index == 10)
+                        {
                             if let Some(frontend) = self.frontend.as_mut() {
                                 frontend.screen = FrontendScreen::Title;
                             }
@@ -2304,6 +2407,8 @@ mod tests {
             options_sound: 100,
             options_music: 100,
             options_fullscreen: false,
+            team_modes: [manato_sim::TeamMode::Single; 2],
+            partners: [None, None],
             result_timer: 0,
             result_resolved: false,
             arcade: None,
@@ -2325,6 +2430,30 @@ mod tests {
         assert_eq!(frontend.menu_index, 0);
         frontend.move_menu(-1);
         assert_eq!(frontend.menu_index, 1);
+    }
+
+    #[test]
+    fn options_cycle_team_modes_and_partners() {
+        let mut frontend = test_frontend();
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Single);
+        frontend.cycle_team(0, 1);
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Turns);
+        frontend.cycle_team(0, 1);
+        frontend.cycle_team(0, 1);
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Simul);
+        frontend.cycle_team(0, 1);
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Single);
+        frontend.cycle_team(0, -1);
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Simul);
+
+        let first = frontend.partners[0];
+        frontend.cycle_partner(0, 1);
+        assert_ne!(frontend.partners[0], first);
+        let changed = frontend.partners[0];
+        for _ in 0..frontend.roster.len() {
+            frontend.cycle_partner(0, 1);
+        }
+        assert_eq!(frontend.partners[0], changed, "partner cycling wraps");
     }
 
     #[test]

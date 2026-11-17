@@ -28,6 +28,13 @@ not ticked, drawn, or collided.
   disable them. More than two active members and manual tag control during
   simul are not modeled.
 
+The title Options screen exposes `P1 TEAM`, `P2 TEAM`, `P1 PARTNER`, and
+`P2 PARTNER`: team mode cycles Single → Turns → Tag → Simul, and partner cycles
+through the select.def roster. On match start the selected partner character is
+loaded into `Assets`, the side roster becomes `[leader, partner]`, and
+`SimState.team_modes` receives the chosen modes. Single-mode sides ignore the
+partner selection.
+
 The active member's life/red-life/power are synchronized into the roster each
 tick, so standby lifebars and turn selection see current values.
 
