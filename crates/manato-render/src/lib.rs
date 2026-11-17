@@ -52,6 +52,9 @@ pub struct Renderer {
 
     game_texture: wgpu::Texture,
     game_view: wgpu::TextureView,
+    /// Previous frame copy bound as `bgl_RenderedTexture` for grab shaders.
+    grab_texture: wgpu::Texture,
+    grab_view: wgpu::TextureView,
     depth_view: wgpu::TextureView,
 
     sprite_bgl: wgpu::BindGroupLayout,
@@ -271,6 +274,22 @@ impl Renderer {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
             ],
         });
         let custom_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -387,6 +406,40 @@ impl Renderer {
             view_formats: &[],
         });
         let game_view = game_texture.create_view(&Default::default());
+        let grab_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("manato grab target"),
+            size: wgpu::Extent3d {
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: GAME_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let grab_view = grab_texture.create_view(&Default::default());
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &grab_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &vec![0u8; (GAME_WIDTH * GAME_HEIGHT * 4) as usize],
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(GAME_WIDTH * 4),
+                rows_per_image: Some(GAME_HEIGHT),
+            },
+            wgpu::Extent3d {
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+        );
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("manato depth target"),
             size: wgpu::Extent3d {
@@ -512,6 +565,8 @@ impl Renderer {
             queue,
             game_texture,
             game_view,
+            grab_texture,
+            grab_view,
             depth_view,
             sprite_bgl,
             custom_bgl,
@@ -1279,6 +1334,8 @@ impl Renderer {
                     (6, wgpu::BindingResource::Sampler(&self.shader_sampler)),
                     (7, wgpu::BindingResource::TextureView(palette_view)),
                     (8, wgpu::BindingResource::Sampler(&self.shader_sampler)),
+                    (9, wgpu::BindingResource::TextureView(&self.grab_view)),
+                    (10, wgpu::BindingResource::Sampler(&self.shader_sampler)),
                 ]
                 .map(|(binding, resource)| wgpu::BindGroupEntry { binding, resource });
                 let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1295,6 +1352,26 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("manato frame encoder"),
             });
+        // Grab pass: the previous frame is sampled as `bgl_RenderedTexture`.
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.game_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.grab_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+        );
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("manato game pass"),
@@ -1604,7 +1681,8 @@ fn preprocess_implicit_glsl(source: &str) -> String {
         {
             let lower = name.to_ascii_lowercase();
             let binding = match lower.as_str() {
-                "tex" | "texture" | "bgl_renderedtexture" => 0,
+                "tex" | "texture" => 0,
+                "bgl_renderedtexture" => 9,
                 "tex1" => 3,
                 "tex2" => 5,
                 "pal" => 7,
@@ -1756,6 +1834,61 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let size = std::fs::metadata(&path).expect("file").len();
         assert!(size > 1000, "continue screen should not be blank");
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn custom_shader_grab_texture_renders_when_gpu_available() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-grab-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let shader_path = dir.join("grab.frag");
+        std::fs::write(
+            &shader_path,
+            r#"
+uniform sampler2D bgl_RenderedTexture;
+in vec2 vTexCoord;
+out vec4 FragColor;
+void main() {
+    vec4 c = texture(bgl_RenderedTexture, vTexCoord.xy);
+    FragColor = vec4(c.rgb * 0.5 + 0.25, 1.0);
+}
+"#,
+        )
+        .expect("shader");
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut sim = manato_sim::SimState::load(&config).expect("sim");
+        {
+            let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("assets");
+            assets.characters[0]
+                .def
+                .shaders
+                .insert("grab-test".into(), shader_path);
+        }
+        sim.fighters[0].shader = Some("grab-test".into());
+        renderer.load_assets(&sim);
+        renderer.render(&sim);
+        renderer.render(&sim);
+        let path = dir.join("grab.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1935,6 +2068,9 @@ void main() {
         assert!(out.contains("layout(binding = 0) uniform texture2D Texture_tex;"));
         assert!(out.contains("layout(binding = 1) uniform sampler Texture_samp;"));
         assert!(out.contains("#define Texture sampler2D(Texture_tex, Texture_samp)"));
+        let grab = preprocess_implicit_glsl("uniform sampler2D bgl_RenderedTexture;");
+        assert!(grab.contains("layout(binding = 9) uniform texture2D bgl_RenderedTexture_tex;"));
+        assert!(grab.contains("layout(binding = 10) uniform sampler bgl_RenderedTexture_samp;"));
         assert!(out.contains("layout(location = 0) in vec2 vTexCoord;"));
         assert!(out.contains("layout(location = 0) out vec4 FragColor;"));
         assert!(out.contains("#define TextureSize vec2(320.0, 240.0)"));

@@ -157,6 +157,8 @@ layout(binding = 5) uniform texture2D tex1;
 layout(binding = 6) uniform sampler tex1Samp;
 layout(binding = 7) uniform texture2D tex2;
 layout(binding = 8) uniform sampler tex2Samp;
+layout(binding = 9) uniform texture2D bgl_RenderedTexture;
+layout(binding = 10) uniform sampler grabSamp;
 layout(location = 0) out vec4 frag;
 void main() {
     frag = texture(sampler2D(tex, samp), uv) * color;
@@ -179,12 +181,15 @@ that fighter's quads use it. Compilation failures fall back to the default
 sprite pipeline.
 
 Implicit-location GLSL is normalized by the preprocessor above. `param`
-(`shaderparam`), a real `pal` palette texture, and real `tex1`/`tex2` sprite
-references are provided; grab passes (`bgl_RenderedTexture`) are not modeled.
+(`shaderparam`), a real `pal` palette texture, real `tex1`/`tex2` sprite
+references, and a grab texture (`bgl_RenderedTexture` at bindings 9/10) are
+provided. The grab pass copies the previous finished game target to a
+separate texture before the next render pass, so grab shaders see the frame
+before the current one (one frame of latency).
 
 ## 5. Not modeled
 
-- Grab passes (`bgl_RenderedTexture`).
+
 - GLTF 3D nodes. `ModifyBGCtrl3D` is modeled as a layer controller:
   `ctrlid` selects BG layers by `id` (`-1` = all) and
   `value = z[, xscale[, yscale]]`. Its `time` window is accepted but not
