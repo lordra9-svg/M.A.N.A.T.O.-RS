@@ -1641,6 +1641,23 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
 }
 
 /// Draws one storyboard scene frame: clear colour, layers, text, and fades.
+/// Storyboard backgrounds have no camera, so controllers are ticked from scene
+/// start into a local layer-state snapshot.
+pub(crate) fn storyboard_bg_states(
+    stage: &manato_formats::stage::Stage,
+    time: i32,
+) -> Vec<manato_sim::StageLayerState> {
+    let mut states: Vec<manato_sim::StageLayerState> = stage
+        .layers
+        .iter()
+        .map(manato_sim::StageLayerState::from_layer)
+        .collect();
+    for tick in 0..=time.max(0) {
+        manato_sim::update_bg_states(&stage.bg_ctrls, &mut states, tick, 1, 0);
+    }
+    states
+}
+
 fn draw_storyboard_bg(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
@@ -1649,18 +1666,40 @@ fn draw_storyboard_bg(
     time: i32,
 ) {
     let bank_id = bank::STORYBOARD_BG.saturating_add(scene_index as u8);
-    let t = time.max(0) as f32;
-    let mut layers: Vec<&manato_formats::stage::BgLayer> = stage.render_layers().collect();
-    layers.sort_by_key(|layer| layer.layer_no);
-    for layer in layers {
-        if !layer.visible || !layer.enabled {
+    let states = storyboard_bg_states(stage, time);
+    let sin_offset = |motion: [f32; 3]| {
+        if motion[1].abs() > f32::EPSILON {
+            motion[0]
+                * (std::f32::consts::TAU * time.max(0) as f32 / motion[1] + motion[2].to_radians())
+                    .sin()
+        } else {
+            0.0
+        }
+    };
+    let cos_offset = |motion: [f32; 3]| {
+        if motion[1].abs() > f32::EPSILON {
+            motion[0]
+                * (std::f32::consts::TAU * time.max(0) as f32 / motion[1] + motion[2].to_radians())
+                    .cos()
+        } else {
+            0.0
+        }
+    };
+    let mut layers: Vec<(
+        &manato_formats::stage::BgLayer,
+        &manato_sim::StageLayerState,
+    )> = stage.render_layers().zip(states.iter()).collect();
+    layers.sort_by_key(|(layer, state)| state.layer_no.unwrap_or(layer.layer_no));
+    for (layer, state) in layers {
+        if !state.visible || !state.enabled {
             continue;
         }
-        let (sprite, pose) = if let Some(action) = layer.action {
+        let action = state.action.or(layer.action);
+        let (sprite, pose) = if let Some(action) = action {
             let Some(anim) = stage.animations.get(&action) else {
                 continue;
             };
-            let Some(interpolated) = anim.pose_at(time) else {
+            let Some(interpolated) = anim.pose_at(time.max(0)) else {
                 continue;
             };
             let Some(frame) = anim.frames.get(interpolated.frame) else {
@@ -1670,7 +1709,7 @@ fn draw_storyboard_bg(
                 continue;
             };
             (sprite, Pose::from_pose(frame, &interpolated))
-        } else if let Some((group, index)) = layer.sprite {
+        } else if let Some((group, index)) = state.sprite.or(layer.sprite) {
             let Some(sprite) = stage.sprites.get(group, index) else {
                 continue;
             };
@@ -1680,7 +1719,7 @@ fn draw_storyboard_bg(
                     offset: Vec2::ZERO,
                     flip_h: false,
                     flip_v: false,
-                    blend: blend_of(layer.trans),
+                    blend: blend_of(state.trans.unwrap_or(layer.trans)),
                     scale: Vec2::new(1.0, 1.0),
                     alpha: 1.0,
                     angle: 0.0,
@@ -1689,23 +1728,19 @@ fn draw_storyboard_bg(
         } else {
             continue;
         };
-        let mut anchor = layer.start + layer.velocity * t;
-        if layer.sin_x[1] != 0.0 {
-            anchor.x += layer.sin_x[0]
-                * (t * std::f32::consts::TAU / layer.sin_x[1] + layer.sin_x[2]).sin();
-        }
-        if layer.sin_y[1] != 0.0 {
-            anchor.y += layer.sin_y[0]
-                * (t * std::f32::consts::TAU / layer.sin_y[1] + layer.sin_y[2]).sin();
-        }
-        if layer.cos_x[1] != 0.0 {
-            anchor.x += layer.cos_x[0]
-                * (t * std::f32::consts::TAU / layer.cos_x[1] + layer.cos_x[2]).cos();
-        }
-        if layer.cos_y[1] != 0.0 {
-            anchor.y += layer.cos_y[0]
-                * (t * std::f32::consts::TAU / layer.cos_y[1] + layer.cos_y[2]).cos();
-        }
+        let pos = state.pos.unwrap_or(Vec2::ZERO);
+        let anchor = state.start.unwrap_or(layer.start)
+            + pos
+            + state.offset
+            + Vec2::new(
+                sin_offset(state.sin_x) + cos_offset(state.cos_x),
+                sin_offset(state.sin_y) + cos_offset(state.cos_y),
+            );
+        let mut scale = state.scale.unwrap_or(Vec2::new(1.0, 1.0));
+        scale = Vec2::new(
+            scale.x * layer.xscale * pose.scale.x,
+            scale.y * layer.yscale * pose.scale.y,
+        );
         draw_sprite(
             painter,
             atlas,
@@ -1714,10 +1749,10 @@ fn draw_storyboard_bg(
             anchor,
             pose.offset,
             1,
-            Vec2::new(layer.xscale * pose.scale.x, layer.yscale * pose.scale.y),
+            scale,
             pose.flip_h,
             pose.flip_v,
-            blend_of(layer.trans),
+            blend_of(state.trans.unwrap_or(layer.trans)),
             [1.0, 1.0, 1.0, pose.alpha],
             pose.angle,
         );

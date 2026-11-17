@@ -19,7 +19,10 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
     background. It is drawn after the clear colour and before the scene
     layers, with layer sprites/actions, start/velocity/sin/cos offsets,
     scale, flip, and trans blend. Stage `[BGDef]` sprite/action banks are
-    uploaded as per-scene atlas banks. `BgCtrl` controllers are not executed.
+    uploaded as per-scene atlas banks. The scene background's `[BGdef]`
+    `bgctrl` controllers are ticked from scene start to the current frame in a
+    local state snapshot, so `visible`, `enable`, `anim`, `posset`/`posadd`,
+    velocity, sin/cos, scale, and sprite overrides apply.
   - `end.time` (ticks; `-1`/`0` never ends on its own),
   - `jump` (target scene name, else the next scene),
   - `layerall.pos = x,y` (offset added to every sprite and text layer),
@@ -123,5 +126,4 @@ included in rollback snapshots (storyboard overlays are already excluded).
 ## 7. Not modeled
 
 - 3D models.
-- Stage `BgCtrl` controllers inside storyboard backgrounds.
 - Scene backgrounds in in-match overlays (front-end storyboards render them).

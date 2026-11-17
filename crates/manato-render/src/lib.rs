@@ -1700,6 +1700,45 @@ void main() {
     }
 
     #[test]
+    fn storyboard_bg_ctrls_apply_to_layer_states() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("content/stages/training/stage1.def");
+        if !path.exists() {
+            return;
+        }
+        let data = vec![root.join("data")];
+        let mut stage = manato_formats::stage::Stage::load(&path, &data).expect("stage");
+        assert!(!stage.layers.is_empty());
+        stage.bg_ctrls = vec![
+            manato_formats::BgCtrl {
+                layer: 0,
+                start: 0,
+                end: 1000,
+                loop_period: -1,
+                controller: manato_formats::Controller {
+                    kind: "visible".into(),
+                    params: vec![("value".into(), "0".into())],
+                    line: 0,
+                },
+            },
+            manato_formats::BgCtrl {
+                layer: 0,
+                start: 0,
+                end: 1000,
+                loop_period: -1,
+                controller: manato_formats::Controller {
+                    kind: "posset".into(),
+                    params: vec![("x".into(), "42".into())],
+                    line: 0,
+                },
+            },
+        ];
+        let states = scene::storyboard_bg_states(&stage, 3);
+        assert!(!states[0].visible, "BgCtrl visible override applied");
+        assert_eq!(states[0].offset.x, 42.0, "BgCtrl posset applied");
+    }
+
+    #[test]
     fn storyboard_background_renders_when_gpu_available() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let stage = root.join("content/stages/training/stage1.def");
