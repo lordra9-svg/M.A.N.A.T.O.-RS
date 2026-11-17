@@ -1490,6 +1490,7 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                 continue;
             }
             let local = layer.position_at(overlay.player.time);
+            let local = local + scene.layer_all_pos;
             let base = Vec2::new(
                 overlay.pos.x + local.x * overlay.scale.x * overlay.facing as f32,
                 overlay.pos.y + local.y * overlay.scale.y,
@@ -1551,12 +1552,7 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     pose.flip_h,
                     pose.flip_v,
                     pose.blend,
-                    [
-                        layer.color[0] as f32 / 255.0,
-                        layer.color[1] as f32 / 255.0,
-                        layer.color[2] as f32 / 255.0,
-                        layer.color[3] as f32 / 255.0 * pose.alpha,
-                    ],
+                    layer.tint([1.0, 1.0, 1.0, pose.alpha]),
                     pose.angle,
                 );
             }
@@ -1567,12 +1563,12 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     continue;
                 }
                 let scale = (layer.scale.y * overlay.scale.y).clamp(0.4, 4.0);
-                let tint = [
+                let tint = layer.tint([
                     layer.color[0] as f32 / 255.0,
                     layer.color[1] as f32 / 255.0,
                     layer.color[2] as f32 / 255.0,
                     layer.color[3] as f32 / 255.0,
-                ];
+                ]);
                 painter.text(deps.font, &text, anchor.x, anchor.y, scale, tint);
             }
         }
@@ -1632,7 +1628,7 @@ pub fn draw_storyboard(
         .collect();
     layers.sort_by_key(|layer| layer.layer_no);
     for layer in layers {
-        let anchor = layer.position_at(player.time);
+        let anchor = layer.position_at(player.time) + scene.layer_all_pos;
         let sprite_pose = if layer.anim >= 0 {
             storyboard.animations.get(&layer.anim).and_then(|anim| {
                 let local = (player.time - layer.start_time).max(0);
@@ -1673,24 +1669,19 @@ pub fn draw_storyboard(
                 pose.flip_h,
                 pose.flip_v,
                 pose.blend,
-                [
-                    layer.color[0] as f32 / 255.0,
-                    layer.color[1] as f32 / 255.0,
-                    layer.color[2] as f32 / 255.0,
-                    layer.color[3] as f32 / 255.0 * pose.alpha,
-                ],
+                layer.tint([1.0, 1.0, 1.0, pose.alpha]),
                 pose.angle,
             );
         }
         if layer.text.is_some() {
             let text = layer.visible_text(player.time);
             if !text.is_empty() {
-                let tint = [
+                let tint = layer.tint([
                     layer.color[0] as f32 / 255.0,
                     layer.color[1] as f32 / 255.0,
                     layer.color[2] as f32 / 255.0,
                     layer.color[3] as f32 / 255.0,
-                ];
+                ]);
                 if layer.font >= 0 {
                     if let Some(font) = deps.screen_fonts.get(&(layer.font as u32)) {
                         font.draw(painter, &text, anchor, layer.scale, 0, tint);

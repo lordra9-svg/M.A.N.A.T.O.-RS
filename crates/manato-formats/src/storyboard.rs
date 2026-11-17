@@ -58,6 +58,9 @@ pub struct StoryboardLayer {
     pub font: i32,
     pub text_delay: f32,
     pub color: [u8; 4],
+    /// Storyboard `palfx.add`/`palfx.mul` (0..256 scale; 256 = neutral mul).
+    pub palfx_add: [f32; 3],
+    pub palfx_mul: [f32; 3],
 }
 
 impl Default for StoryboardLayer {
@@ -78,6 +81,8 @@ impl Default for StoryboardLayer {
             font: -1,
             text_delay: 2.0,
             color: [255, 255, 255, 255],
+            palfx_add: [0.0; 3],
+            palfx_mul: [1.0; 3],
         }
     }
 }
@@ -100,6 +105,16 @@ impl StoryboardLayer {
         text.chars().take(count).collect()
     }
 
+    /// Applies the layer's PalFX add/mul/alpha to a base color.
+    pub fn tint(&self, base: [f32; 4]) -> [f32; 4] {
+        [
+            (base[0] * self.palfx_mul[0] + self.palfx_add[0] / 256.0).clamp(0.0, 1.0),
+            (base[1] * self.palfx_mul[1] + self.palfx_add[1] / 256.0).clamp(0.0, 1.0),
+            (base[2] * self.palfx_mul[2] + self.palfx_add[2] / 256.0).clamp(0.0, 1.0),
+            base[3].clamp(0.0, 1.0),
+        ]
+    }
+
     /// Offset after integrating velocity/acceleration (friction ignored).
     pub fn position_at(&self, time: i32) -> Vec2 {
         let t = (time - self.start_time).max(0) as f32;
@@ -116,6 +131,8 @@ pub struct StoryboardScene {
     pub fade_in: Fade,
     pub fade_out: Fade,
     pub jump: Option<String>,
+    /// `layerall.pos` offset applied to every layer.
+    pub layer_all_pos: Vec2,
     pub layers: Vec<StoryboardLayer>,
     pub sounds: Vec<StoryboardSound>,
     pub bgm: Option<StoryboardBgm>,
@@ -227,6 +244,7 @@ impl Storyboard {
                 match key.as_str() {
                     "end.time" => scene.end_time = value.parse().unwrap_or(-1),
                     "jump" => scene.jump = Some(value.to_string()),
+                    "layerall.pos" => scene.layer_all_pos = pair_vec(value),
                     "clearcolor" => {
                         let color = parse_triplet(value);
                         scene.clear_color =
@@ -318,6 +336,12 @@ impl Storyboard {
                             "friction" => layer.friction = pair_vec(value),
                             "text" => layer.text = Some(unquote(value)),
                             "textdelay" => layer.text_delay = value.parse().unwrap_or(2.0),
+                            "palfx.add" => layer.palfx_add = parse_triplet(value),
+                            "palfx.mul" => {
+                                let color = parse_triplet(value);
+                                layer.palfx_mul =
+                                    [color[0] / 256.0, color[1] / 256.0, color[2] / 256.0];
+                            }
                             "font" => {
                                 let parts: Vec<i32> = value
                                     .split(',')
@@ -523,6 +547,7 @@ startscene = 0
 font0 = red.fnt
 [Begin Action 10]
 0,0, 0,0, 4, , , 1,1, 0
+Interpolate Offset
 0,1, 8,16, 4
 [Scene 0]
 end.time = 20
@@ -531,6 +556,9 @@ clearalpha = 255
 fadein.time = 10
 fadeout.time = 5
 jump = Scene 1
+layerall.pos = 5, -10
+layer0.palfx.mul = 256,128,256
+layer0.palfx.add = 32,0,0
 sound0.value = 5,2
 sound0.starttime = 3
 sound0.volume = 80
@@ -565,7 +593,17 @@ layer0.scale = 2,2
         assert_eq!(story.scenes[0].layers.len(), 2);
         assert_eq!(story.scenes[0].layers[0].anim, 10);
         assert_eq!(story.scenes[0].layers[0].offset, Vec2::new(100.0, 120.0));
-        assert!(story.animations.contains_key(&10));
+        assert_eq!(story.scenes[0].layer_all_pos, Vec2::new(5.0, -10.0));
+        assert!((story.scenes[0].layers[0].palfx_mul[1] - 0.5).abs() < 1e-6);
+        assert!((story.scenes[0].layers[0].palfx_add[0] - 32.0).abs() < 1e-6);
+        let tint = story.scenes[0].layers[0].tint([1.0, 1.0, 1.0, 1.0]);
+        assert!((tint[0] - 1.0f32).abs() < 1e-6, "add clamps");
+        assert!((tint[1] - 0.5).abs() < 1e-6);
+        let anim = story.animations.get(&10).expect("action 10");
+        // Sprite layers use the AIR interpolated pose halfway through frame 0.
+        let pose = anim.pose_at(2).expect("pose");
+        assert!((pose.offset.x - 4.0).abs() < 1e-6);
+        assert!((pose.offset.y - 8.0).abs() < 1e-6);
         assert_eq!(story.scenes[1].layers[0].sprite, Some((0, 1)));
         assert_eq!(story.scene("Scene 1"), Some(1));
         assert!(story.font_files.contains_key(&0));

@@ -17,6 +17,7 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
 - `[Scene <name>]`:
   - `end.time` (ticks; `-1`/`0` never ends on its own),
   - `jump` (target scene name, else the next scene),
+  - `layerall.pos = x,y` (offset added to every sprite and text layer),
   - `clearcolor = r,g,b`, `clearalpha = a`,
   - `fadein.time`/`fadeout.time`, `fadein.color`, `fadeout.color`,
     `fadein.alpha = start,end`, `fadeout.alpha = start,end`,
@@ -26,7 +27,11 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
   - `layerN.velocity`, `layerN.accel`, `layerN.friction` (friction is parsed
     but not integrated),
   - `layerN.text`, `layerN.textdelay`, `layerN.font`
-    (`index,r,g,b,a,...`; the built-in bitmap font is used for rendering).
+    (`index,r,g,b,a,...`; the built-in bitmap font is used for rendering),
+  - `layerN.palfx.add = r,g,b` and `layerN.palfx.mul = r,g,b` (0..256 scale;
+    mul defaults to `256,256,256`). The tint is `color * mul / 256 + add / 256`,
+    clamped to 0..1, and applies to sprite and text layers in both front-end
+    scenes and in-match overlays.
 - `soundN.value = group,index`, `soundN.starttime`, `soundN.volume`
   (`volumescale` alias), `soundN.pan`.
 - `bgm` (or `bgmusic`) with `bgm.loop`, `bgm.volume`, `bgm.loopstart`,
@@ -41,7 +46,10 @@ case-insensitively, spaces and underscores equivalent) or advances to the next
 scene. Running past the last scene sets `done`.
 
 Layer visibility uses `starttime`/`endtime`; `textdelay` reveals one character
-per N ticks; `velocity`/`accel` integrate position from `starttime`. Fade-in
+per N ticks; `velocity`/`accel` integrate position from `starttime`.
+`layerall.pos` is added after the per-layer position. Animation frames come
+from the inline AIR actions, including their `Interpolate Offset/Scale/Angle`
+markers, so poses between frames are blended exactly like fighter animations. Fade-in
 alpha decreases over `fadein.time`; fade-out alpha increases over the last
 `fadeout.time` ticks before `end.time`.
 
@@ -75,5 +83,6 @@ the overlay's layers, and `fadein`/`fadeout` alpha is drawn over them.
 
 ## 6. Not modeled
 
-- Lua storyboard scripting, dynamic backgrounds, 3D models, `layerall.pos`,
-  interpolation, and palFX.
+- Lua storyboard scripting, dynamic backgrounds, and 3D models.
+- Time-varying PalFX parameters (`time`, `color`, `hue`, `sinadd`, `sinmul`,
+  `invertall`); only static `add`/`mul` are applied.
