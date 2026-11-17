@@ -61,6 +61,56 @@ pub struct StoryboardLayer {
     /// Storyboard `palfx.add`/`palfx.mul` (0..256 scale; 256 = neutral mul).
     pub palfx_add: [f32; 3],
     pub palfx_mul: [f32; 3],
+    /// `palfx.time`: `-1` = infinite, `0` = disabled, otherwise ticks.
+    pub palfx_time: i32,
+    /// `palfx.color` (0..256 scale; 256 = normal saturation).
+    pub palfx_color: f32,
+    /// `palfx.hue` as a fraction of a full hue turn.
+    pub palfx_hue: f32,
+    pub palfx_sinadd: [f32; 3],
+    pub palfx_sinadd_time: i32,
+    pub palfx_sinmul: [f32; 3],
+    pub palfx_sinmul_time: i32,
+    pub palfx_sincolor: f32,
+    pub palfx_sincolor_time: i32,
+    pub palfx_sinhue: f32,
+    pub palfx_sinhue_time: i32,
+    pub palfx_invertall: bool,
+    pub palfx_invertblend: i32,
+}
+
+/// Effective PalFX values for one storyboard tick.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PalFxSample {
+    /// Additive color in 0..256 units.
+    pub add: [f32; 3],
+    /// Multiplicative color in 0..256 units.
+    pub mul: [f32; 3],
+    /// Saturation factor (`1.0` = unchanged).
+    pub color: f32,
+    /// Hue shift as a fraction of a full turn.
+    pub hue: f32,
+    pub invert: bool,
+}
+
+impl PalFxSample {
+    pub fn identity() -> Self {
+        Self {
+            add: [0.0; 3],
+            mul: [256.0; 3],
+            color: 1.0,
+            hue: 0.0,
+            invert: false,
+        }
+    }
+
+    pub fn is_identity(&self) -> bool {
+        self.add == [0.0; 3]
+            && self.mul == [256.0; 3]
+            && self.color == 1.0
+            && self.hue == 0.0
+            && !self.invert
+    }
 }
 
 impl Default for StoryboardLayer {
@@ -83,6 +133,19 @@ impl Default for StoryboardLayer {
             color: [255, 255, 255, 255],
             palfx_add: [0.0; 3],
             palfx_mul: [1.0; 3],
+            palfx_time: -1,
+            palfx_color: 1.0,
+            palfx_hue: 0.0,
+            palfx_sinadd: [0.0; 3],
+            palfx_sinadd_time: 0,
+            palfx_sinmul: [0.0; 3],
+            palfx_sinmul_time: 0,
+            palfx_sincolor: 0.0,
+            palfx_sincolor_time: 0,
+            palfx_sinhue: 0.0,
+            palfx_sinhue_time: 0,
+            palfx_invertall: false,
+            palfx_invertblend: 0,
         }
     }
 }
@@ -105,14 +168,69 @@ impl StoryboardLayer {
         text.chars().take(count).collect()
     }
 
-    /// Applies the layer's PalFX add/mul/alpha to a base color.
-    pub fn tint(&self, base: [f32; 4]) -> [f32; 4] {
+    /// Effective PalFX values at scene `time`, including sine modulations.
+    /// `palfx.time = 0` disables the effect and a positive time expires.
+    pub fn palfx_at(&self, time: i32) -> PalFxSample {
+        if self.palfx_time == 0 || (self.palfx_time > 0 && time >= self.palfx_time) {
+            return PalFxSample::identity();
+        }
+        let time = time.max(0);
+        let add_phase = sin_phase(time, self.palfx_sinadd_time);
+        let mul_phase = sin_phase(time, self.palfx_sinmul_time);
+        let color_phase = sin_phase(time, self.palfx_sincolor_time);
+        let hue_phase = sin_phase(time, self.palfx_sinhue_time);
+        let mut sample = PalFxSample {
+            add: [
+                self.palfx_add[0] + add_phase * self.palfx_sinadd[0],
+                self.palfx_add[1] + add_phase * self.palfx_sinadd[1],
+                self.palfx_add[2] + add_phase * self.palfx_sinadd[2],
+            ],
+            mul: [
+                self.palfx_mul[0] * 256.0 + mul_phase * self.palfx_sinmul[0],
+                self.palfx_mul[1] * 256.0 + mul_phase * self.palfx_sinmul[1],
+                self.palfx_mul[2] * 256.0 + mul_phase * self.palfx_sinmul[2],
+            ],
+            color: self.palfx_color + color_phase * (self.palfx_sincolor / 256.0),
+            hue: self.palfx_hue + hue_phase * (self.palfx_sinhue / 512.0),
+            invert: self.palfx_invertall,
+        };
+        sample.mul = [
+            sample.mul[0].clamp(0.0, 256.0),
+            sample.mul[1].clamp(0.0, 256.0),
+            sample.mul[2].clamp(0.0, 256.0),
+        ];
+        sample.color = sample.color.clamp(0.0, 1.0);
+        sample
+    }
+
+    /// Applies PalFX at scene `time` to a tint color. The transform follows the
+    /// Ikemen sprite shader order: hue, invert, saturation, add, multiply.
+    pub fn tint_at(&self, time: i32, base: [f32; 4]) -> [f32; 4] {
+        let palfx = self.palfx_at(time);
+        let mut rgb = [base[0], base[1], base[2]];
+        if palfx.hue != 0.0 {
+            rgb = hue_shift(rgb, palfx.hue);
+        }
+        if palfx.invert {
+            rgb = [1.0 - rgb[0], 1.0 - rgb[1], 1.0 - rgb[2]];
+        }
+        if palfx.color != 1.0 {
+            let gray = (rgb[0] + rgb[1] + rgb[2]) / 3.0;
+            for channel in &mut rgb {
+                *channel = gray + (*channel - gray) * palfx.color;
+            }
+        }
         [
-            (base[0] * self.palfx_mul[0] + self.palfx_add[0] / 256.0).clamp(0.0, 1.0),
-            (base[1] * self.palfx_mul[1] + self.palfx_add[1] / 256.0).clamp(0.0, 1.0),
-            (base[2] * self.palfx_mul[2] + self.palfx_add[2] / 256.0).clamp(0.0, 1.0),
+            (rgb[0] * palfx.mul[0] / 256.0 + palfx.add[0] / 256.0).clamp(0.0, 1.0),
+            (rgb[1] * palfx.mul[1] / 256.0 + palfx.add[1] / 256.0).clamp(0.0, 1.0),
+            (rgb[2] * palfx.mul[2] / 256.0 + palfx.add[2] / 256.0).clamp(0.0, 1.0),
             base[3].clamp(0.0, 1.0),
         ]
+    }
+
+    /// Applies the layer's PalFX to a base color at the first scene tick.
+    pub fn tint(&self, base: [f32; 4]) -> [f32; 4] {
+        self.tint_at(0, base)
     }
 
     /// Offset after integrating velocity/acceleration (friction ignored).
@@ -342,6 +460,40 @@ impl Storyboard {
                                 layer.palfx_mul =
                                     [color[0] / 256.0, color[1] / 256.0, color[2] / 256.0];
                             }
+                            "palfx.time" => layer.palfx_time = value.parse().unwrap_or(-1),
+                            "palfx.color" => {
+                                layer.palfx_color = value.parse::<f32>().unwrap_or(256.0) / 256.0;
+                            }
+                            "palfx.hue" => layer.palfx_hue = value.parse().unwrap_or(0.0),
+                            "palfx.sinadd" => {
+                                let sin = parse_floats(value);
+                                layer.palfx_sinadd = [sin[0], sin[1], sin[2]];
+                                layer.palfx_sinadd_time = sin[3] as i32;
+                            }
+                            "palfx.sinmul" => {
+                                let sin = parse_floats(value);
+                                layer.palfx_sinmul = [sin[0], sin[1], sin[2]];
+                                layer.palfx_sinmul_time = sin[3] as i32;
+                            }
+                            "palfx.sincolor" => {
+                                let sin = parse_floats(value);
+                                layer.palfx_sincolor = sin[0];
+                                layer.palfx_sincolor_time = sin[1] as i32;
+                            }
+                            "palfx.sinhue" => {
+                                let sin = parse_floats(value);
+                                layer.palfx_sinhue = sin[0];
+                                layer.palfx_sinhue_time = sin[1] as i32;
+                            }
+                            "palfx.invertall" => {
+                                layer.palfx_invertall = matches!(
+                                    value.trim().to_ascii_lowercase().as_str(),
+                                    "1" | "true" | "yes" | "on"
+                                );
+                            }
+                            "palfx.invertblend" => {
+                                layer.palfx_invertblend = value.parse().unwrap_or(0);
+                            }
                             "font" => {
                                 let parts: Vec<i32> = value
                                     .split(',')
@@ -489,6 +641,68 @@ fn resolve(dir: &Path, name: &str) -> PathBuf {
     }
 }
 
+/// Sine modulation phase for a PalFX cycle, matching Ikemen's `sinAdd`.
+fn sin_phase(time: i32, cycle: i32) -> f32 {
+    if cycle <= 1 {
+        return 0.0;
+    }
+    let sintime = time.rem_euclid(cycle);
+    let mut phase = std::f32::consts::TAU * sintime as f32;
+    if cycle == 2 {
+        phase += std::f32::consts::FRAC_PI_2;
+    }
+    (phase / cycle as f32).sin()
+}
+
+/// HSV hue rotation matching Ikemen's sprite shader.
+fn hue_shift(rgb: [f32; 3], delta: f32) -> [f32; 3] {
+    let max = rgb[0].max(rgb[1]).max(rgb[2]);
+    let min = rgb[0].min(rgb[1]).min(rgb[2]);
+    let chroma = max - min;
+    if chroma <= f32::EPSILON {
+        return rgb;
+    }
+    let mut hue = if max == rgb[0] {
+        ((rgb[1] - rgb[2]) / chroma).rem_euclid(6.0)
+    } else if max == rgb[1] {
+        (rgb[2] - rgb[0]) / chroma + 2.0
+    } else {
+        (rgb[0] - rgb[1]) / chroma + 4.0
+    } / 6.0;
+    hue = (hue + delta).rem_euclid(1.0);
+    let saturation = if max <= f32::EPSILON {
+        0.0
+    } else {
+        chroma / max
+    };
+    let value = max;
+    let h = hue * 6.0;
+    let sector = h.floor();
+    let fraction = h - sector;
+    let p = value * (1.0 - saturation);
+    let q = value * (1.0 - saturation * fraction);
+    let t = value * (1.0 - saturation * (1.0 - fraction));
+    match sector as i32 % 6 {
+        0 => [value, t, p],
+        1 => [q, value, p],
+        2 => [p, value, t],
+        3 => [p, q, value],
+        4 => [t, p, value],
+        _ => [value, p, q],
+    }
+}
+
+fn parse_floats(value: &str) -> [f32; 4] {
+    let mut parts = value.split(',');
+    let mut next = || {
+        parts
+            .next()
+            .and_then(|part| part.trim().parse().ok())
+            .unwrap_or(0.0)
+    };
+    [next(), next(), next(), next()]
+}
+
 fn parse_triplet(value: &str) -> [f32; 3] {
     let mut parts = value.split(',');
     let mut next = || {
@@ -559,6 +773,14 @@ jump = Scene 1
 layerall.pos = 5, -10
 layer0.palfx.mul = 256,128,256
 layer0.palfx.add = 32,0,0
+layer0.palfx.time = 30
+layer0.palfx.color = 256
+layer0.palfx.hue = 0
+layer0.palfx.sinadd = 4,0,0,8
+layer0.palfx.sinmul = 0,8,0,8
+layer0.palfx.sincolor = 64,8
+layer0.palfx.sinhue = 64,8
+layer0.palfx.invertblend = 1
 sound0.value = 5,2
 sound0.starttime = 3
 sound0.volume = 80
@@ -599,6 +821,15 @@ layer0.scale = 2,2
         let tint = story.scenes[0].layers[0].tint([1.0, 1.0, 1.0, 1.0]);
         assert!((tint[0] - 1.0f32).abs() < 1e-6, "add clamps");
         assert!((tint[1] - 0.5).abs() < 1e-6);
+        let layer = &story.scenes[0].layers[0];
+        assert_eq!(layer.palfx_time, 30);
+        assert!((layer.palfx_color - 1.0).abs() < 1e-6);
+        assert_eq!(layer.palfx_sinadd, [4.0, 0.0, 0.0]);
+        assert_eq!(layer.palfx_sinadd_time, 8);
+        assert_eq!(layer.palfx_sinmul, [0.0, 8.0, 0.0]);
+        assert_eq!(layer.palfx_sincolor, 64.0);
+        assert_eq!(layer.palfx_sinhue, 64.0);
+        assert_eq!(layer.palfx_invertblend, 1);
         let anim = story.animations.get(&10).expect("action 10");
         // Sprite layers use the AIR interpolated pose halfway through frame 0.
         let pose = anim.pose_at(2).expect("pose");
@@ -618,6 +849,47 @@ layer0.scale = 2,2
         assert!(!bgm.loop_music);
         assert_eq!(bgm.volume, 80);
         let _ = std::fs::remove_dir_all(def.parent().unwrap());
+    }
+
+    #[test]
+    fn layer_palfx_time_varying_color_hue_and_expiry() {
+        let mut layer = StoryboardLayer::default();
+        assert_eq!(layer.palfx_at(0), PalFxSample::identity());
+
+        // Saturation 0 turns any color gray.
+        layer.palfx_color = 0.0;
+        let tint = layer.tint_at(0, [1.0, 0.25, 0.0, 1.0]);
+        assert!((tint[0] - tint[1]).abs() < 1e-6);
+        assert!((tint[1] - tint[2]).abs() < 1e-6);
+
+        // Invert is applied after hue and before saturation.
+        layer.palfx_color = 1.0;
+        layer.palfx_invertall = true;
+        let tint = layer.tint_at(0, [1.0, 0.0, 0.0, 1.0]);
+        assert!(tint[0].abs() < 1e-6 && (tint[1] - 1.0).abs() < 1e-6);
+
+        // A third of a turn maps red to green.
+        layer.palfx_invertall = false;
+        layer.palfx_hue = 1.0 / 3.0;
+        let tint = layer.tint_at(0, [1.0, 0.0, 0.0, 1.0]);
+        assert!(tint[0].abs() < 1e-5 && (tint[1] - 1.0).abs() < 1e-5);
+
+        // sinadd cycles every 8 ticks: 0 at t=0, +100 at t=2 (quarter turn).
+        let mut layer = StoryboardLayer {
+            palfx_sinadd: [100.0, 0.0, 0.0],
+            palfx_sinadd_time: 8,
+            ..Default::default()
+        };
+        let tint = layer.tint_at(2, [0.0, 0.0, 0.0, 1.0]);
+        assert!((tint[0] - 100.0 / 256.0).abs() < 1e-5);
+
+        // A positive time expires back to the identity.
+        layer.palfx_time = 4;
+        assert!(!layer.palfx_at(3).is_identity());
+        assert_eq!(layer.palfx_at(4), PalFxSample::identity());
+        // time = 0 disables the effect immediately.
+        layer.palfx_time = 0;
+        assert_eq!(layer.palfx_at(0), PalFxSample::identity());
     }
 
     #[test]

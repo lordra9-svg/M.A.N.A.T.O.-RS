@@ -12,6 +12,10 @@ pub struct Vertex {
     pub color: [f32; 4],
     /// Depth in `0.0..=1.0` (0 nearest); `Painter::set_depth` fills this.
     pub z: f32,
+    /// PalFX `add.rgb` (normalized) and saturation factor.
+    pub fx: [f32; 4],
+    /// PalFX `hue` shift and `invert` flag in `x`/`y`.
+    pub fx2: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -56,6 +60,8 @@ pub struct Painter {
     depth: f32,
     shader: Option<String>,
     shader_params: Option<[f32; 16]>,
+    fx: [f32; 4],
+    fx2: [f32; 4],
 }
 
 impl Default for Painter {
@@ -68,6 +74,8 @@ impl Default for Painter {
             depth: 1.0,
             shader: None,
             shader_params: None,
+            fx: [0.0, 0.0, 0.0, 1.0],
+            fx2: [0.0, 0.0, 0.0, 0.0],
         }
     }
 }
@@ -81,6 +89,21 @@ impl Painter {
         self.depth = 1.0;
         self.shader = None;
         self.shader_params = None;
+        self.fx = [0.0, 0.0, 0.0, 1.0];
+        self.fx2 = [0.0, 0.0, 0.0, 0.0];
+    }
+
+    /// Applies a PalFX transform to subsequent quads. `add` is in 0..256
+    /// engine units, `saturation` 1.0 = unchanged, `hue` is a fraction of a
+    /// turn, and `invert` flips RGB after the hue shift.
+    pub fn set_palfx(&mut self, add: [f32; 3], saturation: f32, hue: f32, invert: bool) {
+        self.fx = [add[0] / 255.0, add[1] / 255.0, add[2] / 255.0, saturation];
+        self.fx2 = [hue, invert as u8 as f32, 0.0, 0.0];
+    }
+
+    pub fn reset_palfx(&mut self) {
+        self.fx = [0.0, 0.0, 0.0, 1.0];
+        self.fx2 = [0.0, 0.0, 0.0, 0.0];
     }
 
     /// Selects a custom shader for subsequent quads (`None` = default).
@@ -190,6 +213,8 @@ impl Painter {
                 uv,
                 color,
                 z: self.depth,
+                fx: self.fx,
+                fx2: self.fx2,
             });
         }
     }
@@ -226,6 +251,8 @@ impl Painter {
                 uv,
                 color,
                 z: self.depth,
+                fx: self.fx,
+                fx2: self.fx2,
             });
         }
     }
@@ -299,9 +326,9 @@ impl Painter {
 
 pub fn create_sprite_shader(device: &wgpu::Device, mask: bool) -> wgpu::ShaderModule {
     let fragment = if mask {
-        "let c = textureSample(tex, samp, in.uv) * in.color;\n    return vec4<f32>(c.rgb, 1.0);"
+        "let texel = textureSample(tex, samp, in.uv);\n    let rgb = pal_apply(texel, in.color, in.fx, in.fx2);\n    return vec4<f32>(rgb, 1.0);"
     } else {
-        "return textureSample(tex, samp, in.uv) * in.color;"
+        "let texel = textureSample(tex, samp, in.uv);\n    let rgb = pal_apply(texel, in.color, in.fx, in.fx2);\n    return vec4<f32>(rgb, texel.a * in.color.a);"
     };
     let source = r#"
 struct VsIn {
@@ -309,12 +336,16 @@ struct VsIn {
     @location(1) uv: vec2<f32>,
     @location(2) color: vec4<f32>,
     @location(3) z: f32,
+    @location(4) fx: vec4<f32>,
+    @location(5) fx2: vec4<f32>,
 };
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) fx: vec4<f32>,
+    @location(3) fx2: vec4<f32>,
 };
 
 @vertex
@@ -329,7 +360,52 @@ fn vs_main(in: VsIn) -> VsOut {
     );
     out.uv = in.uv;
     out.color = in.color;
+    out.fx = in.fx;
+    out.fx2 = in.fx2;
     return out;
+}
+
+fn pal_hsv_to_rgb(c: vec3<f32>) -> vec3<f32> {
+    let k = vec4<f32>(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    let p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
+    return c.z * mix(k.xxx, clamp(p - k.xxx, vec3<f32>(0.0), vec3<f32>(1.0)), c.y);
+}
+
+fn pal_hue_shift(color: vec3<f32>, dhue: f32) -> vec3<f32> {
+    let maxc = max(color.r, max(color.g, color.b));
+    let minc = min(color.r, min(color.g, color.b));
+    let chroma = maxc - minc;
+    var hue = 0.0;
+    if (chroma > 0.00001) {
+        if (maxc == color.r) {
+            hue = (color.g - color.b) / chroma;
+            if (hue < 0.0) { hue = hue + 6.0; }
+        } else if (maxc == color.g) {
+            hue = (color.b - color.r) / chroma + 2.0;
+        } else {
+            hue = (color.r - color.g) / chroma + 4.0;
+        }
+        hue = hue / 6.0;
+    }
+    var shifted = hue + dhue;
+    shifted = shifted - floor(shifted);
+    let saturation = select(0.0, chroma / maxc, maxc > 0.0);
+    return pal_hsv_to_rgb(vec3<f32>(shifted, saturation, maxc));
+}
+
+fn pal_apply(texel: vec4<f32>, color: vec4<f32>, fx: vec4<f32>, fx2: vec4<f32>) -> vec3<f32> {
+    var rgb = texel.rgb;
+    if (fx2.x != 0.0) {
+        rgb = pal_hue_shift(rgb, fx2.x);
+    }
+    if (fx2.y != 0.0) {
+        rgb = vec3<f32>(1.0) - rgb;
+    }
+    if (fx.w != 1.0) {
+        let gray = (rgb.r + rgb.g + rgb.b) / 3.0;
+        rgb = mix(vec3<f32>(gray), rgb, fx.w);
+    }
+    return (rgb + fx.xyz) * color.rgb;
 }
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
@@ -422,6 +498,16 @@ pub fn vertex_layout() -> wgpu::VertexBufferLayout<'static> {
                 offset: 32,
                 shader_location: 3,
                 format: wgpu::VertexFormat::Float32,
+            },
+            wgpu::VertexAttribute {
+                offset: 36,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 52,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x4,
             },
         ],
     }

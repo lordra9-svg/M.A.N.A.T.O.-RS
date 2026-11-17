@@ -28,10 +28,13 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
     but not integrated),
   - `layerN.text`, `layerN.textdelay`, `layerN.font`
     (`index,r,g,b,a,...`; the built-in bitmap font is used for rendering),
-  - `layerN.palfx.add = r,g,b` and `layerN.palfx.mul = r,g,b` (0..256 scale;
-    mul defaults to `256,256,256`). The tint is `color * mul / 256 + add / 256`,
-    clamped to 0..1, and applies to sprite and text layers in both front-end
-    scenes and in-match overlays.
+  - `layerN.palfx.*`: `add = r,g,b`, `mul = r,g,b` (0..256; mul defaults to
+    `256,256,256`), `time`, `color`, `hue`, `sinadd = r,g,b,time`,
+    `sinmul = r,g,b,time`, `sincolor = amount,time`, `sinhue = amount,time`,
+    `invertall`, and `invertblend`. `time = -1` means infinite and `0` disables
+    the effect; positive values expire after that many ticks. Sine phases start
+    at scene time 0 and follow Ikemen's `sinAdd`/`sinMul`/`sinColor`/`sinHue`
+    formulas.
 - `soundN.value = group,index`, `soundN.starttime`, `soundN.volume`
   (`volumescale` alias), `soundN.pan`.
 - `bgm` (or `bgmusic`) with `bgm.loop`, `bgm.volume`, `bgm.loopstart`,
@@ -74,6 +77,12 @@ Overlays tick their own `StoryboardPlayer`, advance scene time, and are removed
 when the scene set completes. `ModifyStoryboard` matches overlays by `id`
 (`-1` = all owned) and updates position, scale, facing, and space.
 
+Layer PalFX is applied per sprite/text quad by the sprite shader in the
+Ikemen order: hue rotation, invert, saturation (`color`), add, then multiply.
+Because it runs on sampled texels it affects the source sprite and text glyphs
+rather than only the tint. `invertblend` is parsed but does not change the
+blend mode yet.
+
 In-match overlays draw both **sprite/animation layers** and text layers at the
 overlay position/scale/facing in screen or world space. The renderer assigns
 one atlas bank per live overlay (`bank::OVERLAY_BASE + index`) and rebuilds the
@@ -84,5 +93,5 @@ the overlay's layers, and `fadein`/`fadeout` alpha is drawn over them.
 ## 6. Not modeled
 
 - Lua storyboard scripting, dynamic backgrounds, and 3D models.
-- Time-varying PalFX parameters (`time`, `color`, `hue`, `sinadd`, `sinmul`,
-  `invertall`); only static `add`/`mul` are applied.
+- `palfx.invertblend` blend-mode variants; the transform itself does not
+  depend on the sprite blend mode.

@@ -1540,6 +1540,8 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     layer.scale.x * overlay.scale.x * pose.scale.x,
                     layer.scale.y * overlay.scale.y * pose.scale.y,
                 );
+                let palfx = layer.palfx_at(overlay.player.time);
+                painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
                 draw_sprite(
                     painter,
                     deps.atlas,
@@ -1552,9 +1554,15 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     pose.flip_h,
                     pose.flip_v,
                     pose.blend,
-                    layer.tint([1.0, 1.0, 1.0, pose.alpha]),
+                    [
+                        palfx.mul[0] / 256.0,
+                        palfx.mul[1] / 256.0,
+                        palfx.mul[2] / 256.0,
+                        pose.alpha,
+                    ],
                     pose.angle,
                 );
+                painter.reset_palfx();
             }
 
             if layer.text.is_some() {
@@ -1563,13 +1571,16 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     continue;
                 }
                 let scale = (layer.scale.y * overlay.scale.y).clamp(0.4, 4.0);
-                let tint = layer.tint([
-                    layer.color[0] as f32 / 255.0,
-                    layer.color[1] as f32 / 255.0,
-                    layer.color[2] as f32 / 255.0,
+                let palfx = layer.palfx_at(overlay.player.time);
+                let tint = [
+                    layer.color[0] as f32 / 255.0 * palfx.mul[0] / 256.0,
+                    layer.color[1] as f32 / 255.0 * palfx.mul[1] / 256.0,
+                    layer.color[2] as f32 / 255.0 * palfx.mul[2] / 256.0,
                     layer.color[3] as f32 / 255.0,
-                ]);
+                ];
+                painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
                 painter.text(deps.font, &text, anchor.x, anchor.y, scale, tint);
+                painter.reset_palfx();
             }
         }
         if let Some((color, alpha)) = overlay.player.fade_alpha(scene) {
@@ -1657,6 +1668,8 @@ pub fn draw_storyboard(
         };
         if let Some((sprite, pose)) = sprite_pose {
             let scale = Vec2::new(layer.scale.x * pose.scale.x, layer.scale.y * pose.scale.y);
+            let palfx = layer.palfx_at(player.time);
+            painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
             draw_sprite(
                 painter,
                 deps.atlas,
@@ -1669,27 +1682,37 @@ pub fn draw_storyboard(
                 pose.flip_h,
                 pose.flip_v,
                 pose.blend,
-                layer.tint([1.0, 1.0, 1.0, pose.alpha]),
+                [
+                    palfx.mul[0] / 256.0,
+                    palfx.mul[1] / 256.0,
+                    palfx.mul[2] / 256.0,
+                    pose.alpha,
+                ],
                 pose.angle,
             );
+            painter.reset_palfx();
         }
         if layer.text.is_some() {
             let text = layer.visible_text(player.time);
             if !text.is_empty() {
-                let tint = layer.tint([
-                    layer.color[0] as f32 / 255.0,
-                    layer.color[1] as f32 / 255.0,
-                    layer.color[2] as f32 / 255.0,
+                let palfx = layer.palfx_at(player.time);
+                let tint = [
+                    layer.color[0] as f32 / 255.0 * palfx.mul[0] / 256.0,
+                    layer.color[1] as f32 / 255.0 * palfx.mul[1] / 256.0,
+                    layer.color[2] as f32 / 255.0 * palfx.mul[2] / 256.0,
                     layer.color[3] as f32 / 255.0,
-                ]);
+                ];
+                painter.set_palfx(palfx.add, palfx.color, palfx.hue, palfx.invert);
                 if layer.font >= 0 {
                     if let Some(font) = deps.screen_fonts.get(&(layer.font as u32)) {
                         font.draw(painter, &text, anchor, layer.scale, 0, tint);
+                        painter.reset_palfx();
                         continue;
                     }
                 }
                 let pixel_scale = layer.scale.y.max(layer.scale.x).clamp(0.4, 4.0);
                 painter.text(deps.font, &text, anchor.x, anchor.y, pixel_scale, tint);
+                painter.reset_palfx();
             }
         }
     }
