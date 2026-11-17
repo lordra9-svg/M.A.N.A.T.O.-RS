@@ -276,6 +276,8 @@ pub struct StoryboardScene {
     pub layers: Vec<StoryboardLayer>,
     pub sounds: Vec<StoryboardSound>,
     pub bgm: Option<StoryboardBgm>,
+    /// `bg.name` stage definition rendered beneath the scene layers.
+    pub bg: Option<crate::stage::Stage>,
 }
 
 #[derive(Debug, Clone)]
@@ -386,6 +388,7 @@ impl Storyboard {
             };
             let mut layers: Vec<(usize, StoryboardLayer)> = Vec::new();
             let mut scene_sounds: Vec<(usize, StoryboardSound)> = Vec::new();
+            let mut bg_name: Option<String> = None;
             let mut bgm_path: Option<String> = None;
             let mut bgm_loop = true;
             let mut bgm_volume = 100;
@@ -415,6 +418,7 @@ impl Storyboard {
                     "fadeout.color" => scene.fade_out.color = triplet_color(value),
                     "fadein.alpha" => scene.fade_in.alpha = alpha_pair(value),
                     "fadeout.alpha" => scene.fade_out.alpha = alpha_pair(value),
+                    "bg.name" | "bg" => bg_name = Some(value.to_string()),
                     "bgm" | "bgmusic" => bgm_path = Some(value.to_string()),
                     "bgm.loop" => bgm_loop = value.parse::<i32>().unwrap_or(1) != 0,
                     "bgm.volume" => bgm_volume = value.parse().unwrap_or(100),
@@ -555,6 +559,16 @@ impl Storyboard {
             scene.layers = layers.into_iter().map(|(_, layer)| layer).collect();
             scene_sounds.sort_by_key(|(index, _)| *index);
             scene.sounds = scene_sounds.into_iter().map(|(_, sound)| sound).collect();
+            scene.bg = bg_name.filter(|name| !name.is_empty()).and_then(|name| {
+                let path = resolve(&dir, &name);
+                match crate::stage::Stage::load(&path, std::slice::from_ref(&dir)) {
+                    Ok(stage) => Some(stage),
+                    Err(error) => {
+                        log::warn!("storyboard bg {}: {error:#}", path.display());
+                        None
+                    }
+                }
+            });
             scene.bgm = bgm_path.map(|path| StoryboardBgm {
                 path: resolve(&dir, &path),
                 loop_music: bgm_loop,
@@ -972,6 +986,31 @@ layer0.scale = 2,2
         let sample = layer.palfx_at(0);
         assert_eq!(sample.invert_blend, 3);
         assert!(sample.disables_shader_invert());
+    }
+
+    #[test]
+    fn parses_and_loads_scene_background() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let stage = root.join("content/stages/training/stage1.def");
+        if !stage.exists() {
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("manato-storybg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let def = dir.join("story.def");
+        std::fs::write(
+            &def,
+            format!(
+                "[Info]\nname = Bg\n[SceneDef]\nstartscene = 0\n[Scene 0]\nend.time = 10\nbg.name = {}\n",
+                stage.display()
+            ),
+        )
+        .expect("write");
+        let story = Storyboard::load(&def).expect("load");
+        let bg = story.scenes[0].bg.as_ref().expect("stage background");
+        assert!(!bg.layers.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

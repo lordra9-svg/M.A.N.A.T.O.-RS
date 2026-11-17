@@ -910,12 +910,17 @@ impl Renderer {
 
     /// Builds the atlas from a storyboard's sprite file.
     pub fn load_storyboard(&mut self, storyboard: &manato_formats::storyboard::Storyboard) {
-        self.atlas = SpriteAtlas::build(
-            &self.device,
-            &self.queue,
-            &self.sprite_bgl,
-            &[(bank::STORYBOARD, &storyboard.sprites)],
-        );
+        let mut banks: Vec<(u8, &manato_formats::SffFile)> =
+            vec![(bank::STORYBOARD, &storyboard.sprites)];
+        for (index, scene) in storyboard.scenes.iter().enumerate() {
+            if let Some(stage) = &scene.bg {
+                let id = bank::STORYBOARD_BG as usize + index;
+                if id <= u8::MAX as usize {
+                    banks.push((id as u8, &stage.sprites));
+                }
+            }
+        }
+        self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.screen_fonts.clear();
         for (index, path) in &storyboard.font_files {
             match manato_formats::font::BitmapFont::load(path) {
@@ -1692,6 +1697,40 @@ void main() {
 "#;
         assert!(renderer.register_glsl_shader("implicit-scanline", source));
         assert!(renderer.custom_shaders.contains_key("implicit-scanline"));
+    }
+
+    #[test]
+    fn storyboard_background_renders_when_gpu_available() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let stage = root.join("content/stages/training/stage1.def");
+        if !stage.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-sb-bg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let def = dir.join("story.def");
+        std::fs::write(
+            &def,
+            format!(
+                "[Info]\nname = Bg\n[SceneDef]\nstartscene = 0\n[Scene 0]\nend.time = 10\nbg.name = {}\n",
+                stage.display()
+            ),
+        )
+        .expect("write");
+        let storyboard = manato_formats::storyboard::Storyboard::load(&def).expect("load");
+        assert!(storyboard.scenes[0].bg.is_some());
+        let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
+        renderer.load_storyboard(&storyboard);
+        renderer.render_storyboard(&storyboard, &player);
+        let path = dir.join("bg.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

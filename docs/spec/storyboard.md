@@ -15,6 +15,11 @@ scenes with sprite/animation layers, text, fades, and scene jumps.
 - `[SceneDef] spr` (SFF), `snd` (SND), `fontN` (`.fnt` files), `startscene`
   (index).
 - `[Scene <name>]`:
+  - `bg.name = stage.def` (alias `bg`): loads a stage DEF as the scene
+    background. It is drawn after the clear colour and before the scene
+    layers, with layer sprites/actions, start/velocity/sin/cos offsets,
+    scale, flip, and trans blend. Stage `[BGDef]` sprite/action banks are
+    uploaded as per-scene atlas banks. `BgCtrl` controllers are not executed.
   - `end.time` (ticks; `-1`/`0` never ends on its own),
   - `jump` (target scene name, else the next scene),
   - `layerall.pos = x,y` (offset added to every sprite and text layer),
@@ -117,4 +122,6 @@ included in rollback snapshots (storyboard overlays are already excluded).
 
 ## 7. Not modeled
 
-- Dynamic backgrounds and 3D models.
+- 3D models.
+- Stage `BgCtrl` controllers inside storyboard backgrounds.
+- Scene backgrounds in in-match overlays (front-end storyboards render them).

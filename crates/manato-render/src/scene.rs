@@ -1641,6 +1641,89 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
 }
 
 /// Draws one storyboard scene frame: clear colour, layers, text, and fades.
+fn draw_storyboard_bg(
+    painter: &mut Painter,
+    atlas: &SpriteAtlas,
+    stage: &manato_formats::stage::Stage,
+    scene_index: usize,
+    time: i32,
+) {
+    let bank_id = bank::STORYBOARD_BG.saturating_add(scene_index as u8);
+    let t = time.max(0) as f32;
+    let mut layers: Vec<&manato_formats::stage::BgLayer> = stage.render_layers().collect();
+    layers.sort_by_key(|layer| layer.layer_no);
+    for layer in layers {
+        if !layer.visible || !layer.enabled {
+            continue;
+        }
+        let (sprite, pose) = if let Some(action) = layer.action {
+            let Some(anim) = stage.animations.get(&action) else {
+                continue;
+            };
+            let Some(interpolated) = anim.pose_at(time) else {
+                continue;
+            };
+            let Some(frame) = anim.frames.get(interpolated.frame) else {
+                continue;
+            };
+            let Some(sprite) = stage.sprites.get(frame.group, frame.index) else {
+                continue;
+            };
+            (sprite, Pose::from_pose(frame, &interpolated))
+        } else if let Some((group, index)) = layer.sprite {
+            let Some(sprite) = stage.sprites.get(group, index) else {
+                continue;
+            };
+            (
+                sprite,
+                Pose {
+                    offset: Vec2::ZERO,
+                    flip_h: false,
+                    flip_v: false,
+                    blend: blend_of(layer.trans),
+                    scale: Vec2::new(1.0, 1.0),
+                    alpha: 1.0,
+                    angle: 0.0,
+                },
+            )
+        } else {
+            continue;
+        };
+        let mut anchor = layer.start + layer.velocity * t;
+        if layer.sin_x[1] != 0.0 {
+            anchor.x += layer.sin_x[0]
+                * (t * std::f32::consts::TAU / layer.sin_x[1] + layer.sin_x[2]).sin();
+        }
+        if layer.sin_y[1] != 0.0 {
+            anchor.y += layer.sin_y[0]
+                * (t * std::f32::consts::TAU / layer.sin_y[1] + layer.sin_y[2]).sin();
+        }
+        if layer.cos_x[1] != 0.0 {
+            anchor.x += layer.cos_x[0]
+                * (t * std::f32::consts::TAU / layer.cos_x[1] + layer.cos_x[2]).cos();
+        }
+        if layer.cos_y[1] != 0.0 {
+            anchor.y += layer.cos_y[0]
+                * (t * std::f32::consts::TAU / layer.cos_y[1] + layer.cos_y[2]).cos();
+        }
+        draw_sprite(
+            painter,
+            atlas,
+            bank_id,
+            sprite,
+            anchor,
+            pose.offset,
+            1,
+            Vec2::new(layer.xscale * pose.scale.x, layer.yscale * pose.scale.y),
+            pose.flip_h,
+            pose.flip_v,
+            blend_of(layer.trans),
+            [1.0, 1.0, 1.0, pose.alpha],
+            pose.angle,
+        );
+    }
+}
+
 pub fn draw_storyboard(
     painter: &mut Painter,
     deps: &SceneDeps,
@@ -1667,6 +1750,10 @@ pub fn draw_storyboard(
                 ],
             );
         }
+    }
+
+    if let Some(stage) = &scene.bg {
+        draw_storyboard_bg(painter, deps.atlas, stage, player.scene, player.time);
     }
 
     let mut layers: Vec<&manato_formats::storyboard::StoryboardLayer> = scene
