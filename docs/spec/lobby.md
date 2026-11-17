@@ -136,11 +136,15 @@ firewalls that drop unsolicited traffic still need a relay/TURN service.
 ### Window netplay
 
 `--netplay <remote> [--netplay-bind <local>] [--netplay-player 0|1]` starts a
-windowed GGRS session. Each tick feeds the local keyboard/gamepad input for
-that slot, steps the session (handling prediction-threshold skips), and renders
-the resulting simulation. The remote peer must run the same mode with the
-opposite slot and each other's addresses. Lobby auto-entry into the window is
-still manual (`--netplay` after the handoff).
+windowed GGRS session. It punches the peer address first, then each tick feeds
+the local keyboard/gamepad input for that slot, steps the session (handling
+prediction-threshold skips), and renders the resulting simulation. The remote
+peer must run the same mode with the opposite slot and each other's addresses.
+
+`--matchmake-window <discovery-addr>` closes the loop: it discovers and joins
+the best lobby as a player, readies, waits for `MatchHandoff`, then fills in
+`--netplay`/`--netplay-bind`/`--netplay-player` and launches the windowed
+netplay match automatically.
 
 ## 4. Security notes
 

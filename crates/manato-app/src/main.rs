@@ -44,6 +44,7 @@ struct Options {
     stun: Option<String>,
     matchmake: Option<String>,
     matchmake_play: Option<String>,
+    matchmake_window: Option<String>,
     netplay: Option<String>,
     netplay_bind: Option<String>,
     netplay_player: usize,
@@ -77,6 +78,7 @@ impl Default for Options {
             stun: None,
             matchmake: None,
             matchmake_play: None,
+            matchmake_window: None,
             netplay: None,
             netplay_bind: None,
             netplay_player: 0,
@@ -414,6 +416,10 @@ impl Options {
                     opts.matchmake_play = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--matchmake-window" => {
+                    opts.matchmake_window = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay" => {
                     opts.netplay = Some(value(i)?.to_owned());
                     i += 2;
@@ -536,6 +542,7 @@ Modes:
   --stun <addr>       Report the public UDP address via a STUN server
   --matchmake <addr>  Discover lobbies, list them, and spectate the best one
   --matchmake-play <addr>  Discover, join the best lobby as a player, and ready
+  --matchmake-window <addr>  Same, but enter the windowed netplay match
   --netplay <addr>    Window netplay against remote GGRS address
   --netplay-bind <addr>  Local UDP bind for --netplay (default 0.0.0.0:0)
   --netplay-player <n>   Local player slot for --netplay (0 or 1, default 0)
@@ -571,7 +578,7 @@ fn run_discovery(target: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
+fn join_best_lobby(target: &str) -> anyhow::Result<Option<(manato_net::lobby::MatchHandoff, u16)>> {
     let target: std::net::SocketAddr = target.parse()?;
     let lobbies = manato_net::discovery::Matchmaker::discover(target, Duration::from_secs(1))?;
     for lobby in &lobbies {
@@ -582,19 +589,17 @@ fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
     }
     let Some(best) = manato_net::discovery::best_lobby(&lobbies) else {
         println!("no joinable lobbies");
-        return Ok(());
+        return Ok(None);
     };
     let mut client = manato_net::lobby::LobbyClient::connect(best.address, "player", false)?;
     println!("joining {} @ {}", best.name, best.address);
 
-    // Reserve a local port for the GGRS socket, then announce it.
     let local_port = {
         let probe = std::net::UdpSocket::bind("0.0.0.0:0")?;
         probe.local_addr()?.port()
     };
     let started = Instant::now();
     let mut ready_sent = false;
-    let mut handoff = None;
     while started.elapsed() < Duration::from_secs(15) {
         client.poll()?;
         if client.id.is_some() && !ready_sent {
@@ -602,15 +607,18 @@ fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
             client.set_ready(true);
             ready_sent = true;
         }
-        if let Some(value) = client.match_handoff() {
-            handoff = Some(value);
-            break;
+        if let Some(handoff) = client.match_handoff() {
+            return Ok(Some((handoff, local_port)));
         }
         std::thread::sleep(Duration::from_millis(10));
     }
-    let Some(handoff) = handoff else {
-        println!("{}", client.status_text());
-        println!("lobby did not start a match within 15s");
+    println!("{}", client.status_text());
+    println!("lobby did not start a match within 15s");
+    Ok(None)
+}
+
+fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
+    let Some((handoff, local_port)) = join_best_lobby(target)? else {
         return Ok(());
     };
 
@@ -692,6 +700,16 @@ fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
         }
+    }
+
+    if let Some(target) = opts.matchmake_window.clone() {
+        let Some((handoff, port)) = join_best_lobby(&target)? else {
+            return Ok(());
+        };
+        opts.netplay = Some(handoff.remote.to_string());
+        opts.netplay_bind = Some(format!("0.0.0.0:{port}"));
+        opts.netplay_player = handoff.local_player;
+        return run_window(opts);
     }
 
     if let Some(target) = &opts.matchmake_play {
@@ -1523,6 +1541,16 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
             local_player: opts.netplay_player,
             remote,
         };
+        // Best-effort punch before the GGRS socket binds the same port.
+        let mut puncher = manato_net::nat::NatPuncher::bind(bind, remote)?;
+        let punched = puncher.punch(Duration::from_secs(2))?;
+        println!(
+            "nat punch {} (sent={} received={})",
+            if punched { "open" } else { "timed out" },
+            puncher.packets_sent,
+            puncher.packets_received
+        );
+        drop(puncher);
         Some(manato_net::Netplay::from_handoff(
             load_match(&opts)?,
             handoff,
