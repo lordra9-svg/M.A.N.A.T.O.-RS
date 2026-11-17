@@ -128,6 +128,15 @@ impl Animation {
         self.interpolated_pose(frame, frame_time)
     }
 
+    /// Total playback time of every frame in ticks (minimum 1).
+    pub fn total_ticks(&self) -> i32 {
+        self.frames
+            .iter()
+            .map(|frame| frame.duration.max(0))
+            .sum::<i32>()
+            .max(1)
+    }
+
     /// Pose for a known frame index and elapsed ticks inside it. A marker
     /// recorded before the following frame blends `offset`/`scale`/`angle`
     /// from this frame toward that frame; the last frame blends toward

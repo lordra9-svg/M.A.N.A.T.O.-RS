@@ -217,6 +217,16 @@ impl TeamMember {
     }
 }
 
+/// In-progress tag-out: the outgoing fighter plays its state animation before
+/// the roster swaps to another member.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TagTransition {
+    pub member: usize,
+    pub state: Option<i32>,
+    pub ctrl: bool,
+    pub timer: i32,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct TeamRoster {
     pub members: Vec<TeamMember>,
@@ -737,6 +747,9 @@ pub struct WinRecord {
 /// Fraction of max life at or below which a win counts as a clutch win.
 pub const CLUTCH_THRESHOLD: f32 = 0.10;
 
+/// Fallback tag-out animation length when the state has no readable ChangeAnim.
+pub const TAG_TRANSITION_TICKS: i32 = 20;
+
 /// Delayed ("mid") bar fill state (`docs/spec/render.md` §6.1–§6.3).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BarFill {
@@ -811,6 +824,9 @@ pub struct SimState {
     pub fighters: Vec<Fighter>,
     /// Team rosters for each side (index 0/1). Tag swaps rotate `active`.
     pub teams: [TeamRoster; 2],
+    /// Pending tag-out transitions per side.
+    #[serde(default)]
+    pub tag_transitions: [Option<TagTransition>; 2],
     /// Per-side team mode (`Single`, `Turns`, `Tag`, `Simul`).
     pub team_modes: [TeamMode; 2],
     /// In-match `Storyboard` overlays (text layers; not serialized).
@@ -954,6 +970,7 @@ impl SimState {
             stage_right_bound,
             fighters,
             teams,
+            tag_transitions: [None, None],
             team_modes: [TeamMode::Single; 2],
             storyboards: Vec::new(),
             frame: 0,
@@ -1325,6 +1342,7 @@ impl SimState {
 
         if run_gameplay {
             self.update_gameplay();
+            self.update_tag_transitions();
             self.update_target_binds();
             self.update_entity_binds();
         }
@@ -2603,8 +2621,104 @@ impl SimState {
 
     /// Swaps the active roster member (TagIn/TagOut). The incoming fighter is
     /// rebuilt from its character and keeps the outgoing position/facing.
+    /// Tag in: immediately swap to the next roster member.
+    pub fn tag_in(&mut self, who: usize, incoming_state: Option<i32>, ctrl: bool) -> bool {
+        self.tag_swap(who, incoming_state, ctrl)
+    }
+
+    /// Tag out: when `outgoing_state` is set, the outgoing fighter enters it,
+    /// loses control, and remains active until its state animation ends; then
+    /// the roster swaps to the next member with `incoming_state`.
+    pub fn tag_out(
+        &mut self,
+        who: usize,
+        outgoing_state: Option<i32>,
+        incoming_state: Option<i32>,
+        ctrl: bool,
+    ) -> bool {
+        let side = self.fighters[who].side.min(1);
+        if self.teams[side].members.len() <= 1 {
+            return false;
+        }
+        let Some(state) = outgoing_state.filter(|state| *state >= 0) else {
+            return self.tag_swap(who, incoming_state, ctrl);
+        };
+        let char_id = self.fighters[who].char_id;
+        if self.assets.characters[char_id].state(state).is_none() {
+            return self.tag_swap(who, incoming_state, ctrl);
+        }
+        let timer = self
+            .state_anim_ticks(char_id, state)
+            .unwrap_or(TAG_TRANSITION_TICKS);
+        self.fighters[who].enter_state(state, &self.assets.characters[char_id], false);
+        self.fighters[who].ctrl = false;
+        let active = self.teams[side].active;
+        let member = (active + 1) % self.teams[side].members.len();
+        self.tag_transitions[side] = Some(TagTransition {
+            member,
+            state: incoming_state,
+            ctrl,
+            timer,
+        });
+        true
+    }
+
+    /// Animation duration of a state's first `ChangeAnim`, used to time a
+    /// tag-out before the roster swaps.
+    fn state_anim_ticks(&self, char_id: usize, state_no: i32) -> Option<i32> {
+        let character = self.assets.characters.get(char_id)?;
+        let state = character.state(state_no)?;
+        let anim_no = state
+            .controllers
+            .iter()
+            .find(|control| control.kind.eq_ignore_ascii_case("changeanim"))
+            .and_then(|control| control.get("value"))?
+            .trim()
+            .parse::<i32>()
+            .ok()?;
+        Some(character.animation(anim_no)?.total_ticks())
+    }
+
+    fn update_tag_transitions(&mut self) {
+        for side in 0..2 {
+            let Some(mut transition) = self.tag_transitions[side].take() else {
+                continue;
+            };
+            transition.timer -= 1;
+            if transition.timer > 0 {
+                self.tag_transitions[side] = Some(transition);
+                continue;
+            }
+            let who = self
+                .fighters
+                .iter()
+                .position(|fighter| fighter.owner.is_none() && fighter.side.min(1) == side)
+                .unwrap_or(side);
+            self.complete_tag(who, transition.member, transition.state, transition.ctrl);
+        }
+    }
+
+    fn complete_tag(
+        &mut self,
+        who: usize,
+        member_index: usize,
+        incoming_state: Option<i32>,
+        ctrl: bool,
+    ) {
+        let side = self.fighters[who].side.min(1);
+        if member_index >= self.teams[side].members.len() {
+            return;
+        }
+        let active = self.teams[side].active;
+        self.teams[side].members[active] = TeamMember::from_fighter(&self.fighters[who]);
+        self.teams[side].active = member_index;
+        let member = self.teams[side].members[member_index].clone();
+        self.rebuild_active_with(who, &member, incoming_state, ctrl, member_index);
+    }
+
     pub fn tag_swap(&mut self, who: usize, incoming_state: Option<i32>, ctrl: bool) -> bool {
         let side = self.fighters[who].side.min(1);
+        self.tag_transitions[side] = None;
         if self.teams[side].members.len() <= 1 {
             return false;
         }
@@ -2737,6 +2851,7 @@ impl SimState {
             }
         }
         self.fighters.truncate(2);
+        self.tag_transitions = [None, None];
         for team in &mut self.teams {
             team.active = 0;
         }
@@ -3550,6 +3665,15 @@ impl SimState {
             h.write_i32(p.remove_time);
             h.write_i32(p.hits);
             h.write_i32(p.hitdef.damage);
+        }
+        for transition in &self.tag_transitions {
+            h.write_bool(transition.is_some());
+            if let Some(transition) = transition {
+                h.write_u32(transition.member as u32);
+                h.write_i32(transition.state.unwrap_or(i32::MIN));
+                h.write_bool(transition.ctrl);
+                h.write_i32(transition.timer);
+            }
         }
         for f in &self.fighters {
             h.write_u32(f.team_index as u32);

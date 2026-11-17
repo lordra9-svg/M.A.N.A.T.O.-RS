@@ -3753,6 +3753,84 @@ fn tag_team_roster_and_tagout_tagin_swap_members() {
 }
 
 #[test]
+fn tagout_state_animation_delays_the_swap() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival]);
+
+    // Inject a tag-out state whose ChangeAnim points at a short existing
+    // animation, so the swap should wait for that animation's duration.
+    let (anim_no, ticks) = {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[kaen];
+        let (anim_no, ticks) = character
+            .animations
+            .iter()
+            .find(|(_, anim)| {
+                anim.frames.iter().all(|frame| frame.duration >= 0)
+                    && (1..=60).contains(&anim.total_ticks())
+            })
+            .map(|(number, anim)| (*number, anim.total_ticks()))
+            .expect("short animation");
+        character.states.insert(
+            5999,
+            manato_formats::StateDef {
+                number: 5999,
+                params: vec![
+                    ("type".into(), "S".into()),
+                    ("physics".into(), "N".into()),
+                    ("movetype".into(), "I".into()),
+                    ("ctrl".into(), "0".into()),
+                ],
+                controllers: vec![manato_formats::Controller {
+                    kind: "changeanim".into(),
+                    params: vec![("value".into(), anim_no.to_string())],
+                    line: 0,
+                }],
+                line: 0,
+                source: "tagout-test".into(),
+            },
+        );
+        (anim_no, ticks)
+    };
+    let _ = anim_no;
+    let assets = sim.assets.clone();
+
+    let tag_out = manato_formats::Controller {
+        kind: "tagout".into(),
+        params: vec![
+            ("stateno".into(), "5999".into()),
+            ("partnerstateno".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &tag_out, &assets);
+    assert_eq!(
+        sim.fighters[0].char_id, kaen,
+        "outgoing animation plays first"
+    );
+    assert_eq!(sim.fighters[0].state_no, 5999);
+    assert!(!sim.fighters[0].ctrl);
+    assert_eq!(sim.teams[0].active, 0);
+    assert_eq!(
+        sim.tag_transitions[0].as_ref().map(|t| t.timer),
+        Some(ticks)
+    );
+
+    for _ in 0..ticks - 1 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.fighters[0].char_id, kaen);
+    }
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[0].char_id, nival, "swap follows the animation");
+    assert_eq!(sim.teams[0].active, 1);
+    assert!(sim.tag_transitions[0].is_none());
+}
+
+#[test]
 fn turns_mode_advances_to_living_partner_before_ko() {
     let Some(mut sim) = fight_phase() else {
         return;

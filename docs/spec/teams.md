@@ -48,11 +48,19 @@ leader's default life.
 
 ## 2. Controllers
 
-- `TagOut` / `TagIn`: save the active member's life/red-life/power, rotate
-  `active` to the next member, rebuild the fighter slot from that member's
-  character at the same position/facing, and restore its stored life/power.
-  `stateno`/`partnerstateno` selects the incoming state (defaults to state 0);
-  `ctrl`/`partnerctrl` sets the incoming control flag.
+- `TagIn`: save the active member's life/red-life/power, rotate `active` to the
+  next member, rebuild the fighter slot from that member's character at the
+  same position/facing, and restore its stored life/power. `stateno`
+  (or `partnerstateno`) selects the incoming state; `ctrl`/`partnerctrl` sets
+  the incoming control flag.
+- `TagOut`: `partnerstateno` selects the incoming state as above. When
+  `stateno` is also given, the outgoing fighter first enters that state with
+  control disabled and the roster swap is delayed until the state's first
+  `ChangeAnim` animation completes (falling back to 20 ticks when no readable
+  animation exists). This lets the character play a tag-out animation before
+  the partner replaces it. Without `stateno`, the swap is immediate.
+- Pending tag transitions are part of rollback state and the checksum, and are
+  cleared when a round starts or another tag action supersedes them.
 - `Turn`: flips facing (unchanged 2D behavior).
 
 ## 3. Triggers
@@ -74,5 +82,6 @@ active fighter's bar, using the synced roster life/life-max values.
   simul spawning have no such limit).
 - Alternate-character loading beyond the explicit leader/partner pair; rosters are
   assigned through the API (tests and hosts).
-- Partner tag animations, tag-in invulnerability windows, and team-specific
-  round/score rules.
+- Tag-in invulnerability windows and team-specific round/score rules.
+- Tag-out animations longer than the state's first `ChangeAnim` (the swap is
+  timed from that animation, not from later state changes).

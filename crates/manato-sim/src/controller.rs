@@ -87,7 +87,18 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "turn" => {
             sim.fighters[who].facing = -sim.fighters[who].facing;
         }
-        "tagin" | "tagout" => {
+        "tagin" => {
+            let incoming = int_param(sim, who, control, "stateno")
+                .or_else(|| int_param(sim, who, control, "partnerstateno"))
+                .filter(|state| *state >= 0);
+            let ctrl = int_param(sim, who, control, "partnerctrl")
+                .or_else(|| int_param(sim, who, control, "ctrl"))
+                .unwrap_or(1)
+                != 0;
+            sim.tag_in(who, incoming, ctrl);
+        }
+        "tagout" => {
+            let outgoing = int_param(sim, who, control, "stateno").filter(|state| *state >= 0);
             let incoming = int_param(sim, who, control, "partnerstateno")
                 .or_else(|| int_param(sim, who, control, "stateno"))
                 .filter(|state| *state >= 0);
@@ -95,7 +106,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
                 .or_else(|| int_param(sim, who, control, "ctrl"))
                 .unwrap_or(1)
                 != 0;
-            sim.tag_swap(who, incoming, ctrl);
+            sim.tag_out(who, outgoing, incoming, ctrl);
         }
         "poweradd" => {
             let value = num_param(sim, who, control, "value").unwrap_or(0.0);
