@@ -196,6 +196,62 @@ mod tests {
     }
 
     #[test]
+    fn two_netplay_sessions_exchange_inputs_over_loopback() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        if !root.join("content/chars/kaen/kaen.def").exists() {
+            return;
+        }
+        let free_port = || {
+            let socket = std::net::UdpSocket::bind("127.0.0.1:0").expect("probe");
+            socket.local_addr().expect("addr").port()
+        };
+        let a_port = free_port();
+        let b_port = free_port();
+        let a = Netplay::from_handoff(
+            match_state(&root),
+            lobby::MatchHandoff {
+                local_player: 0,
+                remote: format!("127.0.0.1:{b_port}").parse().unwrap(),
+            },
+            format!("0.0.0.0:{a_port}").parse().unwrap(),
+        );
+        let b = Netplay::from_handoff(
+            match_state(&root),
+            lobby::MatchHandoff {
+                local_player: 1,
+                remote: format!("127.0.0.1:{a_port}").parse().unwrap(),
+            },
+            format!("0.0.0.0:{b_port}").parse().unwrap(),
+        );
+        let (Ok(mut a), Ok(mut b)) = (a, b) else {
+            eprintln!("skipping: could not bind netplay sockets");
+            return;
+        };
+        let mut synced = false;
+        for _ in 0..1200 {
+            a.poll();
+            b.poll();
+            // Keep the peers within one frame so their rollback states can be
+            // compared at a shared frame.
+            if a.sim().frame <= b.sim().frame {
+                let _ = a.step(PlayerInput::default());
+            }
+            if b.sim().frame < a.sim().frame {
+                let _ = b.step(PlayerInput::default());
+            }
+            if a.sim().frame > 0
+                && a.sim().frame == b.sim().frame
+                && a.sim().checksum() == b.sim().checksum()
+            {
+                synced = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert!(synced, "netplay peers did not converge");
+    }
+
+    #[test]
     fn match_handoff_starts_a_netplay_session() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         if !root.join("content/chars/kaen/kaen.def").exists() {

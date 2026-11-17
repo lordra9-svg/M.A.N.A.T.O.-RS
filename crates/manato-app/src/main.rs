@@ -44,6 +44,9 @@ struct Options {
     stun: Option<String>,
     matchmake: Option<String>,
     matchmake_play: Option<String>,
+    netplay: Option<String>,
+    netplay_bind: Option<String>,
+    netplay_player: usize,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -74,6 +77,9 @@ impl Default for Options {
             stun: None,
             matchmake: None,
             matchmake_play: None,
+            netplay: None,
+            netplay_bind: None,
+            netplay_player: 0,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -408,6 +414,21 @@ impl Options {
                     opts.matchmake_play = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--netplay" => {
+                    opts.netplay = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--netplay-bind" => {
+                    opts.netplay_bind = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--netplay-player" => {
+                    opts.netplay_player = value(i)?.parse::<usize>()?;
+                    if opts.netplay_player > 1 {
+                        anyhow::bail!("--netplay-player must be 0 or 1");
+                    }
+                    i += 2;
+                }
                 "--scale" => {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
@@ -515,6 +536,9 @@ Modes:
   --stun <addr>       Report the public UDP address via a STUN server
   --matchmake <addr>  Discover lobbies, list them, and spectate the best one
   --matchmake-play <addr>  Discover, join the best lobby as a player, and ready
+  --netplay <addr>    Window netplay against remote GGRS address
+  --netplay-bind <addr>  Local UDP bind for --netplay (default 0.0.0.0:0)
+  --netplay-player <n>   Local player slot for --netplay (0 or 1, default 0)
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -1484,11 +1508,33 @@ struct App {
     spectator: Option<manato_net::lobby::SpectatorClient>,
     broadcaster: Option<manato_net::lobby::SnapshotBroadcaster>,
     storyboard_scripts: StoryboardScripts,
+    netplay: Option<manato_net::Netplay>,
 }
 
 fn run_window(opts: Options) -> anyhow::Result<()> {
+    let netplay = if let Some(remote) = &opts.netplay {
+        let remote: std::net::SocketAddr = remote.parse()?;
+        let bind: std::net::SocketAddr = opts
+            .netplay_bind
+            .as_deref()
+            .unwrap_or("0.0.0.0:0")
+            .parse()?;
+        let handoff = manato_net::lobby::MatchHandoff {
+            local_player: opts.netplay_player,
+            remote,
+        };
+        Some(manato_net::Netplay::from_handoff(
+            load_match(&opts)?,
+            handoff,
+            bind,
+        )?)
+    } else {
+        None
+    };
     let sim = if opts.menu {
         None
+    } else if let Some(netplay) = &netplay {
+        Some(netplay.sim().clone())
     } else {
         Some(load_match(&opts)?)
     };
@@ -1565,6 +1611,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         spectator,
         broadcaster,
         storyboard_scripts: StoryboardScripts::default(),
+        netplay,
     };
     if let Some(sim) = app.sim.as_ref() {
         app.play_stage_music(sim);
@@ -2172,6 +2219,20 @@ impl App {
     }
 
     fn step(&mut self) {
+        if let Some(mut netplay) = self.netplay.take() {
+            let pads = self.gamepad_inputs();
+            let input = merge_input(player_input(&self.keys, &self.opts.p1_keys), pads[0]);
+            match netplay.step(input) {
+                Ok(true) => self.sim = Some(netplay.sim().clone()),
+                Ok(false) => {}
+                Err(error) => log::warn!("netplay step failed: {error:#}"),
+            }
+            self.netplay = Some(netplay);
+            if let Some(sim) = &self.sim {
+                self.audio.play_events(sim);
+            }
+            return;
+        }
         if let Some(spectator) = self.spectator.as_mut() {
             if let Some(sim) = self.sim.as_mut() {
                 if let Err(error) = spectator.poll(sim) {
