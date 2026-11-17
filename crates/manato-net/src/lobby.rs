@@ -23,6 +23,9 @@ pub struct LobbyMember {
     pub name: String,
     pub role: LobbyRole,
     pub ready: bool,
+    /// UDP port this player's GGRS socket listens on (match handoff).
+    #[serde(default)]
+    pub netplay_port: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +53,7 @@ impl LobbyState {
             name: host_name.to_string(),
             role: LobbyRole::Host,
             ready: true,
+            netplay_port: None,
         };
         (
             Self {
@@ -103,6 +107,7 @@ impl LobbyState {
                 LobbyRole::Guest
             },
             ready: false,
+            netplay_port: None,
         });
         Some(id)
     }
@@ -192,6 +197,15 @@ pub enum LobbyMessage {
     },
     Start {
         id: u32,
+    },
+    /// Player announces the UDP port of its GGRS socket.
+    Netplay {
+        id: u32,
+        port: u16,
+    },
+    /// Server → player: the opponent's netplay address after a start.
+    Peer {
+        address: SocketAddr,
     },
     Frame {
         frame: i32,
@@ -377,6 +391,37 @@ impl LobbyServer {
                 if host_addr != Some(addr) || !self.state.start(id) {
                     return Vec::new();
                 }
+                let mut replies = self.broadcast();
+                let players: Vec<(u32, SocketAddr, Option<u16>)> = self
+                    .state
+                    .members
+                    .iter()
+                    .filter(|member| member.role != LobbyRole::Spectator)
+                    .filter_map(|member| {
+                        self.peers
+                            .get(&member.id)
+                            .map(|addr| (member.id, *addr, member.netplay_port))
+                    })
+                    .collect();
+                for (id, addr, _) in &players {
+                    if let Some((_, peer_addr, peer_port)) =
+                        players.iter().find(|(peer_id, _, _)| peer_id != id)
+                    {
+                        let address = peer_port
+                            .map(|port| SocketAddr::new(peer_addr.ip(), port))
+                            .unwrap_or(*peer_addr);
+                        replies.push((*addr, LobbyMessage::Peer { address }));
+                    }
+                }
+                replies
+            }
+            LobbyMessage::Netplay { id, port } => {
+                if sender != Some(id) {
+                    return Vec::new();
+                }
+                if let Some(member) = self.state.members.iter_mut().find(|m| m.id == id) {
+                    member.netplay_port = Some(port);
+                }
                 self.broadcast()
             }
             LobbyMessage::Frame { frame, checksum } => {
@@ -423,7 +468,9 @@ impl LobbyServer {
                     })
                     .collect()
             }
-            LobbyMessage::Welcome { .. } | LobbyMessage::State { .. } => Vec::new(),
+            LobbyMessage::Welcome { .. }
+            | LobbyMessage::State { .. }
+            | LobbyMessage::Peer { .. } => Vec::new(),
         }
     }
 }
@@ -569,6 +616,15 @@ pub struct LobbyClient {
     pub phase: Option<LobbyPhase>,
     pub members: Vec<LobbyMember>,
     pub ready: bool,
+    pub netplay_port: Option<u16>,
+    pub peer: Option<SocketAddr>,
+}
+
+/// Addresses needed to start a two-player GGRS session after a lobby start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MatchHandoff {
+    pub local_player: usize,
+    pub remote: SocketAddr,
 }
 
 impl LobbyClient {
@@ -585,6 +641,8 @@ impl LobbyClient {
             phase: None,
             members: Vec::new(),
             ready: false,
+            netplay_port: None,
+            peer: None,
         };
         client.send(&LobbyMessage::Join {
             name: client.name.clone(),
@@ -625,6 +683,7 @@ impl LobbyClient {
                             self.phase = Some(phase);
                             self.members = members;
                         }
+                        LobbyMessage::Peer { address } => self.peer = Some(address),
                         _ => {}
                     }
                     count += 1;
@@ -641,6 +700,27 @@ impl LobbyClient {
             self.ready = ready;
             self.send(&LobbyMessage::Ready { id, ready });
         }
+    }
+
+    /// Announces the local GGRS UDP port for match handoff.
+    pub fn announce_netplay(&mut self, port: u16) {
+        if let Some(id) = self.id {
+            self.netplay_port = Some(port);
+            self.send(&LobbyMessage::Netplay { id, port });
+        }
+    }
+
+    /// Peer address received after the host starts the match.
+    pub fn match_handoff(&self) -> Option<MatchHandoff> {
+        let local_player = self.id? as usize;
+        if local_player > 1 {
+            return None;
+        }
+        let remote = self.peer?;
+        Some(MatchHandoff {
+            local_player,
+            remote,
+        })
     }
 
     /// Sends Start when this client is the host (and an id is assigned).
@@ -1161,6 +1241,27 @@ mod tests {
         }
         assert!(client.id.is_some());
         assert_eq!(client.host, Some(0));
+        client.announce_netplay(7777);
+        let replies = server.handle(addr, LobbyMessage::Netplay { id: 0, port: 8888 });
+        for (target, message) in &replies {
+            relay.send_to(message, *target).expect("relay netplay");
+        }
+        for _ in 0..50 {
+            relay.poll(&mut server).expect("relay");
+            client.poll().expect("client");
+            if client
+                .members
+                .iter()
+                .any(|member| member.id == 0 && member.netplay_port == Some(8888))
+            {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert!(client
+            .members
+            .iter()
+            .any(|member| member.id == 0 && member.netplay_port == Some(8888)));
         client.set_ready(true);
         for _ in 0..50 {
             relay.poll(&mut server).expect("relay");
@@ -1191,6 +1292,10 @@ mod tests {
         }
         assert_eq!(client.phase, Some(LobbyPhase::Starting));
         assert!(client.status_text().contains("Starting"));
+        let handoff = client.match_handoff().expect("match handoff");
+        assert_eq!(handoff.local_player, 1);
+        assert_eq!(handoff.remote.port(), 8888);
+        assert_eq!(handoff.remote.ip(), addr.ip());
         assert!(!client.start(), "guest cannot start the lobby");
     }
 

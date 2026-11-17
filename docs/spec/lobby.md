@@ -114,9 +114,17 @@ The app exposes:
 marks itself ready, and sends `Start` when it is the host. The app's
 `--matchmake-play <discovery-addr>` discovers lobbies, prints them, joins the
 best relay as a player, marks ready, and reports the resulting lobby state.
-Hosts can coordinate `Start` through `LobbyState`/`LobbyServer` once every
-player is ready. Handing a `Starting` lobby into an actual netplay match, and
-automatic NAT hole punching, are not modeled.
+
+For match handoff, players call `announce_netplay(port)` to publish their GGRS
+UDP port in `LobbyMember.netplay_port`. When the host sends `Start`, the relay
+broadcasts `State` plus a `Peer { address }` message whose address uses the
+opponent's relay IP and announced GGRS port. `LobbyClient::match_handoff()`
+turns that into `MatchHandoff { local_player, remote }`, and
+`Netplay::from_handoff(sim, handoff, bind)` opens the GGRS session.
+
+Automatic NAT hole punching is not modeled, and the app's headless
+`--matchmake-play` mode reports the lobby state rather than entering the match
+loop itself.
 
 ## 4. Security notes
 

@@ -133,6 +133,17 @@ impl Netplay {
         })
     }
 
+    /// Builds a GGRS session from a lobby [`lobby::MatchHandoff`], binding the
+    /// local UDP socket explicitly.
+    pub fn from_handoff(
+        sim: SimState,
+        handoff: lobby::MatchHandoff,
+        bind: SocketAddr,
+    ) -> anyhow::Result<Self> {
+        let socket = ggrs::UdpNonBlockingSocket::bind_to_port(bind.port())?;
+        Self::new(sim, handoff.local_player, socket, handoff.remote)
+    }
+
     pub fn session(&self) -> &P2PSession<ManatoConfig> {
         &self.session
     }
@@ -162,5 +173,40 @@ impl Netplay {
             Err(ggrs::GgrsError::PredictionThreshold) => Ok(false),
             Err(e) => Err(e.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn match_state(root: &std::path::Path) -> SimState {
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.to_path_buf(),
+            p1: PathBuf::from("content/chars/kaen/kaen.def"),
+            p2: PathBuf::from("content/chars/nival/nival.def"),
+            stage: PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        SimState::load(&config).expect("sim")
+    }
+
+    #[test]
+    fn match_handoff_starts_a_netplay_session() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        if !root.join("content/chars/kaen/kaen.def").exists() {
+            return;
+        }
+        let handoff = lobby::MatchHandoff {
+            local_player: 1,
+            remote: "127.0.0.1:9".parse().unwrap(),
+        };
+        let netplay =
+            Netplay::from_handoff(match_state(&root), handoff, "127.0.0.1:0".parse().unwrap())
+                .expect("netplay");
+        assert_eq!(netplay.local_handle, 1);
     }
 }
