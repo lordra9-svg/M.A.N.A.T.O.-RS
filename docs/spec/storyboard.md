@@ -70,9 +70,10 @@ In-match overlays draw both **sprite/animation layers** and text layers at the
 overlay position/scale/facing in screen or world space. The renderer assigns
 one atlas bank per live overlay (`bank::OVERLAY_BASE + index`) and rebuilds the
 sprite atlas when the overlay set changes, so each overlay uses its own
-`[SceneDef] spr` SFF. Clears and fades are still not rendered for overlays.
+`[SceneDef] spr` SFF. Scene `clearcolor`/`clearalpha` fill the screen before
+the overlay's layers, and `fadein`/`fadeout` alpha is drawn over them.
 
 ## 6. Not modeled
 
 - Lua storyboard scripting, dynamic backgrounds, 3D models, `layerall.pos`,
-  interpolation, and palFX. In-match overlay clears/fades are not drawn.
+  interpolation, and palFX.

@@ -1468,6 +1468,23 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
         let Some(scene) = overlay.player.current(&overlay.storyboard) else {
             continue;
         };
+        if let Some(color) = scene.clear_color {
+            if scene.clear_alpha > 0 {
+                painter.rect(
+                    Blend::Normal,
+                    0.0,
+                    0.0,
+                    GAME_WIDTH,
+                    GAME_HEIGHT,
+                    [
+                        color[0] as f32 / 255.0,
+                        color[1] as f32 / 255.0,
+                        color[2] as f32 / 255.0,
+                        scene.clear_alpha as f32 / 255.0,
+                    ],
+                );
+            }
+        }
         for layer in &scene.layers {
             if !layer.visible_at(overlay.player.time) {
                 continue;
@@ -1557,6 +1574,23 @@ fn draw_storyboard_overlays(painter: &mut Painter, deps: &SceneDeps, sim: &SimSt
                     layer.color[3] as f32 / 255.0,
                 ];
                 painter.text(deps.font, &text, anchor.x, anchor.y, scale, tint);
+            }
+        }
+        if let Some((color, alpha)) = overlay.player.fade_alpha(scene) {
+            if alpha > 0 {
+                painter.rect(
+                    Blend::Normal,
+                    0.0,
+                    0.0,
+                    GAME_WIDTH,
+                    GAME_HEIGHT,
+                    [
+                        color[0] as f32 / 255.0,
+                        color[1] as f32 / 255.0,
+                        color[2] as f32 / 255.0,
+                        alpha as f32 / 255.0,
+                    ],
+                );
             }
         }
     }
