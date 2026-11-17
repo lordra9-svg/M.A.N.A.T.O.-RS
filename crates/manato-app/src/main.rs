@@ -598,6 +598,17 @@ fn run_matchmake_play(target: &str, opts: &Options) -> anyhow::Result<()> {
     );
     let sim = load_match(opts)?;
     let bind = std::net::SocketAddr::from((std::net::Ipv4Addr::UNSPECIFIED, local_port));
+    // Best-effort NAT hole punching on the same local port the GGRS session
+    // will use. Both peers must be in this flow for it to succeed.
+    let mut puncher = manato_net::nat::NatPuncher::bind(bind, handoff.remote)?;
+    let punched = puncher.punch(Duration::from_secs(2))?;
+    println!(
+        "nat punch {} (sent={} received={})",
+        if punched { "open" } else { "timed out" },
+        puncher.packets_sent,
+        puncher.packets_received
+    );
+    drop(puncher);
     let mut netplay = manato_net::Netplay::from_handoff(sim, handoff, bind)?;
     let mut stepped = 0u32;
     let started = Instant::now();

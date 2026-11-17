@@ -123,10 +123,16 @@ turns that into `MatchHandoff { local_player, remote }`, and
 `Netplay::from_handoff(sim, handoff, bind)` opens the GGRS session.
 
 `--matchmake-play` also auto-enters after the handoff: it reserves a local GGRS
-port, announces it, readies, waits up to 15 seconds for `Peer`, builds
-`Netplay::from_handoff`, and runs a bounded five-second headless loop with AI
-local inputs, reporting frames/checksum. Window-mode netplay input wiring and
-automatic NAT hole punching are not modeled.
+port, announces it, readies, waits up to 15 seconds for `Peer`, runs a
+best-effort `NatPuncher` against the peer on that same local port for two
+seconds, builds `Netplay::from_handoff`, and runs a bounded five-second
+headless loop with AI local inputs, reporting frames/checksum.
+
+`NatPuncher` sends `MANATO_PUNCH_V1` datagrams, answers with
+`MANATO_PUNCH_ACK_V1`, and marks the path open when either arrives. This opens
+simple NAT mappings when both peers run the flow; symmetric NATs and
+firewalls that drop unsolicited traffic still need a relay/TURN service.
+Window-mode netplay input wiring is not modeled.
 
 ## 4. Security notes
 
