@@ -504,6 +504,58 @@ pub fn chunk_snapshot(frame: i32, checksum: u64, bytes: &[u8]) -> Vec<LobbyMessa
         .collect()
 }
 
+/// Splits the current simulation snapshot into spectator relay messages.
+pub fn snapshot_messages(
+    sim: &manato_sim::SimState,
+    frame: i32,
+) -> anyhow::Result<Vec<LobbyMessage>> {
+    let bytes = sim.encode_snapshot()?;
+    anyhow::ensure!(
+        bytes.len() <= MAX_SNAPSHOT_SIZE,
+        "snapshot is too large for spectator streaming ({} bytes)",
+        bytes.len()
+    );
+    Ok(chunk_snapshot(frame, sim.checksum(), &bytes))
+}
+
+/// Reassembles host snapshot chunks and restores them into a simulation.
+#[derive(Debug, Clone, Default)]
+pub struct SpectatorSnapshotReceiver {
+    assembler: SnapshotAssembler,
+}
+
+impl SpectatorSnapshotReceiver {
+    /// Feeds one message; returns true when a complete snapshot was restored.
+    pub fn accept(
+        &mut self,
+        sim: &mut manato_sim::SimState,
+        message: &LobbyMessage,
+    ) -> anyhow::Result<bool> {
+        let LobbyMessage::Snapshot {
+            frame,
+            checksum,
+            index,
+            total,
+            data,
+        } = message
+        else {
+            return Ok(false);
+        };
+        let Some(bytes) = self
+            .assembler
+            .accept(*frame, *checksum, *index, *total, data)
+        else {
+            return Ok(false);
+        };
+        sim.decode_snapshot(&bytes)?;
+        anyhow::ensure!(
+            sim.checksum() == *checksum,
+            "restored snapshot checksum mismatch"
+        );
+        Ok(true)
+    }
+}
+
 /// Reassembles host snapshot chunks for a spectator, rejecting stale frames,
 /// duplicates, oversized payloads, and checksum mismatches.
 #[derive(Debug, Clone, Default)]
@@ -679,6 +731,42 @@ mod tests {
                 &[1]
             )
             .is_none());
+    }
+
+    #[test]
+    fn host_snapshot_round_trips_through_spectator_receiver() {
+        use std::path::PathBuf;
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            eprintln!("skipping: bundled content missing");
+            return;
+        }
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: PathBuf::from("content/chars/nival/nival.def"),
+            stage: PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut host = manato_sim::SimState::load(&config).expect("host state");
+        for _ in 0..5 {
+            host.tick([manato_core::PlayerInput::default(); 2]);
+        }
+        let checksum = host.checksum();
+        let messages = snapshot_messages(&host, 5).expect("snapshot");
+        assert!(!messages.is_empty());
+
+        let mut spectator = manato_sim::SimState::load(&config).expect("spectator state");
+        let mut receiver = SpectatorSnapshotReceiver::default();
+        let mut restored = false;
+        for message in messages.iter().rev() {
+            restored |= receiver.accept(&mut spectator, message).expect("accept");
+        }
+        assert!(restored);
+        assert_eq!(spectator.checksum(), checksum);
     }
 
     #[test]

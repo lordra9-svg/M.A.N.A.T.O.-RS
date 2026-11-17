@@ -53,8 +53,14 @@ protocol usable over the network (localhost relay is covered by tests).
 spectators only. `SnapshotAssembler` reassembles chunks, rejects stale frames,
 duplicate indices, inconsistent checksums/totals, oversized chunks, and
 payloads above 256 KiB, and returns the complete byte payload once every chunk
-has arrived. The host remains responsible for serializing/deserializing the
-simulation state and validating its checksum.
+has arrived.
+
+`snapshot_messages(sim, frame)` serializes the simulation with
+`SimState::encode_snapshot` (version + asset id + state) and chunks it.
+`SpectatorSnapshotReceiver::accept` reassembles the chunks, restores the state
+with `SimState::decode_snapshot` (keeping the spectator's assets and rejecting
+mismatched versions/assets), and verifies the restored checksum. A 256 KiB
+snapshot cap applies on both ends.
 
 `SpectatorSync` accepts increasing rollback frame numbers, rejects stale or
 duplicate frames, counts gaps as `missed_frames`, and reports `lagging()` once
@@ -77,6 +83,7 @@ more than 60 frames (one second) are missing.
 ## 5. Not modeled
 
 - Lobby discovery/announcement, NAT traversal, and matchmaking.
-- Host-side snapshot serialization/restore wiring into the spectator client
-  (the chunk transport and reassembler are implemented).
+- Spectator UI/rendering integration and a continuously running host broadcast
+  loop (the serialization, chunk transport, reassembly, restore, and checksum
+  verification are implemented).
 - Chat/moderation, spectator input isolation beyond the role flags.

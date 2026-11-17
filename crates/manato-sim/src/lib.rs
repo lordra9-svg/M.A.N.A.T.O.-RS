@@ -1118,33 +1118,27 @@ impl SimState {
         h.finish()
     }
 
-    /// Writes the simulation to `path` in the on-disk snapshot format.
-    pub fn save_state_file(&self, path: &std::path::Path) -> Result<()> {
-        let bytes = bincode::serialize(&(1u32, self.asset_id(), self))
-            .context("failed to encode state snapshot")?;
-        std::fs::write(path, bytes)
-            .with_context(|| format!("failed to write state file {}", path.display()))?;
-        Ok(())
+    /// Serializes the simulation (version, asset id, state) for files or
+    /// spectator streaming.
+    pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
+        bincode::serialize(&(1u32, self.asset_id(), self))
+            .context("failed to encode state snapshot")
     }
 
-    /// Reads a snapshot written by [`Self::save_state_file`]. The current
-    /// assets are kept, and a snapshot from different content is rejected.
-    pub fn load_state_file(&mut self, path: &std::path::Path) -> Result<()> {
+    /// Restores a snapshot from [`Self::encode_snapshot`]. The current assets
+    /// are kept, and a snapshot from different content is rejected.
+    pub fn decode_snapshot(&mut self, bytes: &[u8]) -> Result<()> {
         const MAX_STATE_FILE: u64 = 64 * 1024 * 1024;
-        let metadata = std::fs::metadata(path)
-            .with_context(|| format!("failed to stat state file {}", path.display()))?;
-        if metadata.len() > MAX_STATE_FILE {
-            anyhow::bail!("state file is too large ({} bytes)", metadata.len());
+        if bytes.len() as u64 > MAX_STATE_FILE {
+            anyhow::bail!("state snapshot is too large ({} bytes)", bytes.len());
         }
-        let bytes = std::fs::read(path)
-            .with_context(|| format!("failed to read state file {}", path.display()))?;
         // Bound decoding so a hostile length prefix cannot force huge
-        // allocations; the file size is the natural upper bound.
+        // allocations; the payload size is the natural upper bound.
         let decoder = bincode::DefaultOptions::new()
             .with_fixint_encoding()
             .with_limit(bytes.len() as u64);
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
-            .deserialize(&bytes)
+            .deserialize(bytes)
             .context("failed to decode state snapshot")?;
         if version != 1 {
             anyhow::bail!("unsupported state file version {version}");
@@ -1158,6 +1152,27 @@ impl SimState {
         state.load_file_requested = None;
         *self = state;
         Ok(())
+    }
+
+    /// Writes the simulation to `path` in the on-disk snapshot format.
+    pub fn save_state_file(&self, path: &std::path::Path) -> Result<()> {
+        let bytes = self.encode_snapshot()?;
+        std::fs::write(path, bytes)
+            .with_context(|| format!("failed to write state file {}", path.display()))?;
+        Ok(())
+    }
+
+    /// Reads a snapshot written by [`Self::save_state_file`].
+    pub fn load_state_file(&mut self, path: &std::path::Path) -> Result<()> {
+        const MAX_STATE_FILE: u64 = 64 * 1024 * 1024;
+        let metadata = std::fs::metadata(path)
+            .with_context(|| format!("failed to stat state file {}", path.display()))?;
+        if metadata.len() > MAX_STATE_FILE {
+            anyhow::bail!("state file is too large ({} bytes)", metadata.len());
+        }
+        let bytes = std::fs::read(path)
+            .with_context(|| format!("failed to read state file {}", path.display()))?;
+        self.decode_snapshot(&bytes)
     }
 
     /// Advances the match by exactly one 60 Hz tick.

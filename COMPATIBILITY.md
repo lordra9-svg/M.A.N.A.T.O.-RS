@@ -37,7 +37,7 @@ deliberate, not scheduling gaps:
 | Team/tag flow | R-04 | Active/standby rosters, TagIn/TagOut swaps, Turns KO advancement, and partner lifebars work; simultaneous teams, content-driven rosters, and tag animations remain unmodeled. |
 | Arcade flow | R-05 | Ladder/continue/survival state, app progression, roster-order/random opponents, `[Arcade]` special + final-boss placement, per-opponent stages and music, survival rotation, a persisted top-five score table with SCORES screen, and the continue overlay exist; per-character `arcadepath` and mid-run challengers remain unmodeled. |
 | GLSL uniform layer | V-09 | `.glsl`/`.frag` fragments execute with explicit Vulkan-style bindings, a built-in vertex stage, a `shaderparam` uniform block, and pal/tex1/tex2 placeholder bindings; Ikemen's implicit `uniform` set, dedicated shader textures, and grab passes are not modeled. |
-| Spectators/lobby | N-03 | Lobby state/protocol, server routing, UDP relay, spectator frame sync, and chunked state streaming/reassembly exist; discovery/matchmaking and host snapshot serialization wiring remain unmodeled. |
+| Spectators/lobby | N-03 | Lobby state/protocol, server routing, UDP relay, spectator frame sync, and chunked state streaming with host serialization and spectator restore/checksum verification exist; discovery/matchmaking, spectator UI integration, and a continuous broadcast loop remain unmodeled. |
 
 Oracle-only rows (`F-09`, `K-01`..`K-09`, `V-05`, `V-08`, `A-01`, `A-03`,
 `A-04`, `R-01`..`R-06`, and the remaining `S-`/`T-` rows) are implemented and
@@ -170,7 +170,7 @@ priority details.
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
 | N-02 | P2P input exchange | Required | Required | Partial | Localhost GGRS loopback test; internet/latency matrix pending |
-| N-03 | Spectators/lobby | N/A | Ikemen | Partial | Lobby state (roles, capacity, ready/start, host transfer), bincode protocol incl. Welcome/State snapshots and chunked Snapshot streaming (1 KiB chunks, 256 KiB cap, stale/duplicate/oversize rejection), LobbyServer routing, a non-blocking UDP relay with localhost tests, and spectator frame/lag sync; discovery/NAT/matchmaking and host snapshot serialization wiring not modeled |
+| N-03 | Spectators/lobby | N/A | Ikemen | Partial | Lobby state (roles, capacity, ready/start, host transfer), bincode protocol incl. Welcome/State snapshots and chunked Snapshot streaming (1 KiB chunks, 256 KiB cap, stale/duplicate/oversize rejection) with host `snapshot_messages` serialization and `SpectatorSnapshotReceiver` restore + checksum verification, LobbyServer routing, a non-blocking UDP relay with localhost tests, and spectator frame/lag sync; discovery/NAT/matchmaking, spectator UI integration, and a continuous host broadcast loop not modeled |
 
 ## 10. Acceptance content
 
