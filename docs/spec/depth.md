@@ -22,7 +22,8 @@ assertions, reset at the start of every tick, so content re-asserts them.
 With `DepthBound value = 1` and a stage depth range, the integrated `z` is
 clamped to `[depth_edge.top + z_min, z_max - depth_edge.bottom]`, matching
 Ikemen's `zDepthBound`. Without a `[PlayerInfo] topbound`/`botbound` range the
-clamp is disabled. `movecamera` is accepted but not modeled.
+clamp is disabled. `DepthBound movecamera` (Z-axis tracking) is accepted but
+not modeled; `ScreenBound movecamera` X/Y is modeled.
 
 ## 2.0 GetHitVar depth values
 

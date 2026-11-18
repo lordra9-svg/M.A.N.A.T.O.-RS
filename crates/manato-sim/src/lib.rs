@@ -1242,7 +1242,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(5u32, self.asset_id(), self))
+        bincode::serialize(&(6u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1261,7 +1261,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 5 {
+        if version != 6 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3104,6 +3104,7 @@ impl SimState {
             fighter.analog_axes = [0.0; 6];
             fighter.face_p2_pending = false;
             fighter.player_push = true;
+            fighter.move_camera = (true, true);
             fighter.gravity = None;
             fighter.after_image = None;
             fighter.after_images.clear();
@@ -3311,12 +3312,35 @@ impl SimState {
                     .iter()
                     .filter(|fighter| fighter.owner.is_none() && fighter.active)
                     .collect();
-                let mid_x = if members.is_empty() {
+                // `ScreenBound movecamera` gates whether a fighter drives
+                // camera tracking on each axis. An all-off axis falls back to
+                // every active fighter so the camera still has a target.
+                let x_members: Vec<&Fighter> = members
+                    .iter()
+                    .copied()
+                    .filter(|fighter| fighter.move_camera.0)
+                    .collect();
+                let y_members: Vec<&Fighter> = members
+                    .iter()
+                    .copied()
+                    .filter(|fighter| fighter.move_camera.1)
+                    .collect();
+                let x_ref = if x_members.is_empty() {
+                    &members
+                } else {
+                    &x_members
+                };
+                let y_ref = if y_members.is_empty() {
+                    &members
+                } else {
+                    &y_members
+                };
+                let mid_x = if x_ref.is_empty() {
                     self.fighters[0].pos.x
                 } else {
-                    members.iter().map(|fighter| fighter.pos.x).sum::<f32>() / members.len() as f32
+                    x_ref.iter().map(|fighter| fighter.pos.x).sum::<f32>() / x_ref.len() as f32
                 };
-                let highest = members
+                let highest = y_ref
                     .iter()
                     .map(|fighter| fighter.pos.y)
                     .fold(0.0_f32, f32::min);
@@ -3326,12 +3350,11 @@ impl SimState {
                 let mut right = f32::NEG_INFINITY;
                 let mut top = f32::INFINITY;
                 let mut bottom = f32::NEG_INFINITY;
-                for fighter in &self.fighters {
-                    if fighter.owner.is_some() {
-                        continue;
-                    }
+                for fighter in x_ref {
                     left = left.min(fighter.pos.x - fighter.width_back);
                     right = right.max(fighter.pos.x + fighter.width_front);
+                }
+                for fighter in y_ref {
                     top = top.min(fighter.pos.y - fighter.height - fighter.height_player.x);
                     bottom = bottom.max(fighter.pos.y + fighter.height_player.y);
                 }
@@ -4052,6 +4075,8 @@ impl SimState {
             h.write_f32(f.depth_edge[0]);
             h.write_f32(f.depth_edge[1]);
             h.write_bool(f.depth_bound);
+            h.write_bool(f.move_camera.0);
+            h.write_bool(f.move_camera.1);
             match &f.shader {
                 Some(name) => {
                     h.write_bool(true);

@@ -245,8 +245,35 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             }
         }
         "screenbound" => {
-            let (x, y) = control.get_pair("value").unwrap_or((1.0, 1.0));
-            sim.fighters[who].screen_bound = (x != 0.0, y != 0.0);
+            if let Some(raw) = control.get("value") {
+                // Ikemen accepts one value for both axes or an x,y pair.
+                let parts: Vec<f32> = raw
+                    .split(',')
+                    .map(|part| trigger::num(sim, who, part.trim()))
+                    .collect();
+                let x = parts.first().copied().unwrap_or(1.0) != 0.0;
+                let y = parts.get(1).map(|value| *value != 0.0).unwrap_or(x);
+                sim.fighters[who].screen_bound = (x, y);
+            }
+            let mut move_camera = sim.fighters[who].move_camera;
+            if let Some(raw) = control.get("movecamera") {
+                let parts: Vec<f32> = raw
+                    .split(',')
+                    .map(|part| trigger::num(sim, who, part.trim()))
+                    .collect();
+                move_camera.0 = parts.first().copied().unwrap_or(1.0) != 0.0;
+                move_camera.1 = parts
+                    .get(1)
+                    .map(|value| *value != 0.0)
+                    .unwrap_or(move_camera.0);
+            }
+            if let Some(raw) = control.get("movecamerax") {
+                move_camera.0 = trigger::num(sim, who, raw) != 0.0;
+            }
+            if let Some(raw) = control.get("movecameray") {
+                move_camera.1 = trigger::num(sim, who, raw) != 0.0;
+            }
+            sim.fighters[who].move_camera = move_camera;
         }
         "offset" => {
             let x = num_param(sim, who, control, "x").unwrap_or(0.0);

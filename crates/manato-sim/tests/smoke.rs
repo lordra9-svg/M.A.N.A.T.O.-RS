@@ -12557,6 +12557,58 @@ fn pause_superpause_and_envshake_controllers() {
 }
 
 #[test]
+fn screenbound_movecamera_gates_camera_tracking() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    // A single `value` applies to both axes; `movecamera` is independent.
+    let bounds = manato_formats::Controller {
+        kind: "screenbound".into(),
+        params: vec![
+            ("value".into(), "1".into()),
+            ("movecamera".into(), "0, 1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bounds, &assets);
+    assert_eq!(sim.fighters[0].screen_bound, (true, true));
+    assert_eq!(sim.fighters[0].move_camera, (false, true));
+
+    let x_only = manato_formats::Controller {
+        kind: "screenbound".into(),
+        params: vec![("movecamerax".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &x_only, &assets);
+    assert_eq!(sim.fighters[0].move_camera, (true, true));
+
+    // The camera midpoint ignores a fighter whose X tracking is disabled.
+    let camera_after = |disable_second: bool| -> Option<f32> {
+        let mut sim = fight_phase()?;
+        sim.fighters[0].pos.x = -100.0;
+        sim.fighters[1].pos.x = 100.0;
+        if disable_second {
+            sim.fighters[1].move_camera.0 = false;
+        }
+        for _ in 0..40 {
+            sim.tick([PlayerInput::default(); 2]);
+        }
+        Some(sim.camera.x)
+    };
+    let Some(both) = camera_after(false) else {
+        return;
+    };
+    let Some(only_first) = camera_after(true) else {
+        return;
+    };
+    assert!(
+        only_first < both - 1.0,
+        "disabled X tracking should pull the camera toward the remaining fighter ({only_first} vs {both})"
+    );
+}
+
+#[test]
 fn width_screenbound_and_playerpush_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

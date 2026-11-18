@@ -114,6 +114,12 @@ Required controller families for the approved matrix:
   the applied damage to `ReceivedDamage`.
 - `DefenceMulSet`, `AttackMulSet`
 - `SprPriority`, `Width`, `ScreenBound`, `PlayerPush`
+  `ScreenBound value` clamps the fighter inside the stage bounds per axis and
+  accepts one value for both axes or an `x,y` pair. `movecamera` (also
+  `movecameraX`/`movecameraY`) toggles whether the fighter drives fighting
+  camera tracking on each axis; omitted flags default to enabled for
+  M.U.G.E.N-only content. An axis with no tracking fighters falls back to the
+  active roster.
 - `AssertSpecial`
 
 ### 4.2 Combat

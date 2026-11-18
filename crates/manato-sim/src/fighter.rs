@@ -367,6 +367,9 @@ pub struct Fighter {
     pub player_push: bool,
     pub gravity: Option<f32>,
     pub screen_bound: (bool, bool),
+    /// `ScreenBound movecamera` per axis: whether the fighter drives the
+    /// fighting camera. Defaults to both axes for M.U.G.E.N-only content.
+    pub move_camera: (bool, bool),
     pub draw_offset: Vec2,
     pub hit_overrides: [Option<HitOverride>; 8],
     /// True when a `HitOverride` matched during the current tick.
@@ -612,6 +615,7 @@ impl Fighter {
             player_push: true,
             gravity: None,
             screen_bound: (true, true),
+            move_camera: (true, true),
             draw_offset: Vec2::ZERO,
             hit_overrides: std::array::from_fn(|_| None),
             hit_overridden: false,
