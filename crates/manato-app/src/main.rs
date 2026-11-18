@@ -54,6 +54,8 @@ struct Options {
     relay_multi_auth: Option<String>,
     relay_multi_realm: Option<String>,
     relay_users: Vec<String>,
+    turn: Option<String>,
+    turn_realm: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -94,6 +96,8 @@ impl Default for Options {
             relay_multi_auth: None,
             relay_multi_realm: None,
             relay_users: Vec::new(),
+            turn: None,
+            turn_realm: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -464,6 +468,14 @@ impl Options {
                     opts.relay_users.push(value(i)?.to_owned());
                     i += 2;
                 }
+                "--turn" => {
+                    opts.turn = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--turn-realm" => {
+                    opts.turn_realm = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay-player" => {
                     opts.netplay_player = value(i)?.parse::<usize>()?;
                     if opts.netplay_player > 1 {
@@ -588,6 +600,7 @@ Modes:
   --relay-multi-auth <secret>  Require shared-secret auth for relay joins
   --relay-multi-realm <realm>  Enable long-term realm/user auth
   --relay-user <user:pass>  Register a long-term credential (repeatable)
+  --turn <bind>       Run a TURN server (uses --turn-realm/--relay-user)
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -750,6 +763,22 @@ fn run_multi_relay(
     }
 }
 
+fn run_turn(bind: &str, realm: Option<&str>, users: &[String]) -> anyhow::Result<()> {
+    let bind: std::net::SocketAddr = bind.parse()?;
+    let realm = realm.unwrap_or("manato");
+    let users = users.iter().filter_map(|entry| {
+        entry
+            .split_once(':')
+            .map(|(user, password)| (user.to_string(), password.to_string()))
+    });
+    let mut server = manato_net::stun::TurnServer::bind(bind, realm, users)?;
+    println!("turn server listening on {}", server.local_addr()?);
+    loop {
+        server.poll()?;
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
 fn run_stun(server: &str) -> anyhow::Result<()> {
     let server: std::net::SocketAddr = server.parse()?;
     match manato_net::discovery::stun_public_address(server, Duration::from_secs(2))? {
@@ -820,6 +849,9 @@ fn main() -> anyhow::Result<()> {
             opts.relay_multi_realm.as_deref(),
             &opts.relay_users,
         );
+    }
+    if let Some(bind) = &opts.turn {
+        return run_turn(bind, opts.turn_realm.as_deref(), &opts.relay_users);
     }
 
     if let Some(frames) = opts.frames {

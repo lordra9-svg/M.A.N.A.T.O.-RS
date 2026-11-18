@@ -94,11 +94,18 @@ up to 64 unique relay addresses. The default LAN port is UDP 27015.
 
 ### NAT address discovery
 
-`stun_binding_request` builds an RFC 5389 request and `parse_stun_mapped`
-extracts `XOR-MAPPED-ADDRESS` (or `MAPPED-ADDRESS`) for IPv4/IPv6.
-`stun_public_address(server, timeout)` sends one request and returns the
-mapped public address. This reports the NAT mapping; it does not itself punch
-a hole or relay traffic.
+`manato_net::stun` implements STUN message framing (20-byte header, magic,
+transaction ids, padded attributes), XOR-MAPPED/PEER/RELAYED addresses for
+IPv4/IPv6, ERROR-CODE, USERNAME/REALM/NONCE, and long-term MESSAGE-INTEGRITY
+(HMAC-SHA1 with MD5(`username:realm:password`) keys). `stun_binding_request`
+and `stun_public_address` provide a one-shot binding lookup for NAT mapping.
+
+`TurnServer` (app `--turn <bind>`, realm via `--turn-realm`, credentials via
+repeated `--relay-user user:pass`) implements UDP TURN Allocate, Refresh,
+CreatePermission, ChannelBind, Send indications, Data indications, and
+ChannelData forwarding, with authenticated requests and relay sockets per
+allocation. Tests cover encoding/integrity, IPv4/IPv6 XOR addresses, a full
+allocate/permission/channel ping-pong, and wrong-password rejection.
 
 `Matchmaker`/`best_lobby` rank discovered lobbies: Closed lobbies are excluded,
 then Open > Starting > InMatch, then player count, spectator count, and name.

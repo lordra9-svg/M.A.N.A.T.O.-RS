@@ -10,6 +10,7 @@ license = "MIT"
 authors = ["M.A.N.A.T.O.-RS contributors"]
 
 [workspace.dependencies]
+sha1 = "0.10"
 md-5 = "0.10"
 hmac = "0.12"
 sha2 = "0.10"
