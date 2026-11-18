@@ -88,6 +88,8 @@ pub struct Renderer {
     model_bgl: wgpu::BindGroupLayout,
     model_sampler: wgpu::Sampler,
     model_white_view: wgpu::TextureView,
+    model_lut_view: wgpu::TextureView,
+    model_lut_sampler: wgpu::Sampler,
     model_draws: Vec<(wgpu::Buffer, u32, wgpu::BindGroup)>,
     model_asset: Option<model::ModelAsset>,
     model_time: f32,
@@ -307,6 +309,7 @@ impl Renderer {
         });
         let model_bgl = model::create_bind_group_layout(&device);
         let model_pipeline = model::create_pipeline(&device, GAME_FORMAT, &model_bgl);
+        let (model_lut_view, model_lut_sampler) = model::create_brdf_lut_texture(&device, &queue);
         let model_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("manato model sampler"),
             mag_filter: wgpu::FilterMode::Linear,
@@ -641,6 +644,8 @@ impl Renderer {
             model_bgl,
             model_sampler,
             model_white_view,
+            model_lut_view,
+            model_lut_sampler,
             model_draws: Vec::new(),
             model_asset: None,
             model_time: 0.0,
@@ -1145,6 +1150,14 @@ impl Renderer {
                             wgpu::BindGroupEntry {
                                 binding: 1,
                                 resource: wgpu::BindingResource::Sampler(&self.model_sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::TextureView(&self.model_lut_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: wgpu::BindingResource::Sampler(&self.model_lut_sampler),
                             },
                         ],
                     });

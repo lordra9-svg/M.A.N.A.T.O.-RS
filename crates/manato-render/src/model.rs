@@ -21,6 +21,12 @@ pub struct ModelVertex {
     pub joints: [u16; 4],
     pub weights: [f32; 4],
     pub normal: [f32; 3],
+    /// Split-sum LUT coordinates `(NdotV, roughness)`.
+    pub brdf_uv: [f32; 2],
+    /// Prefiltered environment specular radiance.
+    pub specular: [f32; 3],
+    /// Fresnel F0.
+    pub f0: [f32; 3],
 }
 
 #[derive(Debug, Clone)]
@@ -199,8 +205,6 @@ fn integrate_brdf(n_dot_v: f32, roughness: f32, samples: usize) -> (f32, f32) {
 struct IblAmbient {
     diffuse: [f32; 3],
     specular: [f32; 3],
-    scale: f32,
-    bias: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -479,22 +483,24 @@ impl ModelAsset {
                             let view = Vec3::Z;
                             let reflect =
                                 (2.0 * normal.dot(view) * normal - view).normalize_or_zero();
-                            let (scale, bias) = brdf_lut(normal.dot(view).max(0.001), roughness);
                             IblAmbient {
                                 diffuse: environment_color(environment.base(), normal),
                                 specular: environment.sample(reflect, roughness),
-                                scale,
-                                bias,
                             }
                         });
-                        out.color = shade_color(
+                        let shaded = shade_color_parts(
                             normal,
                             out.color,
                             metallic,
                             roughness,
                             occlusion,
                             environment,
+                            &self.lights,
                         );
+                        out.color = [shaded.color.x, shaded.color.y, shaded.color.z, out.color[3]];
+                        out.brdf_uv = shaded.brdf_uv;
+                        out.specular = shaded.specular.to_array();
+                        out.f0 = shaded.f0.to_array();
                         if let Some(map) = &draw.emissive_map {
                             let texel = sample_texture(map, vertex.uv);
                             for channel in 0..3 {
@@ -670,6 +676,7 @@ fn default_lights() -> [Light; 2] {
     ]
 }
 
+#[cfg(test)]
 fn shade_color(
     normal: Vec3,
     base: [f32; 4],
@@ -689,6 +696,14 @@ fn shade_color(
     )
 }
 
+struct Shaded {
+    color: Vec3,
+    specular: Vec3,
+    f0: Vec3,
+    brdf_uv: [f32; 2],
+}
+
+#[cfg(test)]
 fn shade_color_with(
     normal: Vec3,
     base: [f32; 4],
@@ -698,6 +713,37 @@ fn shade_color_with(
     environment: Option<IblAmbient>,
     lights: &[Light],
 ) -> [f32; 4] {
+    let shaded = shade_color_parts(
+        normal,
+        base,
+        metallic,
+        roughness,
+        occlusion,
+        environment,
+        lights,
+    );
+    let mut color = shaded.color;
+    if let Some(_ibl) = environment {
+        let (scale, bias) = brdf_lut(shaded.brdf_uv[0], shaded.brdf_uv[1]);
+        color += shaded.specular * (shaded.f0 * scale + Vec3::splat(bias));
+    }
+    [
+        color.x.clamp(0.0, 1.0),
+        color.y.clamp(0.0, 1.0),
+        color.z.clamp(0.0, 1.0),
+        base[3],
+    ]
+}
+
+fn shade_color_parts(
+    normal: Vec3,
+    base: [f32; 4],
+    metallic: f32,
+    roughness: f32,
+    occlusion: f32,
+    environment: Option<IblAmbient>,
+    lights: &[Light],
+) -> Shaded {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
     } else {
@@ -743,17 +789,20 @@ fn shade_color_with(
         None => Vec3::new(0.22, 0.19, 0.16).lerp(Vec3::new(0.55, 0.65, 0.85), normal.y * 0.5 + 0.5),
     } * occlusion;
     let ambient_diffuse = hemisphere * base_rgb * (1.0 - metallic);
-    let ambient_specular = match environment {
-        Some(ibl) => Vec3::from_array(ibl.specular) * (f0 * ibl.scale + Vec3::splat(ibl.bias)),
-        None => hemisphere * f0 * (1.0 - roughness),
-    } * occlusion;
-    let color = direct + ambient_diffuse + ambient_specular;
-    [
-        color.x.clamp(0.0, 1.0),
-        color.y.clamp(0.0, 1.0),
-        color.z.clamp(0.0, 1.0),
-        base[3],
-    ]
+    match environment {
+        Some(ibl) => Shaded {
+            color: direct + ambient_diffuse,
+            specular: Vec3::from_array(ibl.specular) * occlusion,
+            f0,
+            brdf_uv: [n_dot_v, roughness],
+        },
+        None => Shaded {
+            color: direct + ambient_diffuse + hemisphere * f0 * (1.0 - roughness) * occlusion,
+            specular: Vec3::ZERO,
+            f0,
+            brdf_uv: [0.0, 0.0],
+        },
+    }
 }
 
 fn sample_track(keys: &[(f32, [f32; 4])], time: f32) -> Option<[f32; 4]> {
@@ -919,6 +968,9 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                         joints: joints.get(index).copied().unwrap_or([0; 4]),
                         weights: weights.get(index).copied().unwrap_or([0.0; 4]),
                         normal: normals.get(index).copied().unwrap_or([0.0, 1.0, 0.0]),
+                        brdf_uv: [0.0, 0.0],
+                        specular: [0.0; 3],
+                        f0: [0.0; 3],
                     })
                 })
                 .collect();
@@ -1102,6 +1154,73 @@ fn rgba_image(image: &gltf::image::Data) -> Option<ModelTexture> {
     })
 }
 
+/// 32x32 RGBA8 split-sum BRDF LUT for GPU sampling.
+pub fn brdf_lut_bytes() -> Vec<u8> {
+    const SIZE: usize = 32;
+    let mut bytes = Vec::with_capacity(SIZE * SIZE * 4);
+    for y in 0..SIZE {
+        let roughness = (y as f32 + 0.5) / SIZE as f32;
+        for x in 0..SIZE {
+            let n_dot_v = (x as f32 + 0.5) / SIZE as f32;
+            let (scale, bias) = brdf_lut(n_dot_v, roughness);
+            bytes.extend_from_slice(&[
+                (scale * 255.0).clamp(0.0, 255.0) as u8,
+                (bias * 255.0).clamp(0.0, 255.0) as u8,
+                0,
+                255,
+            ]);
+        }
+    }
+    bytes
+}
+
+pub fn create_brdf_lut_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+) -> (wgpu::TextureView, wgpu::Sampler) {
+    let data = brdf_lut_bytes();
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("manato brdf lut"),
+        size: wgpu::Extent3d {
+            width: 32,
+            height: 32,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &data,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(32 * 4),
+            rows_per_image: Some(32),
+        },
+        wgpu::Extent3d {
+            width: 32,
+            height: 32,
+            depth_or_array_layers: 1,
+        },
+    );
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("manato brdf lut sampler"),
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    });
+    (texture.create_view(&Default::default()), sampler)
+}
+
 pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("manato model material layout"),
@@ -1118,6 +1237,22 @@ pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout 
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
@@ -1139,11 +1274,17 @@ struct VsIn {
     @location(0) pos: vec3<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) color: vec4<f32>,
+    @location(3) brdf_uv: vec2<f32>,
+    @location(4) specular: vec3<f32>,
+    @location(5) f0: vec3<f32>,
 };
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) brdf_uv: vec2<f32>,
+    @location(3) specular: vec3<f32>,
+    @location(4) f0: vec3<f32>,
 };
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
@@ -1156,13 +1297,22 @@ fn vs_main(in: VsIn) -> VsOut {
     );
     out.uv = in.uv;
     out.color = in.color;
+    out.brdf_uv = in.brdf_uv;
+    out.specular = in.specular;
+    out.f0 = in.f0;
     return out;
 }
 @group(0) @binding(0) var base_color: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var brdf_lut: texture_2d<f32>;
+@group(0) @binding(3) var lut_samp: sampler;
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
-    return textureSample(base_color, samp, in.uv) * in.color;
+    let base = textureSample(base_color, samp, in.uv) * in.color;
+    let uv = in.brdf_uv * 0.96875 + 0.015625;
+    let brdf = textureSample(brdf_lut, lut_samp, uv);
+    let specular = in.specular * (in.f0 * brdf.r + brdf.g);
+    return vec4<f32>(clamp(base.rgb + specular, vec3<f32>(0.0), vec3<f32>(1.0)), base.a);
 }
 "#
             .into(),
@@ -1197,6 +1347,21 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                         offset: 20,
                         shader_location: 2,
                         format: wgpu::VertexFormat::Float32x4,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 72,
+                        shader_location: 3,
+                        format: wgpu::VertexFormat::Float32x2,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 80,
+                        shader_location: 4,
+                        format: wgpu::VertexFormat::Float32x3,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 92,
+                        shader_location: 5,
+                        format: wgpu::VertexFormat::Float32x3,
                     },
                 ],
             }],
@@ -1237,6 +1402,15 @@ pub fn upload_model(device: &wgpu::Device, vertices: &[ModelVertex]) -> wgpu::Bu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn brdf_lut_texture_data_is_populated() {
+        let bytes = brdf_lut_bytes();
+        assert_eq!(bytes.len(), 32 * 32 * 4);
+        assert!(bytes
+            .chunks_exact(4)
+            .any(|texel| texel[0] > 0 || texel[1] > 0));
+    }
 
     #[test]
     fn content_lights_replace_the_default_rig() {
