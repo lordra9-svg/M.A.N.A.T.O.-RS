@@ -612,6 +612,29 @@ fn environment_color(texture: &ModelTexture, normal: Vec3) -> [f32; 3] {
     [texel[0], texel[1], texel[2]]
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Light {
+    direction: Vec3,
+    color: Vec3,
+    intensity: f32,
+}
+
+/// Two-light studio rig: a bright key and a soft cool fill.
+fn default_lights() -> [Light; 2] {
+    [
+        Light {
+            direction: Vec3::new(0.3, 0.8, 0.5).normalize(),
+            color: Vec3::ONE,
+            intensity: 1.0,
+        },
+        Light {
+            direction: Vec3::new(-0.45, 0.25, -0.6).normalize(),
+            color: Vec3::new(0.55, 0.65, 0.9),
+            intensity: 0.35,
+        },
+    ]
+}
+
 fn shade_color(
     normal: Vec3,
     base: [f32; 4],
@@ -620,38 +643,63 @@ fn shade_color(
     occlusion: f32,
     environment: Option<IblAmbient>,
 ) -> [f32; 4] {
+    shade_color_with(
+        normal,
+        base,
+        metallic,
+        roughness,
+        occlusion,
+        environment,
+        &default_lights(),
+    )
+}
+
+fn shade_color_with(
+    normal: Vec3,
+    base: [f32; 4],
+    metallic: f32,
+    roughness: f32,
+    occlusion: f32,
+    environment: Option<IblAmbient>,
+    lights: &[Light],
+) -> [f32; 4] {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
     } else {
         Vec3::Y
     };
     let view = Vec3::Z;
-    let light_dir = Vec3::new(0.3, 0.8, 0.5).normalize();
-    let half = (view + light_dir).normalize();
-    let n_dot_l = normal.dot(light_dir).max(0.0);
     let n_dot_v = normal.dot(view).max(0.001);
-    let n_dot_h = normal.dot(half).max(0.0);
-    let v_dot_h = view.dot(half).max(0.0);
     let metallic = metallic.clamp(0.0, 1.0);
     let roughness = roughness.clamp(0.04, 1.0);
     let alpha = roughness * roughness;
     let base_rgb = Vec3::new(base[0], base[1], base[2]);
-
-    // Trowbridge-Reitz (GGX) normal distribution.
-    let a2 = alpha * alpha;
-    let denominator = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
-    let distribution = a2 / (std::f32::consts::PI * denominator * denominator + 1e-6);
-    // Smith-Schlick geometry term.
-    let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-    let geometry = (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
-    // Schlick Fresnel with a common 0.04 dielectric F0.
     let f0 = Vec3::splat(0.04).lerp(base_rgb, metallic);
-    let fresnel = f0 + (Vec3::ONE - f0) * (1.0 - v_dot_h).powi(5);
-    let specular = distribution * geometry * fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
 
-    // Energy-conserving diffuse for the metallic workflow.
-    let diffuse_weight = (Vec3::ONE - fresnel) * (1.0 - metallic);
-    let direct = (diffuse_weight * base_rgb / std::f32::consts::PI + specular) * n_dot_l * 3.0;
+    let mut direct = Vec3::ZERO;
+    for light in lights {
+        let half = (view + light.direction).normalize();
+        let n_dot_l = normal.dot(light.direction).max(0.0);
+        if n_dot_l <= 0.0 {
+            continue;
+        }
+        let n_dot_h = normal.dot(half).max(0.0);
+        let v_dot_h = view.dot(half).max(0.0);
+        // Trowbridge-Reitz (GGX) normal distribution.
+        let a2 = alpha * alpha;
+        let denominator = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
+        let distribution = a2 / (std::f32::consts::PI * denominator * denominator + 1e-6);
+        // Smith-Schlick geometry term.
+        let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+        let geometry =
+            (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
+        let fresnel = f0 + (Vec3::ONE - f0) * (1.0 - v_dot_h).powi(5);
+        let specular = distribution * geometry * fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
+        let diffuse_weight = (Vec3::ONE - fresnel) * (1.0 - metallic);
+        let contribution = (diffuse_weight * base_rgb / std::f32::consts::PI + specular) * n_dot_l;
+        direct += contribution * light.color * light.intensity;
+    }
+    let direct = direct * 3.0;
 
     // Image-based ambient: split-sum diffuse/prefiltered specular with the
     // BRDF LUT, falling back to a hemisphere when no envmap is loaded.
@@ -1193,6 +1241,16 @@ mod tests {
         let back = environment_color(&texture, Vec3::NEG_Z);
         assert_ne!(front, back);
         assert!(front[2] > front[0], "front samples the blue half");
+    }
+
+    #[test]
+    fn multiple_directional_lights_contribute() {
+        let key = default_lights()[0];
+        let fill = default_lights()[1];
+        let normal = fill.direction;
+        let one = shade_color_with(normal, [1.0; 4], 0.0, 0.5, 1.0, None, &[key]);
+        let two = shade_color_with(normal, [1.0; 4], 0.0, 0.5, 1.0, None, &[key, fill]);
+        assert!(two[0] > one[0], "fill light adds energy");
     }
 
     #[test]

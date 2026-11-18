@@ -24,8 +24,10 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
-  metallic), and energy-conserving diffuse. A fixed directional light
-  `(0.3, 0.8, 0.5)` with a fixed view `+Z` drives the direct term.
+  metallic), and energy-conserving diffuse. A fixed view `+Z` and a two-light
+  studio rig drive the direct term: a white key `(0.3, 0.8, 0.5)` at intensity
+  1.0 and a cool fill `(-0.45, 0.25, -0.6)` at 0.35. Each light contributes
+  its own GGX specular and diffuse term.
 - Envmap ambient uses a split-sum approximation: diffuse samples the base
   equirectangular level, specular samples a roughness-selected level along the
   reflection vector, and a `32x32` CPU BRDF LUT supplies the `(scale, bias)`
@@ -61,7 +63,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- GPU BRDF LUT textures and multiple lights.
+- GPU BRDF LUT textures and configurable/more-than-two lights.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
