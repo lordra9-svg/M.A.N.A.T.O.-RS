@@ -5,6 +5,7 @@
 //! CreatePermission, Send indications, and ChannelData forwarding.
 
 use std::collections::{HashMap, HashSet};
+use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 
 use hmac::{Hmac, Mac};
@@ -252,6 +253,34 @@ pub fn error_code(code: u16, reason: &str) -> Vec<u8> {
     value
 }
 
+fn authenticate_request(
+    message: &Message,
+    raw: &[u8],
+    realm: &str,
+    nonce: &str,
+    users: &HashMap<String, String>,
+) -> Option<String> {
+    let username = String::from_utf8(message.attribute(ATTR_USERNAME)?.to_vec()).ok()?;
+    let request_realm = String::from_utf8(message.attribute(ATTR_REALM)?.to_vec()).ok()?;
+    let request_nonce = String::from_utf8(message.attribute(ATTR_NONCE)?.to_vec()).ok()?;
+    if request_realm != realm || request_nonce != nonce {
+        return None;
+    }
+    let password = users.get(&username)?;
+    let key = long_term_key(&username, realm, password);
+    message.verify_integrity(&key, raw).then_some(username)
+}
+
+fn encode_authenticated_reply(
+    message: Message,
+    realm: &str,
+    username: &str,
+    password: &str,
+) -> Vec<u8> {
+    let key = long_term_key(username, realm, password);
+    message.encode_authenticated(&key)
+}
+
 /// Minimal TURN allocation state.
 struct Allocation {
     relay: UdpSocket,
@@ -291,15 +320,7 @@ impl TurnServer {
     }
 
     fn authenticate(&self, message: &Message, raw: &[u8]) -> Option<String> {
-        let username = String::from_utf8(message.attribute(ATTR_USERNAME)?.to_vec()).ok()?;
-        let realm = String::from_utf8(message.attribute(ATTR_REALM)?.to_vec()).ok()?;
-        let nonce = String::from_utf8(message.attribute(ATTR_NONCE)?.to_vec()).ok()?;
-        if realm != self.realm || nonce != self.nonce {
-            return None;
-        }
-        let password = self.users.get(&username)?;
-        let key = long_term_key(&username, &realm, password);
-        message.verify_integrity(&key, raw).then_some(username)
+        authenticate_request(message, raw, &self.realm, &self.nonce, &self.users)
     }
 
     fn reply(&self, target: SocketAddr, message: Message, username: &str) {
@@ -496,6 +517,319 @@ impl TurnServer {
     }
 }
 
+struct TcpAllocation {
+    relay: UdpSocket,
+    permissions: HashSet<SocketAddr>,
+    channel: Option<(u16, SocketAddr)>,
+    expires: std::time::Instant,
+}
+
+struct TcpConnection {
+    stream: std::net::TcpStream,
+    buffer: Vec<u8>,
+    allocation: Option<TcpAllocation>,
+    closed: bool,
+}
+
+/// TURN server over TCP with the same STUN framing and ChannelData.
+pub struct TurnTcpServer {
+    listener: std::net::TcpListener,
+    realm: String,
+    nonce: String,
+    users: HashMap<String, String>,
+    connections: Vec<TcpConnection>,
+}
+
+impl TurnTcpServer {
+    pub fn bind(
+        addr: SocketAddr,
+        realm: impl Into<String>,
+        users: impl IntoIterator<Item = (String, String)>,
+    ) -> std::io::Result<Self> {
+        let listener = std::net::TcpListener::bind(addr)?;
+        listener.set_nonblocking(true)?;
+        Ok(Self {
+            listener,
+            realm: realm.into(),
+            nonce: "manato-nonce".into(),
+            users: users.into_iter().collect(),
+            connections: Vec::new(),
+        })
+    }
+
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.listener.local_addr()
+    }
+
+    fn handle(
+        realm: &str,
+        nonce: &str,
+        users: &HashMap<String, String>,
+        message: &Message,
+        raw: &[u8],
+        source: SocketAddr,
+        allocation: &mut Option<TcpAllocation>,
+    ) -> Vec<Vec<u8>> {
+        match message.message_type {
+            BINDING_REQUEST => {
+                let reply = Message::new(BINDING_SUCCESS, message.transaction)
+                    .with(
+                        ATTR_XOR_MAPPED_ADDRESS,
+                        encode_xor_address(source, &message.transaction),
+                    )
+                    .with(ATTR_SOFTWARE, b"manato-turn".to_vec());
+                vec![reply.encode()]
+            }
+            ALLOCATE_REQUEST => {
+                let Some(username) = authenticate_request(message, raw, realm, nonce, users) else {
+                    let reply = Message::new(ALLOCATE_ERROR, message.transaction)
+                        .with(ATTR_ERROR_CODE, error_code(401, "Unauthorized"))
+                        .with(ATTR_REALM, realm.as_bytes().to_vec())
+                        .with(ATTR_NONCE, nonce.as_bytes().to_vec());
+                    return vec![reply.encode()];
+                };
+                let Ok(relay) = UdpSocket::bind("0.0.0.0:0") else {
+                    return Vec::new();
+                };
+                let _ = relay.set_nonblocking(true);
+                let Ok(relay_addr) = relay.local_addr() else {
+                    return Vec::new();
+                };
+                *allocation = Some(TcpAllocation {
+                    relay,
+                    permissions: HashSet::new(),
+                    channel: None,
+                    expires: std::time::Instant::now() + std::time::Duration::from_secs(600),
+                });
+                let reply = Message::new(ALLOCATE_SUCCESS, message.transaction)
+                    .with(
+                        ATTR_XOR_RELAYED_ADDRESS,
+                        encode_xor_address(relay_addr, &message.transaction),
+                    )
+                    .with(ATTR_LIFETIME, DEFAULT_LIFETIME.to_be_bytes().to_vec())
+                    .with(ATTR_SOFTWARE, b"manato-turn".to_vec());
+                let password = users.get(&username).expect("authenticated");
+                vec![encode_authenticated_reply(
+                    reply, realm, &username, password,
+                )]
+            }
+            REFRESH_REQUEST => {
+                let Some(username) = authenticate_request(message, raw, realm, nonce, users) else {
+                    return Vec::new();
+                };
+                if let Some(allocation) = allocation {
+                    allocation.expires =
+                        std::time::Instant::now() + std::time::Duration::from_secs(600);
+                    let reply = Message::new(REFRESH_SUCCESS, message.transaction)
+                        .with(ATTR_LIFETIME, DEFAULT_LIFETIME.to_be_bytes().to_vec());
+                    let password = users.get(&username).expect("authenticated");
+                    vec![encode_authenticated_reply(
+                        reply, realm, &username, password,
+                    )]
+                } else {
+                    Vec::new()
+                }
+            }
+            CREATE_PERMISSION_REQUEST => {
+                let Some(username) = authenticate_request(message, raw, realm, nonce, users) else {
+                    return Vec::new();
+                };
+                let Some(allocation) = allocation else {
+                    return Vec::new();
+                };
+                for (ty, value) in &message.attributes {
+                    if *ty == ATTR_XOR_PEER_ADDRESS {
+                        if let Some(peer) = decode_xor_address(value, &message.transaction) {
+                            allocation.permissions.insert(peer);
+                        }
+                    }
+                }
+                let reply = Message::new(CREATE_PERMISSION_SUCCESS, message.transaction);
+                let password = users.get(&username).expect("authenticated");
+                vec![encode_authenticated_reply(
+                    reply, realm, &username, password,
+                )]
+            }
+            CHANNEL_BIND_REQUEST => {
+                let Some(username) = authenticate_request(message, raw, realm, nonce, users) else {
+                    return Vec::new();
+                };
+                let Some(allocation) = allocation else {
+                    return Vec::new();
+                };
+                let channel = message.attribute(ATTR_CHANNEL_NUMBER).and_then(|value| {
+                    value
+                        .get(..2)
+                        .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]))
+                });
+                let peer = message
+                    .attribute(ATTR_XOR_PEER_ADDRESS)
+                    .and_then(|value| decode_xor_address(value, &message.transaction));
+                let (Some(channel), Some(peer)) = (channel, peer) else {
+                    return Vec::new();
+                };
+                allocation.channel = Some((channel, peer));
+                allocation.permissions.insert(peer);
+                let reply = Message::new(CHANNEL_BIND_SUCCESS, message.transaction);
+                let password = users.get(&username).expect("authenticated");
+                vec![encode_authenticated_reply(
+                    reply, realm, &username, password,
+                )]
+            }
+            SEND_INDICATION => {
+                if let Some(allocation) = allocation {
+                    let peer = message
+                        .attribute(ATTR_XOR_PEER_ADDRESS)
+                        .and_then(|value| decode_xor_address(value, &message.transaction));
+                    let payload = message.attribute(ATTR_DATA);
+                    if let (Some(peer), Some(payload)) = (peer, payload) {
+                        if allocation.permissions.contains(&peer) {
+                            let _ = allocation.relay.send_to(payload, peer);
+                        }
+                    }
+                }
+                Vec::new()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn poll(&mut self) -> std::io::Result<usize> {
+        let mut handled = 0;
+        loop {
+            match self.listener.accept() {
+                Ok((stream, _)) => {
+                    stream.set_nonblocking(true)?;
+                    self.connections.push(TcpConnection {
+                        stream,
+                        buffer: Vec::new(),
+                        allocation: None,
+                        closed: false,
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(error) => return Err(error),
+            }
+        }
+        let mut buffer = [0u8; 8192];
+        for connection in &mut self.connections {
+            loop {
+                match connection.stream.read(&mut buffer) {
+                    Ok(0) => {
+                        connection.closed = true;
+                        break;
+                    }
+                    Ok(len) => connection.buffer.extend_from_slice(&buffer[..len]),
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(_) => {
+                        connection.closed = true;
+                        break;
+                    }
+                }
+            }
+            while let Some(frame) = take_tcp_frame(&mut connection.buffer) {
+                if frame.len() >= 4 && (frame[0] & 0xC0) == 0x40 {
+                    if let Some(allocation) = &connection.allocation {
+                        let channel = u16::from_be_bytes([frame[0], frame[1]]);
+                        let len = u16::from_be_bytes([frame[2], frame[3]]) as usize;
+                        if let Some((bound, peer)) = allocation.channel {
+                            if bound == channel && 4 + len <= frame.len() {
+                                let _ = allocation.relay.send_to(&frame[4..4 + len], peer);
+                                handled += 1;
+                            }
+                        }
+                    }
+                    continue;
+                }
+                let Some(message) = Message::parse(&frame) else {
+                    continue;
+                };
+                let Ok(source) = connection.stream.peer_addr() else {
+                    continue;
+                };
+                let replies = Self::handle(
+                    &self.realm,
+                    &self.nonce,
+                    &self.users,
+                    &message,
+                    &frame,
+                    source,
+                    &mut connection.allocation,
+                );
+                for reply in replies {
+                    if connection.stream.write_all(&reply).is_err() {
+                        connection.closed = true;
+                        break;
+                    }
+                    handled += 1;
+                }
+            }
+            if let Some(allocation) = &connection.allocation {
+                loop {
+                    match allocation.relay.recv_from(&mut buffer) {
+                        Ok((len, peer)) => {
+                            let mut frame = Vec::new();
+                            if allocation.channel.is_some_and(|(_, bound)| bound == peer) {
+                                let channel = allocation.channel.expect("checked").0;
+                                frame.extend_from_slice(&channel.to_be_bytes());
+                                frame.extend_from_slice(&(len as u16).to_be_bytes());
+                            } else if allocation.permissions.contains(&peer) {
+                                let reply = Message::new(DATA_INDICATION, [0u8; 12])
+                                    .with(
+                                        ATTR_XOR_PEER_ADDRESS,
+                                        encode_xor_address(peer, &[0u8; 12]),
+                                    )
+                                    .with(ATTR_DATA, buffer[..len].to_vec());
+                                frame = reply.encode();
+                            } else {
+                                continue;
+                            }
+                            frame.extend_from_slice(&buffer[..len]);
+                            if connection.stream.write_all(&frame).is_err() {
+                                connection.closed = true;
+                                break;
+                            }
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+        let now = std::time::Instant::now();
+        for connection in &mut self.connections {
+            if let Some(allocation) = &connection.allocation {
+                if allocation.expires <= now {
+                    connection.allocation = None;
+                }
+            }
+        }
+        self.connections.retain(|connection| !connection.closed);
+        Ok(handled)
+    }
+}
+
+fn take_tcp_frame(buffer: &mut Vec<u8>) -> Option<Vec<u8>> {
+    if buffer.is_empty() {
+        return None;
+    }
+    let needed = if buffer[0] & 0xC0 == 0x40 {
+        if buffer.len() < 4 {
+            return None;
+        }
+        4 + u16::from_be_bytes([buffer[2], buffer[3]]) as usize
+    } else {
+        if buffer.len() < 20 {
+            return None;
+        }
+        20 + u16::from_be_bytes([buffer[2], buffer[3]]) as usize
+    };
+    if buffer.len() < needed {
+        return None;
+    }
+    Some(buffer.drain(..needed).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -631,6 +965,133 @@ mod tests {
             std::thread::sleep(Duration::from_millis(2));
         }
         assert_eq!(got.as_deref(), Some(&b"pong"[..]));
+    }
+
+    fn read_tcp_frame(stream: &mut std::net::TcpStream) -> Vec<u8> {
+        let mut header = [0u8; 4];
+        stream.read_exact(&mut header).expect("header");
+        let length = if header[0] & 0xC0 == 0x40 {
+            u16::from_be_bytes([header[2], header[3]]) as usize
+        } else {
+            let mut rest = [0u8; 16];
+            stream.read_exact(&mut rest).expect("stun header");
+            let mut frame = vec![0u8; 20];
+            frame[..4].copy_from_slice(&header);
+            frame[4..].copy_from_slice(&rest);
+            let length = u16::from_be_bytes([header[2], header[3]]) as usize;
+            let mut payload = vec![0u8; length];
+            stream.read_exact(&mut payload).expect("stun payload");
+            frame.extend_from_slice(&payload);
+            return frame;
+        };
+        let mut payload = vec![0u8; length];
+        stream.read_exact(&mut payload).expect("payload");
+        let mut frame = header.to_vec();
+        frame.extend_from_slice(&payload);
+        frame
+    }
+
+    #[test]
+    fn tcp_turn_allocates_and_forwards_channel_data() {
+        let mut server = TurnTcpServer::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            "manato",
+            [("alice".to_string(), "secret".to_string())],
+        )
+        .expect("server");
+        let server_addr = server.local_addr().expect("addr");
+        let mut client = std::net::TcpStream::connect(server_addr).expect("client");
+        client
+            .set_read_timeout(Some(Duration::from_millis(500)))
+            .expect("timeout");
+        let peer = UdpSocket::bind("127.0.0.1:0").expect("peer");
+        peer.set_nonblocking(true).expect("nonblocking");
+        let peer_addr = peer.local_addr().expect("peer addr");
+        let key = long_term_key("alice", "manato", "secret");
+        let auth = |message: Message| {
+            message
+                .with(ATTR_USERNAME, b"alice".to_vec())
+                .with(ATTR_REALM, b"manato".to_vec())
+                .with(ATTR_NONCE, b"manato-nonce".to_vec())
+                .encode_authenticated(&key)
+        };
+        client
+            .write_all(&auth(Message::new(ALLOCATE_REQUEST, TX)))
+            .expect("allocate");
+        let mut relayed = None;
+        for _ in 0..100 {
+            server.poll().expect("poll");
+            if let Ok(frame) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                read_tcp_frame(&mut client)
+            })) {
+                let message = Message::parse(&frame).expect("reply");
+                if message.message_type == ALLOCATE_SUCCESS {
+                    relayed = message
+                        .attribute(ATTR_XOR_RELAYED_ADDRESS)
+                        .and_then(|value| decode_xor_address(value, &TX));
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let relayed = relayed.expect("relayed");
+        client
+            .write_all(&auth(
+                Message::new(CREATE_PERMISSION_REQUEST, [2; 12]).with(
+                    ATTR_XOR_PEER_ADDRESS,
+                    encode_xor_address(peer_addr, &[2; 12]),
+                ),
+            ))
+            .expect("permission");
+        let channel = 0x4002u16;
+        client
+            .write_all(&auth(
+                Message::new(CHANNEL_BIND_REQUEST, [3; 12])
+                    .with(ATTR_CHANNEL_NUMBER, channel.to_be_bytes().to_vec())
+                    .with(
+                        ATTR_XOR_PEER_ADDRESS,
+                        encode_xor_address(peer_addr, &[3; 12]),
+                    ),
+            ))
+            .expect("bind");
+        for _ in 0..20 {
+            server.poll().expect("poll");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let mut frame = Vec::new();
+        frame.extend_from_slice(&channel.to_be_bytes());
+        frame.extend_from_slice(&3u16.to_be_bytes());
+        frame.extend_from_slice(b"tcp");
+        client.write_all(&frame).expect("channel data");
+        let started = Instant::now();
+        let mut buffer = [0u8; 64];
+        let mut got = None;
+        while started.elapsed() < Duration::from_secs(1) {
+            server.poll().expect("poll");
+            if let Ok((len, _)) = peer.recv_from(&mut buffer) {
+                got = Some(buffer[..len].to_vec());
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(got.as_deref(), Some(&b"tcp"[..]));
+
+        peer.send_to(b"back", relayed).expect("peer");
+        let started = Instant::now();
+        let mut got = None;
+        while started.elapsed() < Duration::from_secs(1) {
+            server.poll().expect("poll");
+            if let Ok(frame) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                read_tcp_frame(&mut client)
+            })) {
+                if frame.len() >= 4 && frame[0] & 0xC0 == 0x40 {
+                    got = Some(frame[4..].to_vec());
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(got.as_deref(), Some(&b"back"[..]));
     }
 
     #[test]

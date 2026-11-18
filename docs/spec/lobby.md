@@ -107,6 +107,11 @@ ChannelData forwarding, with authenticated requests and relay sockets per
 allocation. Tests cover encoding/integrity, IPv4/IPv6 XOR addresses, a full
 allocate/permission/channel ping-pong, and wrong-password rejection.
 
+`TurnTcpServer` (app `--turn-tcp <bind>`) implements the same STUN framing,
+authentication, Allocate/Refresh/CreatePermission/ChannelBind, Send/Data
+indications, and ChannelData over TCP, with allocations scoped per TCP
+connection. TCP TLS wrapping is not modeled yet.
+
 `Matchmaker`/`best_lobby` rank discovered lobbies: Closed lobbies are excluded,
 then Open > Starting > InMatch, then player count, spectator count, and name.
 
