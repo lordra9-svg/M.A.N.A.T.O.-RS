@@ -22,8 +22,12 @@ assertions, reset at the start of every tick, so content re-asserts them.
 With `DepthBound value = 1` and a stage depth range, the integrated `z` is
 clamped to `[depth_edge.top + z_min, z_max - depth_edge.bottom]`, matching
 Ikemen's `zDepthBound`. Without a `[PlayerInfo] topbound`/`botbound` range the
-clamp is disabled. `DepthBound movecamera` (Z-axis tracking) is accepted but
-not modeled; `ScreenBound movecamera` X/Y is modeled.
+clamp is disabled. `DepthBound movecamera` gates whether the fighter
+contributes to the fighting camera's tracked Z midpoint; the camera smooths
+toward that midpoint and subtracts it from every z-projected sprite's
+`depthtoscreen` offset, so the tracked depth range stays centred. Stage
+`ztension`/`zautocenter` bounds are not modeled. `ScreenBound movecamera`
+gates X/Y tracking.
 
 ## 2.0 GetHitVar depth values
 

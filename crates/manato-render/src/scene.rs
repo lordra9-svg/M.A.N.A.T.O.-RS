@@ -252,7 +252,7 @@ fn draw_texts(painter: &mut Painter, deps: &SceneDeps, sim: &SimState, behind: b
             pos = project_depth(
                 pos,
                 z_scale,
-                stage.z_y_offset(text.z),
+                stage.z_y_offset(text.z - sim.camera.z),
                 GAME_WIDTH * 0.5,
                 sim.ground_screen_y(),
             );
@@ -355,7 +355,7 @@ fn draw_bg_layer(
         base = project_depth(
             base,
             z_scale,
-            stage.z_y_offset(z),
+            stage.z_y_offset(z - sim.camera.z),
             GAME_WIDTH * 0.5,
             sim.ground_screen_y(),
         );
@@ -502,6 +502,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
                 pose.scale.y * projectile.scale.y * zoom,
             ),
             projectile.z,
+            sim.camera.z,
             stage,
             GAME_WIDTH * 0.5,
             sim.ground_screen_y(),
@@ -611,6 +612,7 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             sim.screen_pos(fighter.pos) + fighter.reflection_offset * sim.camera.scale,
             Vec2::new(1.0, 1.0),
             fighter.z,
+            sim.camera.z,
             stage,
             GAME_WIDTH * 0.5,
             ground,
@@ -673,7 +675,7 @@ fn draw_shadows(painter: &mut Painter, sim: &SimState) {
             ground = project_depth(
                 ground,
                 z_scale,
-                stage.z_y_offset(fighter.z),
+                stage.z_y_offset(fighter.z - sim.camera.z),
                 GAME_WIDTH * 0.5,
                 sim.ground_screen_y(),
             );
@@ -834,6 +836,7 @@ fn depth_transform(
     anchor: Vec2,
     scale: Vec2,
     z: f32,
+    camera_z: f32,
     stage: &Stage,
     pivot_x: f32,
     ground: f32,
@@ -843,7 +846,13 @@ fn depth_transform(
         return (anchor, scale);
     }
     (
-        project_depth(anchor, z_scale, stage.z_y_offset(z), pivot_x, ground),
+        project_depth(
+            anchor,
+            z_scale,
+            stage.z_y_offset(z - camera_z),
+            pivot_x,
+            ground,
+        ),
         scale * z_scale,
     )
 }
@@ -906,7 +915,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         anchor = project_depth(
             anchor,
             z_scale,
-            stage.z_y_offset(fighter.z),
+            stage.z_y_offset(fighter.z - sim.camera.z),
             manato_core::GAME_WIDTH * 0.5,
             sim.ground_screen_y(),
         );
@@ -1142,7 +1151,7 @@ fn draw_effect_body(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         anchor = project_depth(
             anchor,
             z_scale,
-            stage.z_y_offset(effect.z),
+            stage.z_y_offset(effect.z - sim.camera.z),
             GAME_WIDTH * 0.5,
             sim.ground_screen_y(),
         );
@@ -2020,17 +2029,25 @@ mod tests {
         let scale = Vec2::new(2.0, 2.0);
 
         // z = 0 is the near plane with scale 1.
-        let (same, same_scale) = depth_transform(anchor, scale, 0.0, &stage, 160.0, 200.0);
+        let (same, same_scale) = depth_transform(anchor, scale, 0.0, 0.0, &stage, 160.0, 200.0);
         assert!((same.x - anchor.x).abs() < 1e-5);
         assert!((same.y - anchor.y).abs() < 1e-5);
         assert!((same_scale.x - 2.0).abs() < 1e-5);
 
         // At the far plane the object shrinks toward the pivot/ground and
         // shifts by `depthtoscreen`.
-        let (far, far_scale) = depth_transform(anchor, scale, 100.0, &stage, 160.0, 200.0);
+        let (far, far_scale) = depth_transform(anchor, scale, 100.0, 0.0, &stage, 160.0, 200.0);
         assert!((far.x - 180.0).abs() < 1e-5);
         assert!((far.y - 215.0).abs() < 1e-5);
         assert!((far_scale.x - 1.0).abs() < 1e-5);
+
+        // Camera depth subtracts from the projected depth: centring the
+        // camera on the object removes the depth-to-screen shift.
+        let (centred, centred_scale) =
+            depth_transform(anchor, scale, 100.0, 100.0, &stage, 160.0, 200.0);
+        assert!((centred.x - 180.0).abs() < 1e-5);
+        assert!((centred.y - 190.0).abs() < 1e-5);
+        assert!((centred_scale.x - 1.0).abs() < 1e-5);
     }
 
     #[test]

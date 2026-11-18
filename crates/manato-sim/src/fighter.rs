@@ -374,6 +374,8 @@ pub struct Fighter {
     /// `ScreenBound movecamera` per axis: whether the fighter drives the
     /// fighting camera. Defaults to both axes for M.U.G.E.N-only content.
     pub move_camera: (bool, bool),
+    /// `DepthBound movecamera`: whether the fighter drives Z tracking.
+    pub move_camera_z: bool,
     pub draw_offset: Vec2,
     pub hit_overrides: [Option<HitOverride>; 8],
     /// True when a `HitOverride` matched during the current tick.
@@ -620,6 +622,7 @@ impl Fighter {
             gravity: None,
             screen_bound: (true, true),
             move_camera: (true, true),
+            move_camera_z: true,
             draw_offset: Vec2::ZERO,
             hit_overrides: std::array::from_fn(|_| None),
             hit_overridden: false,

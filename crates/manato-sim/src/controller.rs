@@ -342,7 +342,15 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
         "matchrestart" => sim.restart_requested = true,
         "depth" => depth_controller(sim, who, control),
         "depthbound" => {
-            sim.fighters[who].depth_bound = int_param(sim, who, control, "value").unwrap_or(0) != 0;
+            if let Some(value) = int_param(sim, who, control, "value") {
+                sim.fighters[who].depth_bound = value != 0;
+            }
+            if let Some(value) = control.get("movecamera") {
+                sim.fighters[who].move_camera_z = trigger::num(sim, who, value) != 0.0;
+            }
+            if let Some(value) = control.get("movecameraz") {
+                sim.fighters[who].move_camera_z = trigger::num(sim, who, value) != 0.0;
+            }
         }
         "shaderset" => shader_set(sim, who, control),
         "groundleveloffset" => {

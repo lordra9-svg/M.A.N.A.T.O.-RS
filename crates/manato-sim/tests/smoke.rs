@@ -12644,6 +12644,61 @@ fn screenbound_movecamera_gates_camera_tracking() {
 }
 
 #[test]
+fn depthbound_movecamera_tracks_z() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let bounds = manato_formats::Controller {
+        kind: "depthbound".into(),
+        params: vec![
+            ("value".into(), "1".into()),
+            ("movecamera".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &bounds, &assets);
+    assert!(sim.fighters[0].depth_bound);
+    assert!(!sim.fighters[0].move_camera_z);
+
+    let enable = manato_formats::Controller {
+        kind: "depthbound".into(),
+        params: vec![("movecameraz".into(), "1".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &enable, &assets);
+    assert!(sim.fighters[0].move_camera_z);
+    assert!(
+        sim.fighters[0].depth_bound,
+        "value is untouched when omitted"
+    );
+
+    // Disabling Z tracking for one fighter pulls the camera toward the other.
+    let camera_z_after = |disable_second: bool| -> Option<f32> {
+        let mut sim = fight_phase()?;
+        sim.fighters[0].z = 10.0;
+        sim.fighters[1].z = 30.0;
+        if disable_second {
+            sim.fighters[1].move_camera_z = false;
+        }
+        for _ in 0..40 {
+            sim.tick([PlayerInput::default(); 2]);
+        }
+        Some(sim.camera.z)
+    };
+    let Some(both) = camera_z_after(false) else {
+        return;
+    };
+    let Some(only_first) = camera_z_after(true) else {
+        return;
+    };
+    assert!(
+        only_first < both - 1.0,
+        "disabled Z tracking should pull the camera toward the remaining fighter ({only_first} vs {both})"
+    );
+}
+
+#[test]
 fn width_screenbound_and_playerpush_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -336,6 +336,8 @@ pub enum CameraView {
 pub struct CameraState {
     pub x: f32,
     pub y: f32,
+    /// Tracked depth used to centre z-projected sprites.
+    pub z: f32,
     pub shake: Vec2,
     /// Automatic tracking mode (`Camera` controller).
     pub view: CameraView,
@@ -373,6 +375,7 @@ impl Default for CameraState {
         Self {
             x: 0.0,
             y: 0.0,
+            z: 0.0,
             shake: Vec2::ZERO,
             view: CameraView::Fighting,
             follow: None,
@@ -1242,7 +1245,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(7u32, self.asset_id(), self))
+        bincode::serialize(&(8u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1261,7 +1264,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 7 {
+        if version != 8 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3105,6 +3108,7 @@ impl SimState {
             fighter.face_p2_pending = false;
             fighter.player_push = true;
             fighter.move_camera = (true, true);
+            fighter.move_camera_z = true;
             fighter.gravity = None;
             fighter.after_image = None;
             fighter.after_images.clear();
@@ -3184,6 +3188,7 @@ impl SimState {
         self.camera.free_pos = Vec2::ZERO;
         self.camera.x = self.stage_camera.start.x;
         self.camera.y = self.stage_camera.start.y;
+        self.camera.z = 0.0;
         self.camera.scale = self.stage_camera.start_zoom;
         self.camera.target_scale = self.stage_camera.start_zoom;
         self.camera.zoom_delay = 0;
@@ -3404,6 +3409,37 @@ impl SimState {
             // Smooth follow.
             self.camera.x += (target_x - self.camera.x) * 0.35;
             self.camera.y += (target_y - self.camera.y) * 0.35;
+            // `DepthBound movecamera` tracks the fighter depth range and
+            // centres z-projected sprites on its midpoint.
+            let active: Vec<&Fighter> = self
+                .fighters
+                .iter()
+                .filter(|fighter| fighter.owner.is_none() && fighter.active)
+                .collect();
+            let z_members: Vec<&Fighter> = active
+                .iter()
+                .copied()
+                .filter(|fighter| fighter.move_camera_z)
+                .collect();
+            let z_ref = if z_members.is_empty() {
+                active
+            } else {
+                z_members
+            };
+            let target_z = if z_ref.is_empty() {
+                0.0
+            } else {
+                let min = z_ref
+                    .iter()
+                    .map(|fighter| fighter.z)
+                    .fold(f32::INFINITY, f32::min);
+                let max = z_ref
+                    .iter()
+                    .map(|fighter| fighter.z)
+                    .fold(f32::NEG_INFINITY, f32::max);
+                (min + max) * 0.5
+            };
+            self.camera.z += (target_z - self.camera.z) * 0.35;
         }
 
         if self.env_shake.time > 0 {
@@ -4088,6 +4124,7 @@ impl SimState {
             h.write_bool(f.depth_bound);
             h.write_bool(f.move_camera.0);
             h.write_bool(f.move_camera.1);
+            h.write_bool(f.move_camera_z);
             match &f.shader {
                 Some(name) => {
                     h.write_bool(true);
