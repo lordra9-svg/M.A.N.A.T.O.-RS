@@ -225,6 +225,8 @@ pub struct ModelDraw {
     transmission: f32,
     anisotropy: f32,
     anisotropy_rotation: f32,
+    sheen_color: [f32; 3],
+    sheen_roughness: f32,
     normal_map: Option<ModelTexture>,
     normal_scale: f32,
     emissive_map: Option<ModelTexture>,
@@ -506,6 +508,8 @@ impl ModelAsset {
                             draw.transmission,
                             draw.anisotropy,
                             draw.anisotropy_rotation,
+                            draw.sheen_color,
+                            draw.sheen_roughness,
                         );
                         out.color = [shaded.color.x, shaded.color.y, shaded.color.z, out.color[3]];
                         out.brdf_uv = shaded.brdf_uv;
@@ -736,6 +740,8 @@ fn shade_color_with(
         0.0,
         0.0,
         0.0,
+        [0.0; 3],
+        0.0,
     );
     let mut color = shaded.color;
     if let Some(_ibl) = environment {
@@ -763,6 +769,8 @@ fn shade_color_parts(
     transmission: f32,
     anisotropy: f32,
     anisotropy_rotation: f32,
+    sheen_color: [f32; 3],
+    sheen_roughness: f32,
 ) -> Shaded {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
@@ -793,6 +801,8 @@ fn shade_color_parts(
     let aniso_bitangent = -tangent * rotation.sin() + bitangent * rotation.cos();
     let aniso_alpha_t = (roughness * (1.0 + anisotropy * 0.9)).clamp(0.04, 1.0);
     let aniso_alpha_b = (roughness * (1.0 - anisotropy * 0.7)).clamp(0.04, 1.0);
+    let sheen_color = Vec3::from_array(sheen_color).clamp(Vec3::ZERO, Vec3::ONE);
+    let sheen_roughness = sheen_roughness.clamp(0.04, 1.0);
 
     let mut direct = Vec3::ZERO;
     for light in lights {
@@ -843,6 +853,14 @@ fn shade_color_parts(
                 cc_distribution * cc_geometry * cc_fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
             layer += cc_specular * n_dot_l * clearcoat;
         }
+        if sheen_color.length_squared() > 0.0 {
+            let sheen_a = sheen_roughness * sheen_roughness;
+            let sheen_denom = n_dot_h * n_dot_h * (sheen_a * sheen_a - 1.0) + 1.0;
+            let sheen_distribution =
+                sheen_a * sheen_a / (std::f32::consts::PI * sheen_denom * sheen_denom + 1e-6);
+            let sheen_fresnel = (1.0 - v_dot_h).clamp(0.0, 1.0).powi(5);
+            layer += sheen_color * sheen_distribution * n_dot_l * sheen_fresnel * 0.5;
+        }
         direct += layer * light.color * light.intensity;
     }
     let direct = direct * 3.0;
@@ -857,6 +875,8 @@ fn shade_color_parts(
     let transmission_tint = hemisphere * base_rgb * transmission;
     let clearcoat_ambient =
         hemisphere * clearcoat_f0 * (1.0 - clearcoat_roughness) * clearcoat * occlusion;
+    let sheen_ambient =
+        sheen_color * (1.0 - n_dot_v).clamp(0.0, 1.0).powi(5) * (1.0 - sheen_roughness) * occlusion;
     match environment {
         Some(ibl) => Shaded {
             color: direct + ambient_diffuse + transmission_tint + clearcoat_ambient,
@@ -869,6 +889,7 @@ fn shade_color_parts(
                 + ambient_diffuse
                 + transmission_tint
                 + clearcoat_ambient
+                + sheen_ambient
                 + hemisphere * f0 * (1.0 - roughness) * occlusion,
             specular: Vec3::ZERO,
             f0,
@@ -1018,6 +1039,24 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .and_then(|value| value.get("anisotropyRotation"))
                 .and_then(|value| value.as_f64())
                 .unwrap_or(0.0) as f32;
+            let sheen_color = material
+                .extension_value("KHR_materials_sheen")
+                .and_then(|value| value.get("sheenColorFactor"))
+                .and_then(|value| value.as_array())
+                .filter(|values| values.len() >= 3)
+                .map(|values| {
+                    [
+                        values[0].as_f64().unwrap_or(0.0) as f32,
+                        values[1].as_f64().unwrap_or(0.0) as f32,
+                        values[2].as_f64().unwrap_or(0.0) as f32,
+                    ]
+                })
+                .unwrap_or([0.0; 3]);
+            let sheen_roughness = material
+                .extension_value("KHR_materials_sheen")
+                .and_then(|value| value.get("sheenRoughnessFactor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
             let emissive_factor = material.emissive_factor();
             let normal_map = material
                 .normal_texture()
@@ -1086,6 +1125,8 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     transmission,
                     anisotropy,
                     anisotropy_rotation,
+                    sheen_color,
+                    sheen_roughness,
                     normal_map,
                     normal_scale,
                     emissive_map,
@@ -1530,6 +1571,8 @@ mod tests {
             0.0,
             0.0,
             0.0,
+            [0.0; 3],
+            0.0,
         );
         let coated = shade_color_parts(
             normal,
@@ -1544,6 +1587,8 @@ mod tests {
             0.0,
             0.0,
             0.0,
+            [0.0; 3],
+            0.0,
         );
         let transmitted = shade_color_parts(
             normal,
@@ -1557,6 +1602,8 @@ mod tests {
             0.0,
             0.8,
             0.0,
+            0.0,
+            [0.0; 3],
             0.0,
         );
         assert_ne!(base.color, coated.color);
@@ -1579,6 +1626,8 @@ mod tests {
             0.0,
             0.0,
             0.0,
+            [0.0; 3],
+            0.0,
         );
         let anisotropic = shade_color_parts(
             Vec3::Y,
@@ -1593,9 +1642,48 @@ mod tests {
             0.0,
             1.0,
             0.0,
+            [0.0; 3],
+            0.0,
         );
         assert_ne!(isotropic.color, anisotropic.color);
         assert!(anisotropic.specular == Vec3::ZERO);
+    }
+
+    #[test]
+    fn sheen_adds_a_cloth_lobe() {
+        let plain = shade_color_parts(
+            Vec3::Y,
+            [1.0; 4],
+            0.0,
+            0.4,
+            1.0,
+            None,
+            &default_lights(),
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            [0.0; 3],
+            0.0,
+        );
+        let sheen = shade_color_parts(
+            Vec3::Y,
+            [1.0; 4],
+            0.0,
+            0.4,
+            1.0,
+            None,
+            &default_lights(),
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            [1.0, 0.4, 0.6],
+            0.2,
+        );
+        assert_ne!(plain.color, sheen.color);
     }
 
     #[test]
@@ -1757,7 +1845,7 @@ mod tests {
   ],
   "samplers": [{}],
   "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}}}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -1780,6 +1868,8 @@ mod tests {
         assert_eq!(draw.transmission, 0.3);
         assert_eq!(draw.anisotropy, 0.6);
         assert_eq!(draw.anisotropy_rotation, 0.5);
+        assert_eq!(draw.sheen_color, [1.0, 0.4, 0.6]);
+        assert_eq!(draw.sheen_roughness, 0.2);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);

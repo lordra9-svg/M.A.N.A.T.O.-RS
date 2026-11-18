@@ -29,6 +29,9 @@ and the first node animation are loaded and rendered behind the 2D scene.
   tangent/bitangent roughness (`anisotropyStrength`, `anisotropyRotation`).
   The tangent frame is derived from the world normal (no tangent attribute),
   so texture-driven anisotropy direction is not modeled.
+- `KHR_materials_sheen` adds a cloth-like sheen lobe from
+  `sheenColorFactor`/`sheenRoughnessFactor` (GGX distribution gated by a
+  Schlick-style grazing term) plus a small ambient grazing tint.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
@@ -78,7 +81,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Iridescence, sheen, volume, refraction, and dispersion.
+- Iridescence, volume, refraction, and dispersion.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
