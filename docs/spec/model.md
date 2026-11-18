@@ -16,9 +16,15 @@ and the first node animation are loaded and rendered behind the 2D scene.
   `baseColorFactor`, `TEXCOORD_0`, and `NORMAL` (default +Y).
 - `baseColorTexture` images are decoded to RGBA and uploaded per material;
   primitives without a texture use a white 1x1 fallback.
+- Normal maps perturb the transformed vertex normal (tangentless approximation,
+  `normalTexture.scale` supported).
+- `occlusionTexture`/`metallicRoughnessTexture` supply per-vertex occlusion,
+  roughness (G), and metallic (B), multiplied by the material factors.
+- `emissiveTexture * emissiveFactor` is added after shading.
 - Lighting is computed per vertex before upload: a fixed directional light
-  (0.3, 0.8, 0.5) plus 0.35 ambient, with `metallicFactor` reducing diffuse
-  and `roughnessFactor` controlling a small highlight. The final fragment is
+  `(0.3, 0.8, 0.5)` plus hemisphere environment ambient (sky above, ground
+  below) scaled by occlusion; metallic reduces diffuse and roughness controls
+  a small highlight. The final fragment is
   `texture(baseColor, uv) * shadedColor`.
 - The mesh bounding box is centered horizontally, scaled so its largest axis
   spans 70% of the 240px screen height, and placed standing at 88% screen
@@ -42,8 +48,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Full PBR BRDFs, image-based environment lighting, normal/emissive/ORM maps,
-  and multiple lights.
+- Full PBR BRDFs, image-based environment maps, and multiple lights.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

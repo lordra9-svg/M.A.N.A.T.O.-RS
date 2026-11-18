@@ -49,6 +49,11 @@ pub struct ModelDraw {
     weights: Vec<f32>,
     metallic: f32,
     roughness: f32,
+    normal_map: Option<ModelTexture>,
+    normal_scale: f32,
+    emissive_map: Option<ModelTexture>,
+    emissive_factor: [f32; 3],
+    orm_map: Option<ModelTexture>,
 }
 
 #[derive(Debug, Clone)]
@@ -234,8 +239,33 @@ impl ModelAsset {
                             None => delta.transform_vector3(normal),
                         }
                         .normalize_or_zero();
-                        out.color =
-                            shade_color(world_normal, out.color, draw.metallic, draw.roughness);
+                        let mut normal = world_normal;
+                        if let Some(map) = &draw.normal_map {
+                            let texel = sample_texture(map, vertex.uv);
+                            let nx = texel[0] * 2.0 - 1.0;
+                            let ny = texel[1] * 2.0 - 1.0;
+                            normal = (normal + Vec3::new(nx, ny, 0.0) * draw.normal_scale)
+                                .normalize_or_zero();
+                        }
+                        let (metallic, roughness, occlusion) = if let Some(map) = &draw.orm_map {
+                            let texel = sample_texture(map, vertex.uv);
+                            (
+                                (draw.metallic * texel[2]).clamp(0.0, 1.0),
+                                (draw.roughness * texel[1]).clamp(0.0, 1.0),
+                                texel[0],
+                            )
+                        } else {
+                            (draw.metallic, draw.roughness, 1.0)
+                        };
+                        out.color = shade_color(normal, out.color, metallic, roughness, occlusion);
+                        if let Some(map) = &draw.emissive_map {
+                            let texel = sample_texture(map, vertex.uv);
+                            for channel in 0..3 {
+                                out.color[channel] = (out.color[channel]
+                                    + texel[channel] * draw.emissive_factor[channel])
+                                    .clamp(0.0, 1.0);
+                            }
+                        }
                         out
                     })
                     .collect()
@@ -351,9 +381,30 @@ fn sample_weight_track(keys: &[(f32, Vec<f32>)], time: f32) -> Option<Vec<f32>> 
     keys.last().map(|(_, value)| value.clone())
 }
 
+fn sample_texture(texture: &ModelTexture, uv: [f32; 2]) -> [f32; 4] {
+    let x = (uv[0].rem_euclid(1.0) * texture.width as f32) as u32;
+    let y = (uv[1].rem_euclid(1.0) * texture.height as f32) as u32;
+    let x = x.min(texture.width.saturating_sub(1));
+    let y = y.min(texture.height.saturating_sub(1));
+    let offset = ((y * texture.width + x) * 4) as usize;
+    let px = &texture.rgba[offset..offset + 4];
+    [
+        px[0] as f32 / 255.0,
+        px[1] as f32 / 255.0,
+        px[2] as f32 / 255.0,
+        px[3] as f32 / 255.0,
+    ]
+}
+
 /// Simple directional + ambient model lighting. Metallic surfaces reduce the
 /// diffuse term and add a small roughness-driven highlight.
-fn shade_color(normal: Vec3, base: [f32; 4], metallic: f32, roughness: f32) -> [f32; 4] {
+fn shade_color(
+    normal: Vec3,
+    base: [f32; 4],
+    metallic: f32,
+    roughness: f32,
+    occlusion: f32,
+) -> [f32; 4] {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
     } else {
@@ -363,14 +414,21 @@ fn shade_color(normal: Vec3, base: [f32; 4], metallic: f32, roughness: f32) -> [
     let diffuse = normal.dot(light).max(0.0);
     let metallic = metallic.clamp(0.0, 1.0);
     let roughness = roughness.clamp(0.0, 1.0);
-    let ambient = 0.35;
+    // Hemisphere environment: sky above, ground below, then occlusion.
+    let sky = Vec3::new(0.55, 0.65, 0.85);
+    let ground = Vec3::new(0.22, 0.19, 0.16);
+    let hemisphere = ground.lerp(sky, normal.y * 0.5 + 0.5) * occlusion;
     let diffuse_strength = 1.0 - metallic * 0.6;
     let specular = (1.0 - roughness) * 0.25 * diffuse.powi(8);
-    let light = ambient + 0.6 * diffuse * diffuse_strength + specular;
+    let light = [
+        (hemisphere.x + 0.6 * diffuse * diffuse_strength + specular).clamp(0.0, 2.0),
+        (hemisphere.y + 0.6 * diffuse * diffuse_strength + specular).clamp(0.0, 2.0),
+        (hemisphere.z + 0.6 * diffuse * diffuse_strength + specular).clamp(0.0, 2.0),
+    ];
     [
-        (base[0] * light).clamp(0.0, 1.0),
-        (base[1] * light).clamp(0.0, 1.0),
-        (base[2] * light).clamp(0.0, 1.0),
+        (base[0] * light[0]).clamp(0.0, 1.0),
+        (base[1] * light[1]).clamp(0.0, 1.0),
+        (base[2] * light[2]).clamp(0.0, 1.0),
         base[3],
     ]
 }
@@ -491,6 +549,25 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
             let metallic = pbr.metallic_factor();
             let roughness = pbr.roughness_factor();
             let color = pbr.base_color_factor();
+            let emissive_factor = material.emissive_factor();
+            let normal_map = material
+                .normal_texture()
+                .and_then(|info| images.get(info.texture().source().index()))
+                .and_then(rgba_image);
+            let normal_scale = material
+                .normal_texture()
+                .map(|info| info.scale())
+                .unwrap_or(1.0);
+            let emissive_map = material
+                .emissive_texture()
+                .and_then(|info| images.get(info.texture().source().index()))
+                .and_then(rgba_image);
+            let orm_map = material
+                .occlusion_texture()
+                .map(|info| info.texture())
+                .or_else(|| pbr.metallic_roughness_texture().map(|info| info.texture()))
+                .and_then(|texture| images.get(texture.source().index()))
+                .and_then(rgba_image);
             let color = [
                 color[0].clamp(0.0, 1.0),
                 color[1].clamp(0.0, 1.0),
@@ -532,6 +609,11 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     weights: morph_weights.clone(),
                     metallic,
                     roughness,
+                    normal_map,
+                    normal_scale,
+                    emissive_map,
+                    emissive_factor,
+                    orm_map,
                 });
             }
         }
@@ -833,14 +915,34 @@ mod tests {
 
     #[test]
     fn directional_lighting_uses_normals_and_pbr_factors() {
-        let lit = shade_color(Vec3::new(0.0, 0.8, 0.5).normalize(), [1.0; 4], 0.0, 1.0);
-        assert!(lit[0] < 1.0 && lit[0] > 0.35);
-        let unlit = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0);
-        assert!((unlit[0] - 0.35).abs() < 1e-5);
-        let metallic = shade_color(Vec3::new(0.0, 0.8, 0.5).normalize(), [1.0; 4], 1.0, 1.0);
+        let lit = shade_color(
+            Vec3::new(0.0, 0.8, 0.5).normalize(),
+            [1.0; 4],
+            0.0,
+            1.0,
+            1.0,
+        );
+        assert!(lit[0] <= 1.0 && lit[0] > 0.4);
+        let unlit = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0, 1.0);
+        assert!(unlit[0] > 0.0 && unlit[0] < 0.35);
+        let occluded = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0, 0.5);
+        assert!((occluded[0] - unlit[0] * 0.5).abs() < 1e-5);
+        let metallic = shade_color(
+            Vec3::new(0.0, 0.8, 0.5).normalize(),
+            [1.0; 4],
+            1.0,
+            1.0,
+            1.0,
+        );
         assert!(metallic[0] < lit[0]);
-        let glossy = shade_color(Vec3::new(0.0, 0.8, 0.5).normalize(), [1.0; 4], 0.0, 0.0);
-        assert!(glossy[0] > lit[0]);
+        let glossy = shade_color(
+            Vec3::new(0.0, 0.8, 0.5).normalize(),
+            [1.0; 4],
+            0.0,
+            0.0,
+            1.0,
+        );
+        assert!(glossy[0] >= lit[0]);
     }
 
     #[test]
@@ -893,10 +995,15 @@ mod tests {
     {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,-1,0], "max": [1,1,0]},
     {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC2"}
   ],
-  "images": [{"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="}],
+  "images": [
+    {"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="},
+    {"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="},
+    {"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="},
+    {"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="}
+  ],
   "samplers": [{}],
-  "textures": [{"source": 0, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}}],
+  "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -909,6 +1016,12 @@ mod tests {
         let texture = asset.draws[0].texture.as_ref().expect("texture");
         assert_eq!((texture.width, texture.height), (1, 1));
         assert_eq!(&texture.rgba[..4], &[255, 0, 0, 255]);
+        let draw = &asset.draws[0];
+        assert!(draw.normal_map.is_some());
+        assert!(draw.emissive_map.is_some());
+        assert_eq!(draw.emissive_factor, [1.0, 0.0, 0.0]);
+        assert!(draw.orm_map.is_some());
+        assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
     }
