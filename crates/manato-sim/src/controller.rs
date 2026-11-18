@@ -2123,6 +2123,17 @@ fn transform_clsn(sim: &mut SimState, who: usize, control: &Controller) {
             Vec2::new(x, y)
         })
         .unwrap_or(Vec2::new(1.0, 1.0));
+    let angle = num_param(sim, who, control, "angle").unwrap_or(0.0);
+    let pivot = control
+        .get_pair("pivot")
+        .map(|(x, y)| Vec2::new(x, y))
+        .unwrap_or(Vec2::ZERO);
+    let transform = crate::fighter::ClsnTransform {
+        index,
+        scale,
+        angle,
+        pivot,
+    };
     let transforms = &mut sim.fighters[who].clsn_transforms;
     match group {
         0 => {
@@ -2131,11 +2142,11 @@ fn transform_clsn(sim: &mut SimState, who: usize, control: &Controller) {
         }
         -1 => {
             for group in transforms.iter_mut() {
-                group.push(crate::fighter::ClsnTransform { index, scale });
+                group.push(transform);
             }
         }
         1..=2 => {
-            transforms[(group - 1) as usize].push(crate::fighter::ClsnTransform { index, scale });
+            transforms[(group - 1) as usize].push(transform);
         }
         _ => {}
     }

@@ -1242,7 +1242,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(6u32, self.asset_id(), self))
+        bincode::serialize(&(7u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1261,7 +1261,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 6 {
+        if version != 7 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3953,6 +3953,17 @@ impl SimState {
                     for value in entry.rect {
                         h.write_f32(value);
                     }
+                }
+            }
+            for transforms in &f.clsn_transforms {
+                h.write_u32(transforms.len() as u32);
+                for entry in transforms {
+                    h.write_i32(entry.index);
+                    h.write_f32(entry.scale.x);
+                    h.write_f32(entry.scale.y);
+                    h.write_f32(entry.angle);
+                    h.write_f32(entry.pivot.x);
+                    h.write_f32(entry.pivot.y);
                 }
             }
             h.write_u32(f.input_shift.len() as u32);

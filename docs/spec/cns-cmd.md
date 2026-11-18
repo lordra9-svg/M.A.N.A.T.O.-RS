@@ -162,7 +162,8 @@ Required controller families for the approved matrix:
   `time = start[, end[, loop]]` window, `value`, and `x`/`y`; palette and
   shader parameters are not modeled)
 - `TransformSprite` (xshear/focallength/projection subset)
-- `TransformClsn` (per-tick Clsn1/Clsn2 scale subset; angle/pivot unmodeled)
+- `TransformClsn` (per-tick Clsn1/Clsn2 scale, angle, and pivot; rotations
+  produce axis-aligned bounds, scale-only keeps the source box corner order)
 - `OverrideClsn` (per-tick box replacement: `group` 0 clears all, -1 targets
   every group, 1–4 selects Clsn1/Clsn2/size/dummy; an all-zero `rect` deletes
   boxes, `index < 0` replaces every box, and an index past the end appends a

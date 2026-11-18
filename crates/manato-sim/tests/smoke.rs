@@ -4425,6 +4425,41 @@ fn clsnvar_reads_local_collision_edges() {
     assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -28.0);
     assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 28.0);
     assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), -35.0);
+
+    // Rotation is applied after scaling and yields axis-aligned bounds.
+    let clear = manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params: vec![("group".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &clear, &assets);
+    let rotate = manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params: vec![("group".into(), "2".into()), ("angle".into(), "90".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &rotate, &assets);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), 0.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, top)"), -14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 70.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), 14.0);
+
+    // `pivot` rotates around a local anchor instead of the origin.
+    manato_sim::controller::execute(&mut sim, 0, &clear, &assets);
+    let pivot = manato_formats::Controller {
+        kind: "transformclsn".into(),
+        params: vec![
+            ("group".into(), "2".into()),
+            ("angle".into(), "180".into()),
+            ("pivot".into(), "0, -70".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &pivot, &assets);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, back)"), -14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, top)"), -140.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, front)"), 14.0);
+    assert_eq!(num(&sim, "ClsnVar(clsn2, 0, bottom)"), -70.0);
 }
 
 #[test]

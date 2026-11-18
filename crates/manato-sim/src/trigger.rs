@@ -671,18 +671,12 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let Some(bx) = boxes.get(index) else {
                 return Value::Int(0);
             };
-            // `TransformClsn` scaling applies to the local box as well.
-            let mut scale = Vec2::new(1.0, 1.0);
-            for transform in &fighter.clsn_transforms[group_index] {
-                if transform.index < 0 || transform.index as usize == index {
-                    scale.x *= transform.scale.x;
-                    scale.y *= transform.scale.y;
-                }
-            }
-            let x1 = (bx.x1 as f32 * scale.x).round();
-            let y1 = (bx.y1 as f32 * scale.y).round();
-            let x2 = (bx.x2 as f32 * scale.x).round();
-            let y2 = (bx.y2 as f32 * scale.y).round();
+            // `TransformClsn` scale/angle/pivot applies to the local box too.
+            let rect = fighter.transformed_clsn_rect(bx, group_index, index);
+            let x1 = rect[0].round();
+            let y1 = rect[1].round();
+            let x2 = rect[2].round();
+            let y2 = rect[3].round();
             Value::Float(match field.as_str() {
                 "back" => x1,
                 "top" => y1,

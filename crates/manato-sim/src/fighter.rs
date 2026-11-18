@@ -39,6 +39,10 @@ mod array_f32_40 {
 pub struct ClsnTransform {
     pub index: i32,
     pub scale: Vec2,
+    /// Rotation in degrees around `pivot`, applied after scaling.
+    pub angle: f32,
+    /// Rotation/scaling pivot in animation-local coordinates.
+    pub pivot: Vec2,
 }
 
 /// One `OverrideClsn` entry. A zero rect deletes matching boxes; otherwise
@@ -1243,23 +1247,62 @@ impl Fighter {
         group: usize,
         index: usize,
     ) -> Rect {
-        let mut scale = Vec2::new(1.0, 1.0);
-        for transform in &self.clsn_transforms[group] {
-            if transform.index < 0 || transform.index as usize == index {
-                scale.x *= transform.scale.x;
-                scale.y *= transform.scale.y;
-            }
-        }
-        if scale == Vec2::new(1.0, 1.0) {
-            return self.world_box(bx);
-        }
+        let rect = self.transformed_clsn_rect(bx, group, index);
         let scaled = manato_formats::CollisionBox {
-            x1: (bx.x1 as f32 * scale.x).round() as i32,
-            y1: (bx.y1 as f32 * scale.y).round() as i32,
-            x2: (bx.x2 as f32 * scale.x).round() as i32,
-            y2: (bx.y2 as f32 * scale.y).round() as i32,
+            x1: rect[0].round() as i32,
+            y1: rect[1].round() as i32,
+            x2: rect[2].round() as i32,
+            y2: rect[3].round() as i32,
         };
         self.world_box(&scaled)
+    }
+
+    /// Applies matching `TransformClsn` scale/angle/pivot entries to a local
+    /// collision box and returns its axis-aligned `(x1, y1, x2, y2)` bounds.
+    pub fn transformed_clsn_rect(
+        &self,
+        bx: &manato_formats::CollisionBox,
+        group: usize,
+        index: usize,
+    ) -> [f32; 4] {
+        let mut bounds = [bx.x1 as f32, bx.y1 as f32, bx.x2 as f32, bx.y2 as f32];
+        for transform in &self.clsn_transforms[group] {
+            if transform.index >= 0 && transform.index as usize != index {
+                continue;
+            }
+            let (sin, cos) = transform.angle.to_radians().sin_cos();
+            let pivot = transform.pivot;
+            let map = |x: f32, y: f32| {
+                let dx = (x - pivot.x) * transform.scale.x;
+                let dy = (y - pivot.y) * transform.scale.y;
+                (pivot.x + dx * cos - dy * sin, pivot.y + dx * sin + dy * cos)
+            };
+            if transform.angle == 0.0 {
+                // Scale-only keeps the box corner convention.
+                let (x1, y1) = map(bounds[0], bounds[1]);
+                let (x2, y2) = map(bounds[2], bounds[3]);
+                bounds = [x1, y1, x2, y2];
+                continue;
+            }
+            let mut x1 = f32::INFINITY;
+            let mut y1 = f32::INFINITY;
+            let mut x2 = f32::NEG_INFINITY;
+            let mut y2 = f32::NEG_INFINITY;
+            for (x, y) in [
+                (bounds[0], bounds[1]),
+                (bounds[2], bounds[1]),
+                (bounds[2], bounds[3]),
+                (bounds[0], bounds[3]),
+            ] {
+                let (rx, ry) = map(x, y);
+                x1 = x1.min(rx);
+                y1 = y1.min(ry);
+                x2 = x2.max(rx);
+                y2 = y2.max(ry);
+            }
+            bounds = [x1, y1, x2, y2];
+        }
+        bounds
     }
 
     pub fn hit_pause(&self) -> i32 {
