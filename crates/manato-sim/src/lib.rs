@@ -3429,15 +3429,40 @@ impl SimState {
             let target_z = if z_ref.is_empty() {
                 0.0
             } else {
-                let min = z_ref
+                let z_front = z_ref
                     .iter()
                     .map(|fighter| fighter.z)
                     .fold(f32::INFINITY, f32::min);
-                let max = z_ref
+                let z_back = z_ref
                     .iter()
                     .map(|fighter| fighter.z)
                     .fold(f32::NEG_INFINITY, f32::max);
-                (min + max) * 0.5
+                // Ikemen's Z camera: exclude a `ztension` margin at each end
+                // of the stage depth range, then clamp the offset between the
+                // near/far bounds. When the tracked range is wider than the
+                // available range, centre between them.
+                let stage = &self.assets.stage;
+                let z_top = stage.z_min + cam.z_tension;
+                let z_bottom = stage.z_max - cam.z_tension;
+                let bot_bound = z_back - z_bottom;
+                let top_bound = z_front - z_top;
+                let base = if cam.z_auto_center {
+                    (z_front + z_back) * 0.5
+                } else {
+                    0.0
+                };
+                let offset = if bot_bound <= top_bound {
+                    clamp(base, bot_bound, top_bound)
+                } else {
+                    (bot_bound + top_bound) * 0.5
+                };
+                if cam.z_bound_top == 0.0 && cam.z_bound_bot == 0.0 {
+                    // Unset stage bounds keep the tracked offset (engine
+                    // decision; Ikemen clamps to 0 by default).
+                    offset
+                } else {
+                    offset.max(cam.z_bound_top).min(cam.z_bound_bot)
+                }
             };
             self.camera.z += (target_z - self.camera.z) * 0.35;
         }

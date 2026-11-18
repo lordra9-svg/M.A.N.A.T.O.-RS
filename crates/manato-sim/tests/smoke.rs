@@ -12699,6 +12699,72 @@ fn depthbound_movecamera_tracks_z() {
 }
 
 #[test]
+fn depth_camera_ztension_autocenter_and_bounds() {
+    // `ztension` excludes a margin at each end of the stage depth range, so
+    // the tracked fighters clamp to the near edge.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = 0.0;
+        assets.stage.z_max = 100.0;
+    }
+    sim.stage_camera.z_tension = 20.0;
+    sim.stage_camera.z_auto_center = false;
+    sim.stage_camera.z_bound_top = f32::NEG_INFINITY;
+    sim.stage_camera.z_bound_bot = f32::INFINITY;
+    sim.fighters[0].z = 90.0;
+    sim.fighters[1].z = 95.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.z - 15.0).abs() < 2.0,
+        "ztension clamps the tracked offset, got {}",
+        sim.camera.z
+    );
+
+    // `zautocenter` centres on the tracked range when it fits the stage.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        assets.stage.z_min = 0.0;
+        assets.stage.z_max = 100.0;
+    }
+    sim.stage_camera.z_auto_center = true;
+    sim.fighters[0].z = 60.0;
+    sim.fighters[1].z = 80.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.z - 60.0).abs() < 2.0,
+        "zautocenter clamps the centred range at the near bound, got {}",
+        sim.camera.z
+    );
+
+    // `zboundtop`/`zboundbot` clamp the resulting offset.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.stage_camera.z_bound_top = 12.0;
+    sim.stage_camera.z_bound_bot = 15.0;
+    sim.fighters[0].z = 10.0;
+    sim.fighters[1].z = 30.0;
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        (sim.camera.z - 15.0).abs() < 2.0,
+        "zboundbot should clamp the midpoint offset, got {}",
+        sim.camera.z
+    );
+}
+
+#[test]
 fn width_screenbound_and_playerpush_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -57,6 +57,10 @@ overdrawhigh = 0
 overdrawlow = 0
 cuthigh = 0
 cutlow = 0
+ztension = 0
+zautocenter = 0
+zboundtop = 0
+zboundbot = 0
 ```
 
 - `startx/starty`: initial camera position.
@@ -65,6 +69,13 @@ cutlow = 0
 - `verticalfollow`: 0..1 vertical follow strength.
 - `floortension`: vertical follow dead zone.
 - `tension`: horizontal camera dead zone.
+- `ztension`: depth margin excluded at each end of `[PlayerInfo]
+  topbound`/`botbound` when tracking the Z camera.
+- `zautocenter`: centre the Z camera on the tracked depth range instead of the
+  stage origin.
+- `zboundtop/zboundbot`: clamp the resulting Z offset. Both zero means
+  unbounded (engine decision; Ikemen clamps to zero by default so stages must
+  opt in).
 - Overdraw/cut values are parsed and preserved; clipping support is deferred.
 
 ## 5. PlayerInfo and Bound

@@ -36,6 +36,14 @@ pub struct CameraDef {
     pub zoom_in_speed: f32,
     pub zoom_out_speed: f32,
     pub zoom_anchor: bool,
+    /// `[Camera] ztension`: depth margin excluded from Z tracking.
+    pub z_tension: f32,
+    /// `[Camera] zautocenter`: centre on the tracked Z range instead of the
+    /// stage origin.
+    pub z_auto_center: bool,
+    /// `[Camera] zboundtop` / `zboundbot`: Z camera offset limits.
+    pub z_bound_top: f32,
+    pub z_bound_bot: f32,
 }
 
 impl Default for CameraDef {
@@ -60,6 +68,10 @@ impl Default for CameraDef {
             zoom_in_speed: 1.0,
             zoom_out_speed: 1.0,
             zoom_anchor: false,
+            z_tension: 0.0,
+            z_auto_center: false,
+            z_bound_top: 0.0,
+            z_bound_bot: 0.0,
         }
     }
 }
@@ -551,6 +563,10 @@ impl Stage {
             zoom_in_speed: num(camera_map, "zoominspeed", 1.0).clamp(0.0, 1.0),
             zoom_out_speed: num(camera_map, "zoomoutspeed", 1.0).clamp(0.0, 1.0),
             zoom_anchor: num(camera_map, "zoomanchor", 0.0) != 0.0,
+            z_tension: num(camera_map, "ztension", 0.0).max(0.0),
+            z_auto_center: num(camera_map, "zautocenter", 0.0) != 0.0,
+            z_bound_top: num(camera_map, "zboundtop", 0.0),
+            z_bound_bot: num(camera_map, "zboundbot", 0.0),
         };
 
         let stage_info = def
@@ -1001,7 +1017,9 @@ mod tests {
         let def = dir.join("stage.def");
         std::fs::write(
             &def,
-            "[Info]\nname = Depth\n[Camera]\n[PlayerInfo]\n[BGdef]\n\
+            "[Info]\nname = Depth\n[Camera]\nztension = 20\nzautocenter = 1\n\
+             zboundtop = -50\nzboundbot = 75\n\
+             [PlayerInfo]\ntopbound = -10\nbotbound = 90\n[BGdef]\n\
              [StageInfo]\nzoffset = 100\n\
              [Scaling]\ntopz = -100\nbotz = 100\ntopscale = 0.5\n\
              botscale = 1.5\ndepthtoscreen = 0.25\n",
@@ -1019,6 +1037,12 @@ mod tests {
         assert!((stage.z_scale(50.0) - 1.25).abs() < 1e-5);
         assert!((stage.z_scale(100.0) - 1.5).abs() < 1e-5);
         assert!((stage.z_y_offset(40.0) - 10.0).abs() < 1e-5);
+        assert_eq!(stage.camera.z_tension, 20.0);
+        assert!(stage.camera.z_auto_center);
+        assert_eq!(stage.camera.z_bound_top, -50.0);
+        assert_eq!(stage.camera.z_bound_bot, 75.0);
+        assert_eq!(stage.z_min, -10.0);
+        assert_eq!(stage.z_max, 90.0);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

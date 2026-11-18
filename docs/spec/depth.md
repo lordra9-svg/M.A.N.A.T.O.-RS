@@ -26,8 +26,11 @@ clamp is disabled. `DepthBound movecamera` gates whether the fighter
 contributes to the fighting camera's tracked Z midpoint; the camera smooths
 toward that midpoint and subtracts it from every z-projected sprite's
 `depthtoscreen` offset, so the tracked depth range stays centred. Stage
-`ztension`/`zautocenter` bounds are not modeled. `ScreenBound movecamera`
-gates X/Y tracking.
+`[Camera] ztension` excludes a margin at each end of the stage depth range,
+`zautocenter` uses the tracked range midpoint as the base offset, and
+`zboundtop`/`zboundbot` clamp the result (both zero means unbounded). When the
+tracked range exceeds the available range the offset is centred between the
+two bounds. `ScreenBound movecamera` gates X/Y tracking.
 
 ## 2.0 GetHitVar depth values
 
