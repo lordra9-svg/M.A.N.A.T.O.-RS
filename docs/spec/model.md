@@ -32,6 +32,13 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - `KHR_materials_sheen` adds a cloth-like sheen lobe from
   `sheenColorFactor`/`sheenRoughnessFactor` (GGX distribution gated by a
   Schlick-style grazing term) plus a small ambient grazing tint.
+- `KHR_materials_iridescence` tints the base specular as a thin-film
+  approximation: a per-channel phase shift over R/G/B wavelengths from
+  `iridescenceIor` and the mean of
+  `iridescenceThicknessMinimum`/`iridescenceThicknessMaximum`, scaled by
+  `iridescenceFactor`. `iridescenceRoughness` blurs the tint toward white.
+  This is a spectral approximation, not a full Airy/Fresnel thin-film
+  integration, and no iridescence texture is sampled.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
@@ -81,7 +88,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Iridescence, volume, refraction, and dispersion.
+- Volume, refraction, and dispersion.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

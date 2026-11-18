@@ -227,6 +227,10 @@ pub struct ModelDraw {
     anisotropy_rotation: f32,
     sheen_color: [f32; 3],
     sheen_roughness: f32,
+    iridescence: f32,
+    iridescence_roughness: f32,
+    iridescence_ior: f32,
+    iridescence_thickness: [f32; 2],
     normal_map: Option<ModelTexture>,
     normal_scale: f32,
     emissive_map: Option<ModelTexture>,
@@ -495,21 +499,28 @@ impl ModelAsset {
                                 specular: environment.sample(reflect, roughness),
                             }
                         });
-                        let shaded = shade_color_parts(
-                            normal,
-                            out.color,
+                        let sample = MaterialSample {
                             metallic,
                             roughness,
                             occlusion,
+                            clearcoat: draw.clearcoat,
+                            clearcoat_roughness: draw.clearcoat_roughness,
+                            transmission: draw.transmission,
+                            anisotropy: draw.anisotropy,
+                            anisotropy_rotation: draw.anisotropy_rotation,
+                            sheen_color: draw.sheen_color,
+                            sheen_roughness: draw.sheen_roughness,
+                            iridescence: draw.iridescence,
+                            iridescence_roughness: draw.iridescence_roughness,
+                            iridescence_ior: draw.iridescence_ior,
+                            iridescence_thickness: draw.iridescence_thickness,
+                        };
+                        let shaded = shade_color_parts(
+                            normal,
+                            out.color,
                             environment,
                             &self.lights,
-                            draw.clearcoat,
-                            draw.clearcoat_roughness,
-                            draw.transmission,
-                            draw.anisotropy,
-                            draw.anisotropy_rotation,
-                            draw.sheen_color,
-                            draw.sheen_roughness,
+                            &sample,
                         );
                         out.color = [shaded.color.x, shaded.color.y, shaded.color.z, out.color[3]];
                         out.brdf_uv = shaded.brdf_uv;
@@ -717,6 +728,46 @@ struct Shaded {
     brdf_uv: [f32; 2],
 }
 
+/// Surface material parameters sampled from a glTF material and its maps.
+#[derive(Debug, Clone, Copy)]
+struct MaterialSample {
+    metallic: f32,
+    roughness: f32,
+    occlusion: f32,
+    clearcoat: f32,
+    clearcoat_roughness: f32,
+    transmission: f32,
+    anisotropy: f32,
+    anisotropy_rotation: f32,
+    sheen_color: [f32; 3],
+    sheen_roughness: f32,
+    iridescence: f32,
+    iridescence_roughness: f32,
+    iridescence_ior: f32,
+    iridescence_thickness: [f32; 2],
+}
+
+impl Default for MaterialSample {
+    fn default() -> Self {
+        Self {
+            metallic: 0.0,
+            roughness: 0.5,
+            occlusion: 1.0,
+            clearcoat: 0.0,
+            clearcoat_roughness: 0.0,
+            transmission: 0.0,
+            anisotropy: 0.0,
+            anisotropy_rotation: 0.0,
+            sheen_color: [0.0; 3],
+            sheen_roughness: 0.0,
+            iridescence: 0.0,
+            iridescence_roughness: 0.0,
+            iridescence_ior: 1.3,
+            iridescence_thickness: [100.0, 400.0],
+        }
+    }
+}
+
 #[cfg(test)]
 fn shade_color_with(
     normal: Vec3,
@@ -727,22 +778,13 @@ fn shade_color_with(
     environment: Option<IblAmbient>,
     lights: &[Light],
 ) -> [f32; 4] {
-    let shaded = shade_color_parts(
-        normal,
-        base,
+    let sample = MaterialSample {
         metallic,
         roughness,
         occlusion,
-        environment,
-        lights,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        [0.0; 3],
-        0.0,
-    );
+        ..Default::default()
+    };
+    let shaded = shade_color_parts(normal, base, environment, lights, &sample);
     let mut color = shaded.color;
     if let Some(_ibl) = environment {
         let (scale, bias) = brdf_lut(shaded.brdf_uv[0], shaded.brdf_uv[1]);
@@ -756,21 +798,28 @@ fn shade_color_with(
     ]
 }
 
+/// Approximates thin-film interference as a per-channel phase shift over the
+/// visible spectrum, returning a multiplicative tint in `[0, 1]`.
+fn iridescence_tint(n_dot_v: f32, ior: f32, thickness: [f32; 2]) -> Vec3 {
+    let thickness = (thickness[0] + thickness[1]).max(0.0) * 0.5;
+    if thickness <= 0.0 {
+        return Vec3::ONE;
+    }
+    let cos_theta = n_dot_v.clamp(0.0, 1.0);
+    let mut channels = [1.0f32; 3];
+    for (channel, wavelength) in channels.iter_mut().zip([680.0f32, 550.0, 440.0]) {
+        let phase = 4.0 * std::f32::consts::PI * ior.max(1.0) * thickness * cos_theta / wavelength;
+        *channel = (0.5 + 0.5 * phase.cos()).clamp(0.0, 1.0);
+    }
+    Vec3::from_array(channels)
+}
+
 fn shade_color_parts(
     normal: Vec3,
     base: [f32; 4],
-    metallic: f32,
-    roughness: f32,
-    occlusion: f32,
     environment: Option<IblAmbient>,
     lights: &[Light],
-    clearcoat: f32,
-    clearcoat_roughness: f32,
-    transmission: f32,
-    anisotropy: f32,
-    anisotropy_rotation: f32,
-    sheen_color: [f32; 3],
-    sheen_roughness: f32,
+    sample: &MaterialSample,
 ) -> Shaded {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
@@ -779,16 +828,17 @@ fn shade_color_parts(
     };
     let view = Vec3::Z;
     let n_dot_v = normal.dot(view).max(0.001);
-    let metallic = metallic.clamp(0.0, 1.0);
-    let roughness = roughness.clamp(0.04, 1.0);
+    let occlusion = sample.occlusion.clamp(0.0, 1.0);
+    let metallic = sample.metallic.clamp(0.0, 1.0);
+    let roughness = sample.roughness.clamp(0.04, 1.0);
     let alpha = roughness * roughness;
     let base_rgb = Vec3::new(base[0], base[1], base[2]);
     let f0 = Vec3::splat(0.04).lerp(base_rgb, metallic);
-    let clearcoat = clearcoat.clamp(0.0, 1.0);
-    let clearcoat_roughness = clearcoat_roughness.clamp(0.04, 1.0);
-    let transmission = transmission.clamp(0.0, 1.0);
+    let clearcoat = sample.clearcoat.clamp(0.0, 1.0);
+    let clearcoat_roughness = sample.clearcoat_roughness.clamp(0.04, 1.0);
+    let transmission = sample.transmission.clamp(0.0, 1.0);
     let clearcoat_f0 = Vec3::splat(0.04);
-    let anisotropy = anisotropy.clamp(0.0, 1.0);
+    let anisotropy = sample.anisotropy.clamp(0.0, 1.0);
     let up = if normal.y.abs() < 0.999 {
         Vec3::Y
     } else {
@@ -796,13 +846,25 @@ fn shade_color_parts(
     };
     let tangent = up.cross(normal).normalize_or_zero();
     let bitangent = normal.cross(tangent);
-    let rotation = anisotropy_rotation;
+    let rotation = sample.anisotropy_rotation;
     let aniso_tangent = tangent * rotation.cos() + bitangent * rotation.sin();
     let aniso_bitangent = -tangent * rotation.sin() + bitangent * rotation.cos();
     let aniso_alpha_t = (roughness * (1.0 + anisotropy * 0.9)).clamp(0.04, 1.0);
     let aniso_alpha_b = (roughness * (1.0 - anisotropy * 0.7)).clamp(0.04, 1.0);
-    let sheen_color = Vec3::from_array(sheen_color).clamp(Vec3::ZERO, Vec3::ONE);
-    let sheen_roughness = sheen_roughness.clamp(0.04, 1.0);
+    let sheen_color = Vec3::from_array(sample.sheen_color).clamp(Vec3::ZERO, Vec3::ONE);
+    let sheen_roughness = sample.sheen_roughness.clamp(0.04, 1.0);
+    let iridescence = sample.iridescence.clamp(0.0, 1.0);
+    let iridescence_tint = if iridescence > 0.0 {
+        let tint = iridescence_tint(
+            n_dot_v,
+            sample.iridescence_ior,
+            sample.iridescence_thickness,
+        );
+        Vec3::ONE.lerp(tint, 1.0 - sample.iridescence_roughness.clamp(0.0, 1.0))
+    } else {
+        Vec3::ONE
+    };
+    let specular_tint = Vec3::ONE.lerp(iridescence_tint, iridescence);
 
     let mut direct = Vec3::ZERO;
     for light in lights {
@@ -833,7 +895,8 @@ fn shade_color_parts(
         let geometry =
             (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
         let fresnel = f0 + (Vec3::ONE - f0) * (1.0 - v_dot_h).powi(5);
-        let specular = distribution * geometry * fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
+        let specular =
+            distribution * geometry * fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6) * specular_tint;
         let diffuse_weight = (Vec3::ONE - fresnel)
             * (1.0 - metallic)
             * (1.0 - clearcoat * 0.5)
@@ -879,8 +942,8 @@ fn shade_color_parts(
         sheen_color * (1.0 - n_dot_v).clamp(0.0, 1.0).powi(5) * (1.0 - sheen_roughness) * occlusion;
     match environment {
         Some(ibl) => Shaded {
-            color: direct + ambient_diffuse + transmission_tint + clearcoat_ambient,
-            specular: Vec3::from_array(ibl.specular) * occlusion,
+            color: direct + ambient_diffuse + transmission_tint + clearcoat_ambient + sheen_ambient,
+            specular: Vec3::from_array(ibl.specular) * occlusion * specular_tint,
             f0,
             brdf_uv: [n_dot_v, roughness],
         },
@@ -1057,6 +1120,31 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .and_then(|value| value.get("sheenRoughnessFactor"))
                 .and_then(|value| value.as_f64())
                 .unwrap_or(0.0) as f32;
+            let iridescence = material
+                .extension_value("KHR_materials_iridescence")
+                .and_then(|value| value.get("iridescenceFactor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
+            let iridescence_roughness = material
+                .extension_value("KHR_materials_iridescence")
+                .and_then(|value| value.get("iridescenceRoughness"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
+            let iridescence_ior = material
+                .extension_value("KHR_materials_iridescence")
+                .and_then(|value| value.get("iridescenceIor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(1.3) as f32;
+            let thickness_min = material
+                .extension_value("KHR_materials_iridescence")
+                .and_then(|value| value.get("iridescenceThicknessMinimum"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(100.0) as f32;
+            let thickness_max = material
+                .extension_value("KHR_materials_iridescence")
+                .and_then(|value| value.get("iridescenceThicknessMaximum"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(400.0) as f32;
             let emissive_factor = material.emissive_factor();
             let normal_map = material
                 .normal_texture()
@@ -1127,6 +1215,10 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     anisotropy_rotation,
                     sheen_color,
                     sheen_roughness,
+                    iridescence,
+                    iridescence_roughness,
+                    iridescence_ior,
+                    iridescence_thickness: [thickness_min, thickness_max],
                     normal_map,
                     normal_scale,
                     emissive_map,
@@ -1555,135 +1647,96 @@ mod tests {
             .any(|texel| texel[0] > 0 || texel[1] > 0));
     }
 
+    fn shade_with(sample: MaterialSample) -> Shaded {
+        shade_color_parts(Vec3::Y, [1.0; 4], None, &default_lights(), &sample)
+    }
+
+    fn shade_tilted(sample: MaterialSample) -> Shaded {
+        let normal = Vec3::new(0.0, 0.6, 1.0).normalize();
+        shade_color_parts(normal, [1.0; 4], None, &default_lights(), &sample)
+    }
+
     #[test]
     fn clearcoat_and_transmission_modify_shading() {
-        let normal = Vec3::Y;
-        let base = shade_color_parts(
-            normal,
-            [1.0; 4],
-            0.0,
-            0.5,
-            1.0,
-            None,
-            &default_lights(),
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            [0.0; 3],
-            0.0,
-        );
-        let coated = shade_color_parts(
-            normal,
-            [1.0; 4],
-            0.0,
-            0.5,
-            1.0,
-            None,
-            &default_lights(),
-            1.0,
-            0.2,
-            0.0,
-            0.0,
-            0.0,
-            [0.0; 3],
-            0.0,
-        );
-        let transmitted = shade_color_parts(
-            normal,
-            [1.0; 4],
-            0.0,
-            0.5,
-            1.0,
-            None,
-            &default_lights(),
-            0.0,
-            0.0,
-            0.8,
-            0.0,
-            0.0,
-            [0.0; 3],
-            0.0,
-        );
+        let base = shade_with(MaterialSample::default());
+        let coated = shade_with(MaterialSample {
+            clearcoat: 1.0,
+            clearcoat_roughness: 0.2,
+            ..Default::default()
+        });
+        let transmitted = shade_with(MaterialSample {
+            transmission: 0.8,
+            ..Default::default()
+        });
         assert_ne!(base.color, coated.color);
         assert!(coated.color.length() > 0.0);
-        assert!(transmitted.color != base.color);
+        assert_ne!(transmitted.color, base.color);
     }
 
     #[test]
     fn anisotropy_modifies_specular_highlight() {
-        let isotropic = shade_color_parts(
-            Vec3::Y,
-            [1.0; 4],
-            0.0,
-            0.35,
-            1.0,
-            None,
-            &default_lights(),
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            [0.0; 3],
-            0.0,
-        );
-        let anisotropic = shade_color_parts(
-            Vec3::Y,
-            [1.0; 4],
-            0.0,
-            0.35,
-            1.0,
-            None,
-            &default_lights(),
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            [0.0; 3],
-            0.0,
-        );
+        let base = MaterialSample {
+            roughness: 0.35,
+            ..Default::default()
+        };
+        let isotropic = shade_with(base);
+        let anisotropic = shade_with(MaterialSample {
+            anisotropy: 1.0,
+            ..base
+        });
         assert_ne!(isotropic.color, anisotropic.color);
-        assert!(anisotropic.specular == Vec3::ZERO);
+        assert_eq!(anisotropic.specular, Vec3::ZERO);
     }
 
     #[test]
     fn sheen_adds_a_cloth_lobe() {
-        let plain = shade_color_parts(
-            Vec3::Y,
-            [1.0; 4],
-            0.0,
-            0.4,
-            1.0,
-            None,
-            &default_lights(),
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            [0.0; 3],
-            0.0,
-        );
-        let sheen = shade_color_parts(
-            Vec3::Y,
-            [1.0; 4],
-            0.0,
-            0.4,
-            1.0,
-            None,
-            &default_lights(),
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            [1.0, 0.4, 0.6],
-            0.2,
-        );
+        let plain = shade_with(MaterialSample {
+            roughness: 0.4,
+            ..Default::default()
+        });
+        let sheen = shade_with(MaterialSample {
+            roughness: 0.4,
+            sheen_color: [1.0, 0.4, 0.6],
+            sheen_roughness: 0.2,
+            ..Default::default()
+        });
         assert_ne!(plain.color, sheen.color);
+    }
+
+    #[test]
+    fn iridescence_tints_specular() {
+        let plain = shade_tilted(MaterialSample {
+            roughness: 0.2,
+            ..Default::default()
+        });
+        let iridescent = shade_tilted(MaterialSample {
+            roughness: 0.2,
+            iridescence: 1.0,
+            iridescence_roughness: 0.0,
+            iridescence_ior: 1.8,
+            iridescence_thickness: [300.0, 700.0],
+            ..Default::default()
+        });
+        assert_ne!(plain.color, iridescent.color);
+        // Zero strength must be a no-op.
+        let off = shade_tilted(MaterialSample {
+            roughness: 0.2,
+            iridescence: 0.0,
+            iridescence_thickness: [300.0, 700.0],
+            ..Default::default()
+        });
+        assert_eq!(plain.color, off.color);
+    }
+
+    #[test]
+    fn iridescence_tint_varies_with_view_angle() {
+        let thickness = [200.0, 600.0];
+        let grazing = iridescence_tint(0.05, 1.5, thickness);
+        let facing = iridescence_tint(0.95, 1.5, thickness);
+        assert_ne!(grazing, facing);
+        for channel in grazing.to_array() {
+            assert!((0.0..=1.0).contains(&channel));
+        }
     }
 
     #[test]
@@ -1845,7 +1898,7 @@ mod tests {
   ],
   "samplers": [{}],
   "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}}}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}, "KHR_materials_iridescence": {"iridescenceFactor": 0.9, "iridescenceRoughness": 0.15, "iridescenceIor": 1.7, "iridescenceThicknessMinimum": 200, "iridescenceThicknessMaximum": 600}}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -1870,6 +1923,10 @@ mod tests {
         assert_eq!(draw.anisotropy_rotation, 0.5);
         assert_eq!(draw.sheen_color, [1.0, 0.4, 0.6]);
         assert_eq!(draw.sheen_roughness, 0.2);
+        assert_eq!(draw.iridescence, 0.9);
+        assert_eq!(draw.iridescence_roughness, 0.15);
+        assert_eq!(draw.iridescence_ior, 1.7);
+        assert_eq!(draw.iridescence_thickness, [200.0, 600.0]);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
