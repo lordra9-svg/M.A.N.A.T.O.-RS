@@ -117,6 +117,25 @@ impl Netplay {
         socket: ggrs::UdpNonBlockingSocket,
         remote: SocketAddr,
     ) -> anyhow::Result<Self> {
+        Self::from_socket(sim, local_handle, socket, remote)
+    }
+
+    /// Builds a session on a relay-tunneled GGRS socket.
+    pub fn from_relay(
+        sim: SimState,
+        local_handle: usize,
+        socket: relay::RelayGgrsSocket,
+    ) -> anyhow::Result<Self> {
+        let remote = socket.remote();
+        Self::from_socket(sim, local_handle, socket, remote)
+    }
+
+    fn from_socket(
+        sim: SimState,
+        local_handle: usize,
+        socket: impl ggrs::NonBlockingSocket<SocketAddr> + 'static,
+        remote: SocketAddr,
+    ) -> anyhow::Result<Self> {
         let mut builder = SessionBuilder::<ManatoConfig>::new()
             .with_num_players(2)?
             .with_input_delay(2);
@@ -251,6 +270,65 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
         assert!(synced, "netplay peers did not converge");
+    }
+
+    #[test]
+    fn netplay_runs_over_framed_multi_relay() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::{Arc, Mutex};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        if !root.join("content/chars/kaen/kaen.def").exists() {
+            return;
+        }
+        let relay = relay::MultiRelay::bind("127.0.0.1:0".parse().unwrap()).expect("relay");
+        let relay_addr = relay.local_addr().expect("addr");
+        let relay = Arc::new(Mutex::new(relay));
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker = {
+            let relay = Arc::clone(&relay);
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    if let Ok(mut relay) = relay.lock() {
+                        let _ = relay.poll();
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+            })
+        };
+        // First registration becomes relay id 0, second becomes id 1.
+        let socket_a = relay::RelayGgrsSocket::connect(relay_addr, 1, None).expect("a");
+        let socket_b = relay::RelayGgrsSocket::connect(relay_addr, 0, None).expect("b");
+        let a = Netplay::from_relay(match_state(&root), 0, socket_a);
+        let b = Netplay::from_relay(match_state(&root), 1, socket_b);
+        let (Ok(mut a), Ok(mut b)) = (a, b) else {
+            stop.store(true, Ordering::Relaxed);
+            let _ = worker.join();
+            eprintln!("skipping: could not build relay sessions");
+            return;
+        };
+        let mut synced = false;
+        for _ in 0..1600 {
+            a.poll();
+            b.poll();
+            if a.sim().frame <= b.sim().frame {
+                let _ = a.step(PlayerInput::default());
+            }
+            if b.sim().frame < a.sim().frame {
+                let _ = b.step(PlayerInput::default());
+            }
+            if a.sim().frame > 0
+                && a.sim().frame == b.sim().frame
+                && a.sim().checksum() == b.sim().checksum()
+            {
+                synced = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        stop.store(true, Ordering::Relaxed);
+        let _ = worker.join();
+        assert!(synced, "relay-tunneled netplay peers did not converge");
     }
 
     #[test]

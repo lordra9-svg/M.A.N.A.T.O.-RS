@@ -168,8 +168,14 @@ drop-in replacement for GGRS's raw UDP socket.
 `username || 0 || nonce`. The relay validates the MAC, caps usernames at 32
 characters, and rejects replayed nonces per username (up to 4096 remembered).
 `RelayClient::connect_auth` performs the handshake. This is TURN-style
-shared-secret auth, not the full TURN long-term credential/STUN flow. GGRS
-integration for framed multi-peer relays is not modeled.
+shared-secret auth, not the full TURN long-term credential/STUN flow.
+
+`RelayGgrsSocket` implements GGRS's `NonBlockingSocket<SocketAddr>` over the
+framed relay: it registers (optionally authenticated), sends serialized GGRS
+messages to the configured destination id, and accepts messages from the
+expected source id using a synthetic remote address. `Netplay::from_relay`
+builds a session on it. A loopback test runs two GGRS sessions through
+`MultiRelay` to matching frames/checksums.
 
 ### Window netplay
 

@@ -275,6 +275,101 @@ impl RelayClient {
     }
 }
 
+/// GGRS socket that tunnels through [`MultiRelay`] framing.
+pub struct RelayGgrsSocket {
+    socket: UdpSocket,
+    relay: SocketAddr,
+    peer_id: u16,
+    remote: SocketAddr,
+}
+
+impl RelayGgrsSocket {
+    /// Registers at the relay, waits for the assigned id, and targets
+    /// `peer_id`. `remote` is the synthetic address reported to GGRS.
+    pub fn connect(
+        relay: SocketAddr,
+        peer_id: u16,
+        username: Option<(&str, &str, u64)>,
+    ) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_nonblocking(true)?;
+        if let Some((username, secret, nonce)) = username {
+            let request = crate::relay_auth::AuthRequest::new(secret, username, nonce);
+            socket.send_to(&request.encode(), relay)?;
+        } else {
+            socket.send_to(RELAY_JOIN, relay)?;
+        }
+        let mut buffer = [0u8; 256];
+        let started = std::time::Instant::now();
+        while started.elapsed() < std::time::Duration::from_secs(2) {
+            if let Ok((len, _)) = socket.recv_from(&mut buffer) {
+                if buffer[..len].starts_with(RELAY_WELCOME) {
+                    return Ok(Self {
+                        socket,
+                        relay,
+                        peer_id,
+                        remote: SocketAddr::from(([127, 0, 0, 1], 1)),
+                    });
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "relay registration timed out",
+        ))
+    }
+
+    pub fn remote(&self) -> SocketAddr {
+        self.remote
+    }
+
+    fn send_raw(&self, payload: &[u8]) {
+        let mut frame = Vec::with_capacity(payload.len() + 2);
+        frame.extend_from_slice(&self.peer_id.to_be_bytes());
+        frame.extend_from_slice(payload);
+        let _ = self.socket.send_to(&frame, self.relay_addr());
+    }
+
+    fn relay_addr(&self) -> SocketAddr {
+        // The socket is connected to the relay during construction; recover the
+        // address from the last send target by remembering it separately.
+        self.relay
+    }
+}
+
+impl ggrs::NonBlockingSocket<SocketAddr> for RelayGgrsSocket {
+    fn send_to(&mut self, msg: &ggrs::Message, _addr: &SocketAddr) {
+        if let Ok(payload) = bincode::serialize(msg) {
+            self.send_raw(&payload);
+        }
+    }
+
+    fn receive_all_messages(&mut self) -> Vec<(SocketAddr, ggrs::Message)> {
+        let mut out = Vec::new();
+        let mut buffer = vec![0u8; 65536];
+        loop {
+            match self.socket.recv_from(&mut buffer) {
+                Ok((len, _)) => {
+                    if len < 2 || buffer[..len].starts_with(RELAY_WELCOME) {
+                        continue;
+                    }
+                    let source = u16::from_be_bytes([buffer[0], buffer[1]]);
+                    if source != self.peer_id {
+                        continue;
+                    }
+                    if let Ok(message) = bincode::deserialize::<ggrs::Message>(&buffer[2..len]) {
+                        out.push((self.remote, message));
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(_) => break,
+            }
+        }
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
