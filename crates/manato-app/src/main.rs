@@ -52,6 +52,8 @@ struct Options {
     relay_fallback: Option<String>,
     relay_multi: Option<String>,
     relay_multi_auth: Option<String>,
+    relay_multi_realm: Option<String>,
+    relay_users: Vec<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -90,6 +92,8 @@ impl Default for Options {
             relay_fallback: None,
             relay_multi: None,
             relay_multi_auth: None,
+            relay_multi_realm: None,
+            relay_users: Vec::new(),
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -452,6 +456,14 @@ impl Options {
                     opts.relay_multi_auth = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--relay-multi-realm" => {
+                    opts.relay_multi_realm = Some(value(i)?.to_owned());
+                    i += 2;
+                }
+                "--relay-user" => {
+                    opts.relay_users.push(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay-player" => {
                     opts.netplay_player = value(i)?.parse::<usize>()?;
                     if opts.netplay_player > 1 {
@@ -574,6 +586,8 @@ Modes:
   --relay-fallback <addr>  Use this relay if NAT punching fails
   --relay-multi <bind>  Run a framed multi-peer UDP relay
   --relay-multi-auth <secret>  Require shared-secret auth for relay joins
+  --relay-multi-realm <realm>  Enable long-term realm/user auth
+  --relay-user <user:pass>  Register a long-term credential (repeatable)
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -710,11 +724,24 @@ fn run_relay(bind: &str) -> anyhow::Result<()> {
     }
 }
 
-fn run_multi_relay(bind: &str, secret: Option<&str>) -> anyhow::Result<()> {
+fn run_multi_relay(
+    bind: &str,
+    secret: Option<&str>,
+    realm: Option<&str>,
+    users: &[String],
+) -> anyhow::Result<()> {
     let bind: std::net::SocketAddr = bind.parse()?;
-    let mut relay = match secret {
-        Some(secret) => manato_net::relay::MultiRelay::bind_with_auth(bind, secret)?,
-        None => manato_net::relay::MultiRelay::bind(bind)?,
+    let mut relay = if let Some(realm) = realm {
+        let users = users.iter().filter_map(|entry| {
+            entry
+                .split_once(':')
+                .map(|(user, password)| (user.to_string(), password.to_string()))
+        });
+        manato_net::relay::MultiRelay::bind_with_long_term_auth(bind, realm, users)?
+    } else if let Some(secret) = secret {
+        manato_net::relay::MultiRelay::bind_with_auth(bind, secret)?
+    } else {
+        manato_net::relay::MultiRelay::bind(bind)?
     };
     println!("multi-relay listening on {}", relay.local_addr()?);
     loop {
@@ -787,7 +814,12 @@ fn main() -> anyhow::Result<()> {
         return run_relay(bind);
     }
     if let Some(bind) = &opts.relay_multi {
-        return run_multi_relay(bind, opts.relay_multi_auth.as_deref());
+        return run_multi_relay(
+            bind,
+            opts.relay_multi_auth.as_deref(),
+            opts.relay_multi_realm.as_deref(),
+            &opts.relay_users,
+        );
     }
 
     if let Some(frames) = opts.frames {

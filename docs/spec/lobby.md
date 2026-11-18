@@ -167,8 +167,16 @@ drop-in replacement for GGRS's raw UDP socket.
 `MANATO_RELAY_AUTH_JOIN_V1:` + bincode, where `mac` is HMAC-SHA256 over
 `username || 0 || nonce`. The relay validates the MAC, caps usernames at 32
 characters, and rejects replayed nonces per username (up to 4096 remembered).
-`RelayClient::connect_auth` performs the handshake. This is TURN-style
-shared-secret auth, not the full TURN long-term credential/STUN flow.
+`RelayClient::connect_auth` performs the handshake.
+
+Long-term credentials are also supported: `--relay-multi-realm <realm>` plus
+repeatable `--relay-user <user:pass>` (or `RelayAuthenticator::new_long_term`)
+derive a key as MD5(`username:realm:password`) and require
+HMAC-SHA256(key, `username || 0 || realm || 0 || nonce`). Requests must carry
+the matching realm, a known user, a valid MAC, and an unused nonce.
+`RelayClient::connect_long_term` performs that handshake. This implements the
+TURN long-term credential model (with SHA-256 message integrity) over the
+Manato relay framing, not the full STUN/TURN wire protocol or allocations.
 
 `RelayGgrsSocket` implements GGRS's `NonBlockingSocket<SocketAddr>` over the
 framed relay: it registers (optionally authenticated), sends serialized GGRS

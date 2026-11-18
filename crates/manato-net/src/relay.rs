@@ -107,6 +107,19 @@ impl MultiRelay {
         Ok(relay)
     }
 
+    /// Enables realm/user-password long-term credential authentication.
+    pub fn bind_with_long_term_auth(
+        addr: SocketAddr,
+        realm: impl Into<String>,
+        users: impl IntoIterator<Item = (String, String)>,
+    ) -> std::io::Result<Self> {
+        let mut relay = Self::bind(addr)?;
+        relay.auth = Some(crate::relay_auth::RelayAuthenticator::new_long_term(
+            realm, users,
+        ));
+        Ok(relay)
+    }
+
     fn register(&mut self, source: SocketAddr) -> Option<u16> {
         if self.peers.len() >= MAX_RELAY_PEERS {
             self.dropped += 1;
@@ -210,6 +223,26 @@ impl RelayClient {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.set_nonblocking(true)?;
         socket.send_to(RELAY_JOIN, relay)?;
+        Ok(Self {
+            socket,
+            relay,
+            id: None,
+        })
+    }
+
+    /// Registers with long-term realm/user/password credentials.
+    pub fn connect_long_term(
+        relay: SocketAddr,
+        realm: &str,
+        username: &str,
+        password: &str,
+        nonce: u64,
+    ) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_nonblocking(true)?;
+        let request =
+            crate::relay_auth::AuthRequest::new_long_term(realm, username, password, nonce);
+        socket.send_to(&request.encode(), relay)?;
         Ok(Self {
             socket,
             relay,
@@ -468,6 +501,32 @@ mod tests {
         );
         drop(unauth);
         assert!(relay.dropped >= 2, "bad and unauthenticated joins dropped");
+    }
+
+    #[test]
+    fn multi_relay_long_term_credentials() {
+        let mut relay = MultiRelay::bind_with_long_term_auth(
+            "127.0.0.1:0".parse().unwrap(),
+            "manato",
+            [("alice".to_string(), "secret".to_string())],
+        )
+        .expect("relay");
+        let relay_addr = relay.local_addr().expect("addr");
+        let mut good = RelayClient::connect_long_term(relay_addr, "manato", "alice", "secret", 1)
+            .expect("good");
+        let mut bad =
+            RelayClient::connect_long_term(relay_addr, "manato", "alice", "wrong", 2).expect("bad");
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(1) && good.id().is_none() {
+            relay.poll().expect("relay");
+            good.poll().expect("good poll");
+            bad.poll().expect("bad poll");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(good.id().is_some());
+        assert!(bad.id().is_none());
+        assert_eq!(relay.peers().len(), 1);
+        assert!(relay.dropped >= 1);
     }
 
     #[test]
