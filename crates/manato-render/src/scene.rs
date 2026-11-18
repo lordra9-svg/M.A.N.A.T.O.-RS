@@ -86,6 +86,10 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
             .and_then(|state| state.layer_no)
             .unwrap_or(layer.layer_no)
     };
+    // Scene-wide palette filter: characters/effects use `AllPalFX`, stage
+    // layers switch to `BgPalFX` inside their loops.
+    painter.set_global_palfx(sim.all_pal.color, sim.all_pal.hue, sim.all_pal.invert);
+    painter.set_global_palfx(sim.bg_pal.color, sim.bg_pal.hue, sim.bg_pal.invert);
     for (index, layer) in stage
         .render_layers()
         .enumerate()
@@ -116,6 +120,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
             painter.set_depth(restore);
         }
     }
+    painter.set_global_palfx(sim.all_pal.color, sim.all_pal.hue, sim.all_pal.invert);
 
     if !hide_bg {
         draw_reflections(painter, deps.atlas, sim);
@@ -161,6 +166,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     draw_projectiles(painter, deps.atlas, sim, false);
 
     painter.set_depth(0.1);
+    painter.set_global_palfx(sim.bg_pal.color, sim.bg_pal.hue, sim.bg_pal.invert);
     for (index, layer) in stage
         .render_layers()
         .enumerate()
@@ -176,6 +182,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
             painter.set_depth(restore);
         }
     }
+    painter.set_global_palfx(sim.all_pal.color, sim.all_pal.hue, sim.all_pal.invert);
 
     // Projectiles with `projlayerno > 0` draw over the stage foreground.
     painter.set_depth(0.08);
@@ -192,7 +199,8 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     draw_texts(painter, deps, sim, false);
     draw_storyboard_overlays(painter, deps, sim);
 
-    // Fight-screen HUD is closest to the viewer.
+    // Fight-screen HUD is closest to the viewer and is not palette-filtered.
+    painter.reset_global_palfx();
     painter.set_depth(0.02);
     if let Some(screenpack) = &sim.assets.screenpack {
         let fight_deps = crate::fightscreen::FightDeps {
@@ -2023,6 +2031,9 @@ mod tests {
             add: [51.0, 0.0, 255.0],
             mul: [0.5, 1.0, 0.0],
             alpha: 0.5,
+            color: 1.0,
+            hue: 0.0,
+            invert: false,
             time: 10,
         };
         let color = global_tint([0.4, 0.4, 0.4, 0.8], &pal);

@@ -2823,6 +2823,20 @@ fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::
     if let Some(value) = control.get("alpha") {
         pal.alpha = trigger::num(sim, who, value).clamp(0.0, 1.0);
     }
+    if let Some(value) = control.get("color") {
+        pal.color = (trigger::num(sim, who, value) / 256.0).clamp(0.0, 1.0);
+    }
+    if let Some(value) = control.get("hue") {
+        pal.hue = (trigger::num(sim, who, value) / 512.0).clamp(-0.5, 0.5);
+    }
+    if let Some(value) = control.get("invertall") {
+        pal.invert = trigger::num(sim, who, value) != 0.0;
+    }
+    if let Some(value) = control.get("invertblend") {
+        if trigger::num(sim, who, value).abs() >= 2.0 {
+            pal.invert = true;
+        }
+    }
     pal
 }
 

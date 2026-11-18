@@ -4664,6 +4664,67 @@ fn palfx_sinmul_oscillates_multiplier() {
 }
 
 #[test]
+fn allpalfx_color_hue_invert_parse() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let run = |sim: &mut SimState, kind: &str, params: Vec<(&str, &str)>| {
+        let control = manato_formats::Controller {
+            kind: kind.into(),
+            params: params
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+
+    run(
+        &mut sim,
+        "allpalfx",
+        vec![
+            ("color", "128"),
+            ("hue", "-64"),
+            ("invertall", "1"),
+            ("time", "5"),
+        ],
+    );
+    assert!((sim.all_pal.color - 0.5).abs() < 1e-5);
+    assert!((sim.all_pal.hue + 0.125).abs() < 1e-5);
+    assert!(sim.all_pal.invert);
+    assert!(sim.all_pal.active());
+
+    // BgPalFX has its own color/hue/invert state.
+    run(
+        &mut sim,
+        "bgpalfx",
+        vec![
+            ("color", "64"),
+            ("hue", "32"),
+            ("invertblend", "2"),
+            ("time", "4"),
+        ],
+    );
+    assert!((sim.bg_pal.color - 0.25).abs() < 1e-5);
+    assert!((sim.bg_pal.hue - 0.0625).abs() < 1e-5);
+    assert!(sim.bg_pal.invert);
+    assert_eq!((sim.all_pal.color, sim.bg_pal.color), (0.5, 0.25));
+
+    // Expiry resets the whole effect to identity.
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    let identity = manato_sim::GlobalPalFx::default();
+    assert_eq!(sim.bg_pal, identity);
+    assert_eq!(
+        (identity.color, identity.hue, identity.invert),
+        (1.0, 0.0, false)
+    );
+}
+
+#[test]
 fn palfx_color_hue_invert_and_sines() {
     let Some(mut sim) = fight_phase() else {
         return;

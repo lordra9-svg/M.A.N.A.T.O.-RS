@@ -67,6 +67,8 @@ pub struct Painter {
     shader_params: Option<[f32; 16]>,
     fx: [f32; 4],
     fx2: [f32; 4],
+    global_fx: [f32; 4],
+    global_fx2: [f32; 4],
     palette: Option<(u8, (i32, i32))>,
     shader_tex1: Option<(u8, i32, i32)>,
     shader_tex2: Option<(u8, i32, i32)>,
@@ -84,6 +86,8 @@ impl Default for Painter {
             shader_params: None,
             fx: [0.0, 0.0, 0.0, 1.0],
             fx2: [0.0, 0.0, 0.0, 0.0],
+            global_fx: [0.0, 0.0, 0.0, 1.0],
+            global_fx2: [0.0, 0.0, 0.0, 0.0],
             palette: None,
             shader_tex1: None,
             shader_tex2: None,
@@ -102,6 +106,8 @@ impl Painter {
         self.shader_params = None;
         self.fx = [0.0, 0.0, 0.0, 1.0];
         self.fx2 = [0.0, 0.0, 0.0, 0.0];
+        self.global_fx = [0.0, 0.0, 0.0, 1.0];
+        self.global_fx2 = [0.0, 0.0, 0.0, 0.0];
         self.palette = None;
         self.shader_tex1 = None;
         self.shader_tex2 = None;
@@ -133,6 +139,32 @@ impl Painter {
     pub fn reset_palfx(&mut self) {
         self.fx = [0.0, 0.0, 0.0, 1.0];
         self.fx2 = [0.0, 0.0, 0.0, 0.0];
+    }
+
+    /// Applies a scene-wide `AllPalFX`/`BgPalFX` color/hue/invert filter on top
+    /// of any per-quad `PalFX` for subsequent quads.
+    pub fn set_global_palfx(&mut self, saturation: f32, hue: f32, invert: bool) {
+        self.global_fx = [0.0, 0.0, 0.0, saturation];
+        self.global_fx2 = [hue, invert as u8 as f32, 0.0, 0.0];
+    }
+
+    pub fn reset_global_palfx(&mut self) {
+        self.global_fx = [0.0, 0.0, 0.0, 1.0];
+        self.global_fx2 = [0.0, 0.0, 0.0, 0.0];
+    }
+
+    /// Merges the per-quad and scene-wide palette transforms.
+    fn effective_fx(&self) -> ([f32; 4], [f32; 4]) {
+        let mut fx = self.fx;
+        fx[0] += self.global_fx[0];
+        fx[1] += self.global_fx[1];
+        fx[2] += self.global_fx[2];
+        fx[3] *= self.global_fx[3];
+        let invert = (self.fx2[1] != 0.0) != (self.global_fx2[1] != 0.0);
+        let mut fx2 = self.fx2;
+        fx2[0] += self.global_fx2[0];
+        fx2[1] = invert as u8 as f32;
+        (fx, fx2)
     }
 
     /// Selects a custom shader for subsequent quads (`None` = default).
@@ -242,14 +274,15 @@ impl Painter {
             (rotate(x0, y1), [u0, v1]),
         ];
         self.range(tex, blend);
+        let (fx, fx2) = self.effective_fx();
         for (pos, uv) in corners {
             self.vertices.push(Vertex {
                 pos,
                 uv,
                 color,
                 z: self.depth,
-                fx: self.fx,
-                fx2: self.fx2,
+                fx,
+                fx2,
             });
         }
     }
@@ -273,6 +306,7 @@ impl Painter {
         let (v0, v1) = if flip_v { (v1, v0) } else { (v0, v1) };
         let [tl, tr, br, bl] = corners;
         self.range(tex, blend);
+        let (fx, fx2) = self.effective_fx();
         for (pos, uv) in [
             (tl, [u0, v0]),
             (tr, [u1, v0]),
@@ -286,8 +320,8 @@ impl Painter {
                 uv,
                 color,
                 z: self.depth,
-                fx: self.fx,
-                fx2: self.fx2,
+                fx,
+                fx2,
             });
         }
     }
@@ -597,6 +631,46 @@ mod tests {
         assert_eq!(painter.ranges[0].shader, None);
         assert_eq!(painter.ranges[1].shader.as_deref(), Some("glow"));
         assert_eq!(painter.ranges[2].shader, None);
+    }
+
+    #[test]
+    fn global_palfx_merges_with_quad_palfx() {
+        let mut painter = Painter::default();
+        let quad = |painter: &mut Painter| {
+            painter.quad(
+                TexRef::Solid,
+                Blend::Normal,
+                [0.0, 0.0, 10.0, 10.0],
+                [0.0, 0.0, 1.0, 1.0],
+                false,
+                false,
+                [1.0; 4],
+            );
+        };
+        // Identity leaves the per-quad transform untouched.
+        painter.set_palfx([0.0; 3], 0.5, 0.25, false);
+        painter.set_global_palfx(1.0, 0.0, false);
+        quad(&mut painter);
+        assert!((painter.vertices[0].fx[3] - 0.5).abs() < 1e-6);
+        assert!((painter.vertices[0].fx2[0] - 0.25).abs() < 1e-6);
+
+        // Global saturation multiplies and hue adds; inversion cancels.
+        painter.set_palfx([0.0; 3], 0.5, 0.25, true);
+        painter.set_global_palfx(0.5, 0.25, true);
+        quad(&mut painter);
+        let vertex = &painter.vertices[6];
+        assert!((vertex.fx[3] - 0.25).abs() < 1e-6);
+        assert!((vertex.fx2[0] - 0.5).abs() < 1e-6);
+        assert_eq!(vertex.fx2[1], 0.0);
+
+        // Resetting restores the identity filter.
+        painter.reset_global_palfx();
+        painter.reset_palfx();
+        quad(&mut painter);
+        let vertex = &painter.vertices[12];
+        assert!((vertex.fx[3] - 1.0).abs() < 1e-6);
+        assert_eq!(vertex.fx2[0], 0.0);
+        assert_eq!(vertex.fx2[1], 0.0);
     }
 
     #[test]

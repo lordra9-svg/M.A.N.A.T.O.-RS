@@ -221,8 +221,11 @@ Required controller families for the approved matrix:
   direction and cycle lengths. Sine phases use the same tick cadence as
   `sinadd`/`sinmul`.
 - `AllPalFX`, `BgPalFX` (global palette effects for character/effect sprites
-  and stage layers; model `add`, `mul`, `alpha`, and `time`, with the same
-  units as `PalFX`; color/hue/invert and sine variants are unmodeled)
+  and stage layers; model `add`, `mul`, `alpha`, and `time` with the same
+  units as `PalFX`, plus `color`, `hue`, `invertall`, and `invertblend`.
+  Character/effect sprites receive `AllPalFX`; stage layers receive
+  `BgPalFX`, and HUD/front-end quads are unaffected. Sine variants are
+  unmodeled for the global effects.)
 - `ForceFeedback`
 
 ### 4.4 Helpers

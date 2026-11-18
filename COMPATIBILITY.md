@@ -47,8 +47,8 @@ M.U.G.E.N binary oracle. Closing them requires either a documented engine
 decision or an approved Ikemen-GO runtime comparison.
 
 Smaller open edge cases are tracked in the row's Verification column. The
-next candidates are `AllPalFX`/`BgPalFX` color/hue/invert parameters and
-custom guard-break/dizzy states.
+next candidates are `AllPalFX`/`BgPalFX` sine variants and custom
+guard-break/dizzy states.
 
 ## 1. Content formats
 
@@ -104,7 +104,7 @@ custom guard-break/dizzy states.
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + proj* aliases + bound removal + hit/removal animations + remvelocity + projpriority default 1 + projanim 0 + Clsn2 projectile clashes/projcancelanim/ProjCancelTime + z offset/velocity/accel + projdepthbound + z-gated hits |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime + RemoveExplod omitted-id/all-owned semantics |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + persistent BindToRoot/Parent/Target with time/facing + Target* + ownership/DestroySelf |
-| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/sinmul + PalFX color/hue/invertall/invertblend/sincolor/sinhue + AllPalFX/BgPalFX add/mul/alpha + round reset + Trans alpha + SFF index/palette retention + ACT palettes + RemapPal bank recolor with source-palette filtering + RemapSprite group/index substitution and named presets + collision-box substitution from the destination frame in the same animation |
+| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/sinmul + PalFX color/hue/invertall/invertblend/sincolor/sinhue + AllPalFX/BgPalFX add/mul/alpha/color/hue/invertall/invertblend + round reset + Trans alpha + SFF index/palette retention + ACT palettes + RemapPal bank recolor with source-palette filtering + RemapSprite group/index substitution and named presets + collision-box substitution from the destination frame in the same animation |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause movetime + SuperPause default time/poweradd + EnvShake phase/dir/diradd/mul/decay + Nival oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |

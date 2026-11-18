@@ -786,6 +786,11 @@ pub struct GlobalPalFx {
     pub add: [f32; 3],
     pub mul: [f32; 3],
     pub alpha: f32,
+    /// Saturation factor (`color` / 256; 1 = unchanged).
+    pub color: f32,
+    /// Hue rotation as a fraction of a turn (`hue` / 512).
+    pub hue: f32,
+    pub invert: bool,
     pub time: i32,
 }
 
@@ -795,6 +800,9 @@ impl Default for GlobalPalFx {
             add: [0.0; 3],
             mul: [1.0; 3],
             alpha: 1.0,
+            color: 1.0,
+            hue: 0.0,
+            invert: false,
             time: 0,
         }
     }
@@ -1170,7 +1178,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(2u32, self.asset_id(), self))
+        bincode::serialize(&(3u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1189,7 +1197,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 2 {
+        if version != 3 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3703,6 +3711,9 @@ impl SimState {
                 h.write_f32(value);
             }
             h.write_f32(pal.alpha);
+            h.write_f32(pal.color);
+            h.write_f32(pal.hue);
+            h.write_bool(pal.invert);
         }
         h.write_u32(self.bg_ctrls.len() as u32);
         for control in &self.bg_ctrls {
