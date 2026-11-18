@@ -37,6 +37,56 @@ pub struct ModelSkin {
 }
 
 #[derive(Debug, Clone)]
+struct PrefilteredEnvironment {
+    levels: Vec<ModelTexture>,
+}
+
+impl PrefilteredEnvironment {
+    fn new(base: ModelTexture) -> Self {
+        let mut levels = vec![base];
+        for _ in 0..4 {
+            let previous = levels.last().expect("level");
+            let width = (previous.width / 2).max(1);
+            let height = (previous.height / 2).max(1);
+            let mut rgba = vec![0u8; (width * height * 4) as usize];
+            for y in 0..height {
+                for x in 0..width {
+                    let sx = (x * 2).min(previous.width - 1);
+                    let sy = (y * 2).min(previous.height - 1);
+                    let offset = ((sy * previous.width + sx) * 4) as usize;
+                    let dest = ((y * width + x) * 4) as usize;
+                    rgba[dest..dest + 4].copy_from_slice(&previous.rgba[offset..offset + 4]);
+                }
+            }
+            levels.push(ModelTexture {
+                width,
+                height,
+                rgba,
+            });
+        }
+        Self { levels }
+    }
+
+    fn base(&self) -> &ModelTexture {
+        &self.levels[0]
+    }
+
+    fn sample(&self, direction: Vec3, roughness: f32) -> [f32; 3] {
+        let level = ((roughness.clamp(0.0, 1.0) * (self.levels.len() - 1) as f32).round() as usize)
+            .min(self.levels.len() - 1);
+        environment_color(&self.levels[level], direction)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct IblAmbient {
+    diffuse: [f32; 3],
+    specular: [f32; 3],
+    scale: f32,
+    bias: f32,
+}
+
+#[derive(Debug, Clone)]
 pub struct ModelDraw {
     /// Node-local vertex positions plus UV/color.
     pub vertices: Vec<ModelVertex>,
@@ -105,7 +155,7 @@ pub struct ModelAsset {
     nodes: Vec<ModelNode>,
     animations: Vec<ModelAnimation>,
     clip: usize,
-    environment: Option<ModelTexture>,
+    environment: Option<PrefilteredEnvironment>,
     world0: Vec<Mat4>,
     placement: Option<Placement>,
 }
@@ -143,16 +193,16 @@ impl ModelAsset {
     /// Loads an equirectangular environment map used for image-based ambient.
     pub fn set_environment(&mut self, path: &std::path::Path) -> anyhow::Result<()> {
         let image = image::open(path)?.to_rgba8();
-        self.environment = Some(ModelTexture {
+        self.environment = Some(PrefilteredEnvironment::new(ModelTexture {
             width: image.width(),
             height: image.height(),
             rgba: image.into_raw(),
-        });
+        }));
         Ok(())
     }
 
     pub fn environment(&self) -> Option<&ModelTexture> {
-        self.environment.as_ref()
+        self.environment.as_ref().map(PrefilteredEnvironment::base)
     }
 
     pub fn sample(
@@ -273,10 +323,18 @@ impl ModelAsset {
                         } else {
                             (draw.metallic, draw.roughness, 1.0)
                         };
-                        let environment = self
-                            .environment
-                            .as_ref()
-                            .map(|map| environment_color(map, normal));
+                        let environment = self.environment.as_ref().map(|environment| {
+                            let view = Vec3::Z;
+                            let reflect =
+                                (2.0 * normal.dot(view) * normal - view).normalize_or_zero();
+                            let (scale, bias) = brdf_lut(normal.dot(view).max(0.001), roughness);
+                            IblAmbient {
+                                diffuse: environment_color(environment.base(), normal),
+                                specular: environment.sample(reflect, roughness),
+                                scale,
+                                bias,
+                            }
+                        });
                         out.color = shade_color(
                             normal,
                             out.color,
@@ -437,13 +495,50 @@ fn environment_color(texture: &ModelTexture, normal: Vec3) -> [f32; 3] {
     [texel[0], texel[1], texel[2]]
 }
 
+/// Split-sum BRDF integration (GGX importance sampling, 16 samples).
+fn brdf_lut(n_dot_v: f32, roughness: f32) -> (f32, f32) {
+    let n_dot_v = n_dot_v.clamp(0.001, 1.0);
+    let roughness = roughness.clamp(0.04, 1.0);
+    let a = roughness * roughness;
+    let v = Vec3::new((1.0 - n_dot_v * n_dot_v).max(0.0).sqrt(), 0.0, n_dot_v);
+    let mut scale = 0.0;
+    let mut bias = 0.0;
+    const SAMPLES: usize = 16;
+    for index in 0..SAMPLES {
+        let xi_x = (index as f32 + 0.5) / SAMPLES as f32;
+        let bits = (index as u32).reverse_bits();
+        let xi_y = bits as f32 * 2.328_306_4e-10;
+        let phi = std::f32::consts::TAU * xi_x;
+        let cos_theta = ((1.0 - xi_y) / (1.0 + (a * a - 1.0) * xi_y))
+            .max(0.0)
+            .sqrt();
+        let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
+        let half = Vec3::new(sin_theta * phi.cos(), sin_theta * phi.sin(), cos_theta);
+        let light = 2.0 * v.dot(half) * half - v;
+        if light.z <= 0.0 {
+            continue;
+        }
+        let n_dot_l = light.z;
+        let n_dot_h = half.z;
+        let v_dot_h = v.dot(half);
+        let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+        let geometry =
+            (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
+        let visibility = geometry * v_dot_h / (n_dot_h * n_dot_v).max(1e-6);
+        let fresnel = (1.0 - v_dot_h).clamp(0.0, 1.0).powi(5);
+        scale += (1.0 - fresnel) * visibility;
+        bias += fresnel * visibility;
+    }
+    (scale / SAMPLES as f32, bias / SAMPLES as f32)
+}
+
 fn shade_color(
     normal: Vec3,
     base: [f32; 4],
     metallic: f32,
     roughness: f32,
     occlusion: f32,
-    environment: Option<[f32; 3]>,
+    environment: Option<IblAmbient>,
 ) -> [f32; 4] {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
@@ -478,14 +573,17 @@ fn shade_color(
     let diffuse_weight = (Vec3::ONE - fresnel) * (1.0 - metallic);
     let direct = (diffuse_weight * base_rgb / std::f32::consts::PI + specular) * n_dot_l * 3.0;
 
-    // Image-based ambient: diffuse from the envmap/hemisphere, plus a rough
-    // specular approximation (not prefiltered).
+    // Image-based ambient: split-sum diffuse/prefiltered specular with the
+    // BRDF LUT, falling back to a hemisphere when no envmap is loaded.
     let hemisphere = match environment {
-        Some(color) => Vec3::from_array(color),
+        Some(ibl) => Vec3::from_array(ibl.diffuse),
         None => Vec3::new(0.22, 0.19, 0.16).lerp(Vec3::new(0.55, 0.65, 0.85), normal.y * 0.5 + 0.5),
     } * occlusion;
     let ambient_diffuse = hemisphere * base_rgb * (1.0 - metallic);
-    let ambient_specular = hemisphere * f0 * (1.0 - roughness);
+    let ambient_specular = match environment {
+        Some(ibl) => Vec3::from_array(ibl.specular) * (f0 * ibl.scale + Vec3::splat(ibl.bias)),
+        None => hemisphere * f0 * (1.0 - roughness),
+    } * occlusion;
     let color = direct + ambient_diffuse + ambient_specular;
     [
         color.x.clamp(0.0, 1.0),
@@ -975,6 +1073,34 @@ pub fn upload_model(device: &wgpu::Device, vertices: &[ModelVertex]) -> wgpu::Bu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prefiltered_levels_and_brdf_lut_are_roughness_aware() {
+        let texture = ModelTexture {
+            width: 4,
+            height: 2,
+            rgba: (0..8)
+                .flat_map(|index| {
+                    let value = index as u8 * 30;
+                    [value, 255 - value, 128, 255]
+                })
+                .collect(),
+        };
+        let environment = PrefilteredEnvironment::new(texture);
+        assert_eq!(environment.levels.len(), 5);
+        assert!(environment.levels[4].width < environment.levels[0].width);
+        assert_ne!(
+            environment.sample(Vec3::Z, 0.0),
+            environment.sample(Vec3::Z, 1.0)
+        );
+        let (glossy_scale, glossy_bias) = brdf_lut(0.7, 0.1);
+        let (rough_scale, rough_bias) = brdf_lut(0.7, 0.9);
+        assert!((0.0..=1.0).contains(&glossy_scale));
+        assert!((0.0..=1.0).contains(&glossy_bias));
+        assert!((0.0..=1.0).contains(&rough_scale));
+        assert!((0.0..=1.0).contains(&rough_bias));
+        assert!((glossy_bias - rough_bias).abs() > 1e-4);
+    }
 
     #[test]
     fn samples_equirectangular_environment() {

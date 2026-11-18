@@ -26,9 +26,12 @@ and the first node animation are loaded and rendered behind the 2D scene.
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
   metallic), and energy-conserving diffuse. A fixed directional light
   `(0.3, 0.8, 0.5)` with a fixed view `+Z` drives the direct term.
-- Ambient uses the hemisphere or envmap color scaled by occlusion (diffuse)
-  plus a rough `f0 × (1-roughness)` specular approximation. This is not
-  prefiltered/roughness-aware IBL.
+- Envmap ambient uses a split-sum approximation: diffuse samples the base
+  equirectangular level, specular samples a downsampled level selected by
+  roughness (five box-filtered levels) along the reflection vector, and a
+  16-sample GGX-importance-sampled BRDF integral supplies the `(scale, bias)`
+  split-sum terms. Levels are box-filtered, not GGX-convolved, and the BRDF
+  integral is evaluated per vertex rather than from a LUT texture.
 - The final fragment is `texture(baseColor, uv) * shadedColor`.
 - `[Model] envmap` (stage) or `[SceneDef] envmap` (storyboard) loads an
   equirectangular PNG/image as image-based ambient. Each vertex samples the
@@ -57,7 +60,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Prefiltered/roughness-aware IBL, BRDF LUTs, and multiple lights.
+- GGX-convolved roughness mip chains, BRDF LUT textures, and multiple lights.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
