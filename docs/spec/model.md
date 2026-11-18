@@ -46,8 +46,12 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - `KHR_materials_refraction` uses `iorFactor` for the dielectric F0
   (`((ior-1)/(ior+1))^2`) and scales transmitted light by the complement of
   the Schlick Fresnel reflectance; its `transmissionFactor` raises the
-  material transmission. There is no ray-bending or screen-space refraction,
-  so the background is not distorted.
+  material transmission. Transmissive surfaces also sample the previous-frame
+  grab texture with a per-vertex UV offset proportional to the view-space
+  normal, `iorFactor - 1`, and transmission, mixing the grab behind the base
+  colour (`0.02` max UV strength). This is a screen-space approximation: it
+  reads the previous frame, not the current one, and does not refract
+  geometry behind the surface per-pixel.
 - `KHR_materials_dispersion` spreads the IOR per RGB channel
   (`dispersionFactor`, Cauchy-style approximation), producing chromatic F0 and
   Fresnel-transmission fringing. It requires a refractive IOR and is inert
@@ -102,8 +106,9 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Screen-space refraction and physically split dispersion rays (dispersion is
-  a per-channel tint approximation).
+- Per-pixel ray-traced refraction, current-frame refraction, and physically
+  split dispersion rays (refraction reads the previous-frame grab texture;
+  dispersion is a per-channel tint approximation).
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

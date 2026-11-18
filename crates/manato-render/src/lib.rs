@@ -56,6 +56,8 @@ pub struct Renderer {
     /// Previous frame copy bound as `bgl_RenderedTexture` for grab shaders.
     grab_texture: wgpu::Texture,
     grab_view: wgpu::TextureView,
+    /// Clamped sampler for screen-space grab reads (model refraction).
+    grab_sampler: wgpu::Sampler,
     depth_view: wgpu::TextureView,
 
     sprite_bgl: wgpu::BindGroupLayout,
@@ -315,6 +317,14 @@ impl Renderer {
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        let grab_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("manato grab sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
         let white_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -621,6 +631,7 @@ impl Renderer {
             game_view,
             grab_texture,
             grab_view,
+            grab_sampler,
             depth_view,
             sprite_bgl,
             custom_bgl,
@@ -1158,6 +1169,14 @@ impl Renderer {
                             wgpu::BindGroupEntry {
                                 binding: 3,
                                 resource: wgpu::BindingResource::Sampler(&self.model_lut_sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 4,
+                                resource: wgpu::BindingResource::TextureView(&self.grab_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 5,
+                                resource: wgpu::BindingResource::Sampler(&self.grab_sampler),
                             },
                         ],
                     });

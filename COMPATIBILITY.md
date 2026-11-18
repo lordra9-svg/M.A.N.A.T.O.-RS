@@ -47,8 +47,8 @@ M.U.G.E.N binary oracle. Closing them requires either a documented engine
 decision or an approved Ikemen-GO runtime comparison.
 
 Smaller open edge cases are tracked in the row's Verification column. The
-next candidates are screen-space refraction and the oracle/hardware
-comparison rows.
+next candidates are the oracle/hardware comparison rows and remaining
+`Partial` edge cases.
 
 ## 1. Content formats
 
@@ -149,7 +149,7 @@ comparison rows.
 | V-06 | Afterimages | Required | Required | Partial | Ghost sampling cadence/decay + controller-time/alpha tests |
 | V-07 | Screenpack/motifs | Required | Required | Partial | Manato Grid title/select/fight, fonts, BGCtrl, portraits, select timer, round sounds, action banner displaytime/lifecycle; VS/storyboards tracked by V-07/F-12 |
 | V-08 | Zoom/camera controls | N/A | Ikemen | Partial | Round reset startx/zoom + zoom-anchor + CameraPos/CameraZoom triggers + tension/bounds + Zoom stagebound/camerabound clamping |
-| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, WGSL pipeline registry/execution + GLSL fragment execution (explicit or implicitly-declared bindings via GLSL preprocessing, built-in GLSL vertex stage, blend/depth, cached per name, `shaderparam` uniform block, real `pal` palette textures, `tex1`/`tex2` sprite-reference textures, and previous-frame grab textures), wgpu depth buffer, stage `[Scaling]` perspective for fighters/layers/effects/shadows/texts/projectiles/reflections, z-axis collision, and static glTF scene models implemented; clearcoat/transmission/anisotropy/sheen/iridescence/volume/refraction-IOR/dispersion supported; screen-space refraction and split dispersion rays not modeled; normal/emissive/ORM maps, envmap ambient, multi-clip models, and model-node `ModifyBGCtrl3D` supported |
+| V-09 | Custom shaders | N/A | Ikemen | Partial | `[Shaders]` parsing, `ShaderSet` selection, `Shader()` trigger, WGSL pipeline registry/execution + GLSL fragment execution (explicit or implicitly-declared bindings via GLSL preprocessing, built-in GLSL vertex stage, blend/depth, cached per name, `shaderparam` uniform block, real `pal` palette textures, `tex1`/`tex2` sprite-reference textures, and previous-frame grab textures), wgpu depth buffer, stage `[Scaling]` perspective for fighters/layers/effects/shadows/texts/projectiles/reflections, z-axis collision, and static glTF scene models implemented; clearcoat/transmission/anisotropy/sheen/iridescence/volume/refraction-IOR/dispersion supported; previous-frame screen-space refraction implemented; per-pixel ray-traced refraction and split dispersion rays not modeled; normal/emissive/ORM maps, envmap ambient, multi-clip models, and model-node `ModifyBGCtrl3D` supported |
 
 ## 8. Audio
 

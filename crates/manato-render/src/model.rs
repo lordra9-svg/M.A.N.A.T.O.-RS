@@ -27,6 +27,10 @@ pub struct ModelVertex {
     pub specular: [f32; 3],
     /// Fresnel F0.
     pub f0: [f32; 3],
+    /// Screen-space refraction offset in UV units.
+    pub refraction: [f32; 2],
+    /// Transmission mix for the screen-space grab sample.
+    pub transmission: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -536,6 +540,11 @@ impl ModelAsset {
                         out.brdf_uv = shaded.brdf_uv;
                         out.specular = shaded.specular.to_array();
                         out.f0 = shaded.f0.to_array();
+                        // Screen-space refraction: bend the grab sample by the
+                        // view-space normal scaled by transmission and IOR.
+                        out.transmission = draw.transmission;
+                        out.refraction =
+                            refraction_uv(normal, draw.refraction_ior, draw.transmission);
                         if let Some(map) = &draw.emissive_map {
                             let texel = sample_texture(map, vertex.uv);
                             for channel in 0..3 {
@@ -832,6 +841,13 @@ fn iridescence_tint(n_dot_v: f32, ior: f32, thickness: [f32; 2]) -> Vec3 {
         *channel = (0.5 + 0.5 * phase.cos()).clamp(0.0, 1.0);
     }
     Vec3::from_array(channels)
+}
+
+/// Screen-space grab UV offset for a transmissive surface. Proportions the
+/// view-space normal by transmission and the IOR spread.
+fn refraction_uv(normal: Vec3, ior: f32, transmission: f32) -> [f32; 2] {
+    let strength = (ior.max(1.0) - 1.0) * 0.02 * transmission.clamp(0.0, 1.0);
+    [normal.x * strength, normal.y * strength]
 }
 
 /// Beer-Lambert transmittance through a volume of the given thickness.
@@ -1302,6 +1318,8 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                         brdf_uv: [0.0, 0.0],
                         specular: [0.0; 3],
                         f0: [0.0; 3],
+                        refraction: [0.0; 2],
+                        transmission: 0.0,
                     })
                 })
                 .collect();
@@ -1604,6 +1622,22 @@ pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout 
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
         ],
     })
 }
@@ -1624,6 +1658,8 @@ struct VsIn {
     @location(3) brdf_uv: vec2<f32>,
     @location(4) specular: vec3<f32>,
     @location(5) f0: vec3<f32>,
+    @location(6) refraction: vec2<f32>,
+    @location(7) transmission: f32,
 };
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
@@ -1632,6 +1668,8 @@ struct VsOut {
     @location(2) brdf_uv: vec2<f32>,
     @location(3) specular: vec3<f32>,
     @location(4) f0: vec3<f32>,
+    @location(5) refraction: vec2<f32>,
+    @location(6) transmission: f32,
 };
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
@@ -1647,19 +1685,31 @@ fn vs_main(in: VsIn) -> VsOut {
     out.brdf_uv = in.brdf_uv;
     out.specular = in.specular;
     out.f0 = in.f0;
+    out.refraction = in.refraction;
+    out.transmission = in.transmission;
     return out;
 }
 @group(0) @binding(0) var base_color: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var brdf_lut: texture_2d<f32>;
 @group(0) @binding(3) var lut_samp: sampler;
+@group(0) @binding(4) var grab: texture_2d<f32>;
+@group(0) @binding(5) var grab_samp: sampler;
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let base = textureSample(base_color, samp, in.uv) * in.color;
     let uv = in.brdf_uv * 0.96875 + 0.015625;
     let brdf = textureSample(brdf_lut, lut_samp, uv);
     let specular = in.specular * (in.f0 * brdf.r + brdf.g);
-    return vec4<f32>(clamp(base.rgb + specular, vec3<f32>(0.0), vec3<f32>(1.0)), base.a);
+    let lit = clamp(base.rgb + specular, vec3<f32>(0.0), vec3<f32>(1.0));
+    if (in.transmission <= 0.001) {
+        return vec4<f32>(lit, base.a);
+    }
+    let size = vec2<f32>(textureDimensions(grab));
+    let scene_uv = clamp(in.pos.xy / size + in.refraction, vec2<f32>(0.0), vec2<f32>(1.0));
+    let behind = textureSample(grab, grab_samp, scene_uv);
+    let mixed = mix(lit, behind.rgb * base.rgb, clamp(in.transmission, 0.0, 1.0));
+    return vec4<f32>(mixed, base.a);
 }
 "#
             .into(),
@@ -1709,6 +1759,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                         offset: 92,
                         shader_location: 5,
                         format: wgpu::VertexFormat::Float32x3,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 104,
+                        shader_location: 6,
+                        format: wgpu::VertexFormat::Float32x2,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 112,
+                        shader_location: 7,
+                        format: wgpu::VertexFormat::Float32,
                     },
                 ],
             }],
@@ -1867,6 +1927,19 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(opaque.color, opaque_volume.color);
+    }
+
+    #[test]
+    fn refraction_offset_scales_with_ior_and_transmission() {
+        let normal = Vec3::new(0.0, 1.0, 0.0);
+        assert_eq!(refraction_uv(normal, 1.5, 0.0), [0.0, 0.0]);
+        let weak = refraction_uv(normal, 1.5, 0.5);
+        let strong = refraction_uv(normal, 2.5, 0.5);
+        assert!(weak[1] > 0.0);
+        assert!(strong[1] > weak[1]);
+        let mirrored = refraction_uv(Vec3::new(1.0, 0.0, 0.0), 2.0, 1.0);
+        assert!(mirrored[0] > 0.0);
+        assert_eq!(mirrored[1], 0.0);
     }
 
     #[test]
@@ -2142,6 +2215,10 @@ mod tests {
         assert_eq!(draw.refraction_ior, 1.7);
         assert_eq!(draw.dispersion, 0.4);
         assert_eq!(draw.transmission, 0.3, "explicit transmission wins");
+        let sampled = asset.sample(0.0, &Default::default());
+        assert!((sampled[0][0].transmission - 0.3).abs() < 1e-6);
+        let offset = sampled[0][0].refraction;
+        assert!((offset[0] * offset[0] + offset[1] * offset[1]).sqrt() > 0.0);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
