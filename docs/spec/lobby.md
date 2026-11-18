@@ -151,8 +151,17 @@ Pass `--relay-fallback <relay-addr>` to `--netplay`, `--matchmake-play`, or
 punch times out. The direct address is used when punching succeeds.
 
 This is a plaintext trusted relay, not a full TURN implementation: it accepts
-exactly two peers, has no authentication, and must be deployed by a trusted
-host. TURN authentication and multi-peer relays are not modeled.
+exactly two peers and has no authentication.
+
+### Multi-peer relay
+
+`MultiRelay` (app `--relay-multi <bind>`) supports up to eight framed peers.
+Clients send `MANATO_RELAY_JOIN_V1` and receive `MANATO_RELAY_WELCOME_V1:<id>`;
+data frames are `[destination id: u16][payload]` and are delivered as
+`[source id: u16][payload]`. `RelayClient` wraps registration, destination
+sending, and source-aware polling. This is a framed application protocol, not a
+drop-in replacement for GGRS's raw UDP socket. TURN authentication is still not
+modeled.
 
 ### Window netplay
 

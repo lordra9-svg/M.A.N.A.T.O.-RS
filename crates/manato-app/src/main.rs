@@ -50,6 +50,7 @@ struct Options {
     netplay_player: usize,
     relay: Option<String>,
     relay_fallback: Option<String>,
+    relay_multi: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -86,6 +87,7 @@ impl Default for Options {
             netplay_player: 0,
             relay: None,
             relay_fallback: None,
+            relay_multi: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -440,6 +442,10 @@ impl Options {
                     opts.relay_fallback = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--relay-multi" => {
+                    opts.relay_multi = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay-player" => {
                     opts.netplay_player = value(i)?.parse::<usize>()?;
                     if opts.netplay_player > 1 {
@@ -560,6 +566,7 @@ Modes:
   --netplay-player <n>   Local player slot for --netplay (0 or 1, default 0)
   --relay <bind>      Run a two-peer UDP forwarding relay (NAT fallback)
   --relay-fallback <addr>  Use this relay if NAT punching fails
+  --relay-multi <bind>  Run a framed multi-peer UDP relay
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -696,6 +703,16 @@ fn run_relay(bind: &str) -> anyhow::Result<()> {
     }
 }
 
+fn run_multi_relay(bind: &str) -> anyhow::Result<()> {
+    let bind: std::net::SocketAddr = bind.parse()?;
+    let mut relay = manato_net::relay::MultiRelay::bind(bind)?;
+    println!("multi-relay listening on {}", relay.local_addr()?);
+    loop {
+        relay.poll()?;
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
 fn run_stun(server: &str) -> anyhow::Result<()> {
     let server: std::net::SocketAddr = server.parse()?;
     match manato_net::discovery::stun_public_address(server, Duration::from_secs(2))? {
@@ -758,6 +775,9 @@ fn main() -> anyhow::Result<()> {
     }
     if let Some(bind) = &opts.relay {
         return run_relay(bind);
+    }
+    if let Some(bind) = &opts.relay_multi {
+        return run_multi_relay(bind);
     }
 
     if let Some(frames) = opts.frames {
