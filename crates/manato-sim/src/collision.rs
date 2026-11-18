@@ -644,6 +644,7 @@ pub fn apply_hit_at(
         sim.fighters[attacker].sprite_priority = hitdef.p1sprpriority;
     }
     let mut guard_crushed = false;
+    let mut dizzy_started = false;
     {
         let f = &mut sim.fighters[defender];
         f.sprite_priority = hitdef.p2sprpriority;
@@ -773,6 +774,7 @@ pub fn apply_hit_at(
                     f.dizzy_timer = 60;
                     f.dizzy_flag = true;
                     f.ctrl = false;
+                    dizzy_started = true;
                 }
             }
             f.received_hits = f.received_hits.saturating_add(hitdef.numhits.max(1));
@@ -869,7 +871,23 @@ pub fn apply_hit_at(
     }
 
     let char = &sim.assets.characters[sim.fighters[defender].char_id];
-    let mut new_state = if guarding && !guard_crushed {
+    // Ikemen content declares dedicated states in `[Constants]`; prefer them
+    // when they exist, otherwise fall back to the bounded engine reaction.
+    let custom_state = |key: &str| {
+        char.constants
+            .get(key)
+            .map(|value| value as i32)
+            .filter(|state| char.state(*state).is_some())
+    };
+    let guard_break_state = guard_crushed
+        .then(|| custom_state("constants.stateguardbreakhit"))
+        .flatten();
+    let dizzy_state = dizzy_started
+        .then(|| custom_state("constants.statedizzy"))
+        .flatten();
+    let mut new_state = if let Some(state) = guard_break_state {
+        state
+    } else if guarding && !guard_crushed {
         match defender_state_type {
             StateType::Air => 154,
             StateType::Crouch => 152,
@@ -890,6 +908,9 @@ pub fn apply_hit_at(
     } else {
         5000
     };
+    if let Some(state) = dizzy_state {
+        new_state = state;
+    }
     // `p2stateno` overrides the get-hit state on unguarded hits even when the
     // attacker has no `p1stateno` (`docs/spec/combat.md` §5).
     if !guarding && hitdef.p2stateno >= 0 {

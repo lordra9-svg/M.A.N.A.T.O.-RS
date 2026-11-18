@@ -9399,6 +9399,77 @@ fn guard_crush_triggers_and_blocks_guarding() {
 }
 
 #[test]
+fn custom_guard_break_and_dizzy_states() {
+    let state = |number: i32, kind: &str, physics: &str| manato_formats::StateDef {
+        number,
+        params: vec![
+            ("type".into(), kind.into()),
+            ("physics".into(), physics.into()),
+            ("movetype".into(), "I".into()),
+            ("ctrl".into(), "0".into()),
+        ],
+        controllers: Vec::new(),
+        line: 0,
+        source: "custom-state-test".into(),
+    };
+
+    // Guard break: the hit enters `StateGuardBreakHit`, and expiry moves to
+    // `StateGuardBreakRecover`.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let char_id = sim.fighters[1].char_id;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[char_id];
+        character.states.insert(6565400, state(6565400, "U", "N"));
+        character.states.insert(6565401, state(6565401, "S", "N"));
+        character
+            .constants
+            .insert("constants.stateguardbreakhit", 6565400.0);
+        character
+            .constants
+            .insert("constants.stateguardbreakrecover", 6565401.0);
+    }
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 5;
+    let mut hit = hitdef();
+    hit.guard_damage = 10;
+    hit.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    assert!(sim.fighters[1].guard_break);
+    assert_eq!(sim.fighters[1].state_no, 6565400);
+    sim.fighters[1].guard_crush_timer = 1;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].state_no, 6565401);
+    assert_eq!(sim.fighters[1].guard_crush_timer, 0);
+
+    // Dizzy: the onset enters `StateDizzy` and engine expiry leaves control
+    // to the custom state.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let char_id = sim.fighters[1].char_id;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[char_id];
+        character.states.insert(6565300, state(6565300, "S", "N"));
+        character
+            .constants
+            .insert("constants.statedizzy", 6565300.0);
+    }
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 5;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hitdef(), false, origin, 1, true);
+    assert!(sim.fighters[1].dizzy_flag);
+    assert_eq!(sim.fighters[1].dizzy_timer, 60);
+    assert_eq!(sim.fighters[1].state_no, 6565300);
+    assert!(!sim.fighters[1].ctrl);
+}
+
+#[test]
 fn guard_points_regenerate_after_cooldown() {
     let Some(mut sim) = fight_phase() else {
         return;

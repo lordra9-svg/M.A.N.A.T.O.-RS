@@ -347,9 +347,12 @@ explicit engine decision: Ikemen’s internal GetHitVar exposes the pending
 guard-point damage for the current hit, while this engine exposes the meter
 that the bar and `GuardPoints` trigger use.
 
-This is an explicit engine decision, not a full Ikemen guard-break port:
-custom guard-break animations, glass/shockwave effects, and the dedicated
-guard-break state pair are not modeled. Content can observe the state through
+When guard points reach zero, the engine enters the character's custom
+`StateGuardBreakHit` state if `[Constants]` declares it and the state exists;
+otherwise the normal guarded-hit reaction is used. When the crush window
+expires, a character in that state moves to `StateGuardBreakRecover` when
+declared. Glass/shockwave effects and other content-driven visuals remain the
+character's responsibility. Content can also observe the state through
 `GuardBreak`, `GuardPoints`, and `GuardPointsMax`.
 
 ### 6.2 Dizzy points
@@ -359,10 +362,13 @@ Dizzy points are enabled only when the character defines a positive
 disables the meter so M.U.G.E.N-only content is unchanged.
 
 An unguarded hit reduces dizzy points by `round(damage × 1.8)`. When the meter
-falls from a positive value to zero, the defender enters a 60-tick dizzy stun:
-control is removed and guarding is disabled. When the stun ends, dizzy points
-reset to maximum and control returns. This is a bounded engine reaction; the
-custom dizzy state, birds, sounds, and palette/explod effects are not modeled.
+falls from a positive value to zero, the defender enters the character's
+custom `StateDizzy` state when `[Constants]` declares it and the state exists
+(otherwise a 60-tick engine stun removes control and disables guarding). Dizzy
+points reset to maximum when the stun timer ends; for the custom state the
+engine leaves control to that state's own recovery, while the fallback stun
+restores control directly. Bird helpers, sounds, and palette/explod effects
+remain the character's responsibility.
 `DizzyPointsAdd`/`DizzyPointsSet` clamp to `0..dizzy_max`; additions scale by
 final defence unless `absolute = 1`. `Dizzy`, `DizzyPoints`, and
 `DizzyPointsMax` expose the state and meter. `GetHitVar(dizzypoints)` returns

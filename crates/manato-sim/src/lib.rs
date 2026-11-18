@@ -1594,6 +1594,23 @@ impl SimState {
                 if fighter.guard_crush_timer == 0 {
                     fighter.guard_points = fighter.guard_max;
                     fighter.guard_break = false;
+                    // Leave the custom guard-break hit state for its recovery
+                    // state when content declares both.
+                    let character = &self.assets.characters[fighter.char_id];
+                    let hit_state = character
+                        .constants
+                        .get("constants.stateguardbreakhit")
+                        .map(|value| value as i32);
+                    let recover_state = character
+                        .constants
+                        .get("constants.stateguardbreakrecover")
+                        .map(|value| value as i32)
+                        .filter(|state| character.state(*state).is_some());
+                    if let (Some(hit_state), Some(recover_state)) = (hit_state, recover_state) {
+                        if fighter.state_no == hit_state {
+                            fighter.enter_state(recover_state, character, false);
+                        }
+                    }
                 }
             }
             if fighter.guard_cooldown > 0 {
@@ -1610,7 +1627,16 @@ impl SimState {
                 if fighter.dizzy_timer == 0 {
                     fighter.dizzy_points = fighter.dizzy_max;
                     fighter.dizzy_flag = false;
-                    fighter.ctrl = true;
+                    // A custom dizzy state owns its own recovery timing; only
+                    // restore control when the engine's timed stun was used.
+                    let character = &self.assets.characters[fighter.char_id];
+                    let custom_dizzy = character
+                        .constants
+                        .get("constants.statedizzy")
+                        .map(|value| value as i32);
+                    if Some(fighter.state_no) != custom_dizzy {
+                        fighter.ctrl = true;
+                    }
                 } else {
                     fighter.ctrl = false;
                 }
