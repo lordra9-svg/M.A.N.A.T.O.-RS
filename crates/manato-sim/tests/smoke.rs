@@ -4664,6 +4664,72 @@ fn palfx_sinmul_oscillates_multiplier() {
 }
 
 #[test]
+fn palfx_color_hue_invert_and_sines() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("color".into(), "128".into()),
+            ("hue".into(), "128".into()),
+            ("invertall".into(), "1".into()),
+            ("sincolor".into(), "256, 4".into()),
+            ("sinhue".into(), "128, 4".into()),
+            ("time".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    // `color` is 0..256 (256 = unchanged) and `hue` is 512 units per turn.
+    assert!((sim.fighters[0].pal_color - 0.5).abs() < 1e-5);
+    assert!((sim.fighters[0].pal_hue - 0.25).abs() < 1e-5);
+    assert!(sim.fighters[0].pal_invert);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(color)"), 128);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(hue)"), 128);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(invertall)"), 1);
+
+    // One sine cycle pushes color to full saturation and hue to a half turn.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.fighters[0].pal_color - 1.0).abs() < 1e-5);
+    assert!((sim.fighters[0].pal_hue - 0.5).abs() < 1e-5);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(color)"), 256);
+
+    // `invertblend` at the blend threshold also enables inversion.
+    let blend_only = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![
+            ("invertall".into(), "0".into()),
+            ("invertblend".into(), "2".into()),
+            ("time".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &blend_only, &assets);
+    assert!(sim.fighters[0].pal_invert);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "PalfxVar(invertblend)"),
+        2
+    );
+
+    // Turning PalFX off clears color, hue, invert, and the sine timers.
+    let off = manato_formats::Controller {
+        kind: "palfx".into(),
+        params: vec![("time".into(), "0".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &off, &assets);
+    assert!((sim.fighters[0].pal_color - 1.0).abs() < 1e-5);
+    assert!(sim.fighters[0].pal_hue.abs() < 1e-5);
+    assert!(!sim.fighters[0].pal_invert);
+    assert_eq!(sim.fighters[0].pal_sincolor_period, 0);
+    assert_eq!(sim.fighters[0].pal_sinhue_period, 0);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PalfxVar(color)"), 256);
+}
+
+#[test]
 fn allpalfx_and_bgpalfx_apply_globally() {
     let Some(mut sim) = fight_phase() else {
         return;

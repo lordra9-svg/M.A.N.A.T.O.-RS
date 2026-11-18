@@ -943,6 +943,14 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         (scale, pose.angle)
     };
     let bank = bank::CHARACTER_BASE + fighter.char_id as u8;
+    // Fighter `PalFX` color/hue/invert pass through the sprite shader; `add`
+    // and `mul` are already folded into `tint`.
+    painter.set_palfx(
+        [0.0, 0.0, 0.0],
+        fighter.pal_color,
+        fighter.pal_hue,
+        fighter.pal_invert,
+    );
     if fighter.transform_x_shear != 0.0
         || fighter.transform_projection != manato_sim::ProjectionMode::Orthographic
     {
@@ -978,6 +986,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
                 tint,
             );
         }
+        painter.reset_palfx();
         return;
     }
     draw_sprite(
@@ -995,6 +1004,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         tint,
         angle,
     );
+    painter.reset_palfx();
 }
 
 fn effect_animation<'a>(sim: &'a SimState, effect: &Effect) -> Option<(&'a Animation, u8)> {

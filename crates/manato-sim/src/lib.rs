@@ -1170,7 +1170,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(1u32, self.asset_id(), self))
+        bincode::serialize(&(2u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1189,7 +1189,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 1 {
+        if version != 2 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1803,6 +1803,17 @@ impl SimState {
                 fighter.pal_cycle = 0;
                 fighter.pal_mul = [1.0, 1.0, 1.0];
                 fighter.pal_alpha = 1.0;
+                fighter.pal_color = 1.0;
+                fighter.pal_base_color = 1.0;
+                fighter.pal_sincolor = 0.0;
+                fighter.pal_sincolor_period = 0;
+                fighter.pal_sincolor_cycle = 0;
+                fighter.pal_hue = 0.0;
+                fighter.pal_base_hue = 0.0;
+                fighter.pal_sinhue = 0.0;
+                fighter.pal_sinhue_period = 0;
+                fighter.pal_sinhue_cycle = 0;
+                fighter.pal_invert = false;
             } else {
                 if fighter.pal_sin_period > 0 {
                     fighter.pal_cycle += 1;
@@ -1821,6 +1832,21 @@ impl SimState {
                         fighter.pal_mul[axis] =
                             fighter.pal_base_mul[axis] + phase.sin() * fighter.pal_sinmul[axis];
                     }
+                }
+                if fighter.pal_sincolor_period > 0 {
+                    fighter.pal_sincolor_cycle += 1;
+                    let phase = std::f32::consts::TAU * fighter.pal_sincolor_cycle as f32
+                        / fighter.pal_sincolor_period as f32;
+                    fighter.pal_color = (fighter.pal_base_color
+                        + phase.sin() * fighter.pal_sincolor)
+                        .clamp(0.0, 1.0);
+                }
+                if fighter.pal_sinhue_period > 0 {
+                    fighter.pal_sinhue_cycle += 1;
+                    let phase = std::f32::consts::TAU * fighter.pal_sinhue_cycle as f32
+                        / fighter.pal_sinhue_period as f32;
+                    fighter.pal_hue =
+                        (fighter.pal_base_hue + phase.sin() * fighter.pal_sinhue).clamp(-0.5, 0.5);
                 }
             }
         }
@@ -2994,6 +3020,17 @@ impl SimState {
             fighter.pal_sinmul_period = 0;
             fighter.pal_sinmul_cycle = 0;
             fighter.pal_alpha = 1.0;
+            fighter.pal_color = 1.0;
+            fighter.pal_base_color = 1.0;
+            fighter.pal_sincolor = 0.0;
+            fighter.pal_sincolor_period = 0;
+            fighter.pal_sincolor_cycle = 0;
+            fighter.pal_hue = 0.0;
+            fighter.pal_base_hue = 0.0;
+            fighter.pal_sinhue = 0.0;
+            fighter.pal_sinhue_period = 0;
+            fighter.pal_sinhue_cycle = 0;
+            fighter.pal_invert = false;
             fighter.pal_time = 0;
             fighter.target = None;
             fighter.win_quote = -1;
@@ -3850,6 +3887,17 @@ impl SimState {
             h.write_f32(f.pal_mul[1]);
             h.write_f32(f.pal_mul[2]);
             h.write_f32(f.pal_alpha);
+            h.write_f32(f.pal_color);
+            h.write_f32(f.pal_base_color);
+            h.write_f32(f.pal_sincolor);
+            h.write_i32(f.pal_sincolor_period);
+            h.write_i32(f.pal_sincolor_cycle);
+            h.write_f32(f.pal_hue);
+            h.write_f32(f.pal_base_hue);
+            h.write_f32(f.pal_sinhue);
+            h.write_i32(f.pal_sinhue_period);
+            h.write_i32(f.pal_sinhue_cycle);
+            h.write_bool(f.pal_invert);
             h.write_i32(f.pal_time);
             h.write_i32(f.movelist);
             h.write_f32(f.ground_level);

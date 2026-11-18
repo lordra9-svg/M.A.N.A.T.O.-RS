@@ -857,6 +857,17 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
         fighter.pal_sinmul_period = 0;
         fighter.pal_sinmul_cycle = 0;
         fighter.pal_alpha = 1.0;
+        fighter.pal_color = 1.0;
+        fighter.pal_base_color = 1.0;
+        fighter.pal_sincolor = 0.0;
+        fighter.pal_sincolor_period = 0;
+        fighter.pal_sincolor_cycle = 0;
+        fighter.pal_hue = 0.0;
+        fighter.pal_base_hue = 0.0;
+        fighter.pal_sinhue = 0.0;
+        fighter.pal_sinhue_period = 0;
+        fighter.pal_sinhue_cycle = 0;
+        fighter.pal_invert = false;
         fighter.pal_time = 0;
         return;
     }
@@ -909,6 +920,56 @@ fn pal_fx(sim: &mut SimState, who: usize, control: &Controller) {
     }
     if let Some(value) = control.get("alpha") {
         sim.fighters[who].pal_alpha = trigger::num(sim, who, value).clamp(0.0, 1.0);
+    }
+    if let Some(value) = control.get("color") {
+        let color = (trigger::num(sim, who, value) / 256.0).clamp(0.0, 1.0);
+        sim.fighters[who].pal_color = color;
+        sim.fighters[who].pal_base_color = color;
+    }
+    if let Some(value) = control.get("hue") {
+        let hue = (trigger::num(sim, who, value) / 512.0).clamp(-0.5, 0.5);
+        sim.fighters[who].pal_hue = hue;
+        sim.fighters[who].pal_base_hue = hue;
+    }
+    if let Some(value) = control.get("sincolor") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if let Some(magnitude) = parts.first() {
+            let period = parts.get(1).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            let fighter = &mut sim.fighters[who];
+            fighter.pal_sincolor = magnitude / 256.0 * side;
+            fighter.pal_sincolor_period = period.abs();
+            fighter.pal_sincolor_cycle = 0;
+            fighter.pal_color = fighter.pal_base_color;
+        }
+    }
+    if let Some(value) = control.get("sinhue") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if let Some(magnitude) = parts.first() {
+            let period = parts.get(1).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            let fighter = &mut sim.fighters[who];
+            fighter.pal_sinhue = magnitude / 512.0 * side;
+            fighter.pal_sinhue_period = period.abs();
+            fighter.pal_sinhue_cycle = 0;
+            fighter.pal_hue = fighter.pal_base_hue;
+        }
+    }
+    if let Some(value) = control.get("invertall") {
+        sim.fighters[who].pal_invert = trigger::num(sim, who, value) != 0.0;
+    }
+    if let Some(value) = control.get("invertblend") {
+        // Ikemen clamps to -1..2; blends of 2 or more add the inverted pass.
+        let blend = trigger::num(sim, who, value);
+        if blend.abs() >= 2.0 {
+            sim.fighters[who].pal_invert = true;
+        }
     }
     sim.fighters[who].pal_time = time;
 }
@@ -2740,7 +2801,8 @@ fn shift_key(name: &str) -> Option<usize> {
 
 /// `AllPalFX`/`BgPalFX`: global palette effects. `add` uses 0–255 units,
 /// `mul` 0–256 (256 = identity), and `alpha` 0–1. `time = 0` disables the
-/// effect. Color/hue/invert and sine variants are not modeled.
+/// effect. Color/hue/invert and sine variants apply to per-fighter `PalFX`
+/// only and are not modeled globally.
 fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::GlobalPalFx {
     let time = int_param(sim, who, control, "time").unwrap_or(1);
     let mut pal = crate::GlobalPalFx::default();

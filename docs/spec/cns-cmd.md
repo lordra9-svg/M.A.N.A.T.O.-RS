@@ -215,8 +215,11 @@ Required controller families for the approved matrix:
   afterimages; `reset = 1` clears the map and `preset = "name"` applies a
   `[RemapPreset name]` table from the character DEF.
   `PalFX` models `add`/`sinadd`, `mul`/`sinmul` (0–256 units, 256 =
-  identity), and `alpha` (0–1). `color`, `hue`, `invertall`, `invertblend`,
-  `sincolor`, and `sinhue` are unmodeled.
+  identity), `alpha` (0–1), `color` (0–256 saturation), `hue` (−256..256,
+  512 units per turn), `invertall`, `invertblend` (≥2 enables inversion),
+  and the `sincolor`/`sinhue` oscillations with their negative-period
+  direction and cycle lengths. Sine phases use the same tick cadence as
+  `sinadd`/`sinmul`.
 - `AllPalFX`, `BgPalFX` (global palette effects for character/effect sprites
   and stage layers; model `add`, `mul`, `alpha`, and `time`, with the same
   units as `PalFX`; color/hue/invert and sine variants are unmodeled)

@@ -735,6 +735,10 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 "mul.r" => mul(0),
                 "mul.g" => mul(1),
                 "mul.b" => mul(2),
+                "color" => Value::Int((fighter.pal_color * 256.0).round() as i32),
+                "hue" => Value::Int((fighter.pal_hue * 512.0).round() as i32),
+                "invertall" => Value::Int(fighter.pal_invert as i32),
+                "invertblend" => Value::Int(if fighter.pal_invert { 2 } else { 0 }),
                 _ => Value::Int(0),
             }
         }
