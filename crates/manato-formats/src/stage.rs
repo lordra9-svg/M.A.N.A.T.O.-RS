@@ -309,6 +309,8 @@ pub struct Stage {
     pub bg_clear_color: [u8; 3],
     /// `[Model] model`: optional glTF scene model.
     pub model: Option<PathBuf>,
+    /// `[Model] anim`: glTF animation clip name or index.
+    pub model_anim: Option<String>,
     pub xscale: f32,
     pub yscale: f32,
     pub portrait_scale: f32,
@@ -356,6 +358,7 @@ impl Default for Stage {
             debug_bg: false,
             bg_clear_color: [0, 0, 0],
             model: None,
+            model_anim: None,
             xscale: 1.0,
             yscale: 1.0,
             portrait_scale: 1.0,
@@ -608,6 +611,12 @@ impl Stage {
                         def.dir.join(path)
                     }
                 }),
+            model_anim: def
+                .text
+                .find("model")
+                .map(section_map)
+                .and_then(|map| map.get("anim").or_else(|| map.get("modelanim")).cloned())
+                .filter(|value| !value.trim().is_empty()),
             xscale: num(&stage_info, "xscale", 1.0),
             yscale: num(&stage_info, "yscale", 1.0),
             portrait_scale: num(&stage_info, "portraitscale", 0.41666),
@@ -908,7 +917,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("dir");
         let mut text = std::fs::read_to_string(&source).expect("def");
-        text.push_str("\n[Model]\nmodel = triangle.gltf\n");
+        text.push_str("\n[Model]\nmodel = triangle.gltf\nanim = back\n");
         let def = dir.join("stage.def");
         std::fs::write(&def, text).expect("write");
         std::fs::copy(
@@ -921,6 +930,7 @@ mod tests {
             stage.model.as_deref(),
             Some(dir.join("triangle.gltf").as_path())
         );
+        assert_eq!(stage.model_anim.as_deref(), Some("back"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

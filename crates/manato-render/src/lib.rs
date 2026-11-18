@@ -674,7 +674,7 @@ impl Renderer {
         self.shader_textures.clear();
         self.clear_model();
         if let Some(path) = &assets.stage.model {
-            self.load_model(path);
+            self.load_model(path, assets.stage.model_anim.as_deref());
         }
 
         self.screen_fonts.clear();
@@ -1065,9 +1065,14 @@ impl Renderer {
     }
 
     /// Loads and bakes a static glTF model for the current scene/stage.
-    pub fn load_model(&mut self, path: &Path) {
+    pub fn load_model(&mut self, path: &Path, clip: Option<&str>) {
         match model::load(path) {
-            Ok(asset) => {
+            Ok(mut asset) => {
+                if let Some(clip) = clip {
+                    if !asset.select_clip(clip) {
+                        log::warn!("model {}: unknown animation clip {clip}", path.display());
+                    }
+                }
                 self.model_draws.clear();
                 let samples = asset.sample(0.0, &Default::default());
                 for (draw, vertices) in asset.draws.iter().zip(samples.iter()) {
@@ -1183,7 +1188,7 @@ impl Renderer {
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.clear_model();
         if let Some(path) = &storyboard.model {
-            self.load_model(path);
+            self.load_model(path, storyboard.model_anim.as_deref());
         }
         self.screen_fonts.clear();
         for (index, path) in &storyboard.font_files {
@@ -2367,7 +2372,7 @@ void main() {
 }"#,
         )
         .expect("model");
-        renderer.load_model(&model);
+        renderer.load_model(&model, None);
         assert_eq!(renderer.model_draws.len(), 1);
         assert_eq!(renderer.model_draws[0].1, 3);
         let storyboard = manato_formats::storyboard::Storyboard {
@@ -2386,6 +2391,7 @@ void main() {
             sounds: manato_formats::SoundBank::default(),
             lua_source: None,
             model: Some(model),
+            model_anim: None,
         };
         let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
         renderer.load_storyboard(&storyboard);

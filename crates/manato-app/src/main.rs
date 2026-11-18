@@ -2937,6 +2937,7 @@ mod tests {
                     .into(),
             ),
             model: None,
+            model_anim: None,
         };
         let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
         let mut overlays = vec![manato_sim::StoryboardOverlay {

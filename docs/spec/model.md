@@ -31,15 +31,17 @@ and the first node animation are loaded and rendered behind the 2D scene.
 
 ## Not modeled
 
-- The first glTF animation's translation/rotation/scale channels are sampled
-  (step/linear) and applied through the node hierarchy each frame. Animation
+- All glTF animation clips are loaded. `[Model] anim = name|index` (stage) or
+  `[SceneDef] modelanim = name|index` (storyboard) selects the active clip;
+  clip 0 is the default. Translation/rotation/scale and morph-weight channels
+  are sampled (step/linear) through the node hierarchy each frame. Animation
   time follows the match clock (or storyboard scene clock) in seconds.
 - Skinning: `JOINTS_0`/`WEIGHTS_0` and `inverseBindMatrices` deform vertices
   with up to four weighted joints per vertex, driven by the animated node
   hierarchy.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
-- Additional animation clips.
+
 - Full PBR BRDFs, image-based environment lighting, normal/emissive/ORM maps,
   and multiple lights.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index

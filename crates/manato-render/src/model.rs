@@ -81,6 +81,7 @@ struct Track {
 
 #[derive(Debug, Clone)]
 struct ModelAnimation {
+    name: Option<String>,
     tracks: Vec<Track>,
     weight_tracks: Vec<WeightTrack>,
 }
@@ -97,13 +98,42 @@ struct Placement {
 pub struct ModelAsset {
     pub draws: Vec<ModelDraw>,
     nodes: Vec<ModelNode>,
-    animation: Option<ModelAnimation>,
+    animations: Vec<ModelAnimation>,
+    clip: usize,
     world0: Vec<Mat4>,
     placement: Option<Placement>,
 }
 
 impl ModelAsset {
     /// Vertex data for every draw at `time` seconds into the first animation.
+    /// Selects an animation clip by index or case-insensitive name.
+    pub fn select_clip(&mut self, selector: &str) -> bool {
+        if let Ok(index) = selector.trim().parse::<usize>() {
+            if index < self.animations.len() {
+                self.clip = index;
+                return true;
+            }
+        }
+        let selector = selector.trim().to_ascii_lowercase();
+        if let Some((index, _)) = self.animations.iter().enumerate().find(|(_, animation)| {
+            animation
+                .name
+                .as_deref()
+                .is_some_and(|name| name.eq_ignore_ascii_case(&selector))
+        }) {
+            self.clip = index;
+            return true;
+        }
+        false
+    }
+
+    pub fn clip_names(&self) -> Vec<&str> {
+        self.animations
+            .iter()
+            .map(|animation| animation.name.as_deref().unwrap_or(""))
+            .collect()
+    }
+
     pub fn sample(
         &self,
         time: f32,
@@ -234,7 +264,7 @@ impl ModelAsset {
 
     fn animated_local_transforms(&self, time: f32) -> Vec<Mat4> {
         let mut transforms: Vec<Option<Mat4>> = vec![None; self.nodes.len()];
-        let Some(animation) = &self.animation else {
+        let Some(animation) = self.animations.get(self.clip) else {
             return Vec::new();
         };
         for track in &animation.tracks {
@@ -279,7 +309,7 @@ impl ModelAsset {
 
 impl ModelAsset {
     fn morph_weights(&self, draw: &ModelDraw, time: f32) -> Vec<f32> {
-        if let Some(animation) = &self.animation {
+        if let Some(animation) = self.animations.get(self.clip) {
             if let Some(track) = animation
                 .weight_tracks
                 .iter()
@@ -510,96 +540,103 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
         anyhow::bail!("glTF has no triangle geometry");
     }
 
-    let animation = document.animations().next().and_then(|animation| {
-        let mut tracks = Vec::new();
-        let mut weight_tracks = Vec::new();
-        for channel in animation.channels() {
-            let target = channel.target();
-            let Some(&node) = node_index.get(&target.node().index()) else {
-                continue;
-            };
-            let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
-            let Some(inputs) = reader.read_inputs() else {
-                continue;
-            };
-            let times: Vec<f32> = inputs.collect();
-            if target.property() == gltf::animation::Property::MorphTargetWeights {
-                if let Some(gltf::animation::util::ReadOutputs::MorphTargetWeights(values)) =
-                    reader.read_outputs()
-                {
-                    let values: Vec<f32> = match values {
-                        gltf::animation::util::MorphTargetWeights::I8(values) => {
-                            values.map(|value| value as f32).collect()
-                        }
-                        gltf::animation::util::MorphTargetWeights::U8(values) => {
-                            values.map(|value| value as f32).collect()
-                        }
-                        gltf::animation::util::MorphTargetWeights::I16(values) => {
-                            values.map(|value| value as f32).collect()
-                        }
-                        gltf::animation::util::MorphTargetWeights::U16(values) => {
-                            values.map(|value| value as f32).collect()
-                        }
-                        gltf::animation::util::MorphTargetWeights::F32(values) => values.collect(),
-                    };
-                    let target_count = target
-                        .node()
-                        .mesh()
-                        .and_then(|mesh| mesh.primitives().next())
-                        .map(|primitive| primitive.morph_targets().len())
-                        .unwrap_or(1)
-                        .max(1);
-                    let keys = times
-                        .into_iter()
-                        .zip(values.chunks(target_count))
-                        .map(|(time, values)| (time, values.to_vec()))
-                        .collect();
-                    weight_tracks.push(WeightTrack { node, keys });
+    let animations: Vec<ModelAnimation> = document
+        .animations()
+        .filter_map(|animation| {
+            let mut tracks = Vec::new();
+            let mut weight_tracks = Vec::new();
+            for channel in animation.channels() {
+                let target = channel.target();
+                let Some(&node) = node_index.get(&target.node().index()) else {
+                    continue;
+                };
+                let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
+                let Some(inputs) = reader.read_inputs() else {
+                    continue;
+                };
+                let times: Vec<f32> = inputs.collect();
+                if target.property() == gltf::animation::Property::MorphTargetWeights {
+                    if let Some(gltf::animation::util::ReadOutputs::MorphTargetWeights(values)) =
+                        reader.read_outputs()
+                    {
+                        let values: Vec<f32> = match values {
+                            gltf::animation::util::MorphTargetWeights::I8(values) => {
+                                values.map(|value| value as f32).collect()
+                            }
+                            gltf::animation::util::MorphTargetWeights::U8(values) => {
+                                values.map(|value| value as f32).collect()
+                            }
+                            gltf::animation::util::MorphTargetWeights::I16(values) => {
+                                values.map(|value| value as f32).collect()
+                            }
+                            gltf::animation::util::MorphTargetWeights::U16(values) => {
+                                values.map(|value| value as f32).collect()
+                            }
+                            gltf::animation::util::MorphTargetWeights::F32(values) => {
+                                values.collect()
+                            }
+                        };
+                        let target_count = target
+                            .node()
+                            .mesh()
+                            .and_then(|mesh| mesh.primitives().next())
+                            .map(|primitive| primitive.morph_targets().len())
+                            .unwrap_or(1)
+                            .max(1);
+                        let keys = times
+                            .into_iter()
+                            .zip(values.chunks(target_count))
+                            .map(|(time, values)| (time, values.to_vec()))
+                            .collect();
+                        weight_tracks.push(WeightTrack { node, keys });
+                    }
+                    continue;
                 }
-                continue;
+                let property = match target.property() {
+                    gltf::animation::Property::Translation => Property::Translation,
+                    gltf::animation::Property::Rotation => Property::Rotation,
+                    gltf::animation::Property::Scale => Property::Scale,
+                    gltf::animation::Property::MorphTargetWeights => continue,
+                };
+                let Some(outputs) = reader.read_outputs() else {
+                    continue;
+                };
+                let values: Vec<[f32; 4]> = match outputs {
+                    gltf::animation::util::ReadOutputs::Translations(values) => values
+                        .map(|value| [value[0], value[1], value[2], 1.0])
+                        .collect(),
+                    gltf::animation::util::ReadOutputs::Rotations(values) => {
+                        values.into_f32().collect()
+                    }
+                    gltf::animation::util::ReadOutputs::Scales(values) => values
+                        .map(|value| [value[0], value[1], value[2], 1.0])
+                        .collect(),
+                    _ => continue,
+                };
+                let keys = times.into_iter().zip(values).collect();
+                tracks.push(Track {
+                    node,
+                    property,
+                    keys,
+                });
             }
-            let property = match target.property() {
-                gltf::animation::Property::Translation => Property::Translation,
-                gltf::animation::Property::Rotation => Property::Rotation,
-                gltf::animation::Property::Scale => Property::Scale,
-                gltf::animation::Property::MorphTargetWeights => continue,
-            };
-            let Some(outputs) = reader.read_outputs() else {
-                continue;
-            };
-            let values: Vec<[f32; 4]> = match outputs {
-                gltf::animation::util::ReadOutputs::Translations(values) => values
-                    .map(|value| [value[0], value[1], value[2], 1.0])
-                    .collect(),
-                gltf::animation::util::ReadOutputs::Rotations(values) => {
-                    values.into_f32().collect()
-                }
-                gltf::animation::util::ReadOutputs::Scales(values) => values
-                    .map(|value| [value[0], value[1], value[2], 1.0])
-                    .collect(),
-                _ => continue,
-            };
-            let keys = times.into_iter().zip(values).collect();
-            tracks.push(Track {
-                node,
-                property,
-                keys,
-            });
-        }
-        if tracks.is_empty() && weight_tracks.is_empty() {
-            None
-        } else {
-            Some(ModelAnimation {
-                tracks,
-                weight_tracks,
-            })
-        }
-    });
+            if tracks.is_empty() && weight_tracks.is_empty() {
+                None
+            } else {
+                Some(ModelAnimation {
+                    name: animation.name().map(str::to_string),
+                    tracks,
+                    weight_tracks,
+                })
+            }
+        })
+        .collect();
 
     let mut asset = ModelAsset {
         draws,
         nodes,
-        animation,
+        animations,
+        clip: 0,
         world0: Vec::new(),
         placement: None,
     };
@@ -980,6 +1017,61 @@ mod tests {
             (end[0] - start[0]).abs() > 1.0,
             "joint animation deformed the mesh"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn selects_between_multiple_animation_clips() {
+        let dir = std::env::temp_dir().join(format!("manato-model-clips-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("clips.gltf");
+        std::fs::write(
+            &path,
+            r#"{
+  "asset": {"version": "2.0"},
+  "buffers": [
+    {"uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAEAAAAAA", "byteLength": 36},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAgD8=", "byteLength": 8},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAA", "byteLength": 24},
+    {"uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAvwAAAAAAAAAA", "byteLength": 24}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteLength": 36, "target": 34962},
+    {"buffer": 1, "byteLength": 8},
+    {"buffer": 2, "byteLength": 24},
+    {"buffer": 3, "byteLength": 24}
+  ],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,0,0], "max": [1,2,0]},
+    {"bufferView": 1, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [1]},
+    {"bufferView": 2, "componentType": 5126, "count": 2, "type": "VEC3"},
+    {"bufferView": 3, "componentType": 5126, "count": 2, "type": "VEC3"}
+  ],
+  "materials": [{"pbrMetallicRoughness": {"baseColorFactor": [1,1,1,1]}}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0, "mode": 4}]}],
+  "nodes": [{"mesh": 0}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0,
+  "animations": [
+    {"name": "slide", "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}], "samplers": [{"input": 1, "output": 2, "interpolation": "LINEAR"}]},
+    {"name": "back", "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}], "samplers": [{"input": 1, "output": 3, "interpolation": "LINEAR"}]}
+  ]
+}"#,
+        )
+        .expect("model");
+        let mut asset = load(&path).expect("load");
+        assert_eq!(asset.clip_names(), vec!["slide", "back"]);
+        let slide = asset.sample(1.0, &Default::default())[0][0].pos[0];
+        assert!(asset.select_clip("back"));
+        let back = asset.sample(1.0, &Default::default())[0][0].pos[0];
+        assert!(
+            (slide - back).abs() > 1.0,
+            "clips move the node differently"
+        );
+        assert!(asset.select_clip("1"));
+        assert_eq!(asset.sample(1.0, &Default::default())[0][0].pos[0], back);
+        assert!(!asset.select_clip("missing"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
