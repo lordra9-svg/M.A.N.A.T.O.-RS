@@ -223,6 +223,8 @@ pub struct ModelDraw {
     clearcoat: f32,
     clearcoat_roughness: f32,
     transmission: f32,
+    anisotropy: f32,
+    anisotropy_rotation: f32,
     normal_map: Option<ModelTexture>,
     normal_scale: f32,
     emissive_map: Option<ModelTexture>,
@@ -502,6 +504,8 @@ impl ModelAsset {
                             draw.clearcoat,
                             draw.clearcoat_roughness,
                             draw.transmission,
+                            draw.anisotropy,
+                            draw.anisotropy_rotation,
                         );
                         out.color = [shaded.color.x, shaded.color.y, shaded.color.z, out.color[3]];
                         out.brdf_uv = shaded.brdf_uv;
@@ -730,6 +734,8 @@ fn shade_color_with(
         0.0,
         0.0,
         0.0,
+        0.0,
+        0.0,
     );
     let mut color = shaded.color;
     if let Some(_ibl) = environment {
@@ -755,6 +761,8 @@ fn shade_color_parts(
     clearcoat: f32,
     clearcoat_roughness: f32,
     transmission: f32,
+    anisotropy: f32,
+    anisotropy_rotation: f32,
 ) -> Shaded {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
@@ -772,6 +780,19 @@ fn shade_color_parts(
     let clearcoat_roughness = clearcoat_roughness.clamp(0.04, 1.0);
     let transmission = transmission.clamp(0.0, 1.0);
     let clearcoat_f0 = Vec3::splat(0.04);
+    let anisotropy = anisotropy.clamp(0.0, 1.0);
+    let up = if normal.y.abs() < 0.999 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    let tangent = up.cross(normal).normalize_or_zero();
+    let bitangent = normal.cross(tangent);
+    let rotation = anisotropy_rotation;
+    let aniso_tangent = tangent * rotation.cos() + bitangent * rotation.sin();
+    let aniso_bitangent = -tangent * rotation.sin() + bitangent * rotation.cos();
+    let aniso_alpha_t = (roughness * (1.0 + anisotropy * 0.9)).clamp(0.04, 1.0);
+    let aniso_alpha_b = (roughness * (1.0 - anisotropy * 0.7)).clamp(0.04, 1.0);
 
     let mut direct = Vec3::ZERO;
     for light in lights {
@@ -785,7 +806,18 @@ fn shade_color_parts(
         // Trowbridge-Reitz (GGX) normal distribution.
         let a2 = alpha * alpha;
         let denominator = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
-        let distribution = a2 / (std::f32::consts::PI * denominator * denominator + 1e-6);
+        let distribution = if anisotropy > 0.0 {
+            let h_dot_t = half.dot(aniso_tangent);
+            let h_dot_b = half.dot(aniso_bitangent);
+            let at2 = aniso_alpha_t * aniso_alpha_t;
+            let ab2 = aniso_alpha_b * aniso_alpha_b;
+            let denom = h_dot_t * h_dot_t / (at2 * at2)
+                + h_dot_b * h_dot_b / (ab2 * ab2)
+                + n_dot_h * n_dot_h;
+            at2 * ab2 / (std::f32::consts::PI * denom * denom + 1e-6)
+        } else {
+            a2 / (std::f32::consts::PI * denominator * denominator + 1e-6)
+        };
         // Smith-Schlick geometry term.
         let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
         let geometry =
@@ -976,6 +1008,16 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .and_then(|value| value.get("transmissionFactor"))
                 .and_then(|value| value.as_f64())
                 .unwrap_or(0.0) as f32;
+            let anisotropy = material
+                .extension_value("KHR_materials_anisotropy")
+                .and_then(|value| value.get("anisotropyStrength"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
+            let anisotropy_rotation = material
+                .extension_value("KHR_materials_anisotropy")
+                .and_then(|value| value.get("anisotropyRotation"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
             let emissive_factor = material.emissive_factor();
             let normal_map = material
                 .normal_texture()
@@ -1042,6 +1084,8 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     clearcoat,
                     clearcoat_roughness,
                     transmission,
+                    anisotropy,
+                    anisotropy_rotation,
                     normal_map,
                     normal_scale,
                     emissive_map,
@@ -1484,6 +1528,8 @@ mod tests {
             0.0,
             0.0,
             0.0,
+            0.0,
+            0.0,
         );
         let coated = shade_color_parts(
             normal,
@@ -1495,6 +1541,8 @@ mod tests {
             &default_lights(),
             1.0,
             0.2,
+            0.0,
+            0.0,
             0.0,
         );
         let transmitted = shade_color_parts(
@@ -1508,10 +1556,46 @@ mod tests {
             0.0,
             0.0,
             0.8,
+            0.0,
+            0.0,
         );
         assert_ne!(base.color, coated.color);
         assert!(coated.color.length() > 0.0);
         assert!(transmitted.color != base.color);
+    }
+
+    #[test]
+    fn anisotropy_modifies_specular_highlight() {
+        let isotropic = shade_color_parts(
+            Vec3::Y,
+            [1.0; 4],
+            0.0,
+            0.35,
+            1.0,
+            None,
+            &default_lights(),
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        );
+        let anisotropic = shade_color_parts(
+            Vec3::Y,
+            [1.0; 4],
+            0.0,
+            0.35,
+            1.0,
+            None,
+            &default_lights(),
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+        );
+        assert_ne!(isotropic.color, anisotropic.color);
+        assert!(anisotropic.specular == Vec3::ZERO);
     }
 
     #[test]
@@ -1673,7 +1757,7 @@ mod tests {
   ],
   "samplers": [{}],
   "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}}}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -1694,6 +1778,8 @@ mod tests {
         assert_eq!(draw.clearcoat, 0.8);
         assert_eq!(draw.clearcoat_roughness, 0.2);
         assert_eq!(draw.transmission, 0.3);
+        assert_eq!(draw.anisotropy, 0.6);
+        assert_eq!(draw.anisotropy_rotation, 0.5);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
