@@ -524,8 +524,12 @@ struct TcpAllocation {
     expires: std::time::Instant,
 }
 
+trait ReadWrite: Read + Write {}
+impl<T: Read + Write> ReadWrite for T {}
+
 struct TcpConnection {
-    stream: std::net::TcpStream,
+    stream: Box<dyn ReadWrite>,
+    peer: SocketAddr,
     buffer: Vec<u8>,
     allocation: Option<TcpAllocation>,
     closed: bool,
@@ -538,6 +542,7 @@ pub struct TurnTcpServer {
     nonce: String,
     users: HashMap<String, String>,
     connections: Vec<TcpConnection>,
+    tls: Option<std::sync::Arc<rustls::ServerConfig>>,
 }
 
 impl TurnTcpServer {
@@ -554,7 +559,33 @@ impl TurnTcpServer {
             nonce: "manato-nonce".into(),
             users: users.into_iter().collect(),
             connections: Vec::new(),
+            tls: None,
         })
+    }
+
+    /// Binds a TLS TURN listener using PEM certificate and private key files.
+    pub fn bind_tls(
+        addr: SocketAddr,
+        realm: impl Into<String>,
+        users: impl IntoIterator<Item = (String, String)>,
+        cert_path: &std::path::Path,
+        key_path: &std::path::Path,
+    ) -> std::io::Result<Self> {
+        let mut server = Self::bind(addr, realm, users)?;
+        let certs: Vec<_> = rustls_pemfile::certs(&mut std::io::BufReader::new(
+            std::fs::File::open(cert_path)?,
+        ))
+        .collect::<Result<_, _>>()?;
+        let key = rustls_pemfile::private_key(&mut std::io::BufReader::new(std::fs::File::open(
+            key_path,
+        )?))?
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "missing TLS key"))?;
+        let config = rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(certs, key)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+        server.tls = Some(std::sync::Arc::new(config));
+        Ok(server)
     }
 
     pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
@@ -698,10 +729,18 @@ impl TurnTcpServer {
         let mut handled = 0;
         loop {
             match self.listener.accept() {
-                Ok((stream, _)) => {
-                    stream.set_nonblocking(true)?;
+                Ok((tcp, peer)) => {
+                    tcp.set_nonblocking(true)?;
+                    let stream: Box<dyn ReadWrite> = if let Some(config) = &self.tls {
+                        let connection = rustls::ServerConnection::new(config.clone())
+                            .map_err(std::io::Error::other)?;
+                        Box::new(rustls::StreamOwned::new(connection, tcp))
+                    } else {
+                        Box::new(tcp)
+                    };
                     self.connections.push(TcpConnection {
                         stream,
+                        peer,
                         buffer: Vec::new(),
                         allocation: None,
                         closed: false,
@@ -744,9 +783,7 @@ impl TurnTcpServer {
                 let Some(message) = Message::parse(&frame) else {
                     continue;
                 };
-                let Ok(source) = connection.stream.peer_addr() else {
-                    continue;
-                };
+                let source = connection.peer;
                 let replies = Self::handle(
                     &self.realm,
                     &self.nonce,
@@ -967,7 +1004,22 @@ mod tests {
         assert_eq!(got.as_deref(), Some(&b"pong"[..]));
     }
 
-    fn read_tcp_frame(stream: &mut std::net::TcpStream) -> Vec<u8> {
+    fn write_all_retry<S: Write>(server: &mut TurnTcpServer, client: &mut S, data: &[u8]) {
+        let mut offset = 0;
+        while offset < data.len() {
+            match client.write(&data[offset..]) {
+                Ok(0) => break,
+                Ok(len) => offset += len,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    server.poll().expect("poll during handshake");
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => panic!("TLS write failed: {error}"),
+            }
+        }
+    }
+
+    fn read_tcp_frame<R: Read>(stream: &mut R) -> Vec<u8> {
         let mut header = [0u8; 4];
         stream.read_exact(&mut header).expect("header");
         let length = if header[0] & 0xC0 == 0x40 {
@@ -1015,9 +1067,11 @@ mod tests {
                 .with(ATTR_NONCE, b"manato-nonce".to_vec())
                 .encode_authenticated(&key)
         };
-        client
-            .write_all(&auth(Message::new(ALLOCATE_REQUEST, TX)))
-            .expect("allocate");
+        write_all_retry(
+            &mut server,
+            &mut client,
+            &auth(Message::new(ALLOCATE_REQUEST, TX)),
+        );
         let mut relayed = None;
         for _ in 0..100 {
             server.poll().expect("poll");
@@ -1062,7 +1116,7 @@ mod tests {
         frame.extend_from_slice(&channel.to_be_bytes());
         frame.extend_from_slice(&3u16.to_be_bytes());
         frame.extend_from_slice(b"tcp");
-        client.write_all(&frame).expect("channel data");
+        write_all_retry(&mut server, &mut client, &frame);
         let started = Instant::now();
         let mut buffer = [0u8; 64];
         let mut got = None;
@@ -1092,6 +1146,143 @@ mod tests {
             std::thread::sleep(Duration::from_millis(2));
         }
         assert_eq!(got.as_deref(), Some(&b"back"[..]));
+    }
+
+    #[test]
+    fn tls_turn_allocates_and_forwards_channel_data() {
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).expect("cert");
+        let dir = std::env::temp_dir().join(format!("manato-turn-tls-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let cert_path = dir.join("cert.pem");
+        let key_path = dir.join("key.pem");
+        std::fs::write(&cert_path, cert.serialize_pem().expect("cert pem")).expect("cert");
+        std::fs::write(&key_path, cert.serialize_private_key_pem()).expect("key");
+        let mut server = TurnTcpServer::bind_tls(
+            "127.0.0.1:0".parse().unwrap(),
+            "manato",
+            [("alice".to_string(), "secret".to_string())],
+            &cert_path,
+            &key_path,
+        )
+        .expect("server");
+        let server_addr = server.local_addr().expect("addr");
+
+        let mut roots = rustls::RootCertStore::empty();
+        let certs: Vec<_> = rustls_pemfile::certs(&mut std::io::BufReader::new(
+            std::fs::File::open(&cert_path).expect("open cert"),
+        ))
+        .collect::<Result<_, _>>()
+        .expect("parse cert");
+        for cert in certs {
+            roots.add(cert).expect("root");
+        }
+        let config = rustls::ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let tcp = std::net::TcpStream::connect(server_addr).expect("tcp");
+        tcp.set_read_timeout(Some(Duration::from_millis(500)))
+            .expect("timeout");
+        let connection = rustls::ClientConnection::new(
+            std::sync::Arc::new(config),
+            "localhost".try_into().expect("name"),
+        )
+        .expect("tls");
+        let mut client = rustls::StreamOwned::new(connection, tcp);
+
+        let peer = UdpSocket::bind("127.0.0.1:0").expect("peer");
+        peer.set_nonblocking(true).expect("nonblocking");
+        let peer_addr = peer.local_addr().expect("peer addr");
+        let key = long_term_key("alice", "manato", "secret");
+        let auth = |message: Message| {
+            message
+                .with(ATTR_USERNAME, b"alice".to_vec())
+                .with(ATTR_REALM, b"manato".to_vec())
+                .with(ATTR_NONCE, b"manato-nonce".to_vec())
+                .encode_authenticated(&key)
+        };
+        write_all_retry(
+            &mut server,
+            &mut client,
+            &auth(Message::new(ALLOCATE_REQUEST, TX)),
+        );
+        let mut relayed = None;
+        for _ in 0..100 {
+            server.poll().expect("poll");
+            if let Ok(frame) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                read_tcp_frame(&mut client)
+            })) {
+                let message = Message::parse(&frame).expect("reply");
+                if message.message_type == ALLOCATE_SUCCESS {
+                    relayed = message
+                        .attribute(ATTR_XOR_RELAYED_ADDRESS)
+                        .and_then(|value| decode_xor_address(value, &TX));
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let relayed = relayed.expect("relayed");
+        write_all_retry(
+            &mut server,
+            &mut client,
+            &auth(Message::new(CREATE_PERMISSION_REQUEST, [4; 12]).with(
+                ATTR_XOR_PEER_ADDRESS,
+                encode_xor_address(peer_addr, &[4; 12]),
+            )),
+        );
+        let channel = 0x4003u16;
+        write_all_retry(
+            &mut server,
+            &mut client,
+            &auth(
+                Message::new(CHANNEL_BIND_REQUEST, [5; 12])
+                    .with(ATTR_CHANNEL_NUMBER, channel.to_be_bytes().to_vec())
+                    .with(
+                        ATTR_XOR_PEER_ADDRESS,
+                        encode_xor_address(peer_addr, &[5; 12]),
+                    ),
+            ),
+        );
+        for _ in 0..20 {
+            server.poll().expect("poll");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let mut frame = Vec::new();
+        frame.extend_from_slice(&channel.to_be_bytes());
+        frame.extend_from_slice(&4u16.to_be_bytes());
+        frame.extend_from_slice(b"tls!");
+        write_all_retry(&mut server, &mut client, &frame);
+        let started = Instant::now();
+        let mut buffer = [0u8; 64];
+        let mut got = None;
+        while started.elapsed() < Duration::from_secs(1) {
+            server.poll().expect("poll");
+            if let Ok((len, _)) = peer.recv_from(&mut buffer) {
+                got = Some(buffer[..len].to_vec());
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(got.as_deref(), Some(&b"tls!"[..]));
+
+        peer.send_to(b"back", relayed).expect("peer");
+        let started = Instant::now();
+        let mut got = None;
+        while started.elapsed() < Duration::from_secs(1) {
+            server.poll().expect("poll");
+            if let Ok(frame) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                read_tcp_frame(&mut client)
+            })) {
+                if frame.len() >= 4 && frame[0] & 0xC0 == 0x40 {
+                    got = Some(frame[4..].to_vec());
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(got.as_deref(), Some(&b"back"[..]));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

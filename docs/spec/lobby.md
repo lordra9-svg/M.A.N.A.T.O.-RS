@@ -110,7 +110,13 @@ allocate/permission/channel ping-pong, and wrong-password rejection.
 `TurnTcpServer` (app `--turn-tcp <bind>`) implements the same STUN framing,
 authentication, Allocate/Refresh/CreatePermission/ChannelBind, Send/Data
 indications, and ChannelData over TCP, with allocations scoped per TCP
-connection. TCP TLS wrapping is not modeled yet.
+connection.
+
+`TurnTcpServer::bind_tls` wraps the same framing in rustls using PEM certificate
+and private-key files; app `--turn-tls <bind> --turn-cert <pem> --turn-key <pem>`
+runs it. A loopback test generates a self-signed certificate, performs a rustls
+client handshake, and exercises authenticated Allocate plus bidirectional
+ChannelData forwarding.
 
 `Matchmaker`/`best_lobby` rank discovered lobbies: Closed lobbies are excluded,
 then Open > Starting > InMatch, then player count, spectator count, and name.

@@ -10,6 +10,8 @@ license = "MIT"
 authors = ["M.A.N.A.T.O.-RS contributors"]
 
 [workspace.dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-pemfile = "2"
 sha1 = "0.10"
 md-5 = "0.10"
 hmac = "0.12"
