@@ -4725,6 +4725,56 @@ fn allpalfx_color_hue_invert_parse() {
 }
 
 #[test]
+fn allpalfx_sines_oscillate() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "allpalfx".into(),
+        params: vec![
+            ("add".into(), "10, 20, 30".into()),
+            ("sinadd".into(), "5, 0, 0, 4".into()),
+            ("mul".into(), "128, 256, 256".into()),
+            ("sinmul".into(), "256, 0, 0, 4".into()),
+            ("color".into(), "128".into()),
+            ("sincolor".into(), "256, 4".into()),
+            ("hue".into(), "128".into()),
+            ("sinhue".into(), "128, 4".into()),
+            ("time".into(), "40".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+
+    // Cycle 0: sine is zero, so every base value applies.
+    assert_eq!(sim.all_pal.add, [10.0, 20.0, 30.0]);
+    assert!((sim.all_pal.mul[0] - 0.5).abs() < 1e-5);
+    assert!((sim.all_pal.color - 0.5).abs() < 1e-5);
+    assert!((sim.all_pal.hue - 0.25).abs() < 1e-5);
+
+    // Cycle 1: sin(2π/4) = 1 pushes add/mul up and clamps color/hue.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.all_pal.add[0] - 15.0).abs() < 1e-5);
+    assert!((sim.all_pal.mul[0] - 1.5).abs() < 1e-5);
+    assert!((sim.all_pal.color - 1.0).abs() < 1e-5);
+    assert!((sim.all_pal.hue - 0.5).abs() < 1e-5);
+
+    // Cycle 2: sin(π) ≈ 0 returns to the bases.
+    sim.tick([PlayerInput::default(); 2]);
+    assert!((sim.all_pal.add[0] - 10.0).abs() < 0.01);
+    assert!((sim.all_pal.mul[0] - 0.5).abs() < 0.01);
+    assert!((sim.all_pal.color - 0.5).abs() < 0.01);
+    assert!((sim.all_pal.hue - 0.25).abs() < 0.01);
+
+    // Expiry resets the oscillation state with the effect.
+    for _ in 0..40 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.all_pal, manato_sim::GlobalPalFx::default());
+}
+
+#[test]
 fn palfx_color_hue_invert_and_sines() {
     let Some(mut sim) = fight_phase() else {
         return;

@@ -2813,11 +2813,13 @@ fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::
     if let Some(value) = control.get("add") {
         if let Some(add) = parse_triplet(sim, who, value) {
             pal.add = add;
+            pal.base_add = add;
         }
     }
     if let Some(value) = control.get("mul") {
         if let Some(mul) = parse_triplet(sim, who, value) {
             pal.mul = [mul[0] / 256.0, mul[1] / 256.0, mul[2] / 256.0];
+            pal.base_mul = pal.mul;
         }
     }
     if let Some(value) = control.get("alpha") {
@@ -2825,9 +2827,71 @@ fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::
     }
     if let Some(value) = control.get("color") {
         pal.color = (trigger::num(sim, who, value) / 256.0).clamp(0.0, 1.0);
+        pal.base_color = pal.color;
     }
     if let Some(value) = control.get("hue") {
         pal.hue = (trigger::num(sim, who, value) / 512.0).clamp(-0.5, 0.5);
+        pal.base_hue = pal.hue;
+    }
+    if let Some(value) = control.get("sinadd") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() >= 3 {
+            let period = parts.get(3).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            pal.sinadd = [parts[0] * side, parts[1] * side, parts[2] * side];
+            pal.sinadd_period = period.abs();
+            pal.sinadd_cycle = 0;
+            pal.add = pal.base_add;
+        }
+    }
+    if let Some(value) = control.get("sinmul") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() >= 3 {
+            let period = parts.get(3).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            pal.sinmul = [
+                parts[0] / 256.0 * side,
+                parts[1] / 256.0 * side,
+                parts[2] / 256.0 * side,
+            ];
+            pal.sinmul_period = period.abs();
+            pal.sinmul_cycle = 0;
+            pal.mul = pal.base_mul;
+        }
+    }
+    if let Some(value) = control.get("sincolor") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if let Some(magnitude) = parts.first() {
+            let period = parts.get(1).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            pal.sincolor = magnitude / 256.0 * side;
+            pal.sincolor_period = period.abs();
+            pal.sincolor_cycle = 0;
+            pal.color = pal.base_color;
+        }
+    }
+    if let Some(value) = control.get("sinhue") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if let Some(magnitude) = parts.first() {
+            let period = parts.get(1).copied().unwrap_or(0.0) as i32;
+            let side = if period < 0 { -1.0 } else { 1.0 };
+            pal.sinhue = magnitude / 512.0 * side;
+            pal.sinhue_period = period.abs();
+            pal.sinhue_cycle = 0;
+            pal.hue = pal.base_hue;
+        }
     }
     if let Some(value) = control.get("invertall") {
         pal.invert = trigger::num(sim, who, value) != 0.0;

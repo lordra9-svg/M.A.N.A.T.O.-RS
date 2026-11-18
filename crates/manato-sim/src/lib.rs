@@ -784,12 +784,30 @@ impl Default for BarFill {
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GlobalPalFx {
     pub add: [f32; 3],
+    /// Base add before the `sinadd` oscillation.
+    pub base_add: [f32; 3],
+    pub sinadd: [f32; 3],
+    pub sinadd_period: i32,
+    pub sinadd_cycle: i32,
     pub mul: [f32; 3],
+    /// Base multiplier before the `sinmul` oscillation.
+    pub base_mul: [f32; 3],
+    pub sinmul: [f32; 3],
+    pub sinmul_period: i32,
+    pub sinmul_cycle: i32,
     pub alpha: f32,
     /// Saturation factor (`color` / 256; 1 = unchanged).
     pub color: f32,
+    pub base_color: f32,
+    pub sincolor: f32,
+    pub sincolor_period: i32,
+    pub sincolor_cycle: i32,
     /// Hue rotation as a fraction of a turn (`hue` / 512).
     pub hue: f32,
+    pub base_hue: f32,
+    pub sinhue: f32,
+    pub sinhue_period: i32,
+    pub sinhue_cycle: i32,
     pub invert: bool,
     pub time: i32,
 }
@@ -798,10 +816,26 @@ impl Default for GlobalPalFx {
     fn default() -> Self {
         Self {
             add: [0.0; 3],
+            base_add: [0.0; 3],
+            sinadd: [0.0; 3],
+            sinadd_period: 0,
+            sinadd_cycle: 0,
             mul: [1.0; 3],
+            base_mul: [1.0; 3],
+            sinmul: [0.0; 3],
+            sinmul_period: 0,
+            sinmul_cycle: 0,
             alpha: 1.0,
             color: 1.0,
+            base_color: 1.0,
+            sincolor: 0.0,
+            sincolor_period: 0,
+            sincolor_cycle: 0,
             hue: 0.0,
+            base_hue: 0.0,
+            sinhue: 0.0,
+            sinhue_period: 0,
+            sinhue_cycle: 0,
             invert: false,
             time: 0,
         }
@@ -813,12 +847,42 @@ impl GlobalPalFx {
         self.time > 0
     }
 
-    /// Ticks the remaining duration, resetting to identity on expiry.
+    /// Ticks the remaining duration, resetting to identity on expiry, and
+    /// advances any `sinadd`/`sinmul`/`sincolor`/`sinhue` oscillation.
     pub fn tick(&mut self) {
         if self.time > 0 {
             self.time -= 1;
             if self.time <= 0 {
                 *self = Self::default();
+                return;
+            }
+            if self.sinadd_period > 0 {
+                self.sinadd_cycle += 1;
+                let phase =
+                    std::f32::consts::TAU * self.sinadd_cycle as f32 / self.sinadd_period as f32;
+                for axis in 0..3 {
+                    self.add[axis] = self.base_add[axis] + phase.sin() * self.sinadd[axis];
+                }
+            }
+            if self.sinmul_period > 0 {
+                self.sinmul_cycle += 1;
+                let phase =
+                    std::f32::consts::TAU * self.sinmul_cycle as f32 / self.sinmul_period as f32;
+                for axis in 0..3 {
+                    self.mul[axis] = self.base_mul[axis] + phase.sin() * self.sinmul[axis];
+                }
+            }
+            if self.sincolor_period > 0 {
+                self.sincolor_cycle += 1;
+                let phase = std::f32::consts::TAU * self.sincolor_cycle as f32
+                    / self.sincolor_period as f32;
+                self.color = (self.base_color + phase.sin() * self.sincolor).clamp(0.0, 1.0);
+            }
+            if self.sinhue_period > 0 {
+                self.sinhue_cycle += 1;
+                let phase =
+                    std::f32::consts::TAU * self.sinhue_cycle as f32 / self.sinhue_period as f32;
+                self.hue = (self.base_hue + phase.sin() * self.sinhue).clamp(-0.5, 0.5);
             }
         }
     }
@@ -1178,7 +1242,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(3u32, self.asset_id(), self))
+        bincode::serialize(&(4u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1197,7 +1261,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 3 {
+        if version != 4 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3711,8 +3775,32 @@ impl SimState {
                 h.write_f32(value);
             }
             h.write_f32(pal.alpha);
+            for value in pal.base_add {
+                h.write_f32(value);
+            }
+            for value in pal.sinadd {
+                h.write_f32(value);
+            }
+            h.write_i32(pal.sinadd_period);
+            h.write_i32(pal.sinadd_cycle);
+            for value in pal.base_mul {
+                h.write_f32(value);
+            }
+            for value in pal.sinmul {
+                h.write_f32(value);
+            }
+            h.write_i32(pal.sinmul_period);
+            h.write_i32(pal.sinmul_cycle);
             h.write_f32(pal.color);
+            h.write_f32(pal.base_color);
+            h.write_f32(pal.sincolor);
+            h.write_i32(pal.sincolor_period);
+            h.write_i32(pal.sincolor_cycle);
             h.write_f32(pal.hue);
+            h.write_f32(pal.base_hue);
+            h.write_f32(pal.sinhue);
+            h.write_i32(pal.sinhue_period);
+            h.write_i32(pal.sinhue_cycle);
             h.write_bool(pal.invert);
         }
         h.write_u32(self.bg_ctrls.len() as u32);

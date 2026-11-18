@@ -2031,10 +2031,8 @@ mod tests {
             add: [51.0, 0.0, 255.0],
             mul: [0.5, 1.0, 0.0],
             alpha: 0.5,
-            color: 1.0,
-            hue: 0.0,
-            invert: false,
             time: 10,
+            ..GlobalPalFx::default()
         };
         let color = global_tint([0.4, 0.4, 0.4, 0.8], &pal);
         assert!((color[0] - (0.4 * 0.5 + 51.0 / 255.0)).abs() < 1e-5);
