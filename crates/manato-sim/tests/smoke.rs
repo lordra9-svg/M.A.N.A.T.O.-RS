@@ -392,6 +392,75 @@ fn afterimage_and_palfx_execute() {
 }
 
 #[test]
+fn afterimage_palette_parameters_parse() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let after = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![
+            ("time".into(), "10".into()),
+            ("length".into(), "5".into()),
+            ("palbright".into(), "10,20,30".into()),
+            ("palcontrast".into(), "128,256,64".into()),
+            ("paladd".into(), "5,0,0".into()),
+            ("palmul".into(), "0.5,1.0,0.75".into()),
+            ("palpostbright".into(), "7,0,0".into()),
+            ("palcolor".into(), "192".into()),
+            ("palhue".into(), "128".into()),
+            ("palinvertall".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &after, &assets);
+    let state = sim.fighters[0].after_image.as_ref().expect("afterimage");
+    assert_eq!(state.pal_add, [10.0, 20.0, 30.0]);
+    assert!((state.pal_mul[0] - 0.5).abs() < 1e-5);
+    assert!((state.pal_mul[1] - 1.0).abs() < 1e-5);
+    assert!((state.pal_mul[2] - 0.25).abs() < 1e-5);
+    assert_eq!(state.pal_step_add, [5.0, 0.0, 0.0]);
+    assert_eq!(state.pal_step_mul, [0.5, 1.0, 0.75]);
+    assert_eq!(state.pal_post, [7.0, 0.0, 0.0]);
+    assert!((state.pal_color - 0.75).abs() < 1e-5);
+    assert!((state.pal_hue - 0.25).abs() < 1e-5);
+    assert!(state.pal_invert);
+
+    // `palinvertblend` at the blend threshold also enables inversion.
+    let blend = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![
+            ("time".into(), "10".into()),
+            ("palinvertall".into(), "0".into()),
+            ("palinvertblend".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &blend, &assets);
+    assert!(
+        sim.fighters[0]
+            .after_image
+            .as_ref()
+            .expect("afterimage")
+            .pal_invert
+    );
+
+    // Defaults keep the pre-existing white-ghost appearance.
+    let plain = manato_formats::Controller {
+        kind: "afterimage".into(),
+        params: vec![("time".into(), "10".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &plain, &assets);
+    let state = sim.fighters[0].after_image.as_ref().expect("afterimage");
+    assert_eq!(state.pal_add, [0.0; 3]);
+    assert_eq!(state.pal_mul, [1.0; 3]);
+    assert_eq!(state.pal_step_mul, [1.0; 3]);
+    assert!((state.pal_color - 1.0).abs() < 1e-5);
+    assert!(!state.pal_invert);
+}
+
+#[test]
 fn reversal_and_trans_execute() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

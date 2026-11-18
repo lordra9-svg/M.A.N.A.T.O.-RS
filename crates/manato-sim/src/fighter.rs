@@ -181,6 +181,21 @@ pub struct AfterImageState {
     pub life: i32,
     pub alpha: f32,
     pub add: bool,
+    /// `palbright`: additive base before stepping (0–255 units).
+    pub pal_add: [f32; 3],
+    /// `palcontrast`: multiplicative base (0–256 units; 256 = identity).
+    pub pal_mul: [f32; 3],
+    /// `paladd`: additive step applied per older ghost.
+    pub pal_step_add: [f32; 3],
+    /// `palmul`: fractional multiplier applied per older ghost.
+    pub pal_step_mul: [f32; 3],
+    /// `palpostbright`: one-shot additive offset after the first step.
+    pub pal_post: [f32; 3],
+    /// `palcolor`: saturation (`color` / 256; 1 = unchanged).
+    pub pal_color: f32,
+    /// `palhue`: hue rotation as a fraction of a turn (`hue` / 512).
+    pub pal_hue: f32,
+    pub pal_invert: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

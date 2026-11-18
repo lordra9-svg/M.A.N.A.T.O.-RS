@@ -31,7 +31,7 @@ deliberate, not scheduling gaps:
 
 | Blocker | Rows | Reason |
 | --- | --- | --- |
-| After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage remappal` is not modeled. |
+| After-image remap | C-07, C-13 | `RemapSprite` group/index substitution and named presets are implemented; `AfterImage` palette options (`palbright`, `palcontrast`, `paladd`, `palmul`, `palpostbright`, `palcolor`, `palhue`, `palinvertall`, `palinvertblend`) are modeled. |
 | 3D / depth | T-04, V-03 | `Depth`/`DepthBound`/z position, a wgpu depth buffer, stage `[Scaling]` perspective for fighters and layers, layer `ModifyBGCtrl3D` (id + z/scale approximation), and static glTF triangle models from stage `[Model]`/storyboard `[SceneDef] model` (base-color textures + baseColorFactor and first-clip node translation/rotation/scale animation, 4-weight skinning, morph-target position playback, and simple normal/metallic/roughness directional+ambient lighting, baked placement) are implemented; glTF multi-clip animation and split-sum environment lighting with a GPU BRDF LUT, content-configurable model lights, and clearcoat/transmission/anisotropy/sheen/iridescence/volume/refraction/dispersion material extensions are implemented; `ModifyBGCtrl3D` targets model nodes by index; effect/shadow/text/projectile/reflection perspective is implemented; fighter/projectile z-axis hits use `HitDef depth`/`Depth` extents and projectile z plus `projdepthbound`; fighter `DepthBound` clamps z to the stage range. `movecamera` is not modeled. |
 | Storyboards | F-12, C-13 | Front-end scenes, fonts, sounds, scene BGM, `layerall.pos`, full layer PalFX (time-sensitive add/mul, color, hue, sinadd, sinmul, sincolor, sinhue, invertall, invertblend), AIR interpolation, and in-match sprite/text overlays with clears/fades render/play; a sandboxed `[SceneDef] lua` runtime drives overlay transforms, alpha/done, and named scene jumps, `bg.name` stage backgrounds render under front-end scenes and in-match overlays with `BgCtrl` overrides, and static glTF scene models render behind them (skins/animations/textures remain unmodeled). |
 
@@ -47,8 +47,8 @@ M.U.G.E.N binary oracle. Closing them requires either a documented engine
 decision or an approved Ikemen-GO runtime comparison.
 
 Smaller open edge cases are tracked in the row's Verification column. The
-next candidates are the afterimage palette remap edge case and the
-oracle/hardware comparison rows.
+next candidates are screen-space refraction and the oracle/hardware
+comparison rows.
 
 ## 1. Content formats
 
@@ -104,7 +104,7 @@ oracle/hardware comparison rows.
 | C-04 | Projectile | Required | Required | Partial | Spawn/lifetime/hits + proj* aliases + bound removal + hit/removal animations + remvelocity + projpriority default 1 + projanim 0 + Clsn2 projectile clashes/projcancelanim/ProjCancelTime + z offset/velocity/accel + projdepthbound + z-gated hits |
 | C-05 | Explod/ModifyExplod/RemoveExplod | Required | Required | Partial | animelem/freeze + bind + Modify trans/ownpal/shadow/bind/removetime + RemoveExplod omitted-id/all-owned semantics |
 | C-06 | Helper/Bind/Root/Target | Required | Required | Partial | Helper postype anchors + persistent BindToRoot/Parent/Target with time/facing + Target* + ownership/DestroySelf |
-| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage/PalFX time + sinadd/sinmul + PalFX color/hue/invertall/invertblend/sincolor/sinhue + AllPalFX/BgPalFX add/mul/alpha/color/hue/invertall/invertblend + sinadd/sinmul/sincolor/sinhue + round reset + Trans alpha + SFF index/palette retention + ACT palettes + RemapPal bank recolor with source-palette filtering + RemapSprite group/index substitution and named presets + collision-box substitution from the destination frame in the same animation |
+| C-07 | AfterImage/PalFX/Trans | Required | Required | Partial | AfterImage palette options + PalFX time + sinadd/sinmul + PalFX color/hue/invertall/invertblend/sincolor/sinhue + AllPalFX/BgPalFX add/mul/alpha/color/hue/invertall/invertblend + sinadd/sinmul/sincolor/sinhue + round reset + Trans alpha + SFF index/palette retention + ACT palettes + RemapPal bank recolor with source-palette filtering + RemapSprite group/index substitution and named presets + collision-box substitution from the destination frame in the same animation |
 | C-08 | SuperPause/Pause/EnvShake | Required | Required | Partial | Pause/SuperPause movetime + SuperPause default time/poweradd + EnvShake phase/dir/diradd/mul/decay + Nival oracle |
 | C-09 | NotHitBy/HitBy/HitOverride | Required | Required | Partial | Filters incl. wildcard attrs/timer expiry + override slots/keepstate/forceguard |
 | C-10 | Width/ScreenBound/PlayerPush | Required | Required | Partial | Width forms + ScreenBound X/Y axis clamps + PlayerPush separation |

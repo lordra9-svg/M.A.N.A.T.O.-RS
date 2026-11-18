@@ -848,6 +848,35 @@ fn depth_transform(
     )
 }
 
+/// Per-ghost palette parameters from `AfterImage`'s `pal*` options. `depth`
+/// is 0 for the newest ghost and increases for older ones.
+fn afterimage_palette(
+    after: Option<&manato_sim::fighter::AfterImageState>,
+    alpha: f32,
+    depth: f32,
+) -> ([f32; 4], f32, f32, bool) {
+    let mut tint = [1.0, 1.0, 1.0, alpha];
+    let mut saturation = 1.0;
+    let mut hue = 0.0;
+    let mut invert = false;
+    if let Some(after) = after {
+        for axis in 0..3 {
+            let post = if depth > 0.0 {
+                after.pal_post[axis]
+            } else {
+                0.0
+            };
+            let add = after.pal_add[axis] + after.pal_step_add[axis] * depth + post;
+            let mul = after.pal_mul[axis] * after.pal_step_mul[axis].powf(depth);
+            tint[axis] = (mul + add / 255.0).clamp(0.0, 1.0);
+        }
+        saturation = after.pal_color;
+        hue = after.pal_hue;
+        invert = after.pal_invert;
+    }
+    (tint, saturation, hue, invert)
+}
+
 fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who: usize) {
     let fighter = &sim.fighters[who];
     // Positive `z` is farther; `0` matches the default mid-ground plane.
@@ -897,7 +926,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         base_scale.y * pose.scale.y * zoom,
     );
 
-    for ghost in &fighter.after_images {
+    for (index, ghost) in fighter.after_images.iter().enumerate() {
         let Some(anim) = anim_character.animation(ghost.anim_no) else {
             continue;
         };
@@ -911,6 +940,10 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
             continue;
         };
         let ghost_pose = Pose::from_frame(frame);
+        let depth = (fighter.after_images.len() - 1 - index) as f32;
+        let (tint, saturation, hue, invert) =
+            afterimage_palette(fighter.after_image.as_ref(), ghost.alpha, depth);
+        painter.set_palfx([0.0, 0.0, 0.0], saturation, hue, invert);
         draw_sprite(
             painter,
             atlas,
@@ -926,9 +959,10 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
             ghost_pose.flip_h,
             ghost_pose.flip_v,
             if ghost.add { Blend::Add } else { Blend::Normal },
-            global_tint([1.0, 1.0, 1.0, ghost.alpha], &sim.all_pal),
+            global_tint(tint, &sim.all_pal),
             ghost_pose.angle,
         );
+        painter.reset_palfx();
     }
 
     let tint = global_tint(
@@ -2015,6 +2049,44 @@ mod tests {
         // Depth-to-screen shifts Y after scaling.
         let shifted = project_depth(anchor, 1.0, 12.0, 160.0, 200.0);
         assert!((shifted.y - 192.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn afterimage_palette_steps_older_ghosts() {
+        use manato_sim::fighter::AfterImageState;
+        let after = AfterImageState {
+            time: 10,
+            interval: 1,
+            tick: 0,
+            life: 10,
+            alpha: 0.45,
+            add: true,
+            pal_add: [10.0, 0.0, 0.0],
+            pal_mul: [0.5, 1.0, 1.0],
+            pal_step_add: [5.0, 0.0, 0.0],
+            pal_step_mul: [0.5, 1.0, 1.0],
+            pal_post: [20.0, 0.0, 0.0],
+            pal_color: 0.75,
+            pal_hue: 0.25,
+            pal_invert: true,
+        };
+        // Newest ghost: base add/mul only, no post-bright.
+        let (tint, saturation, hue, invert) = afterimage_palette(Some(&after), 0.45, 0.0);
+        assert!((tint[0] - (0.5 + 10.0 / 255.0)).abs() < 1e-5);
+        assert!((tint[1] - 1.0).abs() < 1e-5);
+        assert_eq!(tint[3], 0.45);
+        assert!((saturation - 0.75).abs() < 1e-5);
+        assert!((hue - 0.25).abs() < 1e-5);
+        assert!(invert);
+
+        // One step older: adds paladd, applies palmul, and adds postbright.
+        let (tint, _, _, _) = afterimage_palette(Some(&after), 0.45, 1.0);
+        assert!((tint[0] - (0.25 + 35.0 / 255.0)).abs() < 1e-5);
+
+        // No active AfterImage state leaves the ghost untinted.
+        let (tint, saturation, hue, invert) = afterimage_palette(None, 0.3, 2.0);
+        assert_eq!(tint, [1.0, 1.0, 1.0, 0.3]);
+        assert_eq!((saturation, hue, invert), (1.0, 0.0, false));
     }
 
     #[test]

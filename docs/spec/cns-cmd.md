@@ -204,6 +204,12 @@ Required controller families for the approved matrix:
 - `Explod`, `ModifyExplod`, `RemoveExplod`
 - `MakeDust`, `GameMakeAnim`
 - `AfterImage`, `AfterImageTime`
+  `AfterImage` ghosts record the fighter's sprite frames and fade by `length`
+  and `timegap`. The palette options are modeled: `palbright`/`palcontrast`
+  set each ghost's base add/multiply, `paladd`/`palmul` step older ghosts,
+  `palpostbright` applies after the first step, and `palcolor`, `palhue`,
+  `palinvertall`, and `palinvertblend` drive the shader palette filter.
+  Defaults are identity so omitted parameters keep the white ghost look.
 - `PalFX`, `RemapPal`, `Trans`
   `RemapPal` selects a destination palette by `(group, index)` — SFF v2
   palette nodes or DEF `palN` files (`(1, N)`). Unknown destinations are

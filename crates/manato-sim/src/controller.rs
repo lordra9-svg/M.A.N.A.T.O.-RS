@@ -822,6 +822,65 @@ fn after_image(sim: &mut SimState, who: usize, control: &Controller) {
             value == "add" || value == "add1"
         })
         .unwrap_or(false);
+    let mut pal_add = [0.0; 3];
+    if let Some(value) = control.get("palbright") {
+        if let Some(bright) = parse_triplet(sim, who, value) {
+            pal_add = bright;
+        }
+    }
+    let mut pal_mul = [1.0; 3];
+    if let Some(value) = control.get("palcontrast") {
+        if let Some(contrast) = parse_triplet(sim, who, value) {
+            pal_mul = [
+                contrast[0] / 256.0,
+                contrast[1] / 256.0,
+                contrast[2] / 256.0,
+            ];
+        }
+    }
+    let mut pal_step_add = [0.0; 3];
+    if let Some(value) = control.get("paladd") {
+        if let Some(step) = parse_triplet(sim, who, value) {
+            pal_step_add = step;
+        }
+    }
+    let mut pal_step_mul = [1.0; 3];
+    if let Some(value) = control.get("palmul") {
+        let parts: Vec<f32> = value
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        for (axis, step) in pal_step_mul.iter_mut().enumerate() {
+            if let Some(part) = parts.get(axis) {
+                *step = *part;
+            }
+        }
+    }
+    let mut pal_post = [0.0; 3];
+    if let Some(value) = control.get("palpostbright") {
+        if let Some(post) = parse_triplet(sim, who, value) {
+            pal_post = post;
+        }
+    }
+    let pal_color = control
+        .get("palcolor")
+        .map(|value| (trigger::num(sim, who, value) / 256.0).clamp(0.0, 1.0))
+        .unwrap_or(1.0);
+    let pal_hue = control
+        .get("palhue")
+        .map(|value| (trigger::num(sim, who, value) / 512.0).clamp(-0.5, 0.5))
+        .unwrap_or(0.0);
+    let mut pal_invert = control
+        .get("palinvertall")
+        .map(|value| trigger::num(sim, who, value) != 0.0)
+        .unwrap_or(false);
+    if control
+        .get("palinvertblend")
+        .map(|value| trigger::num(sim, who, value).abs() >= 2.0)
+        .unwrap_or(false)
+    {
+        pal_invert = true;
+    }
     // Negative time runs forever; zero disables emission but keeps the state.
     sim.fighters[who].after_image = Some(crate::fighter::AfterImageState {
         time,
@@ -830,6 +889,14 @@ fn after_image(sim: &mut SimState, who: usize, control: &Controller) {
         life,
         alpha: 0.45,
         add,
+        pal_add,
+        pal_mul,
+        pal_step_add,
+        pal_step_mul,
+        pal_post,
+        pal_color,
+        pal_hue,
+        pal_invert,
     });
 }
 
