@@ -299,6 +299,8 @@ pub struct Storyboard {
     pub model: Option<PathBuf>,
     /// `[SceneDef] modelanim`: glTF animation clip name or index.
     pub model_anim: Option<String>,
+    /// `[SceneDef] envmap`/`model.env`: equirectangular environment image.
+    pub model_env: Option<PathBuf>,
 }
 
 impl Storyboard {
@@ -362,6 +364,10 @@ impl Storyboard {
         let model_anim = get(scene_def, "modelanim")
             .or_else(|| get(scene_def, "model.anim"))
             .filter(|value| !value.is_empty());
+        let model_env = get(scene_def, "envmap")
+            .or_else(|| get(scene_def, "model.env"))
+            .filter(|value| !value.is_empty())
+            .map(|value| resolve(&dir, &value));
         let mut font_files = BTreeMap::new();
         if let Some(section) = scene_def {
             for entry in &section.entries {
@@ -605,6 +611,7 @@ impl Storyboard {
             lua_source,
             model,
             model_anim,
+            model_env,
         })
     }
 
@@ -1008,7 +1015,7 @@ layer0.scale = 2,2
         let def = dir.join("story.def");
         std::fs::write(
             &def,
-            "[Info]\nname = Model\n[SceneDef]\nstartscene = 0\nmodel = scene.gltf\nmodelanim = back\n[Scene 0]\nend.time = 10\n",
+            "[Info]\nname = Model\n[SceneDef]\nstartscene = 0\nmodel = scene.gltf\nmodelanim = back\nenvmap = sky.png\n[Scene 0]\nend.time = 10\n",
         )
         .expect("write");
         let story = Storyboard::load(&def).expect("load");

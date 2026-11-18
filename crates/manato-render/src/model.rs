@@ -105,6 +105,7 @@ pub struct ModelAsset {
     nodes: Vec<ModelNode>,
     animations: Vec<ModelAnimation>,
     clip: usize,
+    environment: Option<ModelTexture>,
     world0: Vec<Mat4>,
     placement: Option<Placement>,
 }
@@ -137,6 +138,21 @@ impl ModelAsset {
             .iter()
             .map(|animation| animation.name.as_deref().unwrap_or(""))
             .collect()
+    }
+
+    /// Loads an equirectangular environment map used for image-based ambient.
+    pub fn set_environment(&mut self, path: &std::path::Path) -> anyhow::Result<()> {
+        let image = image::open(path)?.to_rgba8();
+        self.environment = Some(ModelTexture {
+            width: image.width(),
+            height: image.height(),
+            rgba: image.into_raw(),
+        });
+        Ok(())
+    }
+
+    pub fn environment(&self) -> Option<&ModelTexture> {
+        self.environment.as_ref()
     }
 
     pub fn sample(
@@ -257,7 +273,18 @@ impl ModelAsset {
                         } else {
                             (draw.metallic, draw.roughness, 1.0)
                         };
-                        out.color = shade_color(normal, out.color, metallic, roughness, occlusion);
+                        let environment = self
+                            .environment
+                            .as_ref()
+                            .map(|map| environment_color(map, normal));
+                        out.color = shade_color(
+                            normal,
+                            out.color,
+                            metallic,
+                            roughness,
+                            occlusion,
+                            environment,
+                        );
                         if let Some(map) = &draw.emissive_map {
                             let texel = sample_texture(map, vertex.uv);
                             for channel in 0..3 {
@@ -398,12 +425,25 @@ fn sample_texture(texture: &ModelTexture, uv: [f32; 2]) -> [f32; 4] {
 
 /// Simple directional + ambient model lighting. Metallic surfaces reduce the
 /// diffuse term and add a small roughness-driven highlight.
+fn environment_color(texture: &ModelTexture, normal: Vec3) -> [f32; 3] {
+    let normal = if normal.length_squared() > 0.0 {
+        normal.normalize()
+    } else {
+        Vec3::Y
+    };
+    let u = normal.x.atan2(normal.z) / std::f32::consts::TAU + 0.5;
+    let v = normal.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI;
+    let texel = sample_texture(texture, [u, v]);
+    [texel[0], texel[1], texel[2]]
+}
+
 fn shade_color(
     normal: Vec3,
     base: [f32; 4],
     metallic: f32,
     roughness: f32,
     occlusion: f32,
+    environment: Option<[f32; 3]>,
 ) -> [f32; 4] {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
@@ -417,7 +457,10 @@ fn shade_color(
     // Hemisphere environment: sky above, ground below, then occlusion.
     let sky = Vec3::new(0.55, 0.65, 0.85);
     let ground = Vec3::new(0.22, 0.19, 0.16);
-    let hemisphere = ground.lerp(sky, normal.y * 0.5 + 0.5) * occlusion;
+    let hemisphere = match environment {
+        Some(color) => Vec3::from_array(color),
+        None => ground.lerp(sky, normal.y * 0.5 + 0.5),
+    } * occlusion;
     let diffuse_strength = 1.0 - metallic * 0.6;
     let specular = (1.0 - roughness) * 0.25 * diffuse.powi(8);
     let light = [
@@ -719,6 +762,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
         nodes,
         animations,
         clip: 0,
+        environment: None,
         world0: Vec::new(),
         placement: None,
     };
@@ -914,6 +958,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn samples_equirectangular_environment() {
+        let texture = ModelTexture {
+            width: 2,
+            height: 1,
+            rgba: vec![255, 0, 0, 255, 0, 0, 255, 255],
+        };
+        let front = environment_color(&texture, Vec3::Z);
+        let back = environment_color(&texture, Vec3::NEG_Z);
+        assert_ne!(front, back);
+        assert!(front[2] > front[0], "front samples the blue half");
+    }
+
+    #[test]
     fn directional_lighting_uses_normals_and_pbr_factors() {
         let lit = shade_color(
             Vec3::new(0.0, 0.8, 0.5).normalize(),
@@ -921,11 +978,12 @@ mod tests {
             0.0,
             1.0,
             1.0,
+            None,
         );
         assert!(lit[0] <= 1.0 && lit[0] > 0.4);
-        let unlit = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0, 1.0);
+        let unlit = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0, 1.0, None);
         assert!(unlit[0] > 0.0 && unlit[0] < 0.35);
-        let occluded = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0, 0.5);
+        let occluded = shade_color(Vec3::new(0.0, -1.0, 0.0), [1.0; 4], 0.0, 1.0, 0.5, None);
         assert!((occluded[0] - unlit[0] * 0.5).abs() < 1e-5);
         let metallic = shade_color(
             Vec3::new(0.0, 0.8, 0.5).normalize(),
@@ -933,6 +991,7 @@ mod tests {
             1.0,
             1.0,
             1.0,
+            None,
         );
         assert!(metallic[0] < lit[0]);
         let glossy = shade_color(
@@ -941,6 +1000,7 @@ mod tests {
             0.0,
             0.0,
             1.0,
+            None,
         );
         assert!(glossy[0] >= lit[0]);
     }

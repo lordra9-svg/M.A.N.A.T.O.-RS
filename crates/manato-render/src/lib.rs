@@ -674,7 +674,11 @@ impl Renderer {
         self.shader_textures.clear();
         self.clear_model();
         if let Some(path) = &assets.stage.model {
-            self.load_model(path, assets.stage.model_anim.as_deref());
+            self.load_model(
+                path,
+                assets.stage.model_anim.as_deref(),
+                assets.stage.model_env.as_deref(),
+            );
         }
 
         self.screen_fonts.clear();
@@ -1065,9 +1069,14 @@ impl Renderer {
     }
 
     /// Loads and bakes a static glTF model for the current scene/stage.
-    pub fn load_model(&mut self, path: &Path, clip: Option<&str>) {
+    pub fn load_model(&mut self, path: &Path, clip: Option<&str>, env: Option<&Path>) {
         match model::load(path) {
             Ok(mut asset) => {
+                if let Some(env) = env {
+                    if let Err(error) = asset.set_environment(env) {
+                        log::warn!("model env {}: {error:#}", env.display());
+                    }
+                }
                 if let Some(clip) = clip {
                     if !asset.select_clip(clip) {
                         log::warn!("model {}: unknown animation clip {clip}", path.display());
@@ -1188,7 +1197,11 @@ impl Renderer {
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.clear_model();
         if let Some(path) = &storyboard.model {
-            self.load_model(path, storyboard.model_anim.as_deref());
+            self.load_model(
+                path,
+                storyboard.model_anim.as_deref(),
+                storyboard.model_env.as_deref(),
+            );
         }
         self.screen_fonts.clear();
         for (index, path) in &storyboard.font_files {
@@ -2372,7 +2385,7 @@ void main() {
 }"#,
         )
         .expect("model");
-        renderer.load_model(&model, None);
+        renderer.load_model(&model, None, None);
         assert_eq!(renderer.model_draws.len(), 1);
         assert_eq!(renderer.model_draws[0].1, 3);
         let storyboard = manato_formats::storyboard::Storyboard {
@@ -2392,6 +2405,7 @@ void main() {
             lua_source: None,
             model: Some(model),
             model_anim: None,
+            model_env: None,
         };
         let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
         renderer.load_storyboard(&storyboard);

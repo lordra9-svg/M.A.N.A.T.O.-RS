@@ -26,6 +26,11 @@ and the first node animation are loaded and rendered behind the 2D scene.
   below) scaled by occlusion; metallic reduces diffuse and roughness controls
   a small highlight. The final fragment is
   `texture(baseColor, uv) * shadedColor`.
+- `[Model] envmap` (stage) or `[SceneDef] envmap` (storyboard) loads an
+  equirectangular PNG/image as image-based ambient. Each vertex samples the
+  map along its world normal (a one-sample diffuse irradiance approximation)
+  instead of the analytic hemisphere; prefiltered/roughness-aware IBL is not
+  modeled.
 - The mesh bounding box is centered horizontally, scaled so its largest axis
   spans 70% of the 240px screen height, and placed standing at 88% screen
   height.
@@ -48,7 +53,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Full PBR BRDFs, image-based environment maps, and multiple lights.
+- Full PBR BRDFs, prefiltered/roughness-aware IBL, and multiple lights.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
