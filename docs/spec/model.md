@@ -48,6 +48,11 @@ and the first node animation are loaded and rendered behind the 2D scene.
   the Schlick Fresnel reflectance; its `transmissionFactor` raises the
   material transmission. There is no ray-bending or screen-space refraction,
   so the background is not distorted.
+- `KHR_materials_dispersion` spreads the IOR per RGB channel
+  (`dispersionFactor`, Cauchy-style approximation), producing chromatic F0 and
+  Fresnel-transmission fringing. It requires a refractive IOR and is inert
+  otherwise; it does not split rays or sample per-wavelength environment
+  colors.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
@@ -97,8 +102,8 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Dispersion and screen-space refraction (refraction is Fresnel/IOR-tinted
-  transmission only).
+- Screen-space refraction and physically split dispersion rays (dispersion is
+  a per-channel tint approximation).
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
