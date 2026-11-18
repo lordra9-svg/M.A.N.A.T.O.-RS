@@ -450,28 +450,47 @@ fn shade_color(
     } else {
         Vec3::Y
     };
-    let light = Vec3::new(0.3, 0.8, 0.5).normalize();
-    let diffuse = normal.dot(light).max(0.0);
+    let view = Vec3::Z;
+    let light_dir = Vec3::new(0.3, 0.8, 0.5).normalize();
+    let half = (view + light_dir).normalize();
+    let n_dot_l = normal.dot(light_dir).max(0.0);
+    let n_dot_v = normal.dot(view).max(0.001);
+    let n_dot_h = normal.dot(half).max(0.0);
+    let v_dot_h = view.dot(half).max(0.0);
     let metallic = metallic.clamp(0.0, 1.0);
-    let roughness = roughness.clamp(0.0, 1.0);
-    // Hemisphere environment: sky above, ground below, then occlusion.
-    let sky = Vec3::new(0.55, 0.65, 0.85);
-    let ground = Vec3::new(0.22, 0.19, 0.16);
+    let roughness = roughness.clamp(0.04, 1.0);
+    let alpha = roughness * roughness;
+    let base_rgb = Vec3::new(base[0], base[1], base[2]);
+
+    // Trowbridge-Reitz (GGX) normal distribution.
+    let a2 = alpha * alpha;
+    let denominator = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
+    let distribution = a2 / (std::f32::consts::PI * denominator * denominator + 1e-6);
+    // Smith-Schlick geometry term.
+    let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+    let geometry = (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
+    // Schlick Fresnel with a common 0.04 dielectric F0.
+    let f0 = Vec3::splat(0.04).lerp(base_rgb, metallic);
+    let fresnel = f0 + (Vec3::ONE - f0) * (1.0 - v_dot_h).powi(5);
+    let specular = distribution * geometry * fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
+
+    // Energy-conserving diffuse for the metallic workflow.
+    let diffuse_weight = (Vec3::ONE - fresnel) * (1.0 - metallic);
+    let direct = (diffuse_weight * base_rgb / std::f32::consts::PI + specular) * n_dot_l * 3.0;
+
+    // Image-based ambient: diffuse from the envmap/hemisphere, plus a rough
+    // specular approximation (not prefiltered).
     let hemisphere = match environment {
         Some(color) => Vec3::from_array(color),
-        None => ground.lerp(sky, normal.y * 0.5 + 0.5),
+        None => Vec3::new(0.22, 0.19, 0.16).lerp(Vec3::new(0.55, 0.65, 0.85), normal.y * 0.5 + 0.5),
     } * occlusion;
-    let diffuse_strength = 1.0 - metallic * 0.6;
-    let specular = (1.0 - roughness) * 0.25 * diffuse.powi(8);
-    let light = [
-        (hemisphere.x + 0.6 * diffuse * diffuse_strength + specular).clamp(0.0, 2.0),
-        (hemisphere.y + 0.6 * diffuse * diffuse_strength + specular).clamp(0.0, 2.0),
-        (hemisphere.z + 0.6 * diffuse * diffuse_strength + specular).clamp(0.0, 2.0),
-    ];
+    let ambient_diffuse = hemisphere * base_rgb * (1.0 - metallic);
+    let ambient_specular = hemisphere * f0 * (1.0 - roughness);
+    let color = direct + ambient_diffuse + ambient_specular;
     [
-        (base[0] * light[0]).clamp(0.0, 1.0),
-        (base[1] * light[1]).clamp(0.0, 1.0),
-        (base[2] * light[2]).clamp(0.0, 1.0),
+        color.x.clamp(0.0, 1.0),
+        color.y.clamp(0.0, 1.0),
+        color.z.clamp(0.0, 1.0),
         base[3],
     ]
 }

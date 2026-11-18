@@ -21,11 +21,15 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - `occlusionTexture`/`metallicRoughnessTexture` supply per-vertex occlusion,
   roughness (G), and metallic (B), multiplied by the material factors.
 - `emissiveTexture * emissiveFactor` is added after shading.
-- Lighting is computed per vertex before upload: a fixed directional light
-  `(0.3, 0.8, 0.5)` plus hemisphere environment ambient (sky above, ground
-  below) scaled by occlusion; metallic reduces diffuse and roughness controls
-  a small highlight. The final fragment is
-  `texture(baseColor, uv) * shadedColor`.
+- Lighting is computed per vertex before upload using a metallic-roughness
+  Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
+  geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
+  metallic), and energy-conserving diffuse. A fixed directional light
+  `(0.3, 0.8, 0.5)` with a fixed view `+Z` drives the direct term.
+- Ambient uses the hemisphere or envmap color scaled by occlusion (diffuse)
+  plus a rough `f0 × (1-roughness)` specular approximation. This is not
+  prefiltered/roughness-aware IBL.
+- The final fragment is `texture(baseColor, uv) * shadedColor`.
 - `[Model] envmap` (stage) or `[SceneDef] envmap` (storyboard) loads an
   equirectangular PNG/image as image-based ambient. Each vertex samples the
   map along its world normal (a one-sample diffuse irradiance approximation)
@@ -53,7 +57,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Full PBR BRDFs, prefiltered/roughness-aware IBL, and multiple lights.
+- Prefiltered/roughness-aware IBL, BRDF LUTs, and multiple lights.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
