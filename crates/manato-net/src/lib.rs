@@ -7,6 +7,7 @@ pub mod discovery;
 pub mod lobby;
 pub mod nat;
 pub mod relay;
+pub mod relay_auth;
 
 use std::net::SocketAddr;
 

@@ -81,6 +81,7 @@ pub struct MultiRelay {
     socket: UdpSocket,
     peers: std::collections::HashMap<u16, SocketAddr>,
     next_id: u16,
+    auth: Option<crate::relay_auth::RelayAuthenticator>,
     pub forwarded: u64,
     pub dropped: u64,
 }
@@ -93,9 +94,32 @@ impl MultiRelay {
             socket,
             peers: std::collections::HashMap::new(),
             next_id: 0,
+            auth: None,
             forwarded: 0,
             dropped: 0,
         })
+    }
+
+    /// Enables shared-secret authentication for registering peers.
+    pub fn bind_with_auth(addr: SocketAddr, secret: impl Into<String>) -> std::io::Result<Self> {
+        let mut relay = Self::bind(addr)?;
+        relay.auth = Some(crate::relay_auth::RelayAuthenticator::new(secret));
+        Ok(relay)
+    }
+
+    fn register(&mut self, source: SocketAddr) -> Option<u16> {
+        if self.peers.len() >= MAX_RELAY_PEERS {
+            self.dropped += 1;
+            return None;
+        }
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
+        self.peers.retain(|_, peer| *peer != source);
+        self.peers.insert(id, source);
+        let mut welcome = RELAY_WELCOME.to_vec();
+        welcome.extend_from_slice(&id.to_be_bytes());
+        let _ = self.socket.send_to(&welcome, source);
+        Some(id)
     }
 
     pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
@@ -113,17 +137,28 @@ impl MultiRelay {
             match self.socket.recv_from(&mut buffer) {
                 Ok((len, source)) => {
                     if &buffer[..len] == RELAY_JOIN {
-                        if self.peers.len() >= MAX_RELAY_PEERS {
+                        if self.auth.is_some() {
                             self.dropped += 1;
                             continue;
                         }
-                        let id = self.next_id;
-                        self.next_id = self.next_id.wrapping_add(1);
-                        self.peers.retain(|_, peer| *peer != source);
-                        self.peers.insert(id, source);
-                        let mut welcome = RELAY_WELCOME.to_vec();
-                        welcome.extend_from_slice(&id.to_be_bytes());
-                        let _ = self.socket.send_to(&welcome, source);
+                        self.register(source);
+                        continue;
+                    }
+                    if buffer[..len].starts_with(crate::relay_auth::AUTH_JOIN) {
+                        let Some(request) = crate::relay_auth::AuthRequest::decode(&buffer[..len])
+                        else {
+                            self.dropped += 1;
+                            continue;
+                        };
+                        let allowed = self
+                            .auth
+                            .as_mut()
+                            .is_some_and(|auth| auth.validate(&request));
+                        if !allowed {
+                            self.dropped += 1;
+                        } else {
+                            self.register(source);
+                        }
                         continue;
                     }
                     if len < 2 {
@@ -175,6 +210,24 @@ impl RelayClient {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.set_nonblocking(true)?;
         socket.send_to(RELAY_JOIN, relay)?;
+        Ok(Self {
+            socket,
+            relay,
+            id: None,
+        })
+    }
+
+    /// Registers with shared-secret authentication.
+    pub fn connect_auth(
+        relay: SocketAddr,
+        username: &str,
+        secret: &str,
+        nonce: u64,
+    ) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_nonblocking(true)?;
+        let request = crate::relay_auth::AuthRequest::new(secret, username, nonce);
+        socket.send_to(&request.encode(), relay)?;
         Ok(Self {
             socket,
             relay,
@@ -295,6 +348,31 @@ mod tests {
         assert_eq!(got.len(), 1);
         assert_eq!(got[0].0, 0);
         assert_eq!(got[0].1, b"hello");
+    }
+
+    #[test]
+    fn multi_relay_requires_authenticated_join() {
+        let mut relay =
+            MultiRelay::bind_with_auth("127.0.0.1:0".parse().unwrap(), "token").expect("relay");
+        let relay_addr = relay.local_addr().expect("addr");
+        let mut good = RelayClient::connect_auth(relay_addr, "player", "token", 1).expect("good");
+        let mut bad = RelayClient::connect_auth(relay_addr, "player", "wrong", 2).expect("bad");
+        let unauth = RelayClient::connect(relay_addr).expect("unauth");
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(1) && good.id().is_none() {
+            relay.poll().expect("relay");
+            good.poll().expect("good poll");
+            bad.poll().expect("bad poll");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(good.id().is_some());
+        assert!(bad.id().is_none());
+        assert!(
+            relay.peers().len() == 1,
+            "only the authenticated peer registers"
+        );
+        drop(unauth);
+        assert!(relay.dropped >= 2, "bad and unauthenticated joins dropped");
     }
 
     #[test]

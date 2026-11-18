@@ -51,6 +51,7 @@ struct Options {
     relay: Option<String>,
     relay_fallback: Option<String>,
     relay_multi: Option<String>,
+    relay_multi_auth: Option<String>,
     scale: u32,
     menu: bool,
     menu_screen: String,
@@ -88,6 +89,7 @@ impl Default for Options {
             relay: None,
             relay_fallback: None,
             relay_multi: None,
+            relay_multi_auth: None,
             scale: 3,
             menu: false,
             menu_screen: "title".into(),
@@ -446,6 +448,10 @@ impl Options {
                     opts.relay_multi = Some(value(i)?.to_owned());
                     i += 2;
                 }
+                "--relay-multi-auth" => {
+                    opts.relay_multi_auth = Some(value(i)?.to_owned());
+                    i += 2;
+                }
                 "--netplay-player" => {
                     opts.netplay_player = value(i)?.parse::<usize>()?;
                     if opts.netplay_player > 1 {
@@ -567,6 +573,7 @@ Modes:
   --relay <bind>      Run a two-peer UDP forwarding relay (NAT fallback)
   --relay-fallback <addr>  Use this relay if NAT punching fails
   --relay-multi <bind>  Run a framed multi-peer UDP relay
+  --relay-multi-auth <secret>  Require shared-secret auth for relay joins
   --scale <n>         Window integer scale (default 3)
 
 Controls (window mode):
@@ -703,9 +710,12 @@ fn run_relay(bind: &str) -> anyhow::Result<()> {
     }
 }
 
-fn run_multi_relay(bind: &str) -> anyhow::Result<()> {
+fn run_multi_relay(bind: &str, secret: Option<&str>) -> anyhow::Result<()> {
     let bind: std::net::SocketAddr = bind.parse()?;
-    let mut relay = manato_net::relay::MultiRelay::bind(bind)?;
+    let mut relay = match secret {
+        Some(secret) => manato_net::relay::MultiRelay::bind_with_auth(bind, secret)?,
+        None => manato_net::relay::MultiRelay::bind(bind)?,
+    };
     println!("multi-relay listening on {}", relay.local_addr()?);
     loop {
         relay.poll()?;
@@ -777,7 +787,7 @@ fn main() -> anyhow::Result<()> {
         return run_relay(bind);
     }
     if let Some(bind) = &opts.relay_multi {
-        return run_multi_relay(bind);
+        return run_multi_relay(bind, opts.relay_multi_auth.as_deref());
     }
 
     if let Some(frames) = opts.frames {

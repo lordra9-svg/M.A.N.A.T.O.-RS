@@ -160,8 +160,16 @@ Clients send `MANATO_RELAY_JOIN_V1` and receive `MANATO_RELAY_WELCOME_V1:<id>`;
 data frames are `[destination id: u16][payload]` and are delivered as
 `[source id: u16][payload]`. `RelayClient` wraps registration, destination
 sending, and source-aware polling. This is a framed application protocol, not a
-drop-in replacement for GGRS's raw UDP socket. TURN authentication is still not
-modeled.
+drop-in replacement for GGRS's raw UDP socket.
+
+`--relay-multi-auth <secret>` enables shared-secret join authentication:
+`AuthRequest { username, nonce, mac }` is sent as
+`MANATO_RELAY_AUTH_JOIN_V1:` + bincode, where `mac` is HMAC-SHA256 over
+`username || 0 || nonce`. The relay validates the MAC, caps usernames at 32
+characters, and rejects replayed nonces per username (up to 4096 remembered).
+`RelayClient::connect_auth` performs the handshake. This is TURN-style
+shared-secret auth, not the full TURN long-term credential/STUN flow. GGRS
+integration for framed multi-peer relays is not modeled.
 
 ### Window netplay
 
