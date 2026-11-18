@@ -39,6 +39,10 @@ and the first node animation are loaded and rendered behind the 2D scene.
   `iridescenceFactor`. `iridescenceRoughness` blurs the tint toward white.
   This is a spectral approximation, not a full Airy/Fresnel thin-film
   integration, and no iridescence texture is sampled.
+- `KHR_materials_volume` attenuates transmitted light with Beer-Lambert
+  absorption: `thicknessFactor` over `attenuationDistance` toward
+  `attenuationColor`. It only affects materials with transmission, ignores
+  `thicknessTexture`/`attenuationColor` textures, and does not refract.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
@@ -88,7 +92,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Volume, refraction, and dispersion.
+- Refraction and dispersion.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

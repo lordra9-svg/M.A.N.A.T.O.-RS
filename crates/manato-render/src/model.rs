@@ -231,6 +231,9 @@ pub struct ModelDraw {
     iridescence_roughness: f32,
     iridescence_ior: f32,
     iridescence_thickness: [f32; 2],
+    thickness: f32,
+    attenuation_color: [f32; 3],
+    attenuation_distance: f32,
     normal_map: Option<ModelTexture>,
     normal_scale: f32,
     emissive_map: Option<ModelTexture>,
@@ -514,6 +517,9 @@ impl ModelAsset {
                             iridescence_roughness: draw.iridescence_roughness,
                             iridescence_ior: draw.iridescence_ior,
                             iridescence_thickness: draw.iridescence_thickness,
+                            thickness: draw.thickness,
+                            attenuation_color: draw.attenuation_color,
+                            attenuation_distance: draw.attenuation_distance,
                         };
                         let shaded = shade_color_parts(
                             normal,
@@ -745,6 +751,9 @@ struct MaterialSample {
     iridescence_roughness: f32,
     iridescence_ior: f32,
     iridescence_thickness: [f32; 2],
+    thickness: f32,
+    attenuation_color: [f32; 3],
+    attenuation_distance: f32,
 }
 
 impl Default for MaterialSample {
@@ -764,6 +773,9 @@ impl Default for MaterialSample {
             iridescence_roughness: 0.0,
             iridescence_ior: 1.3,
             iridescence_thickness: [100.0, 400.0],
+            thickness: 0.0,
+            attenuation_color: [1.0; 3],
+            attenuation_distance: f32::INFINITY,
         }
     }
 }
@@ -812,6 +824,19 @@ fn iridescence_tint(n_dot_v: f32, ior: f32, thickness: [f32; 2]) -> Vec3 {
         *channel = (0.5 + 0.5 * phase.cos()).clamp(0.0, 1.0);
     }
     Vec3::from_array(channels)
+}
+
+/// Beer-Lambert transmittance through a volume of the given thickness.
+fn volume_transmittance(thickness: f32, attenuation_color: [f32; 3], distance: f32) -> Vec3 {
+    if thickness <= 0.0 || !distance.is_finite() || distance <= 0.0 {
+        return Vec3::ONE;
+    }
+    let color = Vec3::from_array(attenuation_color).clamp(Vec3::splat(1e-4), Vec3::ONE);
+    Vec3::new(
+        (color.x.ln() / distance * thickness).exp(),
+        (color.y.ln() / distance * thickness).exp(),
+        (color.z.ln() / distance * thickness).exp(),
+    )
 }
 
 fn shade_color_parts(
@@ -935,7 +960,12 @@ fn shade_color_parts(
         None => Vec3::new(0.22, 0.19, 0.16).lerp(Vec3::new(0.55, 0.65, 0.85), normal.y * 0.5 + 0.5),
     } * occlusion;
     let ambient_diffuse = hemisphere * base_rgb * (1.0 - metallic) * (1.0 - transmission);
-    let transmission_tint = hemisphere * base_rgb * transmission;
+    let transmittance = volume_transmittance(
+        sample.thickness,
+        sample.attenuation_color,
+        sample.attenuation_distance,
+    );
+    let transmission_tint = hemisphere * base_rgb * transmission * transmittance;
     let clearcoat_ambient =
         hemisphere * clearcoat_f0 * (1.0 - clearcoat_roughness) * clearcoat * occlusion;
     let sheen_ambient =
@@ -1145,6 +1175,31 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .and_then(|value| value.get("iridescenceThicknessMaximum"))
                 .and_then(|value| value.as_f64())
                 .unwrap_or(400.0) as f32;
+            let thickness = material
+                .extension_value("KHR_materials_volume")
+                .and_then(|value| value.get("thicknessFactor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
+            let attenuation_color = material
+                .extension_value("KHR_materials_volume")
+                .and_then(|value| value.get("attenuationColor"))
+                .and_then(|value| value.as_array())
+                .filter(|values| values.len() >= 3)
+                .map(|values| {
+                    [
+                        values[0].as_f64().unwrap_or(1.0) as f32,
+                        values[1].as_f64().unwrap_or(1.0) as f32,
+                        values[2].as_f64().unwrap_or(1.0) as f32,
+                    ]
+                })
+                .unwrap_or([1.0; 3]);
+            let attenuation_distance = material
+                .extension_value("KHR_materials_volume")
+                .and_then(|value| value.get("attenuationDistance"))
+                .and_then(|value| value.as_f64())
+                .filter(|distance| *distance > 0.0)
+                .map(|distance| distance as f32)
+                .unwrap_or(f32::INFINITY);
             let emissive_factor = material.emissive_factor();
             let normal_map = material
                 .normal_texture()
@@ -1219,6 +1274,9 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     iridescence_roughness,
                     iridescence_ior,
                     iridescence_thickness: [thickness_min, thickness_max],
+                    thickness,
+                    attenuation_color,
+                    attenuation_distance,
                     normal_map,
                     normal_scale,
                     emissive_map,
@@ -1729,6 +1787,48 @@ mod tests {
     }
 
     #[test]
+    fn volume_attenuates_transmission() {
+        let thin = shade_with(MaterialSample {
+            transmission: 1.0,
+            thickness: 0.0,
+            attenuation_color: [0.1, 0.2, 0.3],
+            attenuation_distance: 1.0,
+            ..Default::default()
+        });
+        let thick = shade_with(MaterialSample {
+            transmission: 1.0,
+            thickness: 2.0,
+            attenuation_color: [0.1, 0.2, 0.3],
+            attenuation_distance: 1.0,
+            ..Default::default()
+        });
+        assert_ne!(thin.color, thick.color);
+        assert!(thick.color.length() < thin.color.length());
+        // Volume without transmission is invisible.
+        let opaque = shade_with(MaterialSample::default());
+        let opaque_volume = shade_with(MaterialSample {
+            thickness: 2.0,
+            attenuation_color: [0.1, 0.2, 0.3],
+            attenuation_distance: 1.0,
+            ..Default::default()
+        });
+        assert_eq!(opaque.color, opaque_volume.color);
+    }
+
+    #[test]
+    fn volume_transmittance_is_beer_lambert() {
+        assert_eq!(volume_transmittance(1.0, [1.0; 3], 1.0), Vec3::ONE);
+        let half = volume_transmittance(1.0, [0.5; 3], 1.0);
+        assert!((half.x - 0.5).abs() < 1e-5);
+        let doubled = volume_transmittance(2.0, [0.5; 3], 1.0);
+        assert!((doubled.x - 0.25).abs() < 1e-5);
+        assert_eq!(
+            volume_transmittance(5.0, [0.5; 3], f32::INFINITY),
+            Vec3::ONE
+        );
+    }
+
+    #[test]
     fn iridescence_tint_varies_with_view_angle() {
         let thickness = [200.0, 600.0];
         let grazing = iridescence_tint(0.05, 1.5, thickness);
@@ -1898,7 +1998,7 @@ mod tests {
   ],
   "samplers": [{}],
   "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}, "KHR_materials_iridescence": {"iridescenceFactor": 0.9, "iridescenceRoughness": 0.15, "iridescenceIor": 1.7, "iridescenceThicknessMinimum": 200, "iridescenceThicknessMaximum": 600}}}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}, "KHR_materials_iridescence": {"iridescenceFactor": 0.9, "iridescenceRoughness": 0.15, "iridescenceIor": 1.7, "iridescenceThicknessMinimum": 200, "iridescenceThicknessMaximum": 600}, "KHR_materials_volume": {"thicknessFactor": 0.5, "attenuationColor": [0.2,0.9,0.4], "attenuationDistance": 1.5}}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -1927,6 +2027,9 @@ mod tests {
         assert_eq!(draw.iridescence_roughness, 0.15);
         assert_eq!(draw.iridescence_ior, 1.7);
         assert_eq!(draw.iridescence_thickness, [200.0, 600.0]);
+        assert_eq!(draw.thickness, 0.5);
+        assert_eq!(draw.attenuation_color, [0.2, 0.9, 0.4]);
+        assert_eq!(draw.attenuation_distance, 1.5);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
