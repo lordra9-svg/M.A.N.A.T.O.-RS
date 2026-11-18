@@ -21,6 +21,10 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - `occlusionTexture`/`metallicRoughnessTexture` supply per-vertex occlusion,
   roughness (G), and metallic (B), multiplied by the material factors.
 - `emissiveTexture * emissiveFactor` is added after shading.
+- `KHR_materials_clearcoat` adds a second GGX specular lobe
+  (`clearcoatFactor`, `clearcoatRoughnessFactor`) over the base layer.
+- `KHR_materials_transmission` attenuates direct/ambient diffuse and mixes an
+  environment tint (`transmissionFactor`); no refraction or thickness model.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
@@ -70,7 +74,7 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Additional advanced PBR features (clearcoat, transmission, anisotropy).
+- Anisotropy, iridescence, sheen, volume, refraction, and dispersion.
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

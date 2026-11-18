@@ -220,6 +220,9 @@ pub struct ModelDraw {
     weights: Vec<f32>,
     metallic: f32,
     roughness: f32,
+    clearcoat: f32,
+    clearcoat_roughness: f32,
+    transmission: f32,
     normal_map: Option<ModelTexture>,
     normal_scale: f32,
     emissive_map: Option<ModelTexture>,
@@ -496,6 +499,9 @@ impl ModelAsset {
                             occlusion,
                             environment,
                             &self.lights,
+                            draw.clearcoat,
+                            draw.clearcoat_roughness,
+                            draw.transmission,
                         );
                         out.color = [shaded.color.x, shaded.color.y, shaded.color.z, out.color[3]];
                         out.brdf_uv = shaded.brdf_uv;
@@ -721,6 +727,9 @@ fn shade_color_with(
         occlusion,
         environment,
         lights,
+        0.0,
+        0.0,
+        0.0,
     );
     let mut color = shaded.color;
     if let Some(_ibl) = environment {
@@ -743,6 +752,9 @@ fn shade_color_parts(
     occlusion: f32,
     environment: Option<IblAmbient>,
     lights: &[Light],
+    clearcoat: f32,
+    clearcoat_roughness: f32,
+    transmission: f32,
 ) -> Shaded {
     let normal = if normal.length_squared() > 0.0 {
         normal.normalize()
@@ -756,6 +768,10 @@ fn shade_color_parts(
     let alpha = roughness * roughness;
     let base_rgb = Vec3::new(base[0], base[1], base[2]);
     let f0 = Vec3::splat(0.04).lerp(base_rgb, metallic);
+    let clearcoat = clearcoat.clamp(0.0, 1.0);
+    let clearcoat_roughness = clearcoat_roughness.clamp(0.04, 1.0);
+    let transmission = transmission.clamp(0.0, 1.0);
+    let clearcoat_f0 = Vec3::splat(0.04);
 
     let mut direct = Vec3::ZERO;
     for light in lights {
@@ -776,9 +792,26 @@ fn shade_color_parts(
             (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
         let fresnel = f0 + (Vec3::ONE - f0) * (1.0 - v_dot_h).powi(5);
         let specular = distribution * geometry * fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
-        let diffuse_weight = (Vec3::ONE - fresnel) * (1.0 - metallic);
-        let contribution = (diffuse_weight * base_rgb / std::f32::consts::PI + specular) * n_dot_l;
-        direct += contribution * light.color * light.intensity;
+        let diffuse_weight = (Vec3::ONE - fresnel)
+            * (1.0 - metallic)
+            * (1.0 - clearcoat * 0.5)
+            * (1.0 - transmission);
+        let mut layer = (diffuse_weight * base_rgb / std::f32::consts::PI + specular) * n_dot_l;
+        if clearcoat > 0.0 {
+            let cc_a = clearcoat_roughness * clearcoat_roughness;
+            let cc_a2 = cc_a * cc_a;
+            let cc_denominator = n_dot_h * n_dot_h * (cc_a2 - 1.0) + 1.0;
+            let cc_distribution =
+                cc_a2 / (std::f32::consts::PI * cc_denominator * cc_denominator + 1e-6);
+            let cc_k = (clearcoat_roughness + 1.0) * (clearcoat_roughness + 1.0) / 8.0;
+            let cc_geometry = (n_dot_l / (n_dot_l * (1.0 - cc_k) + cc_k))
+                * (n_dot_v / (n_dot_v * (1.0 - cc_k) + cc_k));
+            let cc_fresnel = clearcoat_f0 + (Vec3::ONE - clearcoat_f0) * (1.0 - v_dot_h).powi(5);
+            let cc_specular =
+                cc_distribution * cc_geometry * cc_fresnel / (4.0 * n_dot_v * n_dot_l + 1e-6);
+            layer += cc_specular * n_dot_l * clearcoat;
+        }
+        direct += layer * light.color * light.intensity;
     }
     let direct = direct * 3.0;
 
@@ -788,16 +821,23 @@ fn shade_color_parts(
         Some(ibl) => Vec3::from_array(ibl.diffuse),
         None => Vec3::new(0.22, 0.19, 0.16).lerp(Vec3::new(0.55, 0.65, 0.85), normal.y * 0.5 + 0.5),
     } * occlusion;
-    let ambient_diffuse = hemisphere * base_rgb * (1.0 - metallic);
+    let ambient_diffuse = hemisphere * base_rgb * (1.0 - metallic) * (1.0 - transmission);
+    let transmission_tint = hemisphere * base_rgb * transmission;
+    let clearcoat_ambient =
+        hemisphere * clearcoat_f0 * (1.0 - clearcoat_roughness) * clearcoat * occlusion;
     match environment {
         Some(ibl) => Shaded {
-            color: direct + ambient_diffuse,
+            color: direct + ambient_diffuse + transmission_tint + clearcoat_ambient,
             specular: Vec3::from_array(ibl.specular) * occlusion,
             f0,
             brdf_uv: [n_dot_v, roughness],
         },
         None => Shaded {
-            color: direct + ambient_diffuse + hemisphere * f0 * (1.0 - roughness) * occlusion,
+            color: direct
+                + ambient_diffuse
+                + transmission_tint
+                + clearcoat_ambient
+                + hemisphere * f0 * (1.0 - roughness) * occlusion,
             specular: Vec3::ZERO,
             f0,
             brdf_uv: [0.0, 0.0],
@@ -921,6 +961,21 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
             let metallic = pbr.metallic_factor();
             let roughness = pbr.roughness_factor();
             let color = pbr.base_color_factor();
+            let clearcoat = material
+                .extension_value("KHR_materials_clearcoat")
+                .and_then(|value| value.get("clearcoatFactor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
+            let clearcoat_roughness = material
+                .extension_value("KHR_materials_clearcoat")
+                .and_then(|value| value.get("clearcoatRoughnessFactor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
+            let transmission = material
+                .extension_value("KHR_materials_transmission")
+                .and_then(|value| value.get("transmissionFactor"))
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0) as f32;
             let emissive_factor = material.emissive_factor();
             let normal_map = material
                 .normal_texture()
@@ -984,6 +1039,9 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     weights: morph_weights.clone(),
                     metallic,
                     roughness,
+                    clearcoat,
+                    clearcoat_roughness,
+                    transmission,
                     normal_map,
                     normal_scale,
                     emissive_map,
@@ -1413,6 +1471,50 @@ mod tests {
     }
 
     #[test]
+    fn clearcoat_and_transmission_modify_shading() {
+        let normal = Vec3::Y;
+        let base = shade_color_parts(
+            normal,
+            [1.0; 4],
+            0.0,
+            0.5,
+            1.0,
+            None,
+            &default_lights(),
+            0.0,
+            0.0,
+            0.0,
+        );
+        let coated = shade_color_parts(
+            normal,
+            [1.0; 4],
+            0.0,
+            0.5,
+            1.0,
+            None,
+            &default_lights(),
+            1.0,
+            0.2,
+            0.0,
+        );
+        let transmitted = shade_color_parts(
+            normal,
+            [1.0; 4],
+            0.0,
+            0.5,
+            1.0,
+            None,
+            &default_lights(),
+            0.0,
+            0.0,
+            0.8,
+        );
+        assert_ne!(base.color, coated.color);
+        assert!(coated.color.length() > 0.0);
+        assert!(transmitted.color != base.color);
+    }
+
+    #[test]
     fn content_lights_replace_the_default_rig() {
         let mut asset = ModelAsset::default();
         assert_eq!(asset.lights.len(), 2);
@@ -1571,7 +1673,7 @@ mod tests {
   ],
   "samplers": [{}],
   "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -1589,6 +1691,9 @@ mod tests {
         assert!(draw.emissive_map.is_some());
         assert_eq!(draw.emissive_factor, [1.0, 0.0, 0.0]);
         assert!(draw.orm_map.is_some());
+        assert_eq!(draw.clearcoat, 0.8);
+        assert_eq!(draw.clearcoat_roughness, 0.2);
+        assert_eq!(draw.transmission, 0.3);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
