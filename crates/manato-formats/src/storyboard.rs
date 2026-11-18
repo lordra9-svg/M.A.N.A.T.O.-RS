@@ -301,6 +301,8 @@ pub struct Storyboard {
     pub model_anim: Option<String>,
     /// `[SceneDef] envmap`/`model.env`: equirectangular environment image.
     pub model_env: Option<PathBuf>,
+    /// `[SceneDef] modellightN = dirx,diry,dirz, r,g,b, intensity`.
+    pub model_lights: Vec<crate::stage::ModelLightDef>,
 }
 
 impl Storyboard {
@@ -364,6 +366,31 @@ impl Storyboard {
         let model_anim = get(scene_def, "modelanim")
             .or_else(|| get(scene_def, "model.anim"))
             .filter(|value| !value.is_empty());
+        let mut model_lights = Vec::new();
+        for index in 0..8 {
+            let Some(raw) = get(scene_def, &format!("modellight{index}")) else {
+                continue;
+            };
+            let values: Vec<f32> = raw
+                .split(',')
+                .map(|part| part.trim().parse().unwrap_or(0.0))
+                .collect();
+            if values.len() >= 4 {
+                model_lights.push(crate::stage::ModelLightDef {
+                    direction: [values[0], values[1], values[2]],
+                    color: if values.len() >= 7 {
+                        [values[3], values[4], values[5]]
+                    } else {
+                        [1.0, 1.0, 1.0]
+                    },
+                    intensity: if values.len() >= 7 {
+                        values[6]
+                    } else {
+                        values[3]
+                    },
+                });
+            }
+        }
         let model_env = get(scene_def, "envmap")
             .or_else(|| get(scene_def, "model.env"))
             .filter(|value| !value.is_empty())
@@ -612,6 +639,7 @@ impl Storyboard {
             model,
             model_anim,
             model_env,
+            model_lights,
         })
     }
 
@@ -1015,7 +1043,7 @@ layer0.scale = 2,2
         let def = dir.join("story.def");
         std::fs::write(
             &def,
-            "[Info]\nname = Model\n[SceneDef]\nstartscene = 0\nmodel = scene.gltf\nmodelanim = back\nenvmap = sky.png\n[Scene 0]\nend.time = 10\n",
+            "[Info]\nname = Model\n[SceneDef]\nstartscene = 0\nmodel = scene.gltf\nmodelanim = back\nenvmap = sky.png\nmodellight0 = 0,-1,0, 0.5,1,0.5, 3\n[Scene 0]\nend.time = 10\n",
         )
         .expect("write");
         let story = Storyboard::load(&def).expect("load");

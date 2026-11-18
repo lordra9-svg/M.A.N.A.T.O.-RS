@@ -266,15 +266,31 @@ struct Placement {
     ground: f32,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ModelAsset {
     pub draws: Vec<ModelDraw>,
     nodes: Vec<ModelNode>,
     animations: Vec<ModelAnimation>,
     clip: usize,
     environment: Option<PrefilteredEnvironment>,
+    lights: Vec<Light>,
     world0: Vec<Mat4>,
     placement: Option<Placement>,
+}
+
+impl Default for ModelAsset {
+    fn default() -> Self {
+        Self {
+            draws: Vec::new(),
+            nodes: Vec::new(),
+            animations: Vec::new(),
+            clip: 0,
+            environment: None,
+            lights: default_lights().to_vec(),
+            world0: Vec::new(),
+            placement: None,
+        }
+    }
 }
 
 impl ModelAsset {
@@ -316,6 +332,25 @@ impl ModelAsset {
             rgba: image.into_raw(),
         }));
         Ok(())
+    }
+
+    /// Replaces the default two-light rig with content-defined lights.
+    pub fn set_lights(&mut self, lights: &[manato_formats::stage::ModelLightDef]) {
+        if lights.is_empty() {
+            return;
+        }
+        self.lights = lights
+            .iter()
+            .map(|light| Light {
+                direction: Vec3::from_array(light.direction).normalize_or_zero(),
+                color: Vec3::from_array(light.color),
+                intensity: light.intensity.max(0.0),
+            })
+            .filter(|light| light.direction.length_squared() > 0.0)
+            .collect();
+        if self.lights.is_empty() {
+            self.lights = default_lights().to_vec();
+        }
     }
 
     pub fn environment(&self) -> Option<&ModelTexture> {
@@ -1008,6 +1043,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
         animations,
         clip: 0,
         environment: None,
+        lights: default_lights().to_vec(),
         world0: Vec::new(),
         placement: None,
     };
@@ -1201,6 +1237,21 @@ pub fn upload_model(device: &wgpu::Device, vertices: &[ModelVertex]) -> wgpu::Bu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_lights_replace_the_default_rig() {
+        let mut asset = ModelAsset::default();
+        assert_eq!(asset.lights.len(), 2);
+        asset.set_lights(&[manato_formats::stage::ModelLightDef {
+            direction: [1.0, 0.0, 0.0],
+            color: [1.0, 0.0, 0.0],
+            intensity: 4.0,
+        }]);
+        assert_eq!(asset.lights.len(), 1);
+        assert_eq!(asset.lights[0].color, Vec3::X);
+        asset.set_lights(&[]);
+        assert_eq!(asset.lights.len(), 1, "empty config keeps the previous rig");
+    }
 
     #[test]
     fn prefiltered_levels_and_brdf_lut_are_roughness_aware() {

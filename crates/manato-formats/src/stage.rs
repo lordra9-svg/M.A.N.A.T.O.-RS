@@ -277,6 +277,14 @@ impl BgScene {
     }
 }
 
+/// Configurable directional light for a 3D model.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ModelLightDef {
+    pub direction: [f32; 3],
+    pub color: [f32; 3],
+    pub intensity: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct Stage {
     /// Stage DEF directory (used to resolve BGM paths).
@@ -313,6 +321,8 @@ pub struct Stage {
     pub model_anim: Option<String>,
     /// `[Model] envmap`: equirectangular environment image.
     pub model_env: Option<PathBuf>,
+    /// `[Model] lightN = dirx,diry,dirz, r,g,b, intensity`.
+    pub model_lights: Vec<ModelLightDef>,
     pub xscale: f32,
     pub yscale: f32,
     pub portrait_scale: f32,
@@ -362,6 +372,7 @@ impl Default for Stage {
             model: None,
             model_anim: None,
             model_env: None,
+            model_lights: Vec::new(),
             xscale: 1.0,
             yscale: 1.0,
             portrait_scale: 1.0,
@@ -560,6 +571,32 @@ impl Stage {
             .map(crate::def::section_map)
             .unwrap_or_default();
         let bgdef = &def.bgdef;
+        let model_map = def.text.find("model").map(section_map).unwrap_or_default();
+        let mut model_lights = Vec::new();
+        for index in 0..8 {
+            let Some(raw) = model_map.get(&format!("light{index}")) else {
+                continue;
+            };
+            let values: Vec<f32> = raw
+                .split(',')
+                .map(|part| part.trim().parse().unwrap_or(0.0))
+                .collect();
+            if values.len() >= 4 {
+                model_lights.push(ModelLightDef {
+                    direction: [values[0], values[1], values[2]],
+                    color: if values.len() >= 7 {
+                        [values[3], values[4], values[5]]
+                    } else {
+                        [1.0, 1.0, 1.0]
+                    },
+                    intensity: if values.len() >= 7 {
+                        values[6]
+                    } else {
+                        values[3]
+                    },
+                });
+            }
+        }
 
         Ok(Self {
             dir: def.dir.clone(),
@@ -600,11 +637,9 @@ impl Stage {
             reset_bg: num(&stage_info, "resetbg", 1.0) != 0.0,
             debug_bg: num(bgdef, "debugbg", 0.0) != 0.0,
             bg_clear_color: parse_color(bgdef.get("bgclearcolor")),
-            model: def
-                .text
-                .find("model")
-                .map(section_map)
-                .and_then(|map| map.get("model").cloned())
+            model: model_map
+                .get("model")
+                .cloned()
                 .filter(|value| !value.trim().is_empty())
                 .map(|value| {
                     let path = Path::new(value.trim());
@@ -614,17 +649,16 @@ impl Stage {
                         def.dir.join(path)
                     }
                 }),
+            model_lights,
             model_anim: def
                 .text
                 .find("model")
                 .map(section_map)
                 .and_then(|map| map.get("anim").or_else(|| map.get("modelanim")).cloned())
                 .filter(|value| !value.trim().is_empty()),
-            model_env: def
-                .text
-                .find("model")
-                .map(section_map)
-                .and_then(|map| map.get("envmap").cloned())
+            model_env: model_map
+                .get("envmap")
+                .cloned()
                 .filter(|value| !value.trim().is_empty())
                 .map(|value| {
                     let path = Path::new(value.trim());
@@ -934,7 +968,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("dir");
         let mut text = std::fs::read_to_string(&source).expect("def");
-        text.push_str("\n[Model]\nmodel = triangle.gltf\nanim = back\nenvmap = sky.png\n");
+        text.push_str("\n[Model]\nmodel = triangle.gltf\nanim = back\nenvmap = sky.png\nlight0 = 0,1,0, 1,0.5,0.25, 2\n");
         let def = dir.join("stage.def");
         std::fs::write(&def, text).expect("write");
         std::fs::copy(
@@ -952,6 +986,10 @@ mod tests {
             stage.model_env.as_deref(),
             Some(dir.join("sky.png").as_path())
         );
+        assert_eq!(stage.model_lights.len(), 1);
+        assert_eq!(stage.model_lights[0].direction, [0.0, 1.0, 0.0]);
+        assert_eq!(stage.model_lights[0].color, [1.0, 0.5, 0.25]);
+        assert_eq!(stage.model_lights[0].intensity, 2.0);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

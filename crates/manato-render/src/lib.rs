@@ -678,6 +678,7 @@ impl Renderer {
                 path,
                 assets.stage.model_anim.as_deref(),
                 assets.stage.model_env.as_deref(),
+                &assets.stage.model_lights,
             );
         }
 
@@ -1069,9 +1070,16 @@ impl Renderer {
     }
 
     /// Loads and bakes a static glTF model for the current scene/stage.
-    pub fn load_model(&mut self, path: &Path, clip: Option<&str>, env: Option<&Path>) {
+    pub fn load_model(
+        &mut self,
+        path: &Path,
+        clip: Option<&str>,
+        env: Option<&Path>,
+        lights: &[manato_formats::stage::ModelLightDef],
+    ) {
         match model::load(path) {
             Ok(mut asset) => {
+                asset.set_lights(lights);
                 if let Some(env) = env {
                     if let Err(error) = asset.set_environment(env) {
                         log::warn!("model env {}: {error:#}", env.display());
@@ -1201,6 +1209,7 @@ impl Renderer {
                 path,
                 storyboard.model_anim.as_deref(),
                 storyboard.model_env.as_deref(),
+                &storyboard.model_lights,
             );
         }
         self.screen_fonts.clear();
@@ -2385,7 +2394,7 @@ void main() {
 }"#,
         )
         .expect("model");
-        renderer.load_model(&model, None, None);
+        renderer.load_model(&model, None, None, &[]);
         assert_eq!(renderer.model_draws.len(), 1);
         assert_eq!(renderer.model_draws[0].1, 3);
         let storyboard = manato_formats::storyboard::Storyboard {
@@ -2406,6 +2415,7 @@ void main() {
             model: Some(model),
             model_anim: None,
             model_env: None,
+            model_lights: Vec::new(),
         };
         let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
         renderer.load_storyboard(&storyboard);
