@@ -42,7 +42,12 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - `KHR_materials_volume` attenuates transmitted light with Beer-Lambert
   absorption: `thicknessFactor` over `attenuationDistance` toward
   `attenuationColor`. It only affects materials with transmission, ignores
-  `thicknessTexture`/`attenuationColor` textures, and does not refract.
+  `thicknessTexture`/`attenuationColor` textures.
+- `KHR_materials_refraction` uses `iorFactor` for the dielectric F0
+  (`((ior-1)/(ior+1))^2`) and scales transmitted light by the complement of
+  the Schlick Fresnel reflectance; its `transmissionFactor` raises the
+  material transmission. There is no ray-bending or screen-space refraction,
+  so the background is not distorted.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
   geometry, Schlick Fresnel (dielectric F0 0.04 blended toward base color by
@@ -92,7 +97,8 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Refraction and dispersion.
+- Dispersion and screen-space refraction (refraction is Fresnel/IOR-tinted
+  transmission only).
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

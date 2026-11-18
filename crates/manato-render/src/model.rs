@@ -234,6 +234,7 @@ pub struct ModelDraw {
     thickness: f32,
     attenuation_color: [f32; 3],
     attenuation_distance: f32,
+    refraction_ior: f32,
     normal_map: Option<ModelTexture>,
     normal_scale: f32,
     emissive_map: Option<ModelTexture>,
@@ -520,6 +521,7 @@ impl ModelAsset {
                             thickness: draw.thickness,
                             attenuation_color: draw.attenuation_color,
                             attenuation_distance: draw.attenuation_distance,
+                            refraction_ior: draw.refraction_ior,
                         };
                         let shaded = shade_color_parts(
                             normal,
@@ -754,6 +756,7 @@ struct MaterialSample {
     thickness: f32,
     attenuation_color: [f32; 3],
     attenuation_distance: f32,
+    refraction_ior: f32,
 }
 
 impl Default for MaterialSample {
@@ -776,6 +779,7 @@ impl Default for MaterialSample {
             thickness: 0.0,
             attenuation_color: [1.0; 3],
             attenuation_distance: f32::INFINITY,
+            refraction_ior: 0.0,
         }
     }
 }
@@ -858,7 +862,13 @@ fn shade_color_parts(
     let roughness = sample.roughness.clamp(0.04, 1.0);
     let alpha = roughness * roughness;
     let base_rgb = Vec3::new(base[0], base[1], base[2]);
-    let f0 = Vec3::splat(0.04).lerp(base_rgb, metallic);
+    let dielectric_f0 = if sample.refraction_ior > 1.0 {
+        let ratio = (sample.refraction_ior - 1.0) / (sample.refraction_ior + 1.0);
+        ratio * ratio
+    } else {
+        0.04
+    };
+    let f0 = Vec3::splat(dielectric_f0).lerp(base_rgb, metallic);
     let clearcoat = sample.clearcoat.clamp(0.0, 1.0);
     let clearcoat_roughness = sample.clearcoat_roughness.clamp(0.04, 1.0);
     let transmission = sample.transmission.clamp(0.0, 1.0);
@@ -965,7 +975,14 @@ fn shade_color_parts(
         sample.attenuation_color,
         sample.attenuation_distance,
     );
-    let transmission_tint = hemisphere * base_rgb * transmission * transmittance;
+    let fresnel_transmission = if sample.refraction_ior > 1.0 {
+        let f = dielectric_f0 + (1.0 - dielectric_f0) * (1.0 - n_dot_v).powi(5);
+        (1.0 - f).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let transmission_tint =
+        hemisphere * base_rgb * transmission * transmittance * fresnel_transmission;
     let clearcoat_ambient =
         hemisphere * clearcoat_f0 * (1.0 - clearcoat_roughness) * clearcoat * occlusion;
     let sheen_ambient =
@@ -1200,6 +1217,23 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                 .filter(|distance| *distance > 0.0)
                 .map(|distance| distance as f32)
                 .unwrap_or(f32::INFINITY);
+            let refraction_ior = material
+                .extension_value("KHR_materials_refraction")
+                .and_then(|value| value.get("iorFactor"))
+                .and_then(|value| value.as_f64())
+                .map(|ior| ior as f32)
+                .unwrap_or(0.0);
+            let refraction_transmission = if refraction_ior > 0.0 {
+                material
+                    .extension_value("KHR_materials_refraction")
+                    .and_then(|value| value.get("transmissionFactor"))
+                    .and_then(|value| value.as_f64())
+                    .map(|factor| factor as f32)
+                    .unwrap_or(1.0)
+            } else {
+                0.0
+            };
+            let transmission = transmission.max(refraction_transmission);
             let emissive_factor = material.emissive_factor();
             let normal_map = material
                 .normal_texture()
@@ -1277,6 +1311,7 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                     thickness,
                     attenuation_color,
                     attenuation_distance,
+                    refraction_ior,
                     normal_map,
                     normal_scale,
                     emissive_map,
@@ -1829,6 +1864,32 @@ mod tests {
     }
 
     #[test]
+    fn refraction_ior_tints_and_attenuates_transmission() {
+        let without = shade_with(MaterialSample {
+            transmission: 1.0,
+            ..Default::default()
+        });
+        let with = shade_with(MaterialSample {
+            transmission: 1.0,
+            refraction_ior: 1.9,
+            ..Default::default()
+        });
+        assert_ne!(without.color, with.color);
+        assert!(with.color.length() < without.color.length());
+    }
+
+    #[test]
+    fn refraction_ior_sets_dielectric_f0() {
+        let base = shade_with(MaterialSample::default());
+        let refractive = shade_with(MaterialSample {
+            refraction_ior: 2.0,
+            ..Default::default()
+        });
+        assert!((base.f0.x - 0.04).abs() < 1e-6);
+        assert!((refractive.f0.x - 1.0 / 9.0).abs() < 1e-5);
+    }
+
+    #[test]
     fn iridescence_tint_varies_with_view_angle() {
         let thickness = [200.0, 600.0];
         let grazing = iridescence_tint(0.05, 1.5, thickness);
@@ -1998,7 +2059,7 @@ mod tests {
   ],
   "samplers": [{}],
   "textures": [{"source": 0, "sampler": 0}, {"source": 1, "sampler": 0}, {"source": 2, "sampler": 0}, {"source": 3, "sampler": 0}],
-  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}, "KHR_materials_iridescence": {"iridescenceFactor": 0.9, "iridescenceRoughness": 0.15, "iridescenceIor": 1.7, "iridescenceThicknessMinimum": 200, "iridescenceThicknessMaximum": 600}, "KHR_materials_volume": {"thicknessFactor": 0.5, "attenuationColor": [0.2,0.9,0.4], "attenuationDistance": 1.5}}}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1,1,1,1]}, "normalTexture": {"index": 1}, "emissiveTexture": {"index": 2}, "emissiveFactor": [1,0,0], "occlusionTexture": {"index": 3}, "extensions": {"KHR_materials_clearcoat": {"clearcoatFactor": 0.8, "clearcoatRoughnessFactor": 0.2}, "KHR_materials_transmission": {"transmissionFactor": 0.3}, "KHR_materials_anisotropy": {"anisotropyStrength": 0.6, "anisotropyRotation": 0.5}, "KHR_materials_sheen": {"sheenColorFactor": [1,0.4,0.6], "sheenRoughnessFactor": 0.2}, "KHR_materials_iridescence": {"iridescenceFactor": 0.9, "iridescenceRoughness": 0.15, "iridescenceIor": 1.7, "iridescenceThicknessMinimum": 200, "iridescenceThicknessMaximum": 600}, "KHR_materials_volume": {"thicknessFactor": 0.5, "attenuationColor": [0.2,0.9,0.4], "attenuationDistance": 1.5}, "KHR_materials_refraction": {"iorFactor": 1.7, "transmissionFactor": 0.25}}}],
   "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "TEXCOORD_0": 1}, "material": 0, "mode": 4}]}],
   "nodes": [{"mesh": 0}],
   "scenes": [{"nodes": [0]}],
@@ -2030,6 +2091,8 @@ mod tests {
         assert_eq!(draw.thickness, 0.5);
         assert_eq!(draw.attenuation_color, [0.2, 0.9, 0.4]);
         assert_eq!(draw.attenuation_distance, 1.5);
+        assert_eq!(draw.refraction_ior, 1.7);
+        assert_eq!(draw.transmission, 0.3, "explicit transmission wins");
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
         let _ = std::fs::remove_dir_all(&dir);
