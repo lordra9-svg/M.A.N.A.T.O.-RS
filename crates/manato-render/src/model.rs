@@ -43,19 +43,22 @@ struct PrefilteredEnvironment {
 
 impl PrefilteredEnvironment {
     fn new(base: ModelTexture) -> Self {
-        let mut levels = vec![base];
-        for _ in 0..4 {
-            let previous = levels.last().expect("level");
-            let width = (previous.width / 2).max(1);
-            let height = (previous.height / 2).max(1);
+        const LEVELS: usize = 5;
+        let mut levels = vec![base.clone()];
+        for level in 1..LEVELS {
+            let roughness = level as f32 / (LEVELS - 1) as f32;
+            let width = (base.width >> level).max(4);
+            let height = (base.height >> level).max(2);
             let mut rgba = vec![0u8; (width * height * 4) as usize];
             for y in 0..height {
                 for x in 0..width {
-                    let sx = (x * 2).min(previous.width - 1);
-                    let sy = (y * 2).min(previous.height - 1);
-                    let offset = ((sy * previous.width + sx) * 4) as usize;
-                    let dest = ((y * width + x) * 4) as usize;
-                    rgba[dest..dest + 4].copy_from_slice(&previous.rgba[offset..offset + 4]);
+                    let normal = equirect_direction(x, y, width, height);
+                    let color = convolve_environment(&base, normal, roughness, 64);
+                    let offset = ((y * width + x) * 4) as usize;
+                    rgba[offset] = (color[0] * 255.0).clamp(0.0, 255.0) as u8;
+                    rgba[offset + 1] = (color[1] * 255.0).clamp(0.0, 255.0) as u8;
+                    rgba[offset + 2] = (color[2] * 255.0).clamp(0.0, 255.0) as u8;
+                    rgba[offset + 3] = 255;
                 }
             }
             levels.push(ModelTexture {
@@ -76,6 +79,120 @@ impl PrefilteredEnvironment {
             .min(self.levels.len() - 1);
         environment_color(&self.levels[level], direction)
     }
+}
+
+fn equirect_direction(x: u32, y: u32, width: u32, height: u32) -> Vec3 {
+    let u = (x as f32 + 0.5) / width as f32;
+    let v = (y as f32 + 0.5) / height as f32;
+    let phi = (u - 0.5) * std::f32::consts::TAU;
+    let theta = v * std::f32::consts::PI;
+    Vec3::new(
+        theta.sin() * phi.sin(),
+        theta.cos(),
+        theta.sin() * phi.cos(),
+    )
+}
+
+/// GGX importance-sampled prefilter around `normal`.
+fn convolve_environment(
+    base: &ModelTexture,
+    normal: Vec3,
+    roughness: f32,
+    samples: usize,
+) -> [f32; 3] {
+    let normal = normal.normalize_or_zero();
+    if normal.length_squared() == 0.0 {
+        return [0.0; 3];
+    }
+    let a = (roughness * roughness).max(0.001);
+    let up = if normal.y.abs() < 0.999 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    let tangent = up.cross(normal).normalize_or_zero();
+    let bitangent = normal.cross(tangent);
+    let mut sum = Vec3::ZERO;
+    let mut weight = 0.0;
+    for index in 0..samples {
+        let xi_x = (index as f32 + 0.5) / samples as f32;
+        let xi_y = ((index as u32).reverse_bits() as f32) * 2.328_306_4e-10;
+        let phi = std::f32::consts::TAU * xi_x;
+        let cos_theta = ((1.0 - xi_y) / (1.0 + (a * a - 1.0) * xi_y))
+            .max(0.0)
+            .sqrt();
+        let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
+        let half = tangent * (sin_theta * phi.cos())
+            + bitangent * (sin_theta * phi.sin())
+            + normal * cos_theta;
+        let light = 2.0 * normal.dot(half) * half - normal;
+        let n_dot_l = normal.dot(light);
+        if n_dot_l <= 0.0 {
+            continue;
+        }
+        sum += Vec3::from_array(environment_color(base, light)) * n_dot_l;
+        weight += n_dot_l;
+    }
+    if weight <= 0.0 {
+        [0.0; 3]
+    } else {
+        (sum / weight).to_array()
+    }
+}
+
+/// CPU BRDF LUT (`32x32`) for split-sum specular integration.
+fn brdf_lut(n_dot_v: f32, roughness: f32) -> (f32, f32) {
+    const SIZE: usize = 32;
+    static LUT: std::sync::OnceLock<Vec<(f32, f32)>> = std::sync::OnceLock::new();
+    let table = LUT.get_or_init(|| {
+        let mut table = Vec::with_capacity(SIZE * SIZE);
+        for y in 0..SIZE {
+            let roughness = (y as f32 + 0.5) / SIZE as f32;
+            for x in 0..SIZE {
+                let n_dot_v = (x as f32 + 0.5) / SIZE as f32;
+                table.push(integrate_brdf(n_dot_v, roughness, 32));
+            }
+        }
+        table
+    });
+    let x = ((n_dot_v.clamp(0.0, 1.0) * SIZE as f32) as usize).min(SIZE - 1);
+    let y = ((roughness.clamp(0.0, 1.0) * SIZE as f32) as usize).min(SIZE - 1);
+    table[y * SIZE + x]
+}
+
+fn integrate_brdf(n_dot_v: f32, roughness: f32, samples: usize) -> (f32, f32) {
+    let n_dot_v = n_dot_v.clamp(0.001, 1.0);
+    let roughness = roughness.clamp(0.04, 1.0);
+    let a = roughness * roughness;
+    let v = Vec3::new((1.0 - n_dot_v * n_dot_v).max(0.0).sqrt(), 0.0, n_dot_v);
+    let mut scale = 0.0;
+    let mut bias = 0.0;
+    for index in 0..samples {
+        let xi_x = (index as f32 + 0.5) / samples as f32;
+        let bits = (index as u32).reverse_bits();
+        let xi_y = bits as f32 * 2.328_306_4e-10;
+        let phi = std::f32::consts::TAU * xi_x;
+        let cos_theta = ((1.0 - xi_y) / (1.0 + (a * a - 1.0) * xi_y))
+            .max(0.0)
+            .sqrt();
+        let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
+        let half = Vec3::new(sin_theta * phi.cos(), sin_theta * phi.sin(), cos_theta);
+        let light = 2.0 * v.dot(half) * half - v;
+        if light.z <= 0.0 {
+            continue;
+        }
+        let n_dot_l = light.z;
+        let n_dot_h = half.z;
+        let v_dot_h = v.dot(half);
+        let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+        let geometry =
+            (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
+        let visibility = geometry * v_dot_h / (n_dot_h * n_dot_v).max(1e-6);
+        let fresnel = (1.0 - v_dot_h).clamp(0.0, 1.0).powi(5);
+        scale += (1.0 - fresnel) * visibility;
+        bias += fresnel * visibility;
+    }
+    (scale / samples as f32, bias / samples as f32)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -493,43 +610,6 @@ fn environment_color(texture: &ModelTexture, normal: Vec3) -> [f32; 3] {
     let v = normal.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI;
     let texel = sample_texture(texture, [u, v]);
     [texel[0], texel[1], texel[2]]
-}
-
-/// Split-sum BRDF integration (GGX importance sampling, 16 samples).
-fn brdf_lut(n_dot_v: f32, roughness: f32) -> (f32, f32) {
-    let n_dot_v = n_dot_v.clamp(0.001, 1.0);
-    let roughness = roughness.clamp(0.04, 1.0);
-    let a = roughness * roughness;
-    let v = Vec3::new((1.0 - n_dot_v * n_dot_v).max(0.0).sqrt(), 0.0, n_dot_v);
-    let mut scale = 0.0;
-    let mut bias = 0.0;
-    const SAMPLES: usize = 16;
-    for index in 0..SAMPLES {
-        let xi_x = (index as f32 + 0.5) / SAMPLES as f32;
-        let bits = (index as u32).reverse_bits();
-        let xi_y = bits as f32 * 2.328_306_4e-10;
-        let phi = std::f32::consts::TAU * xi_x;
-        let cos_theta = ((1.0 - xi_y) / (1.0 + (a * a - 1.0) * xi_y))
-            .max(0.0)
-            .sqrt();
-        let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
-        let half = Vec3::new(sin_theta * phi.cos(), sin_theta * phi.sin(), cos_theta);
-        let light = 2.0 * v.dot(half) * half - v;
-        if light.z <= 0.0 {
-            continue;
-        }
-        let n_dot_l = light.z;
-        let n_dot_h = half.z;
-        let v_dot_h = v.dot(half);
-        let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-        let geometry =
-            (n_dot_l / (n_dot_l * (1.0 - k) + k)) * (n_dot_v / (n_dot_v * (1.0 - k) + k));
-        let visibility = geometry * v_dot_h / (n_dot_h * n_dot_v).max(1e-6);
-        let fresnel = (1.0 - v_dot_h).clamp(0.0, 1.0).powi(5);
-        scale += (1.0 - fresnel) * visibility;
-        bias += fresnel * visibility;
-    }
-    (scale / SAMPLES as f32, bias / SAMPLES as f32)
 }
 
 fn shade_color(
@@ -1077,11 +1157,11 @@ mod tests {
     #[test]
     fn prefiltered_levels_and_brdf_lut_are_roughness_aware() {
         let texture = ModelTexture {
-            width: 4,
-            height: 2,
-            rgba: (0..8)
+            width: 32,
+            height: 16,
+            rgba: (0..(32 * 16))
                 .flat_map(|index| {
-                    let value = index as u8 * 30;
+                    let value = (index % 256) as u8;
                     [value, 255 - value, 128, 255]
                 })
                 .collect(),
