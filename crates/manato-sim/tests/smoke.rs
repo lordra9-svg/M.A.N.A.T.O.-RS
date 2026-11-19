@@ -2099,6 +2099,12 @@ fn modifystagebg_overrides_layer_state() {
             ("xangle", "10"),
             ("yangle", "-5"),
             ("xshear", "0.25"),
+            ("projection", "perspective"),
+            ("focallength", "1024"),
+            ("shader", "glow"),
+            ("shaderparam", "1, 2, 3.5"),
+            ("tex1spr", "4, 5"),
+            ("tex2anim", "6"),
         ],
     );
     let layer = sim.stage_layers[0].clone();
@@ -2115,6 +2121,16 @@ fn modifystagebg_overrides_layer_state() {
     assert_eq!(layer.x_angle, Some(10.0));
     assert_eq!(layer.y_angle, Some(-5.0));
     assert_eq!(layer.x_shear, Some(0.25));
+    assert_eq!(
+        layer.projection,
+        Some(manato_sim::ProjectionMode::Perspective)
+    );
+    assert_eq!(layer.focal_length, Some(1024.0));
+    assert_eq!(layer.shader.as_deref(), Some("glow"));
+    let params = layer.shader_params.expect("shader params");
+    assert!((params[2] - 3.5).abs() < 1e-5);
+    assert_eq!(layer.tex1_spr, Some((4, 5)));
+    assert_eq!(layer.tex2_anim, Some(6));
 
     // A different index leaves the first layer alone.
     let before = sim.stage_layers[0].clone();

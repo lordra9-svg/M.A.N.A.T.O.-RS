@@ -338,6 +338,16 @@ fn bg_layer_palfx(
     (color, hue, state.pal_invert, add, mul)
 }
 
+/// Effective `ModifyStageBG` projection/focal length for a layer.
+fn bg_layer_projection(state: &manato_sim::StageLayerState) -> (manato_sim::ProjectionMode, f32) {
+    (
+        state
+            .projection
+            .unwrap_or(manato_sim::ProjectionMode::Orthographic),
+        state.focal_length.unwrap_or(2048.0),
+    )
+}
+
 /// Effective `ModifyStageBG` rotation/shear for a layer.
 fn bg_layer_transform(state: &manato_sim::StageLayerState) -> (f32, f32, f32, f32) {
     (
@@ -514,7 +524,14 @@ fn draw_bg_layer(
     tint[3] = pose.alpha;
     let tint = global_tint(tint, &sim.bg_pal);
     let (angle, x_angle, y_angle, x_shear) = bg_layer_transform(state);
-    let rotated = angle != 0.0 || x_angle != 0.0 || y_angle != 0.0 || x_shear != 0.0;
+    let (projection, focal_length) = bg_layer_projection(state);
+    let rotated = angle != 0.0
+        || x_angle != 0.0
+        || y_angle != 0.0
+        || x_shear != 0.0
+        || projection != manato_sim::ProjectionMode::Orthographic;
+    let localcoord_h = stage.localcoord.1.max(1.0);
+    let focal_length = focal_length * (GAME_HEIGHT / localcoord_h);
     let atlas_sprite = rotated.then(|| atlas.get(bank::STAGE, sprite.group, sprite.index));
     for y in ys.iter().copied() {
         for x in xs.iter().copied() {
@@ -526,8 +543,8 @@ fn draw_bg_layer(
                     x_angle,
                     y_angle,
                     x_shear,
-                    manato_sim::ProjectionMode::Orthographic,
-                    2048.0,
+                    projection,
+                    focal_length,
                     Vec2::new(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.5),
                 );
                 painter.quad_corners(
@@ -2128,6 +2145,16 @@ mod tests {
         state.y_angle = Some(-5.0);
         state.x_shear = Some(0.25);
         assert_eq!(bg_layer_transform(&state), (15.0, 10.0, -5.0, 0.25));
+        assert_eq!(
+            bg_layer_projection(&state),
+            (manato_sim::ProjectionMode::Orthographic, 2048.0)
+        );
+        state.projection = Some(manato_sim::ProjectionMode::Perspective);
+        state.focal_length = Some(1024.0);
+        assert_eq!(
+            bg_layer_projection(&state),
+            (manato_sim::ProjectionMode::Perspective, 1024.0)
+        );
     }
 
     #[test]

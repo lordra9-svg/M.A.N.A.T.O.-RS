@@ -3058,6 +3058,27 @@ fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::
     pal
 }
 
+/// Parses `shaderparam = count, index, value[, index, value...]` into 16 slots.
+fn parse_shader_params(sim: &SimState, who: usize, control: &Controller) -> Option<[f32; 16]> {
+    let raw = control.get("shaderparam")?;
+    let parts: Vec<f32> = raw
+        .split(',')
+        .map(|part| trigger::num(sim, who, part.trim()))
+        .collect();
+    let count = *parts.first()? as usize;
+    let mut params = [0.0f32; 16];
+    let mut any = false;
+    for pair in 0..count {
+        let index = *parts.get(1 + pair * 2)? as usize;
+        let value = *parts.get(2 + pair * 2)?;
+        if index < params.len() {
+            params[index] = value;
+            any = true;
+        }
+    }
+    any.then_some(params)
+}
+
 /// `ModifyStageBG`: selects stage layers by `id` (`-1` = every id) and
 /// `index` (`-1` = every layer), then overrides `actionno`, `velocity.x/y`,
 /// `delta.x/y`, `start.x/y`, `scalestart`, `pos`, `layerno`, `spriteno`,
@@ -3099,6 +3120,18 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
     let x_angle = num_param(sim, who, control, "xangle");
     let y_angle = num_param(sim, who, control, "yangle");
     let x_shear = num_param(sim, who, control, "xshear");
+    let projection = str_param(control, "projection").map(crate::ProjectionMode::parse);
+    let focal_length = num_param(sim, who, control, "focallength");
+    let shader = str_param(control, "shader").map(|raw| raw.trim().trim_matches('"').to_string());
+    let shader_params = parse_shader_params(sim, who, control);
+    let tex1_anim = int_param(sim, who, control, "tex1anim");
+    let tex1_spr = control
+        .get_pair("tex1spr")
+        .map(|(group, index)| (group as i32, index as i32));
+    let tex2_anim = int_param(sim, who, control, "tex2anim");
+    let tex2_spr = control
+        .get_pair("tex2spr")
+        .map(|(group, index)| (group as i32, index as i32));
     for position in targets {
         let base = &sim.assets.stage.layers[position];
         let state = &mut sim.stage_layers[position];
@@ -3164,6 +3197,34 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
         }
         if let Some(value) = x_shear {
             state.x_shear = Some(value);
+        }
+        if let Some(value) = projection {
+            state.projection = Some(value);
+        }
+        if let Some(value) = focal_length {
+            state.focal_length = Some(value.max(1.0));
+        }
+        if let Some(name) = &shader {
+            state.shader = if name.is_empty() || name.eq_ignore_ascii_case("none") {
+                None
+            } else {
+                Some(name.clone())
+            };
+        }
+        if let Some(params) = shader_params {
+            state.shader_params = Some(params);
+        }
+        if let Some(value) = tex1_anim {
+            state.tex1_anim = Some(value);
+        }
+        if let Some(value) = tex1_spr {
+            state.tex1_spr = Some(value);
+        }
+        if let Some(value) = tex2_anim {
+            state.tex2_anim = Some(value);
+        }
+        if let Some(value) = tex2_spr {
+            state.tex2_spr = Some(value);
         }
     }
 }
@@ -3254,24 +3315,7 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         let name = raw.trim().trim_matches('"').to_string();
         name
     });
-    let shader_params = control.get("shaderparam").and_then(|raw| {
-        let parts: Vec<f32> = raw
-            .split(',')
-            .map(|part| trigger::num(sim, who, part.trim()))
-            .collect();
-        let count = *parts.first()? as usize;
-        let mut params = [0.0f32; 16];
-        let mut any = false;
-        for pair in 0..count {
-            let index = *parts.get(1 + pair * 2)? as usize;
-            let value = *parts.get(2 + pair * 2)?;
-            if index < params.len() {
-                params[index] = value;
-                any = true;
-            }
-        }
-        any.then_some(params)
-    });
+    let shader_params = parse_shader_params(sim, who, control);
     let tex1_anim = int_param(sim, who, control, "tex1anim");
     let tex1_spr = control
         .get_pair("tex1spr")

@@ -157,10 +157,11 @@ Required controller families for the approved matrix:
   `zautocenter`/`zboundtop`/`zboundbot`, and player-info bounds subset)
 - `ModifyStageBG` (selects layers by `id`/`index`, then overrides `actionno`,
   `velocity.x/y`, `delta.x/y`, `start.x/y`, `scalestart`, `pos.x/y`,
-  `layerno`, `spriteno`, `trans` (numeric add/sub/subadd type), and the
-  sprite `angle`/`xangle`/`yangle`/`xshear`; nonzero rotation/shear renders
-  through the projected quad path. Projection mode and shaders are not
-  modeled)
+  `layerno`, `spriteno`, `trans` (numeric add/sub/subadd type), the sprite
+  `angle`/`xangle`/`yangle`/`xshear`, `projection`/`focallength`, and
+  `shader`/`shaderparam`/`tex1anim`/`tex1spr`/`tex2anim`/`tex2spr`.
+  Nonzero rotation/shear or a non-orthographic projection renders through the
+  projected quad path)
 - `ModifyBGCtrl` (matches stage controllers by `sctrlid` and updates the
   `time = start[, end[, loop]]` window, `value`, and `x`/`y`, plus palette
   keys `color` (0–256 saturation), `hue` (-256..256, 512 units per turn),
