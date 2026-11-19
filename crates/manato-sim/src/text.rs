@@ -14,6 +14,9 @@ pub struct TextObject {
     pub z: f32,
     pub vel: Vec2,
     pub accel: Vec2,
+    /// Depth velocity/acceleration (`velocity`/`accel` third components).
+    pub vel_z: f32,
+    pub accel_z: f32,
     pub friction: Vec2,
     /// Ticks since creation; drives `textdelay` typing.
     pub time: i32,
@@ -46,6 +49,8 @@ impl TextObject {
             z: 0.0,
             vel: Vec2::ZERO,
             accel: Vec2::ZERO,
+            vel_z: 0.0,
+            accel_z: 0.0,
             friction: Vec2::new(1.0, 1.0),
             time: 0,
             remove_time: 1,
@@ -69,6 +74,8 @@ impl TextObject {
         self.vel.y = self.vel.y * self.friction.y + self.accel.y;
         self.pos.x += self.vel.x;
         self.pos.y += self.vel.y;
+        self.vel_z += self.accel_z;
+        self.z += self.vel_z;
         if self.remove_time > 0 {
             self.remove_time -= 1;
         }

@@ -2307,10 +2307,16 @@ fn apply_text_params(
     if let Some(raw) = control.get("velocity") {
         let (x, y) = split_pair(raw);
         text.vel = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+        if let Some(z) = raw.split(',').nth(2) {
+            text.vel_z = trigger::num(sim, who, z.trim());
+        }
     }
     if let Some(raw) = control.get("accel") {
         let (x, y) = split_pair(raw);
         text.accel = Vec2::new(trigger::num(sim, who, &x), trigger::num(sim, who, &y));
+        if let Some(z) = raw.split(',').nth(2) {
+            text.accel_z = trigger::num(sim, who, z.trim());
+        }
     }
     if let Some(raw) = control.get("friction") {
         let (x, y) = split_pair(raw);

@@ -19,8 +19,8 @@ Each `Text` creates a `TextObject` owned by the executing fighter:
 | --- | --- | --- |
 | `text` | empty | String expression; `%d`/`%i`/`%f`/`%s` are filled from `params` |
 | `id` | `0` | Matched by `ModifyText`, `RemoveText`, `NumText` |
-| `pos` | `0, 0` | Screen coordinates |
-| `velocity` / `accel` | `0, 0` | Screen-space motion |
+| `pos` | `0, 0` | Screen coordinates; the third component sets `z` |
+| `velocity` / `accel` | `0, 0` | Screen-space motion; a third component drives depth motion |
 | `friction` | `1, 1` | Multiplied into velocity each tick |
 | `removetime` | `1` | Countdown; `0` removes the text, negative lives forever |
 | `layerno` | `0` | Negative draws behind fighters |
@@ -33,7 +33,8 @@ Each `Text` creates a `TextObject` owned by the executing fighter:
 | `angle` / `xshear` | `0` | Parsed and stored (the built-in font path is axis-aligned) |
 
 Every tick the object advances `pos` by its velocity, applies friction and
-acceleration, increments `time`, and decrements a positive `removetime`.
+acceleration, integrates depth velocity/acceleration into `z`, increments
+`time`, and decrements a positive `removetime`.
 
 ## 3. Controllers
 

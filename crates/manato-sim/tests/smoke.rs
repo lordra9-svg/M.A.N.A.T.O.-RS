@@ -6005,6 +6005,49 @@ fn explod_var_reports_active_effect_fields() {
 }
 
 #[test]
+fn text_depth_velocity_and_accel() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "text".into(),
+        params: vec![
+            ("text".into(), "\"depth\"".into()),
+            ("id".into(), "8".into()),
+            ("pos".into(), "0, 0, 30".into()),
+            ("velocity".into(), "0, 0, 4".into()),
+            ("accel".into(), "0, 0, 0.5".into()),
+            ("removetime".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let text = &sim.texts[0];
+    assert_eq!(text.z, 30.0);
+    assert_eq!(text.vel_z, 4.0);
+    assert_eq!(text.accel_z, 0.5);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.texts[0].z, 34.5);
+    assert_eq!(sim.texts[0].vel_z, 4.5);
+
+    // `ModifyText` updates depth motion too.
+    let modify = manato_formats::Controller {
+        kind: "modifytext".into(),
+        params: vec![
+            ("id".into(), "8".into()),
+            ("velocity".into(), "0, 0, -2".into()),
+            ("accel".into(), "0, 0, 0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert_eq!(sim.texts[0].vel_z, -2.0);
+    assert_eq!(sim.texts[0].accel_z, 0.0);
+}
+
+#[test]
 fn helper_var_reports_helper_metadata() {
     let Some(mut sim) = fight_phase() else {
         return;
