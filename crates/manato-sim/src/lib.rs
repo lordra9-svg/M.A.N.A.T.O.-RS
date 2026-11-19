@@ -1275,7 +1275,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(10u32, self.asset_id(), self))
+        bincode::serialize(&(11u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1294,7 +1294,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 10 {
+        if version != 11 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -2125,7 +2125,7 @@ impl SimState {
 
         // A button press on the ground falls back to the stock normals when the
         // character script did not bind it (KFM/standard characters do).
-        let attacks: [(u8, i32); 6] = [
+        let attacks: [(u16, i32); 6] = [
             (1 << 0, 200), // x
             (1 << 1, 400), // y
             (1 << 2, 400), // z
@@ -4282,7 +4282,7 @@ impl SimState {
                 h.write_i32(*time);
             }
             h.write_u8(f.asserted_input.dir);
-            h.write_u8(f.asserted_input.buttons);
+            h.write_u16(f.asserted_input.buttons);
             for axis in f.analog_axes {
                 h.write_f32(axis);
             }
@@ -4350,7 +4350,7 @@ impl SimState {
             }
             for frame in &f.history {
                 h.write_u8(frame.input.dir);
-                h.write_u8(frame.input.buttons);
+                h.write_u16(frame.input.buttons);
                 h.write_u8(frame.pause_bits);
             }
         }

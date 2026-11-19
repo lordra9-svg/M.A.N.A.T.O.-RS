@@ -2811,7 +2811,7 @@ fn assert_input(sim: &mut SimState, who: usize, control: &Controller) {
     use manato_core::{Buttons, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP};
     let facing = sim.fighters[who].facing;
     let mut dir = 0u8;
-    let mut buttons = 0u8;
+    let mut buttons = 0u16;
     for (key, value) in &control.params {
         let key = key.trim().to_ascii_lowercase();
         let value = value.trim().trim_matches('"');
@@ -2907,8 +2907,7 @@ fn shift_input(sim: &mut SimState, who: usize, control: &Controller) {
     }
 }
 
-/// `ShiftInput` key indices: 0–3 U/D/L/R, 4–10 a/b/c/x/y/z/s. The
-/// Ikemen-only d/w/m buttons have no input bits here and are unmapped.
+/// `ShiftInput` key indices: 0–3 U/D/L/R, 4–10 a/b/c/x/y/z/s, 11–13 d/w/m.
 fn shift_key(name: &str) -> Option<usize> {
     match name {
         "U" => Some(0),
@@ -2922,6 +2921,9 @@ fn shift_key(name: &str) -> Option<usize> {
         "y" => Some(8),
         "z" => Some(9),
         "s" => Some(10),
+        "d" => Some(11),
+        "w" => Some(12),
+        "m" => Some(13),
         _ => None,
     }
 }

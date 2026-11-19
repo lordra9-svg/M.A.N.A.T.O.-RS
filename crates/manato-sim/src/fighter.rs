@@ -157,8 +157,8 @@ pub struct HistoryFrame {
     pub input: PlayerInput,
     pub dir: Dir8,
     pub prev_dir: Dir8,
-    pub pressed_buttons: u8,
-    pub released_buttons: u8,
+    pub pressed_buttons: u16,
+    pub released_buttons: u16,
     /// Pause state when the input was sampled: bit 0 = hit pause,
     /// bit 1 = Pause/SuperPause.
     pub pause_bits: u8,
@@ -733,11 +733,11 @@ impl Fighter {
         if self.input_shift.is_empty() {
             return input;
         }
-        const KEYS: [u8; 11] = [
-            DIR_UP,
-            DIR_DOWN,
-            DIR_LEFT,
-            DIR_RIGHT,
+        const KEYS: [u16; 14] = [
+            DIR_UP as u16,
+            DIR_DOWN as u16,
+            DIR_LEFT as u16,
+            DIR_RIGHT as u16,
             Buttons::A,
             Buttons::B,
             Buttons::C,
@@ -745,11 +745,14 @@ impl Fighter {
             Buttons::Y,
             Buttons::Z,
             Buttons::START,
+            Buttons::D,
+            Buttons::W,
+            Buttons::M,
         ];
         let mut out = PlayerInput::default();
         for (index, mask) in KEYS.iter().enumerate() {
             let active = if index < 4 {
-                input.dir & mask != 0
+                input.dir & (*mask as u8) != 0
             } else {
                 input.buttons & mask != 0
             };
@@ -769,7 +772,7 @@ impl Fighter {
                 continue;
             };
             if target < 4 {
-                out.dir |= KEYS[target];
+                out.dir |= KEYS[target] as u8;
             } else if target < KEYS.len() {
                 out.buttons |= KEYS[target];
             }
@@ -1528,15 +1531,15 @@ fn step_matches(
 }
 
 /// Convenience: is this input pressing any of the given buttons?
-pub fn pressed(input: PlayerInput, prev: PlayerInput, buttons: u8) -> bool {
+pub fn pressed(input: PlayerInput, prev: PlayerInput, buttons: u16) -> bool {
     input.buttons & buttons != 0 && prev.buttons & buttons == 0
 }
 
-pub fn buttons_mask(buttons: &[u8]) -> u8 {
+pub fn buttons_mask(buttons: &[u16]) -> u16 {
     buttons.iter().fold(0, |a, b| a | b)
 }
 
-pub const ALL_BUTTONS: u8 = Buttons::ALL;
+pub const ALL_BUTTONS: u16 = Buttons::ALL;
 
 /// `AssertSpecial` flags.
 pub const ASSERT_INVISIBLE: u32 = 1 << 0;

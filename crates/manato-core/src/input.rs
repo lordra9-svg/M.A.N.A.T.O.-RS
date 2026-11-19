@@ -5,16 +5,29 @@ use std::fmt;
 pub struct Buttons;
 
 impl Buttons {
-    pub const X: u8 = 1 << 0;
-    pub const Y: u8 = 1 << 1;
-    pub const Z: u8 = 1 << 2;
-    pub const A: u8 = 1 << 3;
-    pub const B: u8 = 1 << 4;
-    pub const C: u8 = 1 << 5;
-    pub const START: u8 = 1 << 6;
-    pub const ALL: u8 = Self::X | Self::Y | Self::Z | Self::A | Self::B | Self::C | Self::START;
+    pub const X: u16 = 1 << 0;
+    pub const Y: u16 = 1 << 1;
+    pub const Z: u16 = 1 << 2;
+    pub const A: u16 = 1 << 3;
+    pub const B: u16 = 1 << 4;
+    pub const C: u16 = 1 << 5;
+    pub const START: u16 = 1 << 6;
+    /// Ikemen-only D/W/M buttons.
+    pub const D: u16 = 1 << 7;
+    pub const W: u16 = 1 << 8;
+    pub const M: u16 = 1 << 9;
+    pub const ALL: u16 = Self::X
+        | Self::Y
+        | Self::Z
+        | Self::A
+        | Self::B
+        | Self::C
+        | Self::START
+        | Self::D
+        | Self::W
+        | Self::M;
 
-    pub fn from_letter(c: char) -> Option<u8> {
+    pub fn from_letter(c: char) -> Option<u16> {
         match c.to_ascii_lowercase() {
             'x' => Some(Self::X),
             'y' => Some(Self::Y),
@@ -23,6 +36,9 @@ impl Buttons {
             'b' => Some(Self::B),
             'c' => Some(Self::C),
             's' => Some(Self::START),
+            'd' => Some(Self::D),
+            'w' => Some(Self::W),
+            'm' => Some(Self::M),
             _ => None,
         }
     }
@@ -40,15 +56,15 @@ pub const DIR_RIGHT: u8 = 1 << 3;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PlayerInput {
     pub dir: u8,
-    pub buttons: u8,
+    pub buttons: u16,
 }
 
 impl PlayerInput {
-    pub const fn new(dir: u8, buttons: u8) -> Self {
+    pub const fn new(dir: u8, buttons: u16) -> Self {
         Self { dir, buttons }
     }
 
-    pub fn held(&self, button: u8) -> bool {
+    pub fn held(&self, button: u16) -> bool {
         self.buttons & button != 0
     }
 }
@@ -131,13 +147,13 @@ impl fmt::Display for Dir8 {
 }
 
 /// Maps a keyboard key name (as written in config files) to input bits.
-pub fn key_to_bit(name: &str) -> Option<(u8, bool)> {
+pub fn key_to_bit(name: &str) -> Option<(u16, bool)> {
     let n = name.trim().to_ascii_lowercase();
     let bit = match n.as_str() {
-        "up" => (DIR_UP, true),
-        "down" => (DIR_DOWN, true),
-        "left" => (DIR_LEFT, true),
-        "right" => (DIR_RIGHT, true),
+        "up" => (DIR_UP as u16, true),
+        "down" => (DIR_DOWN as u16, true),
+        "left" => (DIR_LEFT as u16, true),
+        "right" => (DIR_RIGHT as u16, true),
         "x" => (Buttons::X, false),
         "y" => (Buttons::Y, false),
         "z" => (Buttons::Z, false),

@@ -2847,7 +2847,7 @@ fn dir_bits(
     dir
 }
 
-fn button_bits(keys: &HashSet<KeyCode>, b: [KeyCode; 6], start: KeyCode) -> u8 {
+fn button_bits(keys: &HashSet<KeyCode>, b: [KeyCode; 6], start: KeyCode) -> u16 {
     let mut buttons = 0;
     for (i, code) in b.iter().enumerate() {
         if keys.contains(code) {

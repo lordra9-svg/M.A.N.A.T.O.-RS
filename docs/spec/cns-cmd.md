@@ -201,10 +201,10 @@ Required controller families for the approved matrix:
   `lefttrigger`/`righttrigger` for `Analog(...)`; sticks clamp to -1..1 and
   triggers to 0..1)
 - `ShiftInput` (per-tick key remap, applied to the next input frame:
-  `input`/`output` accept `U`/`D`/`L`/`R` and `a`–`c`, `x`–`z`, `s`;
-  `output = none` disables the source, `input = none, output = none` clears
-  all mappings. `B`/`F` and the unmodeled `d`/`w`/`m` buttons are not
-  accepted)
+  `input`/`output` accept `U`/`D`/`L`/`R`, `a`–`c`, `x`–`z`, `s`, and the
+  Ikemen-only `d`/`w`/`m` buttons; `output = none` disables the source,
+  `input = none, output = none` clears all mappings. `B`/`F` direction
+  aliases are not accepted)
 - `ParentMapSet`, `ParentMapAdd`, `RootMapSet`, `RootMapAdd`,
   `TeamMapSet`, `TeamMapAdd`
 - `RoundTimeAdd`, `RoundTimeSet`, `VictoryQuote`, `ScoreAdd`,

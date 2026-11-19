@@ -15,9 +15,9 @@ use crate::text::TextFile;
 pub struct CommandStep {
     pub dir: Option<Dir8>,
     /// Buttons that must all be pressed.
-    pub buttons: u8,
+    pub buttons: u16,
     /// Buttons of which at least one must be pressed (`|` syntax).
-    pub or_buttons: u8,
+    pub or_buttons: u16,
     /// `~` prefix: the input must have been released.
     pub release: bool,
     /// `/` prefix: the direction must still be held.
@@ -353,11 +353,11 @@ fn parse_dir(value: &str) -> Option<Dir8> {
     }
 }
 
-fn parse_button(value: &str) -> Option<u8> {
+fn parse_button(value: &str) -> Option<u16> {
     if value == "start" || value == "s" {
         return Some(Buttons::START);
     }
-    let mut button = 0u8;
+    let mut button = 0u16;
     for ch in value.chars() {
         button |= Buttons::from_letter(ch)?;
     }
@@ -395,6 +395,13 @@ mod tests {
         assert!(step.hold);
         assert_eq!(step.buttons, Buttons::A);
         assert!(!step.button_hold, "only the prefixed key is held");
+        // Ikemen-only d/w/m buttons parse and combine.
+        let step = parse_step("d+w").unwrap();
+        assert_eq!(step.buttons, Buttons::D | Buttons::W);
+        let step = parse_step("m").unwrap();
+        assert_eq!(step.buttons, Buttons::M);
+        let step = parse_step("d|m").unwrap();
+        assert_eq!(step.or_buttons, Buttons::D | Buttons::M);
     }
 
     #[test]

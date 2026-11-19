@@ -4298,6 +4298,15 @@ fn shiftinput_remaps_next_frame_inputs() {
     );
     assert_eq!(last_input(&sim).dir & manato_core::DIR_LEFT, 0);
 
+    // Ikemen-only d/w/m buttons remap too.
+    shift(&mut sim, "d", "m");
+    sim.fighters[0].append_input(PlayerInput::new(0, manato_core::Buttons::D), 0);
+    assert_eq!(
+        last_input(&sim).buttons & manato_core::Buttons::M,
+        manato_core::Buttons::M
+    );
+    assert_eq!(last_input(&sim).buttons & manato_core::Buttons::D, 0);
+
     // output = none disables the source key.
     shift(&mut sim, "x", "none");
     sim.fighters[0].append_input(
@@ -14696,7 +14705,7 @@ fn command_prefix_charge_greater_tap_and_step_time() {
     let down = manato_core::DIR_DOWN;
     let forward = manato_core::DIR_RIGHT;
     let dn_forward = down | forward;
-    let feed = |sim: &mut SimState, inputs: &[(u8, u8)]| {
+    let feed = |sim: &mut SimState, inputs: &[(u8, u16)]| {
         for (dir, buttons) in inputs {
             sim.tick([PlayerInput::new(*dir, *buttons), PlayerInput::default()]);
         }

@@ -31,6 +31,13 @@ impl StateHasher {
     }
 
     #[inline]
+    pub fn write_u16(&mut self, v: u16) {
+        for b in v.to_le_bytes() {
+            self.write_u8(b);
+        }
+    }
+
+    #[inline]
     pub fn write_u32(&mut self, v: u32) {
         for b in v.to_le_bytes() {
             self.write_u8(b);
