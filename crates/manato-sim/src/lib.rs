@@ -1302,7 +1302,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(14u32, self.asset_id(), self))
+        bincode::serialize(&(15u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1321,7 +1321,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 14 {
+        if version != 15 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -2140,7 +2140,10 @@ impl SimState {
             return;
         }
         // Crouch: stand up when down is released.
-        if (stateno == 10 || stateno == 11) && !down {
+        if (stateno == 10 || stateno == 11)
+            && !down
+            && fighter.assert_flags & fighter::ASSERT_NOSTAND == 0
+        {
             if has(0) {
                 set(self, 0, None, None);
             }
@@ -2167,12 +2170,12 @@ impl SimState {
             }
         }
 
-        if up && has(40) {
+        if up && has(40) && fighter.assert_flags & fighter::ASSERT_NOJUMP == 0 {
             let jump_y = char.constants.get_or("movement.jump.neu.y", -8.4);
             set(self, 40, None, Some(jump_y));
             return;
         }
-        if down && has(10) {
+        if down && has(10) && fighter.assert_flags & fighter::ASSERT_NOCROUCH == 0 {
             set(self, 10, None, None);
             return;
         }
@@ -4296,6 +4299,7 @@ impl SimState {
             h.write_f32(f.pal_mul[0]);
             h.write_f32(f.pal_mul[1]);
             h.write_f32(f.pal_mul[2]);
+            h.write_u64(f.assert_flags);
             h.write_f32(f.pal_alpha);
             h.write_f32(f.pal_color);
             h.write_f32(f.pal_base_color);

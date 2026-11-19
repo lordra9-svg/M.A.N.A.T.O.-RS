@@ -126,7 +126,7 @@ pub fn resolve(sim: &mut SimState) {
 /// Whether juggle points allow an airborne hit.
 fn juggle_allows(
     juggle_points: i32,
-    assert_flags: u32,
+    assert_flags: u64,
     guarding: bool,
     airborne: bool,
     cost: i32,

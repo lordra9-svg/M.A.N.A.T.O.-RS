@@ -913,6 +913,98 @@ fn assert_special_input_and_bar_flags() {
 }
 
 #[test]
+fn assert_special_movement_flags() {
+    // Baseline: holding up enters the jump state.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_UP, 0),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(sim.fighters[0].state_no, 40);
+
+    // `nojump` re-asserted from state -2 blocks the transition.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let char_id = sim.fighters[0].char_id;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[char_id];
+        let control = manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![("nojump".into(), "1".into())],
+            line: 0,
+        };
+        match character.states.get_mut(&-2) {
+            Some(state) => state.controllers.push(control),
+            None => {
+                character.states.insert(
+                    -2,
+                    manato_formats::StateDef {
+                        number: -2,
+                        params: Vec::new(),
+                        controllers: vec![control],
+                        line: 0,
+                        source: "assert-test".into(),
+                    },
+                );
+            }
+        }
+    }
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_UP, 0),
+        PlayerInput::default(),
+    ]);
+    assert_ne!(sim.fighters[0].state_no, 40);
+
+    // Baseline crouch, then `nocrouch` blocks it.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_DOWN, 0),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(sim.fighters[0].state_no, 10);
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let char_id = sim.fighters[0].char_id;
+    {
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[char_id];
+        let control = manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![("nocrouch".into(), "1".into())],
+            line: 0,
+        };
+        match character.states.get_mut(&-2) {
+            Some(state) => state.controllers.push(control),
+            None => {
+                character.states.insert(
+                    -2,
+                    manato_formats::StateDef {
+                        number: -2,
+                        params: Vec::new(),
+                        controllers: vec![control],
+                        line: 0,
+                        source: "assert-test".into(),
+                    },
+                );
+            }
+        }
+    }
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_DOWN, 0),
+        PlayerInput::default(),
+    ]);
+    assert_ne!(sim.fighters[0].state_no, 10);
+}
+
+#[test]
 fn guard_damage_uses_guard_damage() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

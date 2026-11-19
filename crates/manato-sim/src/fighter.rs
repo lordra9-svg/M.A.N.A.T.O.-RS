@@ -360,7 +360,7 @@ pub struct Fighter {
     pub ctrl_exec: Vec<u32>,
     pub extra_exec: [Vec<u32>; 3],
     pub pos_freeze: i32,
-    pub assert_flags: u32,
+    pub assert_flags: u64,
     /// `AssertCommand` entries: command name and remaining ticks.
     pub asserted_commands: Vec<(String, i32)>,
     /// `AssertInput` bits merged into the next input frame.
@@ -1549,51 +1549,57 @@ pub fn buttons_mask(buttons: &[u16]) -> u16 {
 pub const ALL_BUTTONS: u16 = Buttons::ALL;
 
 /// `AssertSpecial` flags.
-pub const ASSERT_INVISIBLE: u32 = 1 << 0;
-pub const ASSERT_NOSHADOW: u32 = 1 << 1;
-pub const ASSERT_NOWALK: u32 = 1 << 2;
-pub const ASSERT_NOAIRGUARD: u32 = 1 << 3;
-pub const ASSERT_NOSTANDGUARD: u32 = 1 << 4;
-pub const ASSERT_NOCROUCHGUARD: u32 = 1 << 5;
-pub const ASSERT_UNGUARDABLE: u32 = 1 << 6;
-pub const ASSERT_NOJUGGLECHECK: u32 = 1 << 7;
-pub const ASSERT_NOAUTOTURN: u32 = 1 << 8;
-pub const ASSERT_INTRO: u32 = 1 << 9;
-pub const ASSERT_NOBG: u32 = 1 << 10;
-pub const ASSERT_NOFG: u32 = 1 << 11;
-pub const ASSERT_NOKO: u32 = 1 << 12;
-pub const ASSERT_NOKOSLOW: u32 = 1 << 13;
-pub const ASSERT_NOKOSND: u32 = 1 << 14;
-pub const ASSERT_NOMUSIC: u32 = 1 << 15;
-pub const ASSERT_GLOBALNOSHADOW: u32 = 1 << 16;
-pub const ASSERT_NOBARDISPLAY: u32 = 1 << 17;
-pub const ASSERT_ROUNDNOTOVER: u32 = 1 << 18;
-pub const ASSERT_NOHARDCODEDKEYS: u32 = 1 << 19;
+pub const ASSERT_INVISIBLE: u64 = 1 << 0;
+pub const ASSERT_NOSHADOW: u64 = 1 << 1;
+pub const ASSERT_NOWALK: u64 = 1 << 2;
+pub const ASSERT_NOAIRGUARD: u64 = 1 << 3;
+pub const ASSERT_NOSTANDGUARD: u64 = 1 << 4;
+pub const ASSERT_NOCROUCHGUARD: u64 = 1 << 5;
+pub const ASSERT_UNGUARDABLE: u64 = 1 << 6;
+pub const ASSERT_NOJUGGLECHECK: u64 = 1 << 7;
+pub const ASSERT_NOAUTOTURN: u64 = 1 << 8;
+pub const ASSERT_INTRO: u64 = 1 << 9;
+pub const ASSERT_NOBG: u64 = 1 << 10;
+pub const ASSERT_NOFG: u64 = 1 << 11;
+pub const ASSERT_NOKO: u64 = 1 << 12;
+pub const ASSERT_NOKOSLOW: u64 = 1 << 13;
+pub const ASSERT_NOKOSND: u64 = 1 << 14;
+pub const ASSERT_NOMUSIC: u64 = 1 << 15;
+pub const ASSERT_GLOBALNOSHADOW: u64 = 1 << 16;
+pub const ASSERT_NOBARDISPLAY: u64 = 1 << 17;
+pub const ASSERT_ROUNDNOTOVER: u64 = 1 << 18;
+pub const ASSERT_NOHARDCODEDKEYS: u64 = 1 << 19;
 /// `TimerFreeze`: the round timer stops counting down while asserted.
-pub const ASSERT_TIMERFREEZE: u32 = 1 << 20;
+pub const ASSERT_TIMERFREEZE: u64 = 1 << 20;
 /// No damage from unguarded hits.
-pub const ASSERT_NOHITDAMAGE: u32 = 1 << 21;
+pub const ASSERT_NOHITDAMAGE: u64 = 1 << 21;
 /// No damage from guarded hits.
-pub const ASSERT_NOGUARDDAMAGE: u32 = 1 << 22;
+pub const ASSERT_NOGUARDDAMAGE: u64 = 1 << 22;
 /// Ignore corner-push velocity adjustments.
-pub const ASSERT_NOCORNERPUSH: u32 = 1 << 23;
+pub const ASSERT_NOCORNERPUSH: u64 = 1 << 23;
 /// Do not increment `fallcount` on falling states.
-pub const ASSERT_NOFALLCOUNT: u32 = 1 << 24;
+pub const ASSERT_NOFALLCOUNT: u64 = 1 << 24;
 /// No dizzy-point loss from hits.
-pub const ASSERT_NODIZZYPOINTSDAMAGE: u32 = 1 << 25;
+pub const ASSERT_NODIZZYPOINTSDAMAGE: u64 = 1 << 25;
 /// No guard-point loss from guarded hits.
-pub const ASSERT_NOGUARDPOINTSDAMAGE: u32 = 1 << 26;
+pub const ASSERT_NOGUARDPOINTSDAMAGE: u64 = 1 << 26;
 /// Ignore player input while asserted (asserted input still applies).
-pub const ASSERT_NOINPUT: u32 = 1 << 27;
+pub const ASSERT_NOINPUT: u64 = 1 << 27;
 /// Hide this fighter's life bar.
-pub const ASSERT_NOLIFEBARDISPLAY: u32 = 1 << 28;
+pub const ASSERT_NOLIFEBARDISPLAY: u64 = 1 << 28;
 /// Hide this fighter's power bar.
-pub const ASSERT_NOPOWERBARDISPLAY: u32 = 1 << 29;
+pub const ASSERT_NOPOWERBARDISPLAY: u64 = 1 << 29;
 /// Hide this fighter's guard bar.
-pub const ASSERT_NOGUARDBARDISPLAY: u32 = 1 << 30;
+pub const ASSERT_NOGUARDBARDISPLAY: u64 = 1 << 30;
+/// Disable the built-in jump transition.
+pub const ASSERT_NOJUMP: u64 = 1 << 31;
+/// Disable the built-in stand-to-crouch transition.
+pub const ASSERT_NOCROUCH: u64 = 1 << 32;
+/// Disable the built-in crouch-to-stand transition.
+pub const ASSERT_NOSTAND: u64 = 1 << 33;
 
 /// Maps an `AssertSpecial`/`IsAsserted` flag name to its bit.
-pub fn assert_flag(name: &str) -> u32 {
+pub fn assert_flag(name: &str) -> u64 {
     match name {
         "invisible" => ASSERT_INVISIBLE,
         "noshadow" => ASSERT_NOSHADOW,
@@ -1626,6 +1632,9 @@ pub fn assert_flag(name: &str) -> u32 {
         "nolifebardisplay" => ASSERT_NOLIFEBARDISPLAY,
         "nopowerbardisplay" => ASSERT_NOPOWERBARDISPLAY,
         "noguardbardisplay" => ASSERT_NOGUARDBARDISPLAY,
+        "nojump" => ASSERT_NOJUMP,
+        "nocrouch" => ASSERT_NOCROUCH,
+        "nostand" => ASSERT_NOSTAND,
         _ => 0,
     }
 }

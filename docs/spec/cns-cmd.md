@@ -125,7 +125,9 @@ Required controller families for the approved matrix:
   `noguardpointsdamage`, which suppress the matching combat effects while
   the flag is asserted; `noinput` ignores the player's frame but keeps
   engine-asserted input; `nolifebardisplay`/`nopowerbardisplay`/
-  `noguardbardisplay` hide the corresponding per-side bars)
+  `noguardbardisplay` hide the corresponding per-side bars; `nojump`,
+  `nocrouch`, and `nostand` block the built-in jump, crouch, and crouch-to-
+  stand transitions)
 
 ### 4.2 Combat
 
