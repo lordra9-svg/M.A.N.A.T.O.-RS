@@ -869,6 +869,50 @@ fn assert_special_damage_and_corner_flags() {
 }
 
 #[test]
+fn assert_special_input_and_bar_flags() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[0].append_input(
+        PlayerInput::new(manato_core::DIR_RIGHT, manato_core::Buttons::X),
+        0,
+    );
+    assert_eq!(
+        sim.fighters[0].held_input().buttons,
+        manato_core::Buttons::X
+    );
+
+    // `NoInput` drops the player's frame but keeps engine-asserted input.
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOINPUT;
+    assert_eq!(sim.fighters[0].held_input().buttons, 0);
+    sim.fighters[0].asserted_input.buttons = manato_core::Buttons::Y;
+    assert_eq!(
+        sim.fighters[0].held_input().buttons,
+        manato_core::Buttons::Y
+    );
+    sim.fighters[0].assert_flags &= !manato_sim::fighter::ASSERT_NOINPUT;
+    sim.fighters[0].asserted_input = Default::default();
+
+    // Per-side bar hiding is independent.
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOLIFEBARDISPLAY;
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOPOWERBARDISPLAY;
+    assert!(sim.lifebar_hidden(0));
+    assert!(!sim.lifebar_hidden(1));
+    assert!(!sim.powerbar_hidden(0));
+    assert!(sim.powerbar_hidden(1));
+    assert!(!sim.guardbar_hidden(0));
+
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOGUARDBARDISPLAY;
+    assert!(sim.guardbar_hidden(0));
+
+    // The global `NoBarDisplay` flag hides every side.
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOBARDISPLAY;
+    assert!(sim.lifebar_hidden(0));
+    assert!(sim.powerbar_hidden(0));
+    assert!(sim.guardbar_hidden(1));
+}
+
+#[test]
 fn guard_damage_uses_guard_damage() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

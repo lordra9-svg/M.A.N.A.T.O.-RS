@@ -724,6 +724,11 @@ impl Fighter {
     }
 
     pub fn held_input(&self) -> PlayerInput {
+        if self.assert_flags & ASSERT_NOINPUT != 0 {
+            // `NoInput` suppresses the player's frame but not engine-level
+            // `AssertInput` bits.
+            return self.asserted_input;
+        }
         self.history.back().map(|h| h.input).unwrap_or_default()
     }
 
@@ -1578,6 +1583,14 @@ pub const ASSERT_NOFALLCOUNT: u32 = 1 << 24;
 pub const ASSERT_NODIZZYPOINTSDAMAGE: u32 = 1 << 25;
 /// No guard-point loss from guarded hits.
 pub const ASSERT_NOGUARDPOINTSDAMAGE: u32 = 1 << 26;
+/// Ignore player input while asserted (asserted input still applies).
+pub const ASSERT_NOINPUT: u32 = 1 << 27;
+/// Hide this fighter's life bar.
+pub const ASSERT_NOLIFEBARDISPLAY: u32 = 1 << 28;
+/// Hide this fighter's power bar.
+pub const ASSERT_NOPOWERBARDISPLAY: u32 = 1 << 29;
+/// Hide this fighter's guard bar.
+pub const ASSERT_NOGUARDBARDISPLAY: u32 = 1 << 30;
 
 /// Maps an `AssertSpecial`/`IsAsserted` flag name to its bit.
 pub fn assert_flag(name: &str) -> u32 {
@@ -1609,6 +1622,10 @@ pub fn assert_flag(name: &str) -> u32 {
         "nofallcount" => ASSERT_NOFALLCOUNT,
         "nodizzypointsdamage" => ASSERT_NODIZZYPOINTSDAMAGE,
         "noguardpointsdamage" => ASSERT_NOGUARDPOINTSDAMAGE,
+        "noinput" => ASSERT_NOINPUT,
+        "nolifebardisplay" => ASSERT_NOLIFEBARDISPLAY,
+        "nopowerbardisplay" => ASSERT_NOPOWERBARDISPLAY,
+        "noguardbardisplay" => ASSERT_NOGUARDBARDISPLAY,
         _ => 0,
     }
 }

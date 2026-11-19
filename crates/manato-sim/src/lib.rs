@@ -3687,6 +3687,32 @@ impl SimState {
             .any(|fighter| fighter.assert_flags & fighter::ASSERT_NOBARDISPLAY != 0)
     }
 
+    /// True when the side's life bar is hidden by `NoLifeBarDisplay` or a
+    /// global bar-hiding flag.
+    pub fn lifebar_hidden(&self, side: usize) -> bool {
+        self.bars_hidden()
+            || self
+                .fighters
+                .get(side)
+                .is_some_and(|fighter| fighter.assert_flags & fighter::ASSERT_NOLIFEBARDISPLAY != 0)
+    }
+
+    /// True when the side's power bar is hidden.
+    pub fn powerbar_hidden(&self, side: usize) -> bool {
+        self.bars_hidden()
+            || self.fighters.get(side).is_some_and(|fighter| {
+                fighter.assert_flags & fighter::ASSERT_NOPOWERBARDISPLAY != 0
+            })
+    }
+
+    /// True when the side's guard bar is hidden.
+    pub fn guardbar_hidden(&self, side: usize) -> bool {
+        self.bars_hidden()
+            || self.fighters.get(side).is_some_and(|fighter| {
+                fighter.assert_flags & fighter::ASSERT_NOGUARDBARDISPLAY != 0
+            })
+    }
+
     /// True when any fighter asserts `GlobalNoShadow`.
     pub fn shadows_hidden(&self) -> bool {
         self.fighters

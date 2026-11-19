@@ -823,48 +823,57 @@ pub fn draw_background(
     for side in 0..2 {
         let fighter = &sim.fighters[side];
         if !hide_bars {
+            let show_life = !sim.lifebar_hidden(side);
+            let show_power = !sim.powerbar_hidden(side);
+            let show_guard = !sim.guardbar_hidden(side);
             let life_ratio = (fighter.life as f32 / fighter.life_max.max(1) as f32).clamp(0.0, 1.0);
             let power_ratio = (fighter.power / MAX_POWER).clamp(0.0, 1.0);
             let bar = &sim.bars[side];
-            life_bar(
-                painter,
-                deps,
-                fight,
-                sim,
-                side,
-                &fight.life[side],
-                &map,
-                life_ratio,
-                red_fill_ratio(fighter.life, fighter.red_life, fighter.life_max),
-                bar.mid_life.clamp(0.0, 1.0),
-                fighter.life.to_string(),
-            );
-            power_bar(
-                painter,
-                deps,
-                fight,
-                sim,
-                side,
-                &fight.power[side],
-                &map,
-                power_ratio,
-                bar.mid_power.clamp(0.0, 1.0),
-                fighter.power,
-            );
-            if let Some(guard_ratio) = guard_ratio(fighter.guard_points, fighter.guard_max) {
+            if show_life {
                 life_bar(
                     painter,
                     deps,
                     fight,
                     sim,
                     side,
-                    &fight.guard[side],
+                    &fight.life[side],
                     &map,
-                    guard_ratio,
-                    None,
-                    bar.mid_guard.clamp(0.0, 1.0),
-                    fighter.guard_points.to_string(),
+                    life_ratio,
+                    red_fill_ratio(fighter.life, fighter.red_life, fighter.life_max),
+                    bar.mid_life.clamp(0.0, 1.0),
+                    fighter.life.to_string(),
                 );
+            }
+            if show_power {
+                power_bar(
+                    painter,
+                    deps,
+                    fight,
+                    sim,
+                    side,
+                    &fight.power[side],
+                    &map,
+                    power_ratio,
+                    bar.mid_power.clamp(0.0, 1.0),
+                    fighter.power,
+                );
+            }
+            if show_guard {
+                if let Some(guard_ratio) = guard_ratio(fighter.guard_points, fighter.guard_max) {
+                    life_bar(
+                        painter,
+                        deps,
+                        fight,
+                        sim,
+                        side,
+                        &fight.guard[side],
+                        &map,
+                        guard_ratio,
+                        None,
+                        bar.mid_guard.clamp(0.0, 1.0),
+                        fighter.guard_points.to_string(),
+                    );
+                }
             }
         }
         face(painter, deps, fight, sim, side, &fight.face[side], &map);

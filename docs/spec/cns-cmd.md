@@ -123,7 +123,9 @@ Required controller families for the approved matrix:
 - `AssertSpecial` (render/round flags plus `nohitdamage`, `noguarddamage`,
   `nocornerpush`, `nofallcount`, `nodizzypointsdamage`, and
   `noguardpointsdamage`, which suppress the matching combat effects while
-  the flag is asserted)
+  the flag is asserted; `noinput` ignores the player's frame but keeps
+  engine-asserted input; `nolifebardisplay`/`nopowerbardisplay`/
+  `noguardbardisplay` hide the corresponding per-side bars)
 
 ### 4.2 Combat
 
