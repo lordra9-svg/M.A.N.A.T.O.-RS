@@ -5883,8 +5883,8 @@ fn explod_var_reports_active_effect_fields() {
             ("anim".into(), "10".into()),
             ("id".into(), "3".into()),
             ("pos".into(), "10, 20, 25".into()),
-            ("vel".into(), "2, -1".into()),
-            ("accel".into(), "0.5, 0".into()),
+            ("vel".into(), "2, -1, 3".into()),
+            ("accel".into(), "0.5, 0, 0.25".into()),
             ("scale".into(), "1.5, 0.75".into()),
             ("angle".into(), "30".into()),
             ("xangle".into(), "15".into()),
@@ -5908,9 +5908,12 @@ fn explod_var_reports_active_effect_fields() {
     assert_eq!(num(&sim, "ExplodVar(3, 0, pos.z)"), 25.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, vel.x)"), 2.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, vel.y)"), -1.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, vel.z)"), 3.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, accel.x)"), 0.5);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, accel.z)"), 0.25);
     assert_eq!(num(&sim, "ExplodVar(3, 0, scale.x)"), 1.5);
     assert_eq!(num(&sim, "ExplodVar(3, 0, scale.y)"), 0.75);
+
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, anim)"),
         10
@@ -5994,6 +5997,11 @@ fn explod_var_reports_active_effect_fields() {
         manato_sim::trigger::int(&sim, 0, "ExplodVar(3, 0, unknown)"),
         0
     );
+
+    // Depth velocity/acceleration integrate once per tick.
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, pos.z)"), 28.0);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, vel.z)"), 3.25);
 }
 
 #[test]
@@ -14476,6 +14484,8 @@ fn modify_explod_facing_and_vfacing() {
             ("id".into(), "5".into()),
             ("facing".into(), "-1".into()),
             ("vfacing".into(), "-1".into()),
+            ("vel".into(), "1, 2, 5".into()),
+            ("accel".into(), "0, 0, 0.5".into()),
         ],
         line: 0,
     };
@@ -14483,6 +14493,8 @@ fn modify_explod_facing_and_vfacing() {
     let effect = sim.effects.last().expect("explod exists");
     assert_eq!(effect.facing, -1);
     assert!(effect.flip_v);
+    assert_eq!(effect.vel_z, 5.0);
+    assert_eq!(effect.accel_z, 0.5);
 
     // Non-negative values clamp to forward/up.
     let reset = manato_formats::Controller {

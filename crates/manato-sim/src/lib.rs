@@ -426,6 +426,9 @@ pub struct Effect {
     pub pos: Vec2,
     pub vel: Vec2,
     pub accel: Vec2,
+    /// Depth velocity/acceleration from `vel`/`accel` third components.
+    pub vel_z: f32,
+    pub accel_z: f32,
     /// Depth position used by `[Scaling]` perspective.
     pub z: f32,
     pub scale: Vec2,
@@ -490,6 +493,8 @@ impl Default for Effect {
             pos: Vec2::ZERO,
             vel: Vec2::ZERO,
             accel: Vec2::ZERO,
+            vel_z: 0.0,
+            accel_z: 0.0,
             z: 0.0,
             scale: Vec2::new(1.0, 1.0),
             facing: 1,
@@ -1302,7 +1307,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(16u32, self.asset_id(), self))
+        bincode::serialize(&(17u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1321,7 +1326,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 16 {
+        if version != 17 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3676,6 +3681,8 @@ impl SimState {
                 } else {
                     effect.pos += effect.vel;
                     effect.vel += effect.accel;
+                    effect.z += effect.vel_z;
+                    effect.vel_z += effect.accel_z;
                 }
             }
 
@@ -3908,6 +3915,8 @@ impl SimState {
             h.write_f32(e.z);
             h.write_f32(e.vel.x);
             h.write_f32(e.vel.y);
+            h.write_f32(e.vel_z);
+            h.write_f32(e.accel_z);
             h.write_f32(e.scale.x);
             h.write_f32(e.scale.y);
             h.write_i32(e.time);

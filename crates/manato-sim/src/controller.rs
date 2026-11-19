@@ -1817,8 +1817,8 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
     let id = int_param(sim, who, control, "id").unwrap_or(0);
     let pos = control.get_pair("pos");
     let scale = control.get_pair("scale");
-    let vel = control.get_pair("vel");
-    let accel = control.get_pair("accel");
+    let vel = control.get("vel").map(|_| triplet(control, "vel"));
+    let accel = control.get("accel").map(|_| triplet(control, "accel"));
     let trans = str_param(control, "trans").map(|value| value.to_ascii_lowercase());
     let alpha_pair = control.get("alpha").map(|raw| {
         let parts: Vec<f32> = raw
@@ -1871,11 +1871,13 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
     if let Some((x, y)) = scale {
         effect.scale = Vec2::new(x, y);
     }
-    if let Some((x, y)) = vel {
+    if let Some((x, y, z)) = vel {
         effect.vel = Vec2::new(x, y);
+        effect.vel_z = z;
     }
-    if let Some((x, y)) = accel {
+    if let Some((x, y, z)) = accel {
         effect.accel = Vec2::new(x, y);
+        effect.accel_z = z;
     }
     if let Some(facing) = facing {
         effect.facing = facing;
@@ -4359,8 +4361,8 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     };
     let id = int_param(sim, who, control, "id").unwrap_or(0);
     let (px, py, pz) = triplet(control, "pos");
-    let (vx, vy) = control.get_pair("vel").unwrap_or((0.0, 0.0));
-    let (ax, ay) = control.get_pair("accel").unwrap_or((0.0, 0.0));
+    let (vx, vy, vz) = triplet(control, "vel");
+    let (ax, ay, az) = triplet(control, "accel");
     let (sx, sy) = control.get_pair("scale").unwrap_or((1.0, 1.0));
 
     // `facing` accepts -1/1 or `p1`/`p2`.
@@ -4474,6 +4476,8 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
         pos: Vec2::new(base.x + bind_offset.x, base.y + bind_offset.y),
         vel: Vec2::new(vx * facing_f, vy),
         accel: Vec2::new(ax * facing_f, ay),
+        vel_z: vz,
+        accel_z: az,
         z,
         scale: Vec2::new(sx, sy),
         facing,
