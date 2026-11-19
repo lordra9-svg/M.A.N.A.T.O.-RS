@@ -3123,9 +3123,12 @@ fn parse_trans_mode(raw: &str) -> Option<manato_formats::air::BlendMode> {
     })
 }
 
-/// `ModifyBGCtrl` subset: matches controllers by their `sctrlid` and updates
-/// the run window (`time = start[, end[, loop]]`), `value`, and `x`/`y`.
-/// Palette/shader parameters are not modeled. Stage controllers without an
+/// `ModifyBGCtrl`: matches controllers by their `sctrlid` and updates the run
+/// window (`time = start[, end[, loop]]`), `value`, `x`/`y`, and the palette
+/// keys (`color`, `hue`, `invertall`, `invertblend`, `sincolor`, `sinhue`).
+/// Palette keys apply directly to the targeted layer states and persist until
+/// changed, rather than being copied into the BG controller definition. Shader
+/// and texture parameters are not modeled. Stage controllers without an
 /// `sctrlid` use id 0, matching Ikemen's default.
 fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
     let id = int_param(sim, who, control, "id").unwrap_or(0);
@@ -3133,7 +3136,43 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
     let values = int_param_list(sim, who, control, "value", 3);
     let x = num_param(sim, who, control, "x");
     let y = num_param(sim, who, control, "y");
-    if times.is_empty() && values.is_empty() && x.is_none() && y.is_none() {
+    let pal_color =
+        num_param(sim, who, control, "color").map(|value| (value / 256.0).clamp(0.0, 1.0));
+    let pal_hue = num_param(sim, who, control, "hue").map(|value| (value / 512.0).clamp(-0.5, 0.5));
+    let pal_invert = int_param(sim, who, control, "invertall").map(|value| value != 0);
+    let pal_invert_blend =
+        int_param(sim, who, control, "invertblend").map(|value| value.abs() >= 2);
+    let pal_sin_color = control.get("sincolor").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        let magnitude = *parts.first()?;
+        let period = parts.get(1).copied().unwrap_or(0.0) as i32;
+        let side = if period < 0 { -1.0 } else { 1.0 };
+        Some((magnitude / 256.0 * side, period.abs()))
+    });
+    let pal_sin_hue = control.get("sinhue").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        let magnitude = *parts.first()?;
+        let period = parts.get(1).copied().unwrap_or(0.0) as i32;
+        let side = if period < 0 { -1.0 } else { 1.0 };
+        Some((magnitude / 512.0 * side, period.abs()))
+    });
+    if times.is_empty()
+        && values.is_empty()
+        && x.is_none()
+        && y.is_none()
+        && pal_color.is_none()
+        && pal_hue.is_none()
+        && pal_invert.is_none()
+        && pal_invert_blend.is_none()
+        && pal_sin_color.is_none()
+        && pal_sin_hue.is_none()
+    {
         return;
     }
     for ctrl in &mut sim.bg_ctrls {
@@ -3181,6 +3220,31 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         }
         if let Some(y) = y {
             controller_set_param(&mut ctrl.controller, "y", y.to_string());
+        }
+        let layer = ctrl.layer;
+        if let Some(state) = sim.stage_layers.get_mut(layer) {
+            if let Some(value) = pal_color {
+                state.pal_color = value;
+            }
+            if let Some(value) = pal_hue {
+                state.pal_hue = value;
+            }
+            if let Some(value) = pal_invert {
+                state.pal_invert = value;
+            }
+            if let Some(value) = pal_invert_blend {
+                if value {
+                    state.pal_invert = true;
+                }
+            }
+            if let Some((value, period)) = pal_sin_color {
+                state.pal_sin_color = value;
+                state.pal_sin_color_period = period;
+            }
+            if let Some((value, period)) = pal_sin_hue {
+                state.pal_sin_hue = value;
+                state.pal_sin_hue_period = period;
+            }
         }
     }
 }

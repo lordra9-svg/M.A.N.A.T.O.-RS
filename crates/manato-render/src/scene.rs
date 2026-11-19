@@ -310,6 +310,23 @@ fn layer_scissor(layer: &manato_formats::stage::BgLayer) -> Option<[u32; 4]> {
     ])
 }
 
+/// Effective `ModifyBGCtrl` palette filter for a stage layer at `time`.
+/// Returns `(saturation, hue, invert)`.
+fn bg_layer_palfx(state: &manato_sim::StageLayerState, time: f32) -> (f32, f32, bool) {
+    let phase = |period: i32| {
+        if period > 0 {
+            (std::f32::consts::TAU * time / period as f32).sin()
+        } else {
+            0.0
+        }
+    };
+    let color =
+        (state.pal_color + phase(state.pal_sin_color_period) * state.pal_sin_color).clamp(0.0, 1.0);
+    let hue =
+        (state.pal_hue + phase(state.pal_sin_hue_period) * state.pal_sin_hue).clamp(-0.5, 0.5);
+    (color, hue, state.pal_invert)
+}
+
 fn draw_bg_layer(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
@@ -440,6 +457,8 @@ fn draw_bg_layer(
     };
     let xs = range(layer.tile.0 != 0, base_left, step_x, GAME_WIDTH);
     let ys = range(layer.tile.1 != 0, base_top, step_y, GAME_HEIGHT);
+    let (saturation, hue, invert) = bg_layer_palfx(state, sim.bg_time);
+    painter.set_palfx([0.0, 0.0, 0.0], saturation, hue, invert);
     for y in ys.iter().copied() {
         for x in xs.iter().copied() {
             draw_sprite_at(
@@ -458,6 +477,7 @@ fn draw_bg_layer(
             );
         }
     }
+    painter.reset_palfx();
 }
 
 /// Indices of projectiles drawn in the background (`foreground = false`) or
@@ -2014,6 +2034,40 @@ pub fn draw_storyboard(
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn bg_layer_palfx_applies_sines_and_clamps() {
+        let mut state =
+            manato_sim::StageLayerState::from_layer(&manato_formats::stage::BgLayer::default());
+        // Identity by default.
+        assert_eq!(bg_layer_palfx(&state, 12.0), (1.0, 0.0, false));
+
+        state.pal_color = 0.5;
+        state.pal_sin_color = 0.75;
+        state.pal_sin_color_period = 4;
+        state.pal_hue = 0.25;
+        state.pal_sin_hue = 0.5;
+        state.pal_sin_hue_period = 8;
+        state.pal_invert = true;
+
+        // Cycle start: sine is zero, so the base values apply.
+        let (color, hue, invert) = bg_layer_palfx(&state, 0.0);
+        assert!((color - 0.5).abs() < 1e-5);
+        assert!((hue - 0.25).abs() < 1e-5);
+        assert!(invert);
+
+        // Quarter cycle of the colour sine clamps at full saturation.
+        let (color, _, _) = bg_layer_palfx(&state, 1.0);
+        assert!((color - 1.0).abs() < 1e-5);
+
+        // Three-quarter cycle clamps at zero.
+        let (color, _, _) = bg_layer_palfx(&state, 3.0);
+        assert!(color.abs() < 1e-5);
+
+        // Quarter cycle of the hue sine clamps at the 0.5-turn limit.
+        let (_, hue, _) = bg_layer_palfx(&state, 2.0);
+        assert!((hue - 0.5).abs() < 1e-5);
+    }
 
     #[test]
     fn depth_transform_projects_objects_and_scale() {

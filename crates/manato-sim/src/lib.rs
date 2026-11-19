@@ -683,6 +683,15 @@ pub struct StageLayerState {
     pub z: Option<f32>,
     /// `ModifyBGCtrl3D` depth scale (`x`, `y`) for this layer.
     pub z_scale: Option<Vec2>,
+    /// `ModifyBGCtrl color`: saturation (0..1; 1 = unchanged).
+    pub pal_color: f32,
+    /// `ModifyBGCtrl hue`: fraction of a turn (`hue` / 512).
+    pub pal_hue: f32,
+    pub pal_invert: bool,
+    pub pal_sin_color: f32,
+    pub pal_sin_color_period: i32,
+    pub pal_sin_hue: f32,
+    pub pal_sin_hue_period: i32,
 }
 
 impl StageLayerState {
@@ -706,6 +715,13 @@ impl StageLayerState {
             trans: None,
             z: None,
             z_scale: None,
+            pal_color: 1.0,
+            pal_hue: 0.0,
+            pal_invert: false,
+            pal_sin_color: 0.0,
+            pal_sin_color_period: 0,
+            pal_sin_hue: 0.0,
+            pal_sin_hue_period: 0,
         }
     }
 }
@@ -1245,7 +1261,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(8u32, self.asset_id(), self))
+        bincode::serialize(&(9u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1264,7 +1280,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 8 {
+        if version != 9 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3871,6 +3887,13 @@ impl SimState {
                 h.write_f32(scale.x);
                 h.write_f32(scale.y);
             }
+            h.write_f32(layer.pal_color);
+            h.write_f32(layer.pal_hue);
+            h.write_bool(layer.pal_invert);
+            h.write_f32(layer.pal_sin_color);
+            h.write_i32(layer.pal_sin_color_period);
+            h.write_f32(layer.pal_sin_hue);
+            h.write_i32(layer.pal_sin_hue_period);
             h.write_i32(layer.layer_no.unwrap_or(i32::MIN));
             h.write_bool(layer.sprite.is_some());
             if let Some((group, index)) = layer.sprite {
@@ -4614,6 +4637,13 @@ mod stage_tests {
             trans: None,
             z: None,
             z_scale: None,
+            pal_color: 1.0,
+            pal_hue: 0.0,
+            pal_invert: false,
+            pal_sin_color: 0.0,
+            pal_sin_color_period: 0,
+            pal_sin_hue: 0.0,
+            pal_sin_hue_period: 0,
         }
     }
 

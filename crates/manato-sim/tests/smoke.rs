@@ -12793,6 +12793,76 @@ fn depth_camera_ztensionvel_controls_approach_speed() {
 }
 
 #[test]
+fn modify_bg_ctrl_palette_parameters() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    if sim.stage_layers.is_empty() {
+        return;
+    }
+    sim.bg_ctrls.push(manato_formats::BgCtrl {
+        layer: 0,
+        start: 0,
+        end: 0,
+        loop_period: -1,
+        controller: manato_formats::Controller {
+            kind: "visible".into(),
+            params: vec![("sctrlid".into(), "7".into())],
+            line: 0,
+        },
+    });
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "modifybgctrl".into(),
+        params: vec![
+            ("id".into(), "7".into()),
+            ("color".into(), "128".into()),
+            ("hue".into(), "128".into()),
+            ("invertall".into(), "1".into()),
+            ("sincolor".into(), "256, 8".into()),
+            ("sinhue".into(), "-128, 4".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let state = &sim.stage_layers[0];
+    assert!((state.pal_color - 0.5).abs() < 1e-5);
+    assert!((state.pal_hue - 0.25).abs() < 1e-5);
+    assert!(state.pal_invert);
+    assert!((state.pal_sin_color - 1.0).abs() < 1e-5);
+    assert_eq!(state.pal_sin_color_period, 8);
+    assert!((state.pal_sin_hue + 0.25).abs() < 1e-5);
+    assert_eq!(state.pal_sin_hue_period, 4);
+
+    // A different `sctrlid` leaves the layer untouched.
+    let other = manato_formats::Controller {
+        kind: "modifybgctrl".into(),
+        params: vec![("id".into(), "9".into()), ("color".into(), "256".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &other, &assets);
+    assert!((sim.stage_layers[0].pal_color - 0.5).abs() < 1e-5);
+
+    // `invertblend` at the blend threshold also enables inversion; new
+    // defaults are identity.
+    let reset = manato_formats::Controller {
+        kind: "modifybgctrl".into(),
+        params: vec![
+            ("id".into(), "7".into()),
+            ("color".into(), "256".into()),
+            ("hue".into(), "0".into()),
+            ("invertall".into(), "0".into()),
+            ("invertblend".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    assert!((sim.stage_layers[0].pal_color - 1.0).abs() < 1e-5);
+    assert!(sim.stage_layers[0].pal_hue.abs() < 1e-5);
+    assert!(!sim.stage_layers[0].pal_invert);
+}
+
+#[test]
 fn width_screenbound_and_playerpush_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

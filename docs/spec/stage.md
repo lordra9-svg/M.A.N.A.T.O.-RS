@@ -275,7 +275,8 @@ tick per matching layer.
 `start` and either at most `end` (no loop) or within `end - start` of each
 `loop`-tick period. `loop` defaults to `-1`; a negative `start` or
 `start >= loop` disables the controller. `ModifyBGCtrl` can retime and
-re-parameterize controllers at runtime by `sctrlid`.
+re-parameterize controllers at runtime by `sctrlid`, including layer palette
+saturation/hue/inversion and their `sincolor`/`sinhue` oscillations.
 
 ## 13. Error handling
 

@@ -159,8 +159,11 @@ Required controller families for the approved matrix:
   `layerno`, `spriteno`, and `trans` (numeric add/sub/subadd type); angles,
   shear, projection, and shaders are not modeled)
 - `ModifyBGCtrl` (matches stage controllers by `sctrlid` and updates the
-  `time = start[, end[, loop]]` window, `value`, and `x`/`y`; palette and
-  shader parameters are not modeled)
+  `time = start[, end[, loop]]` window, `value`, and `x`/`y`, plus palette
+  keys `color` (0–256 saturation), `hue` (-256..256, 512 units per turn),
+  `invertall`, `invertblend` (≥2 enables inversion), and `sincolor`/`sinhue`
+  with their periods. Palette keys apply directly to the targeted layer states
+  and persist until changed. Shader and texture parameters are not modeled)
 - `TransformSprite` (xshear/focallength/projection subset)
 - `TransformClsn` (per-tick Clsn1/Clsn2 scale, angle, and pivot; rotations
   produce axis-aligned bounds, scale-only keeps the source box corner order)
