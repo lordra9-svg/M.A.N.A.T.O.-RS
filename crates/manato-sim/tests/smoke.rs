@@ -817,6 +817,58 @@ fn corner_push_adds_velocity_near_the_stage_edge() {
 }
 
 #[test]
+fn assert_special_damage_and_corner_flags() {
+    // `nohitdamage` suppresses unguarded damage.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOHITDAMAGE;
+    let start_life = sim.fighters[1].life;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hitdef(), false, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, start_life);
+    assert_eq!(sim.fighters[1].hit.vars.damage, 0);
+
+    // `noguarddamage` and `noguardpointsdamage` suppress guarded losses.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].assert_flags |=
+        manato_sim::fighter::ASSERT_NOGUARDDAMAGE | manato_sim::fighter::ASSERT_NOGUARDPOINTSDAMAGE;
+    sim.fighters[1].guard_max = 100;
+    sim.fighters[1].guard_points = 50;
+    let start_life = sim.fighters[1].life;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hitdef(), true, origin, 1, true);
+    assert_eq!(sim.fighters[1].life, start_life);
+    assert_eq!(sim.fighters[1].guard_points, 50);
+
+    // `nocornerpush` keeps the raw pushback near the corner.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOCORNERPUSH;
+    sim.fighters[1].pos.x = sim.assets.stage.right_bound;
+    let mut push = hitdef();
+    push.ground_velocity = manato_core::Vec2::new(-4.0, 0.0);
+    push.ground_cornerpush = -8.0;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &push, false, origin, 1, true);
+    assert_eq!(sim.fighters[1].hit.vars.x_vel, 4.0);
+
+    // `nofallcount` suppresses the fall counter on falling states.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].assert_flags |= manato_sim::fighter::ASSERT_NOFALLCOUNT;
+    let before = sim.fighters[1].hit.vars.fallcount;
+    let assets = sim.assets.clone();
+    let character = &assets.characters[sim.fighters[1].char_id];
+    sim.fighters[1].enter_state(5070, character, false);
+    assert_eq!(sim.fighters[1].hit.vars.fallcount, before);
+}
+
+#[test]
 fn guard_damage_uses_guard_damage() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

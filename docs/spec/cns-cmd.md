@@ -120,7 +120,10 @@ Required controller families for the approved matrix:
   camera tracking on each axis; omitted flags default to enabled for
   M.U.G.E.N-only content. An axis with no tracking fighters falls back to the
   active roster.
-- `AssertSpecial`
+- `AssertSpecial` (render/round flags plus `nohitdamage`, `noguarddamage`,
+  `nocornerpush`, `nofallcount`, `nodizzypointsdamage`, and
+  `noguardpointsdamage`, which suppress the matching combat effects while
+  the flag is asserted)
 
 ### 4.2 Combat
 

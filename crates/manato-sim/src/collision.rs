@@ -551,10 +551,16 @@ pub fn apply_hit_at(
     } else {
         hitdef.damage
     };
-    let damage = (base_damage as f32
+    let mut damage = (base_damage as f32
         * sim.fighters[attacker].attack_mul
         * sim.fighters[defender].defence_mul
         / sim.fighters[defender].fall_defence_mul.max(0.01)) as i32;
+    let defender_asserts = sim.fighters[defender].assert_flags;
+    if (guarding && defender_asserts & crate::fighter::ASSERT_NOGUARDDAMAGE != 0)
+        || (!guarding && defender_asserts & crate::fighter::ASSERT_NOHITDAMAGE != 0)
+    {
+        damage = 0;
+    }
 
     let velocity_tuple = if guarding {
         let (v, vz) = if defender_airborne {
@@ -612,7 +618,11 @@ pub fn apply_hit_at(
             hitdef.ground_hittime,
         )
     };
-    let corner_push = {
+    let corner_push = if sim.fighters[defender].assert_flags & crate::fighter::ASSERT_NOCORNERPUSH
+        != 0
+    {
+        0.0
+    } else {
         let stage = &sim.assets.stage;
         let f = &sim.fighters[defender];
         let near_corner = f.pos.x <= stage.left_bound + 24.0 || f.pos.x >= stage.right_bound - 24.0;
@@ -758,7 +768,9 @@ pub fn apply_hit_at(
         if guarding && f.guard_max > 0 {
             f.guard_cooldown = 60;
             let before = f.guard_points;
-            f.guard_points = (f.guard_points - damage).max(0);
+            if f.assert_flags & crate::fighter::ASSERT_NOGUARDPOINTSDAMAGE == 0 {
+                f.guard_points = (f.guard_points - damage).max(0);
+            }
             if before > 0 && f.guard_points == 0 {
                 f.guard_crush_timer = 20;
                 f.guard_break = true;
@@ -766,7 +778,10 @@ pub fn apply_hit_at(
             }
         }
         if !guarding {
-            if f.dizzy_max > 0 && f.dizzy_timer == 0 {
+            if f.dizzy_max > 0
+                && f.dizzy_timer == 0
+                && f.assert_flags & crate::fighter::ASSERT_NODIZZYPOINTSDAMAGE == 0
+            {
                 let before = f.dizzy_points;
                 let loss = (damage as f32 * 1.8).round() as i32;
                 f.dizzy_points = (f.dizzy_points - loss).max(0);

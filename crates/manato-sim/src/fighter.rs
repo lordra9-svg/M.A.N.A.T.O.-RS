@@ -875,7 +875,9 @@ impl Fighter {
             let up = char.constants.get_or("data.fall.defence_up", 50.0);
             self.fall_defence_mul *= (up + 100.0) / 100.0;
             // One fall per entry into the trip shake or the downed state.
-            self.hit.vars.fallcount += 1;
+            if self.assert_flags & ASSERT_NOFALLCOUNT == 0 {
+                self.hit.vars.fallcount += 1;
+            }
         }
         if let Some(state) = char.state(number) {
             self.apply_state_def(state, char);
@@ -1564,6 +1566,18 @@ pub const ASSERT_ROUNDNOTOVER: u32 = 1 << 18;
 pub const ASSERT_NOHARDCODEDKEYS: u32 = 1 << 19;
 /// `TimerFreeze`: the round timer stops counting down while asserted.
 pub const ASSERT_TIMERFREEZE: u32 = 1 << 20;
+/// No damage from unguarded hits.
+pub const ASSERT_NOHITDAMAGE: u32 = 1 << 21;
+/// No damage from guarded hits.
+pub const ASSERT_NOGUARDDAMAGE: u32 = 1 << 22;
+/// Ignore corner-push velocity adjustments.
+pub const ASSERT_NOCORNERPUSH: u32 = 1 << 23;
+/// Do not increment `fallcount` on falling states.
+pub const ASSERT_NOFALLCOUNT: u32 = 1 << 24;
+/// No dizzy-point loss from hits.
+pub const ASSERT_NODIZZYPOINTSDAMAGE: u32 = 1 << 25;
+/// No guard-point loss from guarded hits.
+pub const ASSERT_NOGUARDPOINTSDAMAGE: u32 = 1 << 26;
 
 /// Maps an `AssertSpecial`/`IsAsserted` flag name to its bit.
 pub fn assert_flag(name: &str) -> u32 {
@@ -1589,6 +1603,12 @@ pub fn assert_flag(name: &str) -> u32 {
         "roundnotover" => ASSERT_ROUNDNOTOVER,
         "nohardcodedkeys" => ASSERT_NOHARDCODEDKEYS,
         "timerfreeze" => ASSERT_TIMERFREEZE,
+        "nohitdamage" => ASSERT_NOHITDAMAGE,
+        "noguarddamage" => ASSERT_NOGUARDDAMAGE,
+        "nocornerpush" => ASSERT_NOCORNERPUSH,
+        "nofallcount" => ASSERT_NOFALLCOUNT,
+        "nodizzypointsdamage" => ASSERT_NODIZZYPOINTSDAMAGE,
+        "noguardpointsdamage" => ASSERT_NOGUARDPOINTSDAMAGE,
         _ => 0,
     }
 }
