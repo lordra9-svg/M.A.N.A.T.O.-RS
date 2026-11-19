@@ -445,9 +445,11 @@ missing redirect targets make the trigger false.
   ID; `clsn1`/`clsn2`; a projectile's Clsn1 or Clsn2 group may overlap, and
   the unmodeled `size` group is false),
   `HelperVar(id|helpertype|keyctrl)`, `HelperIndexExist(n)`, `Index`,
-  `ExplodVar(id, index, field)`, `ProjCancelTime(id)`, `NumText(id)`, `Shader()`, `ProjHit`,
-  `ProjContact`, `ProjGuarded`, `NumExplod`, `NumHelper`, `IsHelper`,
-  `ParentDist`, `RootDist`, `ParentExist`
+  `ExplodVar(id, index, field)` (`pos.z` reports the depth), `ProjCancelTime(id)`,
+  `NumText(id)`, `Shader()`, `ProjHit`, `ProjContact`, `ProjGuarded`,
+  `NumExplod`, `NumHelper`, `IsHelper`, `ParentDist`, `RootDist`,
+  `ParentExist`. `ProjVar` `pos.z`/`vel.z`/`accel.z` report projectile depth
+  position, velocity, and acceleration.
 - Variables: `Var`, `FVar`, `SysVar`, `SysFVar`
 
 ### 5.4 Constants

@@ -2307,13 +2307,13 @@ fn explod_var(sim: &SimState, effect: &crate::Effect, field: &str) -> Value {
     match field {
         "pos.x" => Value::Float(effect.pos.x),
         "pos.y" => Value::Float(effect.pos.y),
-        "pos.z" => Value::Int(0),
+        "pos.z" => Value::Float(effect.z),
         "vel.x" => Value::Float(effect.vel.x),
         "vel.y" => Value::Float(effect.vel.y),
-        "vel.z" => Value::Int(0),
+        "vel.z" => Value::Float(0.0),
         "accel.x" => Value::Float(effect.accel.x),
         "accel.y" => Value::Float(effect.accel.y),
-        "accel.z" => Value::Int(0),
+        "accel.z" => Value::Float(0.0),
         "scale.x" => Value::Float(effect.scale.x),
         "scale.y" => Value::Float(effect.scale.y),
         "anim" => Value::Int(effect.anim),
@@ -2365,13 +2365,13 @@ fn projectile_var(
     match field {
         "pos.x" => Value::Float(projectile.pos.x),
         "pos.y" => Value::Float(projectile.pos.y),
-        "pos.z" => Value::Int(0),
+        "pos.z" => Value::Float(projectile.z),
         "vel.x" => Value::Float(projectile.vel.x),
         "vel.y" => Value::Float(projectile.vel.y),
-        "vel.z" => Value::Int(0),
+        "vel.z" => Value::Float(projectile.vel_z),
         "accel.x" => Value::Float(projectile.accel.x),
         "accel.y" => Value::Float(projectile.accel.y),
-        "accel.z" => Value::Int(0),
+        "accel.z" => Value::Float(projectile.accel_z),
         "anim" => Value::Int(projectile.anim),
         "animelem" => {
             let character = &sim.assets.characters[sim.fighters[projectile.owner].char_id];

@@ -5882,7 +5882,7 @@ fn explod_var_reports_active_effect_fields() {
         params: vec![
             ("anim".into(), "10".into()),
             ("id".into(), "3".into()),
-            ("pos".into(), "10, 20".into()),
+            ("pos".into(), "10, 20, 25".into()),
             ("vel".into(), "2, -1".into()),
             ("accel".into(), "0.5, 0".into()),
             ("scale".into(), "1.5, 0.75".into()),
@@ -5905,6 +5905,7 @@ fn explod_var_reports_active_effect_fields() {
     let num = |sim: &SimState, expr: &str| manato_sim::trigger::num(sim, 0, expr);
     assert_eq!(num(&sim, "ExplodVar(3, 0, pos.x)"), effect.pos.x);
     assert_eq!(num(&sim, "ExplodVar(3, 0, pos.y)"), effect.pos.y);
+    assert_eq!(num(&sim, "ExplodVar(3, 0, pos.z)"), 25.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, vel.x)"), 2.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, vel.y)"), -1.0);
     assert_eq!(num(&sim, "ExplodVar(3, 0, accel.x)"), 0.5);
@@ -6055,8 +6056,9 @@ fn proj_var_reports_active_projectile_fields() {
         kind: "projectile".into(),
         params: vec![
             ("projanim".into(), "1500".into()),
-            ("velocity".into(), "3, -2".into()),
-            ("accel".into(), "1, 0".into()),
+            ("velocity".into(), "3, -2, 4".into()),
+            ("accel".into(), "1, 0, 0.5".into()),
+            ("offset".into(), "0, 0, 35".into()),
             ("id".into(), "7".into()),
             ("projremovetime".into(), "50".into()),
             ("projscale".into(), "2, 0.5".into()),
@@ -6080,9 +6082,12 @@ fn proj_var_reports_active_projectile_fields() {
     let num = |sim: &SimState, expr: &str| manato_sim::trigger::num(sim, 0, expr);
     assert_eq!(num(&sim, "ProjVar(7, 0, pos.x)"), projectile.pos.x);
     assert_eq!(num(&sim, "ProjVar(7, 0, pos.y)"), projectile.pos.y);
+    assert_eq!(num(&sim, "ProjVar(7, 0, pos.z)"), 35.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, vel.x)"), 3.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, vel.y)"), -2.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, vel.z)"), 4.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, accel.x)"), 1.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, accel.z)"), 0.5);
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, anim)"),
         1500
