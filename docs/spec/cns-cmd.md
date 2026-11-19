@@ -380,6 +380,8 @@ missing redirect targets make the trigger false.
   `TeamMode`, `IsHomeTeam`, `TeamSize`, `TeamLeader`,
   `MemberNo`, `Standby`, `TimeRemaining`, `TimeElapsed`, `TimeTotal`,
   `StageTime`, `Score`, `ScoreTotal`
+  `GameVar(hidebars)` mirrors the active `NoBarDisplay`/bar-hiding flags;
+  the persist-* options remain false.
   `FirstAttack` is true for the team side that landed the first unguarded
   hit of the current round. Guarded contacts do not claim it, later hits
   from the other side do not steal it, and it resets at the start of each

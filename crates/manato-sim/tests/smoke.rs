@@ -1224,14 +1224,18 @@ fn intro_outro_fightscreen_and_gamevar_triggers() {
     assert_eq!(int(&sim, "FightScreenState(windisplay)"), 1);
     assert_eq!(int(&sim, "GameVar(outrotime)"), 120);
 
-    // Pause and SuperPause share one timer; persist options and hidden bars
-    // are not implemented.
+    // Pause and SuperPause share one timer; persist options are not
+    // implemented, while `hidebars` mirrors the global bar-hiding flag.
     sim.super_pause = 7;
     assert_eq!(int(&sim, "GameVar(pausetime)"), 7);
     assert_eq!(int(&sim, "GameVar(superpausetime)"), 7);
-    for key in ["persistlife", "persistmusic", "persistrounds", "hidebars"] {
+    for key in ["persistlife", "persistmusic", "persistrounds"] {
         assert_eq!(int(&sim, &format!("GameVar({key})")), 0, "{key}");
     }
+    assert_eq!(int(&sim, "GameVar(hidebars)"), 0);
+    sim.fighters[0].assert_flags |= manato_sim::fighter::ASSERT_NOBARDISPLAY;
+    assert_eq!(int(&sim, "GameVar(hidebars)"), 1);
+    sim.fighters[0].assert_flags &= !manato_sim::fighter::ASSERT_NOBARDISPLAY;
     assert_eq!(int(&sim, "GameVar(bogus)"), 0);
     assert_eq!(int(&sim, "FightScreenState(bogus)"), 0);
 }

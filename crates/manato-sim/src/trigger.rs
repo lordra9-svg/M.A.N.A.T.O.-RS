@@ -1541,7 +1541,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 }),
                 "pausetime" | "superpausetime" => Value::Int(sim.super_pause.max(0)),
                 "slowtime" => Value::Int(sim.round.slow_timer.max(0)),
-                "persistlife" | "persistmusic" | "persistrounds" | "hidebars" => Value::Bool(false),
+                "hidebars" => Value::Bool(sim.bars_hidden()),
+                "persistlife" | "persistmusic" | "persistrounds" => Value::Bool(false),
                 _ => Value::Int(0),
             }
         }
