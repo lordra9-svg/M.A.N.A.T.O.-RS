@@ -338,6 +338,24 @@ fn bg_layer_palfx(
     (color, hue, state.pal_invert, add, mul)
 }
 
+/// Resolves a `ModifyBGCtrl` texture reference: an animation number selects
+/// the frame at `time`, otherwise the explicit `(group, index)` sprite is used.
+fn layer_tex_sprite(
+    stage: &Stage,
+    anim: Option<i32>,
+    spr: Option<(i32, i32)>,
+    time: i32,
+) -> Option<(i32, i32)> {
+    if let Some(anim) = anim {
+        let animation = stage.animations.get(&anim)?;
+        let interpolated = animation.pose_at(time)?;
+        let frame = animation.frames.get(interpolated.frame)?;
+        Some((frame.group, frame.index))
+    } else {
+        spr
+    }
+}
+
 fn draw_bg_layer(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
@@ -470,6 +488,15 @@ fn draw_bg_layer(
     let ys = range(layer.tile.1 != 0, base_top, step_y, GAME_HEIGHT);
     let (saturation, hue, invert, add, mul) = bg_layer_palfx(state, sim.bg_time);
     painter.set_palfx([0.0, 0.0, 0.0], saturation, hue, invert);
+    if state.shader.is_some() || state.shader_params.is_some() {
+        painter.set_shader(state.shader.clone());
+        painter.set_shader_params(state.shader_params);
+    }
+    let tex1 = layer_tex_sprite(stage, state.tex1_anim, state.tex1_spr, sim.bg_time as i32)
+        .map(|(group, index)| (bank::STAGE, group, index));
+    let tex2 = layer_tex_sprite(stage, state.tex2_anim, state.tex2_spr, sim.bg_time as i32)
+        .map(|(group, index)| (bank::STAGE, group, index));
+    painter.set_shader_textures(tex1, tex2);
     let mut tint = [1.0; 4];
     for axis in 0..3 {
         tint[axis] = (mul[axis] + add[axis] / 255.0).clamp(0.0, 1.0);
@@ -495,6 +522,9 @@ fn draw_bg_layer(
         }
     }
     painter.reset_palfx();
+    painter.set_shader(None);
+    painter.set_shader_params(None);
+    painter.set_shader_textures(None, None);
 }
 
 /// Indices of projectiles drawn in the background (`foreground = false`) or
@@ -2099,6 +2129,20 @@ mod tests {
         assert!((add[0] - 15.0).abs() < 1e-5);
         assert!((mul[0] - 1.0).abs() < 1e-5);
         assert!((mul[1] - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn layer_tex_sprite_resolves_anims_and_explicit_sprites() {
+        let mut stage = manato_formats::Stage::default();
+        let animation =
+            manato_formats::air::parse_air_str("[Begin Action 20]\n3,4, 0,0, 4\n").remove(0);
+        stage.animations.insert(20, animation);
+        assert_eq!(layer_tex_sprite(&stage, Some(20), None, 0), Some((3, 4)));
+        assert_eq!(
+            layer_tex_sprite(&stage, None, Some((7, 8)), 0),
+            Some((7, 8))
+        );
+        assert_eq!(layer_tex_sprite(&stage, Some(99), Some((1, 2)), 0), None);
     }
 
     #[test]

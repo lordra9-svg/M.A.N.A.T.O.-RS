@@ -12884,6 +12884,57 @@ fn modify_bg_ctrl_palette_parameters() {
 }
 
 #[test]
+fn modify_bg_ctrl_shader_and_texture_references() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    if sim.stage_layers.is_empty() {
+        return;
+    }
+    sim.bg_ctrls.push(manato_formats::BgCtrl {
+        layer: 0,
+        start: 0,
+        end: 0,
+        loop_period: -1,
+        controller: manato_formats::Controller {
+            kind: "visible".into(),
+            params: vec![("sctrlid".into(), "4".into())],
+            line: 0,
+        },
+    });
+    let assets = sim.assets.clone();
+    let control = manato_formats::Controller {
+        kind: "modifybgctrl".into(),
+        params: vec![
+            ("id".into(), "4".into()),
+            ("shader".into(), "glow".into()),
+            ("shaderparam".into(), "2, 0, 0.5, 3, 2.0".into()),
+            ("tex1anim".into(), "20".into()),
+            ("tex2spr".into(), "5, 6".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &control, &assets);
+    let state = &sim.stage_layers[0];
+    assert_eq!(state.shader.as_deref(), Some("glow"));
+    let params = state.shader_params.expect("shader params");
+    assert!((params[0] - 0.5).abs() < 1e-5);
+    assert!((params[3] - 2.0).abs() < 1e-5);
+    assert_eq!(state.tex1_anim, Some(20));
+    assert_eq!(state.tex2_spr, Some((5, 6)));
+
+    // `shader = none` clears the shader while leaving textures untouched.
+    let clear = manato_formats::Controller {
+        kind: "modifybgctrl".into(),
+        params: vec![("id".into(), "4".into()), ("shader".into(), "none".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &clear, &assets);
+    assert!(sim.stage_layers[0].shader.is_none());
+    assert_eq!(sim.stage_layers[0].tex1_anim, Some(20));
+}
+
+#[test]
 fn width_screenbound_and_playerpush_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

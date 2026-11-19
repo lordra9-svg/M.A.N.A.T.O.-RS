@@ -163,9 +163,11 @@ Required controller families for the approved matrix:
   keys `color` (0–256 saturation), `hue` (-256..256, 512 units per turn),
   `invertall`, `invertblend` (≥2 enables inversion), `add`/`mul`
   (0–255 / 0–256 units), and `sincolor`/`sinhue`/`sinadd`/`sinmul` with
-  their periods and negative-period direction. Palette keys apply directly to
-  the targeted layer states and persist until changed. Shader and texture
-  parameters are not modeled)
+  their periods and negative-period direction. `shader` selects a custom
+  shader (`none` clears it), `shaderparam` sets indexed parameters, and
+  `tex1anim`/`tex1spr`/`tex2anim`/`tex2spr` select the shader's referenced
+  textures by animation or sprite pair. All keys apply directly to the
+  targeted layer states and persist until changed)
 - `TransformSprite` (xshear/focallength/projection subset)
 - `TransformClsn` (per-tick Clsn1/Clsn2 scale, angle, and pivot; rotations
   produce axis-aligned bounds, scale-only keeps the source box corner order)

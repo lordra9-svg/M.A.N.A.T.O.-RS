@@ -700,6 +700,13 @@ pub struct StageLayerState {
     pub pal_sin_add_period: i32,
     pub pal_sin_mul: [f32; 3],
     pub pal_sin_mul_period: i32,
+    /// `ModifyBGCtrl shader`: custom shader name for the layer.
+    pub shader: Option<String>,
+    pub shader_params: Option<[f32; 16]>,
+    pub tex1_anim: Option<i32>,
+    pub tex1_spr: Option<(i32, i32)>,
+    pub tex2_anim: Option<i32>,
+    pub tex2_spr: Option<(i32, i32)>,
 }
 
 impl StageLayerState {
@@ -736,6 +743,12 @@ impl StageLayerState {
             pal_sin_add_period: 0,
             pal_sin_mul: [0.0; 3],
             pal_sin_mul_period: 0,
+            shader: None,
+            shader_params: None,
+            tex1_anim: None,
+            tex1_spr: None,
+            tex2_anim: None,
+            tex2_spr: None,
         }
     }
 }
@@ -1275,7 +1288,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(11u32, self.asset_id(), self))
+        bincode::serialize(&(12u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1294,7 +1307,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 11 {
+        if version != 12 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3922,6 +3935,42 @@ impl SimState {
                 h.write_f32(value);
             }
             h.write_i32(layer.pal_sin_mul_period);
+            match &layer.shader {
+                Some(name) => {
+                    h.write_bool(true);
+                    h.write_u32(name.len() as u32);
+                    h.write_bytes(name.as_bytes());
+                }
+                None => h.write_bool(false),
+            }
+            match layer.shader_params {
+                Some(params) => {
+                    h.write_bool(true);
+                    for value in params {
+                        h.write_f32(value);
+                    }
+                }
+                None => h.write_bool(false),
+            }
+            for pair in [layer.tex1_anim, layer.tex2_anim] {
+                match pair {
+                    Some(value) => {
+                        h.write_bool(true);
+                        h.write_i32(value);
+                    }
+                    None => h.write_bool(false),
+                }
+            }
+            for pair in [layer.tex1_spr, layer.tex2_spr] {
+                match pair {
+                    Some((group, index)) => {
+                        h.write_bool(true);
+                        h.write_i32(group);
+                        h.write_i32(index);
+                    }
+                    None => h.write_bool(false),
+                }
+            }
             h.write_i32(layer.layer_no.unwrap_or(i32::MIN));
             h.write_bool(layer.sprite.is_some());
             if let Some((group, index)) = layer.sprite {
@@ -4678,6 +4727,12 @@ mod stage_tests {
             pal_sin_add_period: 0,
             pal_sin_mul: [0.0; 3],
             pal_sin_mul_period: 0,
+            shader: None,
+            shader_params: None,
+            tex1_anim: None,
+            tex1_spr: None,
+            tex2_anim: None,
+            tex2_spr: None,
         }
     }
 

@@ -3143,9 +3143,10 @@ fn parse_trans_mode(raw: &str) -> Option<manato_formats::air::BlendMode> {
 /// window (`time = start[, end[, loop]]`), `value`, `x`/`y`, and the palette
 /// keys (`color`, `hue`, `invertall`, `invertblend`, `sincolor`, `sinhue`).
 /// Palette keys apply directly to the targeted layer states and persist until
-/// changed, rather than being copied into the BG controller definition. Shader
-/// and texture parameters are not modeled. Stage controllers without an
-/// `sctrlid` use id 0, matching Ikemen's default.
+/// changed, rather than being copied into the BG controller definition.
+/// `shader`, `shaderparam`, and `tex1anim`/`tex1spr`/`tex2anim`/`tex2spr`
+/// select a custom shader and its referenced textures. Stage controllers
+/// without an `sctrlid` use id 0, matching Ikemen's default.
 fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
     let id = int_param(sim, who, control, "id").unwrap_or(0);
     let times = int_param_list(sim, who, control, "time", 3);
@@ -3207,6 +3208,36 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         }
         Some((values, period.abs()))
     });
+    let shader = control.get("shader").map(|raw| {
+        let name = raw.trim().trim_matches('"').to_string();
+        name
+    });
+    let shader_params = control.get("shaderparam").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        let count = *parts.first()? as usize;
+        let mut params = [0.0f32; 16];
+        let mut any = false;
+        for pair in 0..count {
+            let index = *parts.get(1 + pair * 2)? as usize;
+            let value = *parts.get(2 + pair * 2)?;
+            if index < params.len() {
+                params[index] = value;
+                any = true;
+            }
+        }
+        any.then_some(params)
+    });
+    let tex1_anim = int_param(sim, who, control, "tex1anim");
+    let tex1_spr = control
+        .get_pair("tex1spr")
+        .map(|(group, index)| (group as i32, index as i32));
+    let tex2_anim = int_param(sim, who, control, "tex2anim");
+    let tex2_spr = control
+        .get_pair("tex2spr")
+        .map(|(group, index)| (group as i32, index as i32));
     let pal_sin_hue = control.get("sinhue").and_then(|raw| {
         let parts: Vec<f32> = raw
             .split(',')
@@ -3231,6 +3262,12 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         && pal_mul.is_none()
         && pal_sin_add.is_none()
         && pal_sin_mul.is_none()
+        && shader.is_none()
+        && shader_params.is_none()
+        && tex1_anim.is_none()
+        && tex1_spr.is_none()
+        && tex2_anim.is_none()
+        && tex2_spr.is_none()
     {
         return;
     }
@@ -3317,6 +3354,28 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
             if let Some((value, period)) = pal_sin_mul {
                 state.pal_sin_mul = value;
                 state.pal_sin_mul_period = period;
+            }
+            if let Some(name) = &shader {
+                state.shader = if name.is_empty() || name.eq_ignore_ascii_case("none") {
+                    None
+                } else {
+                    Some(name.clone())
+                };
+            }
+            if let Some(params) = shader_params {
+                state.shader_params = Some(params);
+            }
+            if let Some(value) = tex1_anim {
+                state.tex1_anim = Some(value);
+            }
+            if let Some(value) = tex1_spr {
+                state.tex1_spr = Some(value);
+            }
+            if let Some(value) = tex2_anim {
+                state.tex2_anim = Some(value);
+            }
+            if let Some(value) = tex2_spr {
+                state.tex2_spr = Some(value);
             }
         }
     }
