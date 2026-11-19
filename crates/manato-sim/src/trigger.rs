@@ -977,10 +977,38 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 "yaccel" => Value::Float(hitdef.yaccel),
                 "ground.velocity.x" => Value::Float(hitdef.ground_velocity.x),
                 "ground.velocity.y" => Value::Float(hitdef.ground_velocity.y),
+                "ground.velocity.z" => Value::Float(hitdef.ground_velocity_z),
                 "air.velocity.x" => Value::Float(hitdef.air_velocity.x),
                 "air.velocity.y" => Value::Float(hitdef.air_velocity.y),
+                "air.velocity.z" => Value::Float(hitdef.air_velocity_z),
                 "down.velocity.x" => Value::Float(hitdef.down_velocity.x),
                 "down.velocity.y" => Value::Float(hitdef.down_velocity.y),
+                "down.velocity.z" => Value::Float(hitdef.down_velocity_z),
+                "guard.velocity.x" => Value::Float(
+                    hitdef
+                        .guard_velocity
+                        .map(|velocity| velocity.x)
+                        .unwrap_or(hitdef.ground_velocity.x),
+                ),
+                "guard.velocity.y" => Value::Float(
+                    hitdef
+                        .guard_velocity
+                        .map(|velocity| velocity.y)
+                        .unwrap_or(hitdef.ground_velocity.y),
+                ),
+                "guard.velocity.z" => {
+                    Value::Float(hitdef.guard_velocity_z.unwrap_or(hitdef.ground_velocity_z))
+                }
+                "airguard.velocity.x" => Value::Float(hitdef.airguard_velocity.x),
+                "airguard.velocity.y" => Value::Float(hitdef.airguard_velocity.y),
+                "airguard.velocity.z" => Value::Float(hitdef.airguard_velocity_z),
+                "fall.xvelocity" => Value::Float(hitdef.fall_xvel),
+                "fall.yvelocity" => Value::Float(hitdef.fall_yvel),
+                "ground.cornerpush.veloff" => Value::Float(hitdef.ground_cornerpush),
+                "air.cornerpush.veloff" => Value::Float(hitdef.air_cornerpush),
+                "down.cornerpush.veloff" => Value::Float(hitdef.down_cornerpush),
+                "guard.cornerpush.veloff" => Value::Float(hitdef.guard_cornerpush),
+                "airguard.cornerpush.veloff" => Value::Float(hitdef.airguard_cornerpush),
                 _ => Value::Int(0),
             }
         }

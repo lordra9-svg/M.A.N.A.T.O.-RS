@@ -400,7 +400,9 @@ missing redirect targets make the trigger false.
   every field because no front-end motif screen is active during a fight.
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
-  `HitDefVar(key)`, `SpriteVar(group|image|width|height|xoffset|yoffset)`,
+  `HitDefVar(key)` (damage/flags/sounds/timers/facing/statenos plus
+  ground/air/down/guard/airguard velocity `.x`/`.y`/`.z`, fall velocities,
+  and cornerpush offsets), `SpriteVar(group|image|width|height|xoffset|yoffset)`,
   `AnimElemVar(field)` (current animation-frame fields: `alphadest`,
   `alphasource`, `angle`, `group`, `hflip`, `vflip`, `image`, `time`,
   `xoffset`, `yoffset`, `xscale`, `yscale`, `numclsn1`, `numclsn2`),

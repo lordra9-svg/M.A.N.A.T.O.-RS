@@ -11788,6 +11788,11 @@ fn hit_def_var_reports_active_hitdef_fields() {
             ("priority".into(), "2, Miss".into()),
             ("yaccel".into(), "0.7".into()),
             ("ground.velocity".into(), "-6, -2".into()),
+            ("guard.velocity".into(), "3, 1".into()),
+            ("airguard.velocity".into(), "2, 0".into()),
+            ("fall.xvelocity".into(), "4".into()),
+            ("fall.yvelocity".into(), "-6".into()),
+            ("ground.cornerpush.veloff".into(), "-8".into()),
         ],
         line: 0,
     };
@@ -11818,6 +11823,30 @@ fn hit_def_var_reports_active_hitdef_fields() {
     assert_eq!(
         manato_sim::trigger::num(&sim, 0, "HitDefVar(ground.velocity.x)"),
         -6.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(guard.velocity.x)"),
+        3.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(guard.velocity.y)"),
+        1.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(airguard.velocity.x)"),
+        2.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(fall.xvelocity)"),
+        4.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(fall.yvelocity)"),
+        -6.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "HitDefVar(ground.cornerpush.veloff)"),
+        -8.0
     );
     assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(unknown)"), 0);
 }
