@@ -324,7 +324,8 @@ missing redirect targets make the trigger false.
   `AnimExist` follows the animation bank owner (`AnimPlayerNo`), while
   `SelfAnimExist` always checks the fighter's own character animations.
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
-  `SprPriority`
+  `SprPriority`. `Pos Z`/`Vel Z` report depth position and velocity; `Vel X`
+  is facing-relative while `Vel Z` is not.
 - State: `StateNo`, `PrevStateNo`, `StateType`, `PrevStateType`, `MoveType`,
   `PrevMoveType`, `Ctrl`, `Physics`, `SelfStateNoExist(n)`,
   `InCustomState`, `InRunState` (always false: the engine has no `RunState`

@@ -13933,11 +13933,15 @@ fn animation_and_position_triggers_track_state() {
 
     sim.fighters[0].pos = manato_core::Vec2::new(12.5, -4.0);
     sim.fighters[0].vel = manato_core::Vec2::new(-1.5, 2.0);
+    sim.fighters[0].z = 7.5;
+    sim.fighters[0].vel_z = -1.25;
     sim.fighters[0].facing = 1;
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Pos X"), 12);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Pos Y"), -4);
+    assert!((manato_sim::trigger::num(&sim, 0, "Pos Z") - 7.5).abs() < 0.001);
     assert!((manato_sim::trigger::num(&sim, 0, "Vel X") - -1.5).abs() < 0.001);
     assert!((manato_sim::trigger::num(&sim, 0, "Vel Y") - 2.0).abs() < 0.001);
+    assert!((manato_sim::trigger::num(&sim, 0, "Vel Z") - -1.25).abs() < 0.001);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "Facing"), 1);
 
     // `Vel X` is facing-relative; `ScreenVel X` stays in screen space.

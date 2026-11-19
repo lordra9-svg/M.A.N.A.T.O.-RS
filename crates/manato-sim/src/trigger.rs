@@ -1287,6 +1287,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             let f = &sim.fighters[who];
             if axis.starts_with('x') {
                 Value::Float(f.vel.x * f.facing as f32)
+            } else if axis.starts_with('z') {
+                Value::Float(f.vel_z)
             } else {
                 Value::Float(f.vel.y)
             }
@@ -1297,7 +1299,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             if axis.starts_with('x') {
                 Value::Float(f.pos.x)
             } else if axis.starts_with('z') {
-                Value::Float(0.0)
+                Value::Float(f.z)
             } else {
                 Value::Float(f.pos.y)
             }
