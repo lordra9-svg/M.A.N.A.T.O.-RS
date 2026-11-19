@@ -1473,6 +1473,25 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         // `SoundVar(channel, field)` reads a persistent sound channel. The
         // engine queues one-shot sound events without a channel registry, so
         // no channel exists: numeric fields read 0 and `isplaying` is false.
+        // `DrawPal(group|index)` reports the palette the current sprite is
+        // drawn with: the active RemapPal destination when set, otherwise the
+        // sprite's own palette key.
+        "drawpal" => {
+            let key = key_at(sim, who, args, 0).to_ascii_lowercase();
+            let fighter = &sim.fighters[who];
+            let palette = fighter.pal_remap.or_else(|| {
+                let character = sim.character(who);
+                let frame = fighter.current_frame(character)?;
+                let sprite = fighter.sprite_for(character, frame.group, frame.index)?;
+                sprite.palette_key
+            });
+            let (group, index) = palette.unwrap_or((0, 0));
+            match key.as_str() {
+                "group" => Value::Int(group),
+                "index" => Value::Int(index),
+                _ => Value::Int(0),
+            }
+        }
         "soundvar" => {
             let field = key_at(sim, who, args, 1).to_ascii_lowercase();
             if field == "isplaying" {

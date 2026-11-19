@@ -323,6 +323,8 @@ missing redirect targets make the trigger false.
   `InCustomAnim`
   `AnimExist` follows the animation bank owner (`AnimPlayerNo`), while
   `SelfAnimExist` always checks the fighter's own character animations.
+- Palette: `DrawPal(group|index)` reports the active RemapPal destination or
+  the current sprite's SFF palette key.
 - Position/velocity: `Pos`, `Vel`, `Facing`, `ScreenPos`, `ScreenVel`,
   `SprPriority`. `Pos Z`/`Vel Z` report depth position and velocity; `Vel X`
   is facing-relative while `Vel Z` is not.

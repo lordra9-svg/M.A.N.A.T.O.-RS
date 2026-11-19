@@ -13959,6 +13959,36 @@ fn animation_and_position_triggers_track_state() {
 }
 
 #[test]
+fn drawpal_reports_sprite_and_remap_palette() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+
+    // Default sprites report their own SFF palette key.
+    let expected = {
+        let fighter = &sim.fighters[0];
+        let character = sim.character(0);
+        let frame = fighter.current_frame(character).expect("current frame");
+        fighter
+            .sprite_for(character, frame.group, frame.index)
+            .and_then(|sprite| sprite.palette_key)
+            .unwrap_or((0, 0))
+    };
+    assert_eq!(int(&sim, "DrawPal(group)"), expected.0);
+    assert_eq!(int(&sim, "DrawPal(index)"), expected.1);
+
+    // An active RemapPal destination is reported.
+    sim.fighters[0].pal_remap = Some((3, 4));
+    assert_eq!(int(&sim, "DrawPal(group)"), 3);
+    assert_eq!(int(&sim, "DrawPal(index)"), 4);
+    assert_eq!(int(&sim, "DrawPal(unknown)"), 0);
+
+    sim.fighters[0].pal_remap = None;
+    assert_eq!(int(&sim, "DrawPal(group)"), expected.0);
+}
+
+#[test]
 fn ctrl_state_type_and_move_type_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;
