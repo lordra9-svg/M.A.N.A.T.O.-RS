@@ -2398,7 +2398,7 @@ fn projectile_var(
         "projhitsmax" => Value::Int(projectile.hits_max),
         "remvelocity.x" => Value::Float(projectile.rem_velocity.x),
         "remvelocity.y" => Value::Float(projectile.rem_velocity.y),
-        "remvelocity.z" => Value::Int(0),
+        "remvelocity.z" => Value::Float(projectile.rem_velocity_z),
         "teamside" => Value::Int(sim.fighters[projectile.owner].side as i32 + 1),
         "supermovetime" => Value::Int(0),
         "projremove" => Value::Bool(projectile.remove_on_hits_exhausted),

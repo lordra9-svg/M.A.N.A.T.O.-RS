@@ -6158,7 +6158,7 @@ fn proj_var_reports_active_projectile_fields() {
             ("projshadow".into(), "10, 20, 30".into()),
             ("projmisstime".into(), "6".into()),
             ("projhits".into(), "3".into()),
-            ("remvelocity".into(), "4, -5".into()),
+            ("remvelocity".into(), "4, -5, 6".into()),
         ],
         line: 0,
     };
@@ -6237,6 +6237,7 @@ fn proj_var_reports_active_projectile_fields() {
     );
     assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.x)"), 4.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.y)"), -5.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.z)"), 6.0);
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
