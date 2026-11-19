@@ -5270,6 +5270,11 @@ fn modify_stage_var_updates_camera_and_bounds() {
             ("camera.zoomindelay".into(), "7".into()),
             ("camera.zoominspeed".into(), "0.25".into()),
             ("camera.zoomoutspeed".into(), "0.75".into()),
+            ("camera.ztension".into(), "30".into()),
+            ("camera.ztensionvel".into(), "10".into()),
+            ("camera.zautocenter".into(), "1".into()),
+            ("camera.zboundtop".into(), "-5".into()),
+            ("camera.zboundbot".into(), "25".into()),
             ("playerinfo.leftbound".into(), "-80".into()),
             ("playerinfo.rightbound".into(), "80".into()),
         ],
@@ -5293,6 +5298,11 @@ fn modify_stage_var_updates_camera_and_bounds() {
     assert_eq!(camera.zoom_in_delay, 7);
     assert_eq!(camera.zoom_in_speed, 0.25);
     assert_eq!(camera.zoom_out_speed, 0.75);
+    assert_eq!(camera.z_tension, 30.0);
+    assert_eq!(camera.z_tension_vel, 10.0);
+    assert!(camera.z_auto_center);
+    assert_eq!(camera.z_bound_top, -5.0);
+    assert_eq!(camera.z_bound_bot, 25.0);
     assert_eq!(sim.stage_left_bound, -80.0);
     assert_eq!(sim.stage_right_bound, 80.0);
 

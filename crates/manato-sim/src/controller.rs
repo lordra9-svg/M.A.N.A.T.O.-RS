@@ -2047,6 +2047,11 @@ fn modify_stage_var(sim: &mut SimState, who: usize, control: &Controller) {
         zoom_out_speed,
         left_bound,
         right_bound,
+        z_tension,
+        z_tension_vel,
+        z_auto_center,
+        z_bound_top,
+        z_bound_bot,
     ) = {
         let value = |key: &str| num_param(sim, who, control, key);
         let int_value = |key: &str| int_param(sim, who, control, key);
@@ -2068,6 +2073,11 @@ fn modify_stage_var(sim: &mut SimState, who: usize, control: &Controller) {
             value("camera.zoomoutspeed"),
             value("playerinfo.leftbound"),
             value("playerinfo.rightbound"),
+            value("camera.ztension"),
+            value("camera.ztensionvel"),
+            int_value("camera.zautocenter"),
+            value("camera.zboundtop"),
+            value("camera.zboundbot"),
         )
     };
 
@@ -2123,10 +2133,25 @@ fn modify_stage_var(sim: &mut SimState, who: usize, control: &Controller) {
     if let Some(v) = right_bound {
         sim.stage_right_bound = v;
     }
+    if let Some(v) = z_tension {
+        camera.z_tension = v.max(0.0);
+    }
+    if let Some(v) = z_tension_vel {
+        camera.z_tension_vel = v.clamp(0.0, 20.0);
+    }
+    if let Some(v) = z_auto_center {
+        camera.z_auto_center = v != 0;
+    }
+    if let Some(v) = z_bound_top {
+        camera.z_bound_top = v;
+    }
+    if let Some(v) = z_bound_bot {
+        camera.z_bound_bot = v;
+    }
 }
 
-/// `TransformClsn` subset: per-tick collision-box scaling for Clsn1/Clsn2.
-/// `angle`/`pivot` are not modeled (collision boxes stay axis-aligned).
+/// `TransformClsn`: per-tick collision-box scaling/rotation for Clsn1/Clsn2.
+/// Rotated boxes report axis-aligned bounds.
 fn transform_clsn(sim: &mut SimState, who: usize, control: &Controller) {
     let group = int_param(sim, who, control, "group").unwrap_or(-1);
     let index = int_param(sim, who, control, "index").unwrap_or(-1);
