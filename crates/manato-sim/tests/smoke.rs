@@ -1005,6 +1005,96 @@ fn assert_special_movement_flags() {
 }
 
 #[test]
+fn builtin_air_jump_and_noairjump_flag() {
+    let air_jump_state = manato_formats::StateDef {
+        number: 45,
+        params: vec![
+            ("type".into(), "A".into()),
+            ("physics".into(), "A".into()),
+            ("movetype".into(), "I".into()),
+            ("ctrl".into(), "0".into()),
+            ("anim".into(), "0".into()),
+        ],
+        controllers: Vec::new(),
+        line: 0,
+        source: "airjump-test".into(),
+    };
+    let setup = |sim: &mut SimState| {
+        let char_id = sim.fighters[0].char_id;
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[char_id];
+        character.states.insert(45, air_jump_state.clone());
+        character.constants.insert("movement.airjump.num", 1.0);
+        character.constants.insert("movement.airjump.height", 35.0);
+        character.constants.insert("movement.airjump.neu.y", -8.0);
+    };
+    let airborne = |sim: &mut SimState| {
+        let fighter = &mut sim.fighters[0];
+        fighter.state_no = 0;
+        fighter.state_type = manato_sim::fighter::StateType::Air;
+        fighter.physics = manato_sim::fighter::Physics::Air;
+        fighter.pos.y = -100.0;
+        fighter.vel = manato_core::Vec2::ZERO;
+        fighter.ctrl = true;
+    };
+
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    setup(&mut sim);
+    airborne(&mut sim);
+    sim.tick([PlayerInput::default(); 2]);
+    airborne(&mut sim);
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_UP, 0),
+        PlayerInput::default(),
+    ]);
+    assert_eq!(sim.fighters[0].state_no, 45);
+    assert_eq!(sim.fighters[0].air_jump_count, 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "AirJumpCount"), 1);
+
+    // `noairjump` blocks the transition even with jumps remaining.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    setup(&mut sim);
+    {
+        let char_id = sim.fighters[0].char_id;
+        let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+        let character = &mut assets.characters[char_id];
+        let control = manato_formats::Controller {
+            kind: "assertspecial".into(),
+            params: vec![("noairjump".into(), "1".into())],
+            line: 0,
+        };
+        match character.states.get_mut(&-2) {
+            Some(state) => state.controllers.push(control),
+            None => {
+                character.states.insert(
+                    -2,
+                    manato_formats::StateDef {
+                        number: -2,
+                        params: Vec::new(),
+                        controllers: vec![control],
+                        line: 0,
+                        source: "airjump-test".into(),
+                    },
+                );
+            }
+        }
+    }
+    airborne(&mut sim);
+    sim.tick([PlayerInput::default(); 2]);
+    airborne(&mut sim);
+    sim.tick([
+        PlayerInput::new(manato_core::DIR_UP, 0),
+        PlayerInput::default(),
+    ]);
+    assert_ne!(sim.fighters[0].state_no, 45);
+    assert_eq!(sim.fighters[0].air_jump_count, 0);
+}
+
+#[test]
 fn guard_damage_uses_guard_damage() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

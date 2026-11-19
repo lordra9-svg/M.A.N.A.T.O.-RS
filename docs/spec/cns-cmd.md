@@ -126,8 +126,8 @@ Required controller families for the approved matrix:
   the flag is asserted; `noinput` ignores the player's frame but keeps
   engine-asserted input; `nolifebardisplay`/`nopowerbardisplay`/
   `noguardbardisplay` hide the corresponding per-side bars; `nojump`,
-  `nocrouch`, and `nostand` block the built-in jump, crouch, and crouch-to-
-  stand transitions)
+  `nocrouch`, `nostand`, and `noairjump` block the built-in jump, crouch,
+  crouch-to-stand, and air-jump transitions)
 
 ### 4.2 Combat
 
@@ -363,7 +363,10 @@ missing redirect targets make the trigger false.
   approximation.
 - Run order: `RunOrder` (1-based fighter vector position; P1, P2, then
   helpers in spawn order), `GroundAngle` (0 for the engine's flat stages),
-  and `AirJumpCount` (0: air jumps are not modeled). `XAngle`/`YAngle` are 0
+  and `AirJumpCount` (built-in air jumps consumed since leaving the ground).
+  Built-in air jumps use `movement.airjump.num`, `movement.airjump.height`,
+  and `movement.airjump.neu.y` and enter state 45 on a fresh up press while
+  airborne below the height. `XAngle`/`YAngle` are 0
   and `Scale.Z` is 1 because the renderer is 2D.
 - Round: `RoundNo`, `RoundsExisted`, `RoundState`, `IntroState`, `OutroState`,
   `FightScreenState(field)`, `FightScreenVar(field)` (fight-screen motif

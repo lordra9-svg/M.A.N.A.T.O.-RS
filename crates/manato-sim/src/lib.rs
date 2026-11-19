@@ -1302,7 +1302,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(15u32, self.asset_id(), self))
+        bincode::serialize(&(16u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1321,7 +1321,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 15 {
+        if version != 16 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -2149,6 +2149,34 @@ impl SimState {
             }
             return;
         }
+        // Air jump: a fresh up press while airborne, below the configured
+        // height, while jumps remain.
+        if fighter.state_type == fighter::StateType::Air {
+            let max_jumps = char.constants.get_or("movement.airjump.num", 0.0) as i32;
+            let height = char.constants.get_or("movement.airjump.height", 35.0);
+            let prev_up = fighter
+                .history
+                .iter()
+                .rev()
+                .nth(1)
+                .map(|frame| manato_core::Dir8::relative(frame.input, fighter.facing).is_up())
+                .unwrap_or(false);
+            if up
+                && !prev_up
+                && fighter.pos.y <= -height
+                && fighter.air_jump_count < max_jumps
+                && fighter.assert_flags & fighter::ASSERT_NOAIRJUMP == 0
+                && has(45)
+            {
+                self.fighters[who].air_jump_count += 1;
+                let jump_y = char.constants.get_or(
+                    "movement.airjump.neu.y",
+                    char.constants.get_or("movement.jump.neu.y", -8.4),
+                );
+                set(self, 45, None, Some(jump_y));
+            }
+            return;
+        }
         if stateno != 0 {
             return;
         }
@@ -2261,6 +2289,9 @@ impl SimState {
             }
         }
 
+        if fighter.state_type != fighter::StateType::Air {
+            fighter.air_jump_count = 0;
+        }
         // Landing for ordinary air physics. Any airborne state that reaches
         // the ground transitions to the jump-land state (52) when it exists.
         if fighter.physics == fighter::Physics::Air
@@ -3155,6 +3186,7 @@ impl SimState {
             fighter.applied_ground = 0.0;
             fighter.z = 0.0;
             fighter.vel_z = 0.0;
+            fighter.air_jump_count = 0;
             fighter.depth_player = [0.0, 0.0];
             fighter.depth_edge = [0.0, 0.0];
             fighter.depth_bound = false;
@@ -4318,6 +4350,7 @@ impl SimState {
             h.write_f32(f.applied_ground);
             h.write_f32(f.z);
             h.write_f32(f.vel_z);
+            h.write_i32(f.air_jump_count);
             h.write_f32(f.depth_player[0]);
             h.write_f32(f.depth_player[1]);
             h.write_f32(f.depth_edge[0]);

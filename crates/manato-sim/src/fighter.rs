@@ -246,6 +246,8 @@ pub struct Fighter {
     pub z: f32,
     /// Depth velocity (`VelSet z` / `VelAdd z`).
     pub vel_z: f32,
+    /// Built-in air jumps consumed since leaving the ground.
+    pub air_jump_count: i32,
     pub facing: i32,
 
     pub state_no: i32,
@@ -537,6 +539,7 @@ impl Fighter {
             vel: Vec2::ZERO,
             z: 0.0,
             vel_z: 0.0,
+            air_jump_count: 0,
             facing,
             state_no: 0,
             prev_state_no: 0,
@@ -1597,6 +1600,8 @@ pub const ASSERT_NOJUMP: u64 = 1 << 31;
 pub const ASSERT_NOCROUCH: u64 = 1 << 32;
 /// Disable the built-in crouch-to-stand transition.
 pub const ASSERT_NOSTAND: u64 = 1 << 33;
+/// Disable the built-in air-jump transition.
+pub const ASSERT_NOAIRJUMP: u64 = 1 << 34;
 
 /// Maps an `AssertSpecial`/`IsAsserted` flag name to its bit.
 pub fn assert_flag(name: &str) -> u64 {
@@ -1635,6 +1640,7 @@ pub fn assert_flag(name: &str) -> u64 {
         "nojump" => ASSERT_NOJUMP,
         "nocrouch" => ASSERT_NOCROUCH,
         "nostand" => ASSERT_NOSTAND,
+        "noairjump" => ASSERT_NOAIRJUMP,
         _ => 0,
     }
 }

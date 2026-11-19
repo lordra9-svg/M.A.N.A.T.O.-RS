@@ -2173,7 +2173,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         // Ikemen-only win types never report true.
         "winspecial" | "winhyper" => Value::Bool(false),
         // Air jumps are not modeled, so the counter never advances.
-        "airjumpcount" => Value::Int(0),
+        "airjumpcount" => Value::Int(sim.fighters[who].air_jump_count),
         "decisiveround" => Value::Bool(
             !sim.is_helper(who) && sim.round.wins[who] as i32 + 1 >= sim.round.rounds_to_win as i32,
         ),
