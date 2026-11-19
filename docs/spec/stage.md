@@ -58,6 +58,7 @@ overdrawlow = 0
 cuthigh = 0
 cutlow = 0
 ztension = 0
+ztensionvel = 1
 zautocenter = 0
 zboundtop = 0
 zboundbot = 0
@@ -71,6 +72,9 @@ zboundbot = 0
 - `tension`: horizontal camera dead zone.
 - `ztension`: depth margin excluded at each end of `[PlayerInfo]
   topbound`/`botbound` when tracking the Z camera.
+- `ztensionvel`: Z camera approach speed (clamped 0–20); the camera blends at
+  `0.05 × ztensionvel` up to three times per tick and snaps within 0.1 depth
+  units.
 - `zautocenter`: centre the Z camera on the tracked depth range instead of the
   stage origin.
 - `zboundtop/zboundbot`: clamp the resulting Z offset. Both zero means

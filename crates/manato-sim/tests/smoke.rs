@@ -12765,6 +12765,34 @@ fn depth_camera_ztension_autocenter_and_bounds() {
 }
 
 #[test]
+fn depth_camera_ztensionvel_controls_approach_speed() {
+    let camera_after = |velocity: f32| -> Option<f32> {
+        let mut sim = fight_phase()?;
+        sim.stage_camera.z_tension_vel = velocity;
+        sim.fighters[0].z = 10.0;
+        sim.fighters[1].z = 30.0;
+        for _ in 0..5 {
+            sim.tick([PlayerInput::default(); 2]);
+        }
+        Some(sim.camera.z)
+    };
+    let Some(slow) = camera_after(1.0) else {
+        return;
+    };
+    let Some(fast) = camera_after(20.0) else {
+        return;
+    };
+    assert!(
+        fast > slow + 5.0,
+        "higher ztensionvel should approach the target faster ({fast} vs {slow})"
+    );
+    assert!(
+        (fast - 20.0).abs() < 0.5,
+        "ztensionvel 20 snaps to the tracked midpoint, got {fast}"
+    );
+}
+
+#[test]
 fn width_screenbound_and_playerpush_controllers() {
     let Some(mut sim) = fight_phase() else {
         return;

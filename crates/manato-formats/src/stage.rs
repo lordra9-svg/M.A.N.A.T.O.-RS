@@ -38,6 +38,8 @@ pub struct CameraDef {
     pub zoom_anchor: bool,
     /// `[Camera] ztension`: depth margin excluded from Z tracking.
     pub z_tension: f32,
+    /// `[Camera] ztensionvel`: Z camera approach speed (0–20).
+    pub z_tension_vel: f32,
     /// `[Camera] zautocenter`: centre on the tracked Z range instead of the
     /// stage origin.
     pub z_auto_center: bool,
@@ -69,6 +71,7 @@ impl Default for CameraDef {
             zoom_out_speed: 1.0,
             zoom_anchor: false,
             z_tension: 0.0,
+            z_tension_vel: 1.0,
             z_auto_center: false,
             z_bound_top: 0.0,
             z_bound_bot: 0.0,
@@ -564,6 +567,7 @@ impl Stage {
             zoom_out_speed: num(camera_map, "zoomoutspeed", 1.0).clamp(0.0, 1.0),
             zoom_anchor: num(camera_map, "zoomanchor", 0.0) != 0.0,
             z_tension: num(camera_map, "ztension", 0.0).max(0.0),
+            z_tension_vel: num(camera_map, "ztensionvel", 1.0).clamp(0.0, 20.0),
             z_auto_center: num(camera_map, "zautocenter", 0.0) != 0.0,
             z_bound_top: num(camera_map, "zboundtop", 0.0),
             z_bound_bot: num(camera_map, "zboundbot", 0.0),
@@ -1017,7 +1021,7 @@ mod tests {
         let def = dir.join("stage.def");
         std::fs::write(
             &def,
-            "[Info]\nname = Depth\n[Camera]\nztension = 20\nzautocenter = 1\n\
+            "[Info]\nname = Depth\n[Camera]\nztension = 20\nztensionvel = 5\nzautocenter = 1\n\
              zboundtop = -50\nzboundbot = 75\n\
              [PlayerInfo]\ntopbound = -10\nbotbound = 90\n[BGdef]\n\
              [StageInfo]\nzoffset = 100\n\
@@ -1038,6 +1042,7 @@ mod tests {
         assert!((stage.z_scale(100.0) - 1.5).abs() < 1e-5);
         assert!((stage.z_y_offset(40.0) - 10.0).abs() < 1e-5);
         assert_eq!(stage.camera.z_tension, 20.0);
+        assert_eq!(stage.camera.z_tension_vel, 5.0);
         assert!(stage.camera.z_auto_center);
         assert_eq!(stage.camera.z_bound_top, -50.0);
         assert_eq!(stage.camera.z_bound_bot, 75.0);

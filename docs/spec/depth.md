@@ -27,7 +27,9 @@ contributes to the fighting camera's tracked Z midpoint; the camera smooths
 toward that midpoint and subtracts it from every z-projected sprite's
 `depthtoscreen` offset, so the tracked depth range stays centred. Stage
 `[Camera] ztension` excludes a margin at each end of the stage depth range,
-`zautocenter` uses the tracked range midpoint as the base offset, and
+`zautocenter` uses the tracked range midpoint as the base offset,
+`ztensionvel` controls how quickly the camera approaches it (0.05x per blend,
+up to three blends per tick, snapping within 0.1 units), and
 `zboundtop`/`zboundbot` clamp the result (both zero means unbounded). When the
 tracked range exceeds the available range the offset is centred between the
 two bounds. `ScreenBound movecamera` gates X/Y tracking.

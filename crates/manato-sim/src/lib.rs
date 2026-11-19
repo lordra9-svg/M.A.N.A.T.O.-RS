@@ -3464,7 +3464,17 @@ impl SimState {
                     offset.max(cam.z_bound_top).min(cam.z_bound_bot)
                 }
             };
-            self.camera.z += (target_z - self.camera.z) * 0.35;
+            // `ztensionvel` sets the approach speed: Ikemen blends at
+            // `0.05 * ztensionvel` up to three times per tick and snaps when
+            // within one pixel of depth.
+            let blend = (cam.z_tension_vel * 0.05).clamp(0.0, 1.0);
+            for _ in 0..3 {
+                self.camera.z += (target_z - self.camera.z) * blend;
+                if (target_z - self.camera.z).abs() < 0.1 {
+                    self.camera.z = target_z;
+                    break;
+                }
+            }
         }
 
         if self.env_shake.time > 0 {
