@@ -12821,6 +12821,10 @@ fn modify_bg_ctrl_palette_parameters() {
             ("invertall".into(), "1".into()),
             ("sincolor".into(), "256, 8".into()),
             ("sinhue".into(), "-128, 4".into()),
+            ("add".into(), "10, 20, 30".into()),
+            ("mul".into(), "128, 256, 64".into()),
+            ("sinadd".into(), "5, 0, 0, 4".into()),
+            ("sinmul".into(), "128, 0, 0, -8".into()),
         ],
         line: 0,
     };
@@ -12833,6 +12837,14 @@ fn modify_bg_ctrl_palette_parameters() {
     assert_eq!(state.pal_sin_color_period, 8);
     assert!((state.pal_sin_hue + 0.25).abs() < 1e-5);
     assert_eq!(state.pal_sin_hue_period, 4);
+    assert_eq!(state.pal_add, [10.0, 20.0, 30.0]);
+    assert!((state.pal_mul[0] - 0.5).abs() < 1e-5);
+    assert!((state.pal_mul[1] - 1.0).abs() < 1e-5);
+    assert!((state.pal_mul[2] - 0.25).abs() < 1e-5);
+    assert_eq!(state.pal_sin_add, [5.0, 0.0, 0.0]);
+    assert_eq!(state.pal_sin_add_period, 4);
+    assert!((state.pal_sin_mul[0] + 0.5).abs() < 1e-5);
+    assert_eq!(state.pal_sin_mul_period, 8);
 
     // A different `sctrlid` leaves the layer untouched.
     let other = manato_formats::Controller {

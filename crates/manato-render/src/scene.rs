@@ -312,7 +312,10 @@ fn layer_scissor(layer: &manato_formats::stage::BgLayer) -> Option<[u32; 4]> {
 
 /// Effective `ModifyBGCtrl` palette filter for a stage layer at `time`.
 /// Returns `(saturation, hue, invert)`.
-fn bg_layer_palfx(state: &manato_sim::StageLayerState, time: f32) -> (f32, f32, bool) {
+fn bg_layer_palfx(
+    state: &manato_sim::StageLayerState,
+    time: f32,
+) -> (f32, f32, bool, [f32; 3], [f32; 3]) {
     let phase = |period: i32| {
         if period > 0 {
             (std::f32::consts::TAU * time / period as f32).sin()
@@ -324,7 +327,15 @@ fn bg_layer_palfx(state: &manato_sim::StageLayerState, time: f32) -> (f32, f32, 
         (state.pal_color + phase(state.pal_sin_color_period) * state.pal_sin_color).clamp(0.0, 1.0);
     let hue =
         (state.pal_hue + phase(state.pal_sin_hue_period) * state.pal_sin_hue).clamp(-0.5, 0.5);
-    (color, hue, state.pal_invert)
+    let add_phase = phase(state.pal_sin_add_period);
+    let mul_phase = phase(state.pal_sin_mul_period);
+    let mut add = [0.0; 3];
+    let mut mul = [1.0; 3];
+    for axis in 0..3 {
+        add[axis] = state.pal_add[axis] + add_phase * state.pal_sin_add[axis];
+        mul[axis] = state.pal_mul[axis] + mul_phase * state.pal_sin_mul[axis];
+    }
+    (color, hue, state.pal_invert, add, mul)
 }
 
 fn draw_bg_layer(
@@ -457,8 +468,14 @@ fn draw_bg_layer(
     };
     let xs = range(layer.tile.0 != 0, base_left, step_x, GAME_WIDTH);
     let ys = range(layer.tile.1 != 0, base_top, step_y, GAME_HEIGHT);
-    let (saturation, hue, invert) = bg_layer_palfx(state, sim.bg_time);
+    let (saturation, hue, invert, add, mul) = bg_layer_palfx(state, sim.bg_time);
     painter.set_palfx([0.0, 0.0, 0.0], saturation, hue, invert);
+    let mut tint = [1.0; 4];
+    for axis in 0..3 {
+        tint[axis] = (mul[axis] + add[axis] / 255.0).clamp(0.0, 1.0);
+    }
+    tint[3] = pose.alpha;
+    let tint = global_tint(tint, &sim.bg_pal);
     for y in ys.iter().copied() {
         for x in xs.iter().copied() {
             draw_sprite_at(
@@ -470,7 +487,7 @@ fn draw_bg_layer(
                 pose.flip_h,
                 pose.flip_v,
                 blend,
-                global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.bg_pal),
+                tint,
                 xscale * pose.scale.x,
                 yscale * pose.scale.y,
                 pose.angle,
@@ -2040,7 +2057,10 @@ mod tests {
         let mut state =
             manato_sim::StageLayerState::from_layer(&manato_formats::stage::BgLayer::default());
         // Identity by default.
-        assert_eq!(bg_layer_palfx(&state, 12.0), (1.0, 0.0, false));
+        assert_eq!(
+            bg_layer_palfx(&state, 12.0),
+            (1.0, 0.0, false, [0.0; 3], [1.0; 3])
+        );
 
         state.pal_color = 0.5;
         state.pal_sin_color = 0.75;
@@ -2051,22 +2071,34 @@ mod tests {
         state.pal_invert = true;
 
         // Cycle start: sine is zero, so the base values apply.
-        let (color, hue, invert) = bg_layer_palfx(&state, 0.0);
+        let (color, hue, invert, _, _) = bg_layer_palfx(&state, 0.0);
         assert!((color - 0.5).abs() < 1e-5);
         assert!((hue - 0.25).abs() < 1e-5);
         assert!(invert);
 
         // Quarter cycle of the colour sine clamps at full saturation.
-        let (color, _, _) = bg_layer_palfx(&state, 1.0);
+        let (color, _, _, _, _) = bg_layer_palfx(&state, 1.0);
         assert!((color - 1.0).abs() < 1e-5);
 
         // Three-quarter cycle clamps at zero.
-        let (color, _, _) = bg_layer_palfx(&state, 3.0);
+        let (color, _, _, _, _) = bg_layer_palfx(&state, 3.0);
         assert!(color.abs() < 1e-5);
 
         // Quarter cycle of the hue sine clamps at the 0.5-turn limit.
-        let (_, hue, _) = bg_layer_palfx(&state, 2.0);
+        let (_, hue, _, _, _) = bg_layer_palfx(&state, 2.0);
         assert!((hue - 0.5).abs() < 1e-5);
+
+        // Add/multiply and their sines compose into the tint.
+        state.pal_add = [10.0, 0.0, 0.0];
+        state.pal_mul = [0.5, 1.0, 1.0];
+        state.pal_sin_add = [5.0, 0.0, 0.0];
+        state.pal_sin_add_period = 4;
+        state.pal_sin_mul = [0.5, 0.0, 0.0];
+        state.pal_sin_mul_period = 4;
+        let (_, _, _, add, mul) = bg_layer_palfx(&state, 1.0);
+        assert!((add[0] - 15.0).abs() < 1e-5);
+        assert!((mul[0] - 1.0).abs() < 1e-5);
+        assert!((mul[1] - 1.0).abs() < 1e-5);
     }
 
     #[test]

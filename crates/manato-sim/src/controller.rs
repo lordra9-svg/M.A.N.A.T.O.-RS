@@ -3166,6 +3166,45 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         let side = if period < 0 { -1.0 } else { 1.0 };
         Some((magnitude / 256.0 * side, period.abs()))
     });
+    let pal_add = control
+        .get("add")
+        .and_then(|raw| parse_triplet(sim, who, raw));
+    let pal_mul = control
+        .get("mul")
+        .and_then(|raw| parse_triplet(sim, who, raw))
+        .map(|mul| [mul[0] / 256.0, mul[1] / 256.0, mul[2] / 256.0]);
+    let pal_sin_add = control.get("sinadd").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() < 3 {
+            return None;
+        }
+        let period = parts.get(3).copied().unwrap_or(0.0) as i32;
+        let side = if period < 0 { -1.0 } else { 1.0 };
+        let mut values = [0.0; 3];
+        for (axis, value) in values.iter_mut().enumerate() {
+            *value = parts[axis] * side;
+        }
+        Some((values, period.abs()))
+    });
+    let pal_sin_mul = control.get("sinmul").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() < 3 {
+            return None;
+        }
+        let period = parts.get(3).copied().unwrap_or(0.0) as i32;
+        let side = if period < 0 { -1.0 } else { 1.0 };
+        let mut values = [0.0; 3];
+        for (axis, value) in values.iter_mut().enumerate() {
+            *value = parts[axis] / 256.0 * side;
+        }
+        Some((values, period.abs()))
+    });
     let pal_sin_hue = control.get("sinhue").and_then(|raw| {
         let parts: Vec<f32> = raw
             .split(',')
@@ -3186,6 +3225,10 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
         && pal_invert_blend.is_none()
         && pal_sin_color.is_none()
         && pal_sin_hue.is_none()
+        && pal_add.is_none()
+        && pal_mul.is_none()
+        && pal_sin_add.is_none()
+        && pal_sin_mul.is_none()
     {
         return;
     }
@@ -3258,6 +3301,20 @@ fn modify_bg_ctrl(sim: &mut SimState, who: usize, control: &Controller) {
             if let Some((value, period)) = pal_sin_hue {
                 state.pal_sin_hue = value;
                 state.pal_sin_hue_period = period;
+            }
+            if let Some(value) = pal_add {
+                state.pal_add = value;
+            }
+            if let Some(value) = pal_mul {
+                state.pal_mul = value;
+            }
+            if let Some((value, period)) = pal_sin_add {
+                state.pal_sin_add = value;
+                state.pal_sin_add_period = period;
+            }
+            if let Some((value, period)) = pal_sin_mul {
+                state.pal_sin_mul = value;
+                state.pal_sin_mul_period = period;
             }
         }
     }
