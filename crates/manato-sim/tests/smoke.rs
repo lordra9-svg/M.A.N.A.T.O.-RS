@@ -6048,6 +6048,42 @@ fn text_depth_velocity_and_accel() {
 }
 
 #[test]
+fn projmiss_tracks_expired_projectiles() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    sim.fighters[0].proj_miss_time = -1;
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("id".into(), "9".into()),
+            ("pos".into(), "-200, -100".into()),
+            ("velocity".into(), "-20, 0".into()),
+            ("projremovetime".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert!(!manato_sim::trigger::flag(&sim, 0, "ProjMiss"));
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "ProjMissTime"), -1);
+
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.projectiles.is_empty());
+    assert!(manato_sim::trigger::flag(&sim, 0, "ProjMiss"));
+    assert!(manato_sim::trigger::int(&sim, 0, "ProjMissTime") >= 0);
+
+    // The timer advances each tick while the miss flag is active.
+    let before = manato_sim::trigger::int(&sim, 0, "ProjMissTime");
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(manato_sim::trigger::int(&sim, 0, "ProjMissTime") > before);
+}
+
+#[test]
 fn helper_var_reports_helper_metadata() {
     let Some(mut sim) = fight_phase() else {
         return;

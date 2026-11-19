@@ -484,6 +484,8 @@ pub struct Fighter {
     pub proj_hit_time: i32,
     /// Ticks since the last guarded projectile hit (`-1` = never).
     pub proj_guarded_time: i32,
+    /// Ticks since the last projectile ended without hitting (`ProjMiss`).
+    pub proj_miss_time: i32,
     /// Ticks since a projectile clash cancelled one of this fighter's
     /// projectiles (`-1` = never).
     pub proj_cancel_time: i32,
@@ -693,6 +695,7 @@ impl Fighter {
             proj_contact_time: -1,
             proj_hit_time: -1,
             proj_guarded_time: -1,
+            proj_miss_time: -1,
             proj_cancel_time: -1,
             proj_cancel_id: -1,
             received_hits: 0,

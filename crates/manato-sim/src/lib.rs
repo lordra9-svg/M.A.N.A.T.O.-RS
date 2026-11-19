@@ -1307,7 +1307,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(18u32, self.asset_id(), self))
+        bincode::serialize(&(19u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1326,7 +1326,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 18 {
+        if version != 19 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1394,6 +1394,7 @@ impl SimState {
                 &mut fighter.proj_contact_time,
                 &mut fighter.proj_hit_time,
                 &mut fighter.proj_guarded_time,
+                &mut fighter.proj_miss_time,
                 &mut fighter.proj_cancel_time,
             ] {
                 if *timer >= 0 {
@@ -1577,6 +1578,13 @@ impl SimState {
                     if let Some(character) = characters.get(char_id) {
                         projectile.begin_removal(character);
                     }
+                }
+            }
+        }
+        for projectile in &self.projectiles {
+            if projectile.is_expired() && projectile.hits == projectile.hits_max {
+                if let Some(fighter) = self.fighters.get_mut(projectile.owner) {
+                    fighter.proj_miss_time = 0;
                 }
             }
         }
@@ -3246,6 +3254,7 @@ impl SimState {
             fighter.proj_cancel_time = -1;
             fighter.proj_cancel_id = -1;
             fighter.proj_guarded_time = -1;
+            fighter.proj_miss_time = -1;
             fighter.state_changed = false;
             fighter.enter_state(0, char, false);
             fighter.ctrl = true;
@@ -4467,6 +4476,7 @@ impl SimState {
             h.write_i32(f.proj_cancel_time);
             h.write_i32(f.proj_cancel_id);
             h.write_i32(f.proj_guarded_time);
+            h.write_i32(f.proj_miss_time);
             for &v in &f.vars {
                 h.write_i32(v);
             }

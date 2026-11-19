@@ -448,6 +448,8 @@ missing redirect targets make the trigger false.
   `ExplodVar(id, index, field)` (`pos.z`, `vel.z`, and `accel.z` report
   depth position, velocity, and acceleration), `ProjCancelTime(id)`,
   `NumText(id)`, `Shader()`, `ProjHit`, `ProjContact`, `ProjGuarded`,
+  `ProjMiss`/`ProjMissTime` (ticked after a projectile expires without
+  hitting),
   `NumExplod`, `NumHelper`, `IsHelper`, `ParentDist`, `RootDist`,
   `ParentExist`. `ProjVar` `pos.z`/`vel.z`/`accel.z` report projectile depth
   position, velocity, and acceleration.

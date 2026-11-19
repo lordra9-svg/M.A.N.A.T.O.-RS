@@ -1212,7 +1212,8 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         "projcontact" => Value::Bool(sim.fighters[who].proj_contact_time >= 0),
         "projhit" => Value::Bool(sim.fighters[who].proj_hit_time >= 0),
         "projguarded" => Value::Bool(sim.fighters[who].proj_guarded_time >= 0),
-        "projmiss" | "projmissetime" => Value::Int(0),
+        "projmiss" => Value::Bool(sim.fighters[who].proj_miss_time >= 0),
+        "projmisstime" => Value::Int(sim.fighters[who].proj_miss_time),
         "numtarget" => Value::Int(sim.fighters[who].target.is_some() as i32),
         "random" => {
             let x = sim
@@ -1755,7 +1756,7 @@ fn is_trigger_name(name: &str) -> bool {
             | "projhit"
             | "projhittime"
             | "projmiss"
-            | "projmissetime"
+            | "projmisstime"
             | "numtarget"
             | "p2anim"
             | "p2bodydist"
@@ -1886,7 +1887,8 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "projcontact" => Value::Bool(f.proj_contact_time >= 0),
         "projhit" => Value::Bool(f.proj_hit_time >= 0),
         "projguarded" => Value::Bool(f.proj_guarded_time >= 0),
-        "projmiss" | "projmissetime" => Value::Int(0),
+        "projmiss" => Value::Bool(f.proj_miss_time >= 0),
+        "projmisstime" => Value::Int(f.proj_miss_time),
         "time" | "statetime" => Value::Int(f.state_time),
         "stateno" => Value::Int(f.state_no),
         "prevstateno" => Value::Int(f.prev_state_no),
