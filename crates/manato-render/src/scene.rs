@@ -1065,7 +1065,7 @@ fn draw_fighter(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, who:
         else {
             continue;
         };
-        let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+        let Some(sprite) = fighter.sprite_for(character, frame.group, frame.index) else {
             continue;
         };
         let ghost_pose = Pose::from_frame(frame);

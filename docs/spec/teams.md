@@ -74,6 +74,7 @@ leader's default life.
 - `MemberNo` — active member number (1-based).
 - `TeamLeader` — player number for single-member teams, otherwise the team
   leader's member number (1).
+- `NumPartner` — number of partners on the active side (roster length − 1).
 - `Standby` — always false because standby members are not simulated.
 
 ## 4. Rendering

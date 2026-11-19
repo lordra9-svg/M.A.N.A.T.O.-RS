@@ -2059,7 +2059,16 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
                     .count() as i32,
             )
         }
-        "numpartner" => Value::Int(0),
+        "numpartner" => {
+            let root = sim.root_of(who);
+            let side = sim.fighters[root].side;
+            Value::Int(
+                sim.teams
+                    .get(side)
+                    .map(|team| team.members.len().saturating_sub(1) as i32)
+                    .unwrap_or(0),
+            )
+        }
         "numproj" => Value::Int(
             sim.projectiles
                 .iter()

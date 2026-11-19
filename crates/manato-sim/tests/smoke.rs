@@ -4097,6 +4097,7 @@ fn tag_team_roster_and_tagout_tagin_swap_members() {
     assert_eq!(int(&sim, "MemberNo"), 1);
     assert_eq!(int(&sim, "TeamLeader"), 1);
     assert_eq!(int(&sim, "Standby"), 0);
+    assert_eq!(int(&sim, "NumPartner"), 1);
 
     // Damage the leader, tag out, then tag back in: the stored life returns.
     sim.fighters[0].life = 700;
@@ -4127,6 +4128,7 @@ fn tag_team_roster_and_tagout_tagin_swap_members() {
     manato_sim::controller::execute(&mut sim, 0, &tag_in, &assets);
     assert_eq!(sim.fighters[0].char_id, before);
     assert_eq!(sim.teams[0].members.len(), 1);
+    assert_eq!(int(&sim, "NumPartner"), 0);
 
     // The active member participates in the rollback checksum.
     sim.assign_team(0, &[kaen, nival]);
