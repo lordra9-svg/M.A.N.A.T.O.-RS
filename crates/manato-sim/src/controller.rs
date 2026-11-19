@@ -3058,10 +3058,11 @@ fn parse_global_pal(sim: &SimState, who: usize, control: &Controller) -> crate::
     pal
 }
 
-/// `ModifyStageBG` subset: selects stage layers by `id` (`-1` = every id) and
+/// `ModifyStageBG`: selects stage layers by `id` (`-1` = every id) and
 /// `index` (`-1` = every layer), then overrides `actionno`, `velocity.x/y`,
-/// `delta.x/y`, `start.x/y`, and `scalestart`. `pos`, `layerno`, `spriteno`,
-/// `trans`, angles, shear, projection, and shaders are not modeled.
+/// `delta.x/y`, `start.x/y`, `scalestart`, `pos`, `layerno`, `spriteno`,
+/// `trans`, `angle`, `xangle`, `yangle`, and `xshear`. Projection and
+/// shader/texture keys are not modeled.
 fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
     let id = int_param(sim, who, control, "id").unwrap_or(-1);
     let index = int_param(sim, who, control, "index").unwrap_or(-1);
@@ -3094,6 +3095,10 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
         .get_pair("spriteno")
         .map(|(group, index)| (group as i32, index as i32));
     let trans = control.get("trans").and_then(parse_trans_mode);
+    let angle = num_param(sim, who, control, "angle");
+    let x_angle = num_param(sim, who, control, "xangle");
+    let y_angle = num_param(sim, who, control, "yangle");
+    let x_shear = num_param(sim, who, control, "xshear");
     for position in targets {
         let base = &sim.assets.stage.layers[position];
         let state = &mut sim.stage_layers[position];
@@ -3147,6 +3152,18 @@ fn modify_stage_bg(sim: &mut SimState, who: usize, control: &Controller) {
         }
         if let Some(trans) = trans {
             state.trans = Some(trans);
+        }
+        if let Some(value) = angle {
+            state.angle = Some(value);
+        }
+        if let Some(value) = x_angle {
+            state.x_angle = Some(value);
+        }
+        if let Some(value) = y_angle {
+            state.y_angle = Some(value);
+        }
+        if let Some(value) = x_shear {
+            state.x_shear = Some(value);
         }
     }
 }

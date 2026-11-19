@@ -338,6 +338,16 @@ fn bg_layer_palfx(
     (color, hue, state.pal_invert, add, mul)
 }
 
+/// Effective `ModifyStageBG` rotation/shear for a layer.
+fn bg_layer_transform(state: &manato_sim::StageLayerState) -> (f32, f32, f32, f32) {
+    (
+        state.angle.unwrap_or(0.0),
+        state.x_angle.unwrap_or(0.0),
+        state.y_angle.unwrap_or(0.0),
+        state.x_shear.unwrap_or(0.0),
+    )
+}
+
 /// Resolves a `ModifyBGCtrl` texture reference: an animation number selects
 /// the frame at `time`, otherwise the explicit `(group, index)` sprite is used.
 fn layer_tex_sprite(
@@ -503,8 +513,34 @@ fn draw_bg_layer(
     }
     tint[3] = pose.alpha;
     let tint = global_tint(tint, &sim.bg_pal);
+    let (angle, x_angle, y_angle, x_shear) = bg_layer_transform(state);
+    let rotated = angle != 0.0 || x_angle != 0.0 || y_angle != 0.0 || x_shear != 0.0;
+    let atlas_sprite = rotated.then(|| atlas.get(bank::STAGE, sprite.group, sprite.index));
     for y in ys.iter().copied() {
         for x in xs.iter().copied() {
+            if let Some(Some(atlas_sprite)) = atlas_sprite {
+                let dest = [x, y, x + w, y + h];
+                let corners = project_quad(
+                    dest,
+                    pose.angle + angle,
+                    x_angle,
+                    y_angle,
+                    x_shear,
+                    manato_sim::ProjectionMode::Orthographic,
+                    2048.0,
+                    Vec2::new(GAME_WIDTH * 0.5, GAME_HEIGHT * 0.5),
+                );
+                painter.quad_corners(
+                    TexRef::Atlas(atlas_sprite.page),
+                    blend,
+                    corners,
+                    atlas_sprite.uv,
+                    pose.flip_h,
+                    pose.flip_v,
+                    tint,
+                );
+                continue;
+            }
             draw_sprite_at(
                 painter,
                 atlas,
@@ -2081,6 +2117,18 @@ pub fn draw_storyboard(
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn bg_layer_transform_reads_overrides() {
+        let mut state =
+            manato_sim::StageLayerState::from_layer(&manato_formats::stage::BgLayer::default());
+        assert_eq!(bg_layer_transform(&state), (0.0, 0.0, 0.0, 0.0));
+        state.angle = Some(15.0);
+        state.x_angle = Some(10.0);
+        state.y_angle = Some(-5.0);
+        state.x_shear = Some(0.25);
+        assert_eq!(bg_layer_transform(&state), (15.0, 10.0, -5.0, 0.25));
+    }
 
     #[test]
     fn bg_layer_palfx_applies_sines_and_clamps() {

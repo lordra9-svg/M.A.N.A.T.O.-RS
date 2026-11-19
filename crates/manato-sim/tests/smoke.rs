@@ -2095,6 +2095,10 @@ fn modifystagebg_overrides_layer_state() {
             ("layerno", "-1"),
             ("spriteno", "2, 3"),
             ("trans", "0, 0, 1"),
+            ("angle", "15"),
+            ("xangle", "10"),
+            ("yangle", "-5"),
+            ("xshear", "0.25"),
         ],
     );
     let layer = sim.stage_layers[0].clone();
@@ -2107,6 +2111,10 @@ fn modifystagebg_overrides_layer_state() {
     assert_eq!(layer.layer_no, Some(-1));
     assert_eq!(layer.sprite, Some((2, 3)));
     assert_eq!(layer.trans, Some(manato_formats::air::BlendMode::Add));
+    assert_eq!(layer.angle, Some(15.0));
+    assert_eq!(layer.x_angle, Some(10.0));
+    assert_eq!(layer.y_angle, Some(-5.0));
+    assert_eq!(layer.x_shear, Some(0.25));
 
     // A different index leaves the first layer alone.
     let before = sim.stage_layers[0].clone();

@@ -707,6 +707,11 @@ pub struct StageLayerState {
     pub tex1_spr: Option<(i32, i32)>,
     pub tex2_anim: Option<i32>,
     pub tex2_spr: Option<(i32, i32)>,
+    /// `ModifyStageBG` sprite rotation and shear overrides.
+    pub angle: Option<f32>,
+    pub x_angle: Option<f32>,
+    pub y_angle: Option<f32>,
+    pub x_shear: Option<f32>,
 }
 
 impl StageLayerState {
@@ -749,6 +754,10 @@ impl StageLayerState {
             tex1_spr: None,
             tex2_anim: None,
             tex2_spr: None,
+            angle: None,
+            x_angle: None,
+            y_angle: None,
+            x_shear: None,
         }
     }
 }
@@ -1288,7 +1297,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(12u32, self.asset_id(), self))
+        bincode::serialize(&(13u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1307,7 +1316,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 12 {
+        if version != 13 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -3971,6 +3980,15 @@ impl SimState {
                     None => h.write_bool(false),
                 }
             }
+            for value in [layer.angle, layer.x_angle, layer.y_angle, layer.x_shear] {
+                match value {
+                    Some(value) => {
+                        h.write_bool(true);
+                        h.write_f32(value);
+                    }
+                    None => h.write_bool(false),
+                }
+            }
             h.write_i32(layer.layer_no.unwrap_or(i32::MIN));
             h.write_bool(layer.sprite.is_some());
             if let Some((group, index)) = layer.sprite {
@@ -4733,6 +4751,10 @@ mod stage_tests {
             tex1_spr: None,
             tex2_anim: None,
             tex2_spr: None,
+            angle: None,
+            x_angle: None,
+            y_angle: None,
+            x_shear: None,
         }
     }
 
