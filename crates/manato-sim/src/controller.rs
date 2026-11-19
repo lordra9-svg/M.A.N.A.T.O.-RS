@@ -1836,6 +1836,14 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
     let x_shear = num_param(sim, who, control, "xshear");
     let projection = str_param(control, "projection").map(crate::ProjectionMode::parse);
     let focal_length = num_param(sim, who, control, "focallength");
+    let facing = control
+        .get("facing")
+        .map(|raw| trigger::num(sim, who, raw))
+        .map(|value| if value < 0.0 { -1 } else { 1 });
+    let vfacing = control
+        .get("vfacing")
+        .map(|raw| trigger::num(sim, who, raw))
+        .map(|value| value >= 0.0);
     let remove_time = int_param(sim, who, control, "removetime");
     let sprite_priority = int_param(sim, who, control, "sprpriority");
     let ontop = int_param(sim, who, control, "ontop");
@@ -1868,6 +1876,12 @@ fn modify_explod(sim: &mut SimState, who: usize, control: &Controller, assets: &
     }
     if let Some((x, y)) = accel {
         effect.accel = Vec2::new(x, y);
+    }
+    if let Some(facing) = facing {
+        effect.facing = facing;
+    }
+    if let Some(forward) = vfacing {
+        effect.flip_v = !forward;
     }
     if let Some(trans) = trans {
         match trans.as_str() {

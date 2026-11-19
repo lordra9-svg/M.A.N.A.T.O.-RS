@@ -14059,6 +14059,57 @@ fn collision_boxes_mirror_with_facing_and_translate() {
 }
 
 #[test]
+fn modify_explod_facing_and_vfacing() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "explod".into(),
+        params: vec![
+            ("anim".into(), "10".into()),
+            ("id".into(), "5".into()),
+            ("facing".into(), "1".into()),
+            ("vfacing".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    let effect = sim.effects.last().expect("explod created");
+    assert_eq!(effect.facing, 1);
+    assert!(!effect.flip_v);
+
+    let modify = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "5".into()),
+            ("facing".into(), "-1".into()),
+            ("vfacing".into(), "-1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    let effect = sim.effects.last().expect("explod exists");
+    assert_eq!(effect.facing, -1);
+    assert!(effect.flip_v);
+
+    // Non-negative values clamp to forward/up.
+    let reset = manato_formats::Controller {
+        kind: "modifyexplod".into(),
+        params: vec![
+            ("id".into(), "5".into()),
+            ("facing".into(), "0".into()),
+            ("vfacing".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &reset, &assets);
+    let effect = sim.effects.last().expect("explod exists");
+    assert_eq!(effect.facing, 1);
+    assert!(!effect.flip_v);
+}
+
+#[test]
 fn explod_lifetime_and_removal_rules() {
     let Some(mut sim) = fight_phase() else {
         return;

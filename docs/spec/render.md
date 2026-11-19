@@ -241,7 +241,8 @@ three rotation angles are zero and `projection` is orthographic, the existing
 `quad_rotated` path is used to keep output identical.
 
 `ModifyExplod` accepts the same visual keys plus `id`; it updates the newest
-matching explod of the owner. `RemoveExplod` with an explicit non-negative
+matching explod of the owner. `facing` and `vfacing` accept any number and
+clamp to forward/up (`>= 0`) or reversed/down (`< 0`). `RemoveExplod` with an explicit non-negative
 `id` removes matching explods of the owner; an omitted `id` (or `-1`) removes
 every explod owned by that fighter. `NumExplod` counts them.
 
