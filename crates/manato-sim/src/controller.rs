@@ -3717,6 +3717,21 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let tex2_spr = control
         .get_pair("shader.tex2.spr")
         .map(|(group, index)| (group as i32, index as i32));
+    let shader_time = int_param(sim, who, control, "shader.time").unwrap_or(-1);
+    let shader_shadow = int_param(sim, who, control, "shader.shadow").unwrap_or(0) != 0;
+    let shader_reflection = int_param(sim, who, control, "shader.reflection").unwrap_or(0) != 0;
+    let shader_afterimage = int_param(sim, who, control, "shader.afterimage").unwrap_or(0) != 0;
+    let cleared = shader_time == 0;
+    let shader = if cleared { None } else { shader };
+    let shader_params = if cleared {
+        None
+    } else {
+        has_shader_params.then_some(shader_params)
+    };
+    let tex1_anim = if cleared { None } else { tex1_anim };
+    let tex1_spr = if cleared { None } else { tex1_spr };
+    let tex2_anim = if cleared { None } else { tex2_anim };
+    let tex2_spr = if cleared { None } else { tex2_spr };
     let x_shear = num_param(sim, who, control, "projxshear").unwrap_or(0.0);
     let projection = str_param(control, "projprojection")
         .map(crate::ProjectionMode::parse)
@@ -3787,11 +3802,15 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         clsn_angle,
         window,
         shader,
-        shader_params: has_shader_params.then_some(shader_params),
+        shader_params,
         tex1_anim,
         tex1_spr,
         tex2_anim,
         tex2_spr,
+        shader_time,
+        shader_shadow,
+        shader_reflection,
+        shader_afterimage,
         x_shear,
         projection,
         focal_length,
@@ -3929,6 +3948,10 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
             Some(name)
         }
     });
+    let shader_time = int_param(sim, who, control, "shader.time");
+    let shader_shadow = int_param(sim, who, control, "shader.shadow").map(|v| v != 0);
+    let shader_reflection = int_param(sim, who, control, "shader.reflection").map(|v| v != 0);
+    let shader_afterimage = int_param(sim, who, control, "shader.afterimage").map(|v| v != 0);
     let x_shear = num_param(sim, who, control, "projxshear");
     let projection = str_param(control, "projprojection").map(crate::ProjectionMode::parse);
     let focal_length = num_param(sim, who, control, "projfocallength").map(|v| v.max(1.0));
@@ -4015,6 +4038,26 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(shader) = &shader {
             projectile.shader = shader.clone();
+        }
+        if let Some(value) = shader_time {
+            projectile.shader_time = value;
+            if value == 0 {
+                projectile.shader = None;
+                projectile.shader_params = None;
+                projectile.tex1_anim = None;
+                projectile.tex1_spr = None;
+                projectile.tex2_anim = None;
+                projectile.tex2_spr = None;
+            }
+        }
+        if let Some(value) = shader_shadow {
+            projectile.shader_shadow = value;
+        }
+        if let Some(value) = shader_reflection {
+            projectile.shader_reflection = value;
+        }
+        if let Some(value) = shader_afterimage {
+            projectile.shader_afterimage = value;
         }
         if let Some(x_shear) = x_shear {
             projectile.x_shear = x_shear;

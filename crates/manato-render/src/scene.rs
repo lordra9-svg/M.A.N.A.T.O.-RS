@@ -890,10 +890,31 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
         if projectile.z != 0.0 {
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
+        let bank = bank::CHARACTER_BASE + projectile.owner as u8;
+        let shader_active = projectile.shader_reflection && projectile.shader.is_some();
+        if shader_active {
+            painter.set_shader(projectile.shader.clone());
+            painter.set_shader_params(projectile.shader_params);
+            let tex1 = projectile_tex_sprite(
+                character,
+                projectile.tex1_anim,
+                projectile.tex1_spr,
+                projectile.time,
+            )
+            .map(|(group, index)| (bank, group, index));
+            let tex2 = projectile_tex_sprite(
+                character,
+                projectile.tex2_anim,
+                projectile.tex2_spr,
+                projectile.time,
+            )
+            .map(|(group, index)| (bank, group, index));
+            painter.set_shader_textures(tex1, tex2);
+        }
         draw_sprite(
             painter,
             atlas,
-            bank::CHARACTER_BASE + projectile.owner as u8,
+            bank,
             sprite,
             anchor,
             pose.offset,
@@ -905,6 +926,11 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
             tint,
             pose.angle + projectile.angle * projectile.facing as f32,
         );
+        if shader_active {
+            painter.set_shader(None);
+            painter.set_shader_params(None);
+            painter.set_shader_textures(None, None);
+        }
         painter.set_depth(restore);
     }
 }
@@ -2656,6 +2682,10 @@ mod tests {
             tex1_spr: None,
             tex2_anim: None,
             tex2_spr: None,
+            shader_time: -1,
+            shader_shadow: false,
+            shader_reflection: false,
+            shader_afterimage: false,
             x_shear: 0.0,
             projection: ProjectionMode::Orthographic,
             focal_length: 1024.0,

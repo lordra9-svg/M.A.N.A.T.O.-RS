@@ -6218,6 +6218,10 @@ fn proj_var_reports_active_projectile_fields() {
             ("shader.param3".into(), "2.0".into()),
             ("shader.tex1.anim".into(), "1500".into()),
             ("shader.tex2.spr".into(), "5, 6".into()),
+            ("shader.time".into(), "-1".into()),
+            ("shader.shadow".into(), "1".into()),
+            ("shader.reflection".into(), "1".into()),
+            ("shader.afterimage".into(), "1".into()),
             ("projxshear".into(), "0.25".into()),
             ("projlayerno".into(), "1".into()),
             ("projsprpriority".into(), "4".into()),
@@ -6317,6 +6321,10 @@ fn proj_var_reports_active_projectile_fields() {
     assert!((params[3] - 2.0).abs() < 1e-5);
     assert_eq!(projectile.tex1_anim, Some(1500));
     assert_eq!(projectile.tex2_spr, Some((5, 6)));
+    assert_eq!(projectile.shader_time, -1);
+    assert!(projectile.shader_shadow);
+    assert!(projectile.shader_reflection);
+    assert!(projectile.shader_afterimage);
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
@@ -12380,6 +12388,10 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         tex1_spr: None,
         tex2_anim: None,
         tex2_spr: None,
+        shader_time: -1,
+        shader_shadow: false,
+        shader_reflection: false,
+        shader_afterimage: false,
         x_shear: 0.0,
         projection: manato_sim::ProjectionMode::Orthographic,
         focal_length: 1024.0,
@@ -12638,9 +12650,22 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.clsn_angle, 45.0);
     assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));
     assert_eq!(projectile.shader.as_deref(), Some("sparkle"));
+    let projectile_id = projectile.id;
+
+    let clear_shader = manato_formats::Controller {
+        kind: "modifyprojectile".into(),
+        params: vec![
+            ("id".into(), projectile_id.to_string()),
+            ("shader.time".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &clear_shader, &assets);
+    assert!(sim.projectiles[0].shader.is_none());
+    assert!(sim.projectiles[0].shader_params.is_none());
 
     // An explicit id that matches nothing leaves projectiles untouched.
-    let id = projectile.id;
+    let id = projectile_id;
     let miss = manato_formats::Controller {
         kind: "modifyprojectile".into(),
         params: vec![

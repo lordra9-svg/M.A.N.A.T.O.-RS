@@ -48,6 +48,11 @@ pub struct Projectile {
     pub tex1_spr: Option<(i32, i32)>,
     pub tex2_anim: Option<i32>,
     pub tex2_spr: Option<(i32, i32)>,
+    /// `shader.time`: 0 clears the shader; other values are stored.
+    pub shader_time: i32,
+    pub shader_shadow: bool,
+    pub shader_reflection: bool,
+    pub shader_afterimage: bool,
     /// `projxshear` applied to the sprite.
     pub x_shear: f32,
     /// `projprojection` perspective mode.

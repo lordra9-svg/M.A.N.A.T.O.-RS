@@ -95,7 +95,10 @@ Rules:
   stage-styled reflection; negative values draw one only when the projectile
   also has a shadow color. `shader.name`/`shader.param0..15` and
   `shader.tex1.*`/`shader.tex2.*` bind a custom shader, its indexed params,
-  and referenced textures for the projectile.
+  and referenced textures for the projectile. `shader.time = 0` clears the
+  shader; `shader.reflection` applies it to the projectile reflection.
+  `shader.shadow`/`shader.afterimage` are stored but have no projectile
+  shadow/afterimage pass.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.
