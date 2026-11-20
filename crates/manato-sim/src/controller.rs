@@ -3723,6 +3723,16 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let shader_shadow = int_param(sim, who, control, "shader.shadow").unwrap_or(0) != 0;
     let shader_reflection = int_param(sim, who, control, "shader.reflection").unwrap_or(0) != 0;
     let shader_afterimage = int_param(sim, who, control, "shader.afterimage").unwrap_or(0) != 0;
+    let own_pal = int_param(sim, who, control, "ownpal").unwrap_or(0) != 0;
+    let remap_pal = control.get("remappal").and_then(|raw| {
+        let mut parts = raw.split(',');
+        let group = parts.next().map(|part| trigger::int(sim, who, part))?;
+        let index = parts
+            .next()
+            .map(|part| trigger::int(sim, who, part))
+            .unwrap_or(0);
+        (group >= 0).then_some((group, index))
+    });
     let cleared = shader_time == 0;
     let shader = if cleared { None } else { shader };
     let shader_params = if cleared {
@@ -3815,6 +3825,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         shader_shadow,
         shader_reflection,
         shader_afterimage,
+        own_pal,
+        remap_pal,
         x_shear,
         projection,
         focal_length,
@@ -3958,6 +3970,16 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let shader_shadow = int_param(sim, who, control, "shader.shadow").map(|v| v != 0);
     let shader_reflection = int_param(sim, who, control, "shader.reflection").map(|v| v != 0);
     let shader_afterimage = int_param(sim, who, control, "shader.afterimage").map(|v| v != 0);
+    let own_pal = int_param(sim, who, control, "ownpal").map(|v| v != 0);
+    let remap_pal = control.get("remappal").and_then(|raw| {
+        let mut parts = raw.split(',');
+        let group = parts.next().map(|part| trigger::int(sim, who, part))?;
+        let index = parts
+            .next()
+            .map(|part| trigger::int(sim, who, part))
+            .unwrap_or(0);
+        (group >= 0).then_some((group, index))
+    });
     let x_shear = num_param(sim, who, control, "projxshear");
     let projection = str_param(control, "projprojection").map(crate::ProjectionMode::parse);
     let focal_length = num_param(sim, who, control, "projfocallength").map(|v| v.max(1.0));
@@ -4070,6 +4092,12 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(value) = shader_afterimage {
             projectile.shader_afterimage = value;
+        }
+        if let Some(value) = own_pal {
+            projectile.own_pal = value;
+        }
+        if remap_pal.is_some() {
+            projectile.remap_pal = remap_pal;
         }
         if let Some(x_shear) = x_shear {
             projectile.x_shear = x_shear;

@@ -6255,6 +6255,8 @@ fn proj_var_reports_active_projectile_fields() {
             ("shader.shadow".into(), "1".into()),
             ("shader.reflection".into(), "1".into()),
             ("shader.afterimage".into(), "1".into()),
+            ("ownpal".into(), "1".into()),
+            ("remappal".into(), "3, 4".into()),
             ("projxshear".into(), "0.25".into()),
             ("projlayerno".into(), "1".into()),
             ("projsprpriority".into(), "4".into()),
@@ -6358,6 +6360,10 @@ fn proj_var_reports_active_projectile_fields() {
     assert!(projectile.shader_shadow);
     assert!(projectile.shader_reflection);
     assert!(projectile.shader_afterimage);
+    assert!(projectile.own_pal);
+    assert_eq!(projectile.remap_pal, Some((3, 4)));
+    assert_eq!(num(&sim, "ProjVar(7, 0, drawpal.group)"), 3.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, drawpal.index)"), 4.0);
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
@@ -12427,6 +12433,8 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         shader_shadow: false,
         shader_reflection: false,
         shader_afterimage: false,
+        own_pal: false,
+        remap_pal: None,
         x_shear: 0.0,
         projection: manato_sim::ProjectionMode::Orthographic,
         focal_length: 1024.0,
@@ -12667,6 +12675,8 @@ fn modify_projectile_updates_live_projectile() {
             ("velmul".into(), "2, 1, 1".into()),
             ("supermovetime".into(), "4".into()),
             ("pausemovetime".into(), "3".into()),
+            ("ownpal".into(), "1".into()),
+            ("remappal".into(), "5, 6".into()),
             ("projclsnscale".into(), "2, 3".into()),
             ("projclsnangle".into(), "45".into()),
             ("projwindow".into(), "5, 6, 300, 200".into()),
@@ -12685,6 +12695,8 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.velmul, [2.0, 1.0, 1.0]);
     assert_eq!(projectile.super_move_time, 4);
     assert_eq!(projectile.pause_move_time, 3);
+    assert!(projectile.own_pal);
+    assert_eq!(projectile.remap_pal, Some((5, 6)));
     assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 3.0));
     assert_eq!(projectile.clsn_angle, 45.0);
     assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));

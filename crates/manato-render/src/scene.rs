@@ -2688,6 +2688,8 @@ mod tests {
             shader_shadow: false,
             shader_reflection: false,
             shader_afterimage: false,
+            own_pal: false,
+            remap_pal: None,
             x_shear: 0.0,
             projection: ProjectionMode::Orthographic,
             focal_length: 1024.0,

@@ -2473,6 +2473,22 @@ fn projectile_var(
         "angle.x" => Value::Float(projectile.x_angle),
         "angle.y" => Value::Float(projectile.y_angle),
         "xshear" => Value::Float(projectile.x_shear),
+        "drawpal.group" | "drawpal.index" => {
+            let palette = projectile.remap_pal.or_else(|| {
+                let character = &sim.assets.characters[sim.fighters[projectile.owner].char_id];
+                let animation = character.animation(projectile.anim)?;
+                let interpolated = animation.pose_at(projectile.time)?;
+                let frame = animation.frames.get(interpolated.frame)?;
+                let sprite = character.sprites.get(frame.group, frame.index)?;
+                sprite.palette_key
+            });
+            let (group, index) = palette.unwrap_or((0, 0));
+            if field == "drawpal.group" {
+                Value::Int(group)
+            } else {
+                Value::Int(index)
+            }
+        }
         "time" => Value::Int(projectile.time),
         "shadow.r" => Value::Int(projectile.shadow[0]),
         "shadow.g" => Value::Int(projectile.shadow[1]),

@@ -57,6 +57,10 @@ pub struct Projectile {
     pub shader_shadow: bool,
     pub shader_reflection: bool,
     pub shader_afterimage: bool,
+    /// `ownpal` and `remappal` palette selection.
+    pub own_pal: bool,
+    /// `remappal` destination `(group, index)`.
+    pub remap_pal: Option<(i32, i32)>,
     /// `projxshear` applied to the sprite.
     pub x_shear: f32,
     /// `projprojection` perspective mode.
