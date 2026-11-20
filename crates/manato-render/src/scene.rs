@@ -651,6 +651,47 @@ fn projectile_bank(
         .unwrap_or(bank::CHARACTER_BASE + projectile.owner as u8)
 }
 
+/// True when `projshadow` requests a projectile shadow.
+fn projectile_shadow_visible(projectile: &manato_sim::projectile::Projectile) -> bool {
+    projectile.shadow.iter().any(|value| *value != 0)
+}
+
+fn draw_projectile_shadow(
+    painter: &mut Painter,
+    sim: &SimState,
+    projectile: &manato_sim::projectile::Projectile,
+    sprite: &manato_formats::Sprite,
+    scale: Vec2,
+) {
+    if !projectile_shadow_visible(projectile) {
+        return;
+    }
+    let ground = sim.screen_pos(Vec2::new(projectile.pos.x, 0.0));
+    let height = (-projectile.pos.y).max(0.0);
+    let alpha = (0.5 - height / 400.0).clamp(0.04, 0.5);
+    let w = sprite.width as f32 * scale.x.abs() * 0.8;
+    let h = 7.0 * sim.camera.scale * scale.y.abs().max(0.05);
+    painter.quad(
+        TexRef::Shadow,
+        Blend::Normal,
+        [
+            ground.x - w * 0.5,
+            ground.y - h * 0.5,
+            ground.x + w * 0.5,
+            ground.y + h * 0.5,
+        ],
+        [0.0, 0.0, 1.0, 1.0],
+        false,
+        false,
+        [
+            projectile.shadow[0] as f32,
+            projectile.shadow[1] as f32,
+            projectile.shadow[2] as f32,
+            alpha,
+        ],
+    );
+}
+
 fn draw_projectiles(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
@@ -712,6 +753,7 @@ fn draw_projectiles(
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
+        draw_projectile_shadow(painter, sim, projectile, sprite, scale);
         let bank = projectile_bank(sim, banks, projectile, sprite);
         let color = global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.all_pal);
 
@@ -2325,6 +2367,15 @@ pub fn draw_storyboard(
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn projectile_shadow_condition() {
+        let mut projectile = test_projectile(0, 0);
+        projectile.shadow = [0; 3];
+        assert!(!projectile_shadow_visible(&projectile));
+        projectile.shadow = [0, 0, 1];
+        assert!(projectile_shadow_visible(&projectile));
+    }
 
     #[test]
     fn projectile_reflection_condition() {

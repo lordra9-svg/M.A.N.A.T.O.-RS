@@ -105,6 +105,8 @@ Rules:
   Characters with palettes get dedicated recolored atlas banks (192–223) for
   projectile drawing: `remappal` selects its destination palette, `ownpal`
   selects the sprite's own palette, otherwise the owner bank is used.
+  Non-zero `projshadow` draws a grounded ellipse whose color is the shadow
+  RGB and whose alpha fades with height.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.
