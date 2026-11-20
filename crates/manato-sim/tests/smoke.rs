@@ -6191,6 +6191,39 @@ fn projectile_velmul_scales_velocity() {
 }
 
 #[test]
+fn projectile_supermovetime_advances_during_pause() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("id".into(), "21".into()),
+            ("pos".into(), "-120, -120".into()),
+            ("velocity".into(), "5, 0, 0".into()),
+            ("supermovetime".into(), "2".into()),
+            ("projremovetime".into(), "20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(sim.projectiles[0].super_move_time, 2);
+    sim.super_pause = 5;
+    let start = sim.projectiles[0].pos.x;
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles[0].pos.x, start + 5.0);
+    assert_eq!(sim.projectiles[0].super_move_time, 1);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles[0].pos.x, start + 10.0);
+    assert_eq!(sim.projectiles[0].super_move_time, 0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles[0].pos.x, start + 10.0);
+}
+
+#[test]
 fn proj_var_reports_active_projectile_fields() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -12371,6 +12404,8 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         vel: manato_core::Vec2::ZERO,
         accel: manato_core::Vec2::ZERO,
         velmul: [1.0; 3],
+        super_move_time: 0,
+        pause_move_time: 0,
         z: 0.0,
         vel_z: 0.0,
         accel_z: 0.0,
@@ -12630,6 +12665,8 @@ fn modify_projectile_updates_live_projectile() {
             ("projanim".into(), "10".into()),
             ("accel".into(), "1, -2".into()),
             ("velmul".into(), "2, 1, 1".into()),
+            ("supermovetime".into(), "4".into()),
+            ("pausemovetime".into(), "3".into()),
             ("projclsnscale".into(), "2, 3".into()),
             ("projclsnangle".into(), "45".into()),
             ("projwindow".into(), "5, 6, 300, 200".into()),
@@ -12646,6 +12683,8 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.anim, 10);
     assert_eq!(projectile.accel, manato_core::Vec2::new(1.0, -2.0));
     assert_eq!(projectile.velmul, [2.0, 1.0, 1.0]);
+    assert_eq!(projectile.super_move_time, 4);
+    assert_eq!(projectile.pause_move_time, 3);
     assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 3.0));
     assert_eq!(projectile.clsn_angle, 45.0);
     assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));

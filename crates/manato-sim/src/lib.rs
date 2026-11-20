@@ -1307,7 +1307,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(26u32, self.asset_id(), self))
+        bincode::serialize(&(27u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1326,7 +1326,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 26 {
+        if version != 27 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1450,6 +1450,11 @@ impl SimState {
                     }
                 }
             }
+            // Projectiles with `supermovetime` continue during the pause.
+            for projectile in &mut self.projectiles {
+                projectile.advance_paused();
+            }
+            self.projectiles.retain(|p| !p.is_expired());
             self.update_round();
             self.update_effects();
             self.update_fight_screen();
@@ -4190,6 +4195,8 @@ impl SimState {
             for value in p.velmul {
                 h.write_f32(value);
             }
+            h.write_i32(p.super_move_time);
+            h.write_i32(p.pause_move_time);
             h.write_f32(p.clsn_scale.x);
             h.write_f32(p.clsn_scale.y);
             h.write_f32(p.clsn_angle);

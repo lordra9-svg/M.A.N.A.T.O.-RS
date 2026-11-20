@@ -98,7 +98,9 @@ Rules:
   and referenced textures for the projectile. `shader.time = 0` clears the
   shader; `shader.reflection` applies it to the projectile reflection.
   `shader.shadow`/`shader.afterimage` are stored but have no projectile
-  shadow/afterimage pass.
+  shadow/afterimage pass. `supermovetime` lets a projectile keep moving
+  during a global super pause until the timer expires (`0` or `< -1` freezes,
+  `-1` moves forever); `pausemovetime` is tracked alongside it.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.

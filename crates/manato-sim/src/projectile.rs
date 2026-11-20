@@ -24,6 +24,10 @@ pub struct Projectile {
     pub accel: Vec2,
     /// Per-tick velocity multiplier applied after acceleration.
     pub velmul: [f32; 3],
+    /// `supermovetime`/`pausemovetime`: move during pauses while non-zero and
+    /// not below -1.
+    pub super_move_time: i32,
+    pub pause_move_time: i32,
     /// Depth position (`offset` third component; follows the owner's `z`).
     pub z: f32,
     pub vel_z: f32,
@@ -192,6 +196,26 @@ impl Projectile {
         }
     }
 
+    /// Moves during a global super pause when `supermovetime` allows it.
+    pub fn advance_paused(&mut self) {
+        if self.super_move_time == 0 || self.super_move_time < -1 {
+            return;
+        }
+        self.pos.x += self.vel.x;
+        self.pos.y += self.vel.y;
+        self.z += self.vel_z;
+        self.time += 1;
+        if self.remove_time > 0 {
+            self.remove_time -= 1;
+        }
+        if self.super_move_time > 0 {
+            self.super_move_time -= 1;
+        }
+        if self.pause_move_time > 0 {
+            self.pause_move_time -= 1;
+        }
+    }
+
     pub fn advance(&mut self) {
         self.time += 1;
         self.pos.x += self.vel.x;
@@ -200,6 +224,12 @@ impl Projectile {
         self.vel.x = (self.vel.x + self.accel.x) * self.velmul[0];
         self.vel.y = (self.vel.y + self.accel.y) * self.velmul[1];
         self.vel_z = (self.vel_z + self.accel_z) * self.velmul[2];
+        if self.super_move_time > 0 {
+            self.super_move_time -= 1;
+        }
+        if self.pause_move_time > 0 {
+            self.pause_move_time -= 1;
+        }
         // Ikemen decrements the countdown after the frame's contact checks.
         if self.remove_time > 0 {
             self.remove_time -= 1;

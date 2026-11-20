@@ -2665,6 +2665,8 @@ mod tests {
             vel: Vec2::ZERO,
             accel: Vec2::ZERO,
             velmul: [1.0; 3],
+            super_move_time: 0,
+            pause_move_time: 0,
             z: 0.0,
             vel_z: 0.0,
             accel_z: 0.0,
