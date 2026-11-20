@@ -91,7 +91,9 @@ Rules:
   sprite path. `projwindow` clips drawing to a screen-space rect, and
   `projclsnscale`/`projclsnangle` scale/rotate collision boxes (rotated boxes
   use axis-aligned bounds). `velmul` multiplies each velocity component after
-  acceleration every tick (default `1,1,1`).
+  acceleration every tick (default `1,1,1`). `projreflection > 0` draws a
+  stage-styled reflection; negative values draw one only when the projectile
+  also has a shadow color.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.

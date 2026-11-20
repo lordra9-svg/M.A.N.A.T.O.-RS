@@ -715,6 +715,13 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
     painter.set_scissor(None);
 }
 
+/// `projreflection`: positive values always reflect; negative values reflect
+/// only when the projectile also has a shadow color.
+fn projectile_reflects(projectile: &manato_sim::projectile::Projectile) -> bool {
+    projectile.reflection > 0
+        || (projectile.reflection < 0 && projectile.shadow.iter().any(|value| *value != 0))
+}
+
 fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
     let reflection = &sim.assets.stage.reflection;
     for (who, fighter) in sim
@@ -791,6 +798,76 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
                 alpha,
             ],
             pose.angle,
+        );
+        painter.set_depth(restore);
+    }
+
+    if reflection.intensity <= 0 {
+        return;
+    }
+    let alpha = (reflection.intensity as f32 / 255.0).clamp(0.0, 1.0) * 0.45;
+    let tint = [
+        reflection.color[0] as f32 / 255.0,
+        reflection.color[1] as f32 / 255.0,
+        reflection.color[2] as f32 / 255.0,
+        alpha,
+    ];
+    for projectile in &sim.projectiles {
+        if !projectile_reflects(projectile) {
+            continue;
+        }
+        let Some(fighter) = sim.fighters.get(projectile.owner) else {
+            continue;
+        };
+        let character = &sim.assets.characters[fighter.char_id];
+        let Some(anim) = character.animation(projectile.anim) else {
+            continue;
+        };
+        let Some(interpolated) = anim.pose_at(projectile.time) else {
+            continue;
+        };
+        let Some(frame) = anim.frames.get(interpolated.frame) else {
+            continue;
+        };
+        let Some(sprite) = character.sprites.get(frame.group, frame.index) else {
+            continue;
+        };
+        let pose = Pose::from_pose(frame, &interpolated);
+        let stage = &sim.assets.stage;
+        let ground = sim.ground_screen_y();
+        let (anchor, z_scale) = depth_transform(
+            sim.screen_pos(projectile.pos),
+            Vec2::new(1.0, 1.0),
+            projectile.z,
+            sim.camera.z,
+            stage,
+            GAME_WIDTH * 0.5,
+            ground,
+        );
+        let mut anchor = anchor;
+        anchor.y = ground * 2.0 - anchor.y;
+        let scale = Vec2::new(
+            projectile.scale.x * pose.scale.x * sim.camera.scale * z_scale.x * reflection.xscale,
+            projectile.scale.y * pose.scale.y * sim.camera.scale * z_scale.y * reflection.yscale,
+        );
+        let restore = painter.depth();
+        if projectile.z != 0.0 {
+            painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
+        }
+        draw_sprite(
+            painter,
+            atlas,
+            bank::CHARACTER_BASE + projectile.owner as u8,
+            sprite,
+            anchor,
+            pose.offset,
+            projectile.facing,
+            scale,
+            pose.flip_h,
+            !pose.flip_v,
+            pose.blend,
+            tint,
+            pose.angle + projectile.angle * projectile.facing as f32,
         );
         painter.set_depth(restore);
     }
@@ -2156,6 +2233,20 @@ pub fn draw_storyboard(
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn projectile_reflection_condition() {
+        let mut projectile = test_projectile(0, 0);
+        projectile.reflection = 0;
+        assert!(!projectile_reflects(&projectile));
+        projectile.reflection = 1;
+        assert!(projectile_reflects(&projectile));
+        projectile.reflection = -1;
+        projectile.shadow = [0; 3];
+        assert!(!projectile_reflects(&projectile));
+        projectile.shadow = [1, 2, 3];
+        assert!(projectile_reflects(&projectile));
+    }
 
     #[test]
     fn projectile_scissor_clamps_and_rejects_empty() {
