@@ -251,6 +251,7 @@ pub struct Fighter {
     /// Last-hit attacker variables (`MoveHitVar`).
     pub mhv_cornerpush_veloff: f32,
     pub mhv_frame: bool,
+    pub mhv_overridden: bool,
     pub mhv_power: f32,
     pub mhv_spark: Vec2,
     pub facing: i32,
@@ -549,6 +550,7 @@ impl Fighter {
             air_jump_count: 0,
             mhv_cornerpush_veloff: 0.0,
             mhv_frame: false,
+            mhv_overridden: false,
             mhv_power: 0.0,
             mhv_spark: Vec2::ZERO,
             facing,

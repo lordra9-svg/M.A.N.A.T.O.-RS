@@ -1307,7 +1307,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(23u32, self.asset_id(), self))
+        bincode::serialize(&(24u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1326,7 +1326,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 23 {
+        if version != 24 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1762,6 +1762,7 @@ impl SimState {
             // AssertSpecial and AssertInput are per-tick assertions.
             fighter.assert_flags = 0;
             fighter.mhv_frame = false;
+            fighter.mhv_overridden = false;
             fighter.mhv_power = 0.0;
             fighter.asserted_input = PlayerInput::default();
             fighter.analog_axes = [0.0; 6];
@@ -3204,6 +3205,7 @@ impl SimState {
             fighter.air_jump_count = 0;
             fighter.mhv_cornerpush_veloff = 0.0;
             fighter.mhv_frame = false;
+            fighter.mhv_overridden = false;
             fighter.mhv_power = 0.0;
             fighter.mhv_spark = Vec2::ZERO;
             fighter.depth_player = [0.0, 0.0];
@@ -4393,6 +4395,7 @@ impl SimState {
             h.write_i32(f.air_jump_count);
             h.write_f32(f.mhv_cornerpush_veloff);
             h.write_bool(f.mhv_frame);
+            h.write_bool(f.mhv_overridden);
             h.write_f32(f.mhv_power);
             h.write_f32(f.mhv_spark.x);
             h.write_f32(f.mhv_spark.y);

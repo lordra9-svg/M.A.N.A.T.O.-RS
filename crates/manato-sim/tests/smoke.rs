@@ -338,8 +338,12 @@ fn hit_override_redirects_instead_of_damage() {
     });
     let assets = sim.assets.clone();
     sim.fighters[0].enter_state(200, &assets.characters[0], false);
+    let mut seen_override = false;
     for _ in 0..30 {
         sim.tick([PlayerInput::default(); 2]);
+        if manato_sim::trigger::flag(&sim, 0, "MoveHitVar(overridden)") {
+            seen_override = true;
+        }
         if sim.fighters[1].life < sim.fighters[1].life_max {
             break;
         }
@@ -348,6 +352,9 @@ fn hit_override_redirects_instead_of_damage() {
         sim.fighters[1].life, sim.fighters[1].life_max,
         "HitOverride should prevent damage"
     );
+
+    // The override also marks the attacker's MoveHitVar(overridden).
+    assert!(seen_override, "override should set MoveHitVar(overridden)");
 }
 
 #[test]

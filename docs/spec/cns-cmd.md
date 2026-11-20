@@ -351,7 +351,8 @@ missing redirect targets make the trigger false.
   `MoveHitVar` reports the last unique target (`playerid`/`id`, 1-based),
   `playerno`, `uniqhit`, the applied `cornerpush.veloff`, the current-frame
   `frame` flag, gained `power`, and `sparkx`/`sparky` from the last connected
-  hit. `overridden` remains false.
+  hit. `overridden` is true on the tick the defender's `HitOverride`
+  intercepted the hit.
 - Commands: `Command` (reads the active state bank's command list),
   `SelfCommand` (always reads the fighter's own command list even when a
   borrowed state bank is active)

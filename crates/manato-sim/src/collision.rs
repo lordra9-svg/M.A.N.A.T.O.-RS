@@ -73,6 +73,7 @@ pub fn resolve(sim: &mut SimState) {
         let mut forced_guard = false;
         if let Some(override_) = sim.fighters[defender].matched_override(&hitdef) {
             sim.fighters[defender].hit_overridden = true;
+            sim.fighters[attacker].mhv_overridden = true;
             if override_.forceguard {
                 forced_guard = true;
             } else {
