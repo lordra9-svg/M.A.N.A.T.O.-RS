@@ -401,8 +401,8 @@ missing redirect targets make the trigger false.
 - Utility: `MugenVersion(major|minor)`,
   `IkemenVersion(major|minor|patch)`, `IsAsserted(flag)`, `Map(key)`,
   `HitDefVar(key)` (damage/flags/sounds/timers/facing/statenos plus
-  ground/air/down/guard/airguard velocity `.x`/`.y`/`.z`, fall velocities,
-  and cornerpush offsets), `SpriteVar(group|image|width|height|xoffset|yoffset)`,
+  `yaccel`/`zaccel`, ground/air/down/guard/airguard velocity `.x`/`.y`/`.z`,
+  fall x/y/z velocities, and cornerpush offsets), `SpriteVar(group|image|width|height|xoffset|yoffset)`,
   `AnimElemVar(field)` (current animation-frame fields: `alphadest`,
   `alphasource`, `angle`, `group`, `hflip`, `vflip`, `image`, `time`,
   `xoffset`, `yoffset`, `xscale`, `yscale`, `numclsn1`, `numclsn2`),

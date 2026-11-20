@@ -11828,6 +11828,8 @@ fn hit_def_var_reports_active_hitdef_fields() {
             ("id".into(), "9".into()),
             ("priority".into(), "2, Miss".into()),
             ("yaccel".into(), "0.7".into()),
+            ("zaccel".into(), "0.1".into()),
+            ("fall.zvelocity".into(), "2.5".into()),
             ("ground.velocity".into(), "-6, -2".into()),
             ("guard.velocity".into(), "3, 1".into()),
             ("airguard.velocity".into(), "2, 0".into()),
@@ -11861,6 +11863,8 @@ fn hit_def_var_reports_active_hitdef_fields() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(id)"), 9);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "HitDefVar(priority)"), 2);
     assert!((manato_sim::trigger::num(&sim, 0, "HitDefVar(yaccel)") - 0.7).abs() < 1e-4);
+    assert!((manato_sim::trigger::num(&sim, 0, "HitDefVar(zaccel)") - 0.1).abs() < 1e-4);
+    assert!((manato_sim::trigger::num(&sim, 0, "HitDefVar(fall.zvelocity)") - 2.5).abs() < 1e-4);
     assert_eq!(
         manato_sim::trigger::num(&sim, 0, "HitDefVar(ground.velocity.x)"),
         -6.0
