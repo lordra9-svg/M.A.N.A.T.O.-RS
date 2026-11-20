@@ -1068,7 +1068,7 @@ pub fn apply_hit_at(
 pub fn resolve_projectiles(sim: &mut SimState) {
     let count = sim.projectiles.len();
     for i in 0..count {
-        let (owner, anim, time, facing, pos, z, hits, hitdef) = {
+        let (owner, anim, time, facing, pos, z, hits, hitdef, clsn_scale, clsn_angle) = {
             let p = &sim.projectiles[i];
             (
                 p.owner,
@@ -1079,6 +1079,8 @@ pub fn resolve_projectiles(sim: &mut SimState) {
                 p.z,
                 p.hits,
                 p.hitdef.clone(),
+                p.clsn_scale,
+                p.clsn_angle,
             )
         };
         if hits <= 0 || sim.projectiles[i].status != crate::projectile::ProjectileStatus::Active {
@@ -1119,7 +1121,8 @@ pub fn resolve_projectiles(sim: &mut SimState) {
             continue;
         }
 
-        let attack_boxes = projectile_boxes(sim, owner, anim, time, facing, pos);
+        let attack_boxes =
+            projectile_boxes(sim, owner, anim, time, facing, pos, clsn_scale, clsn_angle);
         let hurt_boxes = clsn_boxes(sim, defender, false);
         if attack_boxes.is_empty() || hurt_boxes.is_empty() {
             continue;
@@ -1151,6 +1154,7 @@ pub fn resolve_projectiles(sim: &mut SimState) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn projectile_boxes(
     sim: &SimState,
     owner: usize,
@@ -1158,12 +1162,17 @@ fn projectile_boxes(
     time: i32,
     facing: i32,
     pos: Vec2,
+    clsn_scale: Vec2,
+    clsn_angle: f32,
 ) -> Vec<Rect> {
-    projectile_group_boxes(sim, owner, anim_no, time, facing, pos, true)
+    projectile_group_boxes(
+        sim, owner, anim_no, time, facing, pos, clsn_scale, clsn_angle, true,
+    )
 }
 
 /// World-space collision boxes of one projectile animation group (`attack`
 /// selects Clsn1, otherwise Clsn2).
+#[allow(clippy::too_many_arguments)]
 fn projectile_group_boxes(
     sim: &SimState,
     owner: usize,
@@ -1171,6 +1180,8 @@ fn projectile_group_boxes(
     time: i32,
     facing: i32,
     pos: Vec2,
+    clsn_scale: Vec2,
+    clsn_angle: f32,
     attack: bool,
 ) -> Vec<Rect> {
     let char = &sim.assets.characters[sim.fighters[owner].char_id];
@@ -1187,7 +1198,41 @@ fn projectile_group_boxes(
     boxes
         .iter()
         .map(|b| {
-            let mut r = b.rect();
+            let (sin, cos) = clsn_angle.to_radians().sin_cos();
+            let map = |x: f32, y: f32| {
+                let x = x * clsn_scale.x;
+                let y = y * clsn_scale.y;
+                (x * cos - y * sin, x * sin + y * cos)
+            };
+            let corners = [
+                map(b.x1 as f32, b.y1 as f32),
+                map(b.x2 as f32, b.y1 as f32),
+                map(b.x2 as f32, b.y2 as f32),
+                map(b.x1 as f32, b.y2 as f32),
+            ];
+            let x1 = corners
+                .iter()
+                .map(|(x, _)| *x)
+                .fold(f32::INFINITY, f32::min);
+            let y1 = corners
+                .iter()
+                .map(|(_, y)| *y)
+                .fold(f32::INFINITY, f32::min);
+            let x2 = corners
+                .iter()
+                .map(|(x, _)| *x)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let y2 = corners
+                .iter()
+                .map(|(_, y)| *y)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let mut r = Rect::new(
+                x1.round() as i32,
+                y1.round() as i32,
+                x2.round() as i32,
+                y2.round() as i32,
+            )
+            .normalized();
             if facing < 0 {
                 r = r.mirror_x();
             }
@@ -1229,6 +1274,8 @@ pub(crate) fn proj_clsn_overlap(
         projectile.time,
         projectile.facing,
         projectile.pos,
+        projectile.clsn_scale,
+        projectile.clsn_angle,
         true,
     );
     let clsn2 = projectile_group_boxes(
@@ -1238,6 +1285,8 @@ pub(crate) fn proj_clsn_overlap(
         projectile.time,
         projectile.facing,
         projectile.pos,
+        projectile.clsn_scale,
+        projectile.clsn_angle,
         false,
     );
     any_overlap(&clsn1, &target_boxes) || any_overlap(&clsn2, &target_boxes)
@@ -1270,6 +1319,8 @@ pub fn resolve_projectile_clashes(sim: &mut SimState) {
                     projectile.time,
                     projectile.facing,
                     projectile.pos,
+                    projectile.clsn_scale,
+                    projectile.clsn_angle,
                     false,
                 )
             };

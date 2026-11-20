@@ -34,6 +34,11 @@ pub struct Projectile {
     /// `projxangle`/`projyangle` perspective rotation.
     pub x_angle: f32,
     pub y_angle: f32,
+    /// `projclsnscale`/`projclsnangle` collision-box transform.
+    pub clsn_scale: Vec2,
+    pub clsn_angle: f32,
+    /// `projwindow` screen-space clip rect.
+    pub window: Option<[f32; 4]>,
     /// `projxshear` applied to the sprite.
     pub x_shear: f32,
     /// `projprojection` perspective mode.

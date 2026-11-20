@@ -3665,6 +3665,23 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     let angle = num_param(sim, who, control, "projangle").unwrap_or(0.0);
     let x_angle = num_param(sim, who, control, "projxangle").unwrap_or(0.0);
     let y_angle = num_param(sim, who, control, "projyangle").unwrap_or(0.0);
+    let clsn_scale = control.get_pair("projclsnscale").unwrap_or((1.0, 1.0));
+    let clsn_angle = num_param(sim, who, control, "projclsnangle").unwrap_or(0.0);
+    let window = control.get("projwindow").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        if parts.len() < 4 {
+            return None;
+        }
+        let rect = [parts[0], parts[1], parts[2], parts[3]];
+        if rect.iter().all(|value| *value == 0.0) {
+            None
+        } else {
+            Some(rect)
+        }
+    });
     let x_shear = num_param(sim, who, control, "projxshear").unwrap_or(0.0);
     let projection = str_param(control, "projprojection")
         .map(crate::ProjectionMode::parse)
@@ -3730,6 +3747,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         angle,
         x_angle,
         y_angle,
+        clsn_scale: Vec2::new(clsn_scale.0, clsn_scale.1),
+        clsn_angle,
+        window,
         x_shear,
         projection,
         focal_length,
@@ -3849,6 +3869,15 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let angle = num_param(sim, who, control, "projangle");
     let x_angle = num_param(sim, who, control, "projxangle");
     let y_angle = num_param(sim, who, control, "projyangle");
+    let clsn_scale = control.get_pair("projclsnscale");
+    let clsn_angle = num_param(sim, who, control, "projclsnangle");
+    let window = control.get("projwindow").and_then(|raw| {
+        let parts: Vec<f32> = raw
+            .split(',')
+            .map(|part| trigger::num(sim, who, part.trim()))
+            .collect();
+        (parts.len() >= 4).then(|| [parts[0], parts[1], parts[2], parts[3]])
+    });
     let x_shear = num_param(sim, who, control, "projxshear");
     let projection = str_param(control, "projprojection").map(crate::ProjectionMode::parse);
     let focal_length = num_param(sim, who, control, "projfocallength").map(|v| v.max(1.0));
@@ -3920,6 +3949,15 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(value) = y_angle {
             projectile.y_angle = value;
+        }
+        if let Some((x, y)) = clsn_scale {
+            projectile.clsn_scale = Vec2::new(x, y);
+        }
+        if let Some(value) = clsn_angle {
+            projectile.clsn_angle = value;
+        }
+        if let Some(window) = window {
+            projectile.window = Some(window);
         }
         if let Some(x_shear) = x_shear {
             projectile.x_shear = x_shear;

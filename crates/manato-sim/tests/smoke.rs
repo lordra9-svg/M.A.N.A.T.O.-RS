@@ -6156,6 +6156,9 @@ fn proj_var_reports_active_projectile_fields() {
             ("projangle".into(), "15".into()),
             ("projxangle".into(), "10".into()),
             ("projyangle".into(), "-5".into()),
+            ("projclsnscale".into(), "2, 0.5".into()),
+            ("projclsnangle".into(), "15".into()),
+            ("projwindow".into(), "10, 20, 300, 200".into()),
             ("projxshear".into(), "0.25".into()),
             ("projlayerno".into(), "1".into()),
             ("projsprpriority".into(), "4".into()),
@@ -6246,6 +6249,9 @@ fn proj_var_reports_active_projectile_fields() {
     assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.z)"), 6.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, angle.x)"), 10.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, angle.y)"), -5.0);
+    assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 0.5));
+    assert_eq!(projectile.clsn_angle, 15.0);
+    assert_eq!(projectile.window, Some([10.0, 20.0, 300.0, 200.0]));
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
@@ -12295,6 +12301,9 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         angle: 0.0,
         x_angle: 0.0,
         y_angle: 0.0,
+        clsn_scale: manato_core::Vec2::new(1.0, 1.0),
+        clsn_angle: 0.0,
+        window: None,
         x_shear: 0.0,
         projection: manato_sim::ProjectionMode::Orthographic,
         focal_length: 1024.0,
@@ -12532,6 +12541,9 @@ fn modify_projectile_updates_live_projectile() {
             ("damage".into(), "40".into()),
             ("projanim".into(), "10".into()),
             ("accel".into(), "1, -2".into()),
+            ("projclsnscale".into(), "2, 3".into()),
+            ("projclsnangle".into(), "45".into()),
+            ("projwindow".into(), "5, 6, 300, 200".into()),
         ],
         line: 0,
     };
@@ -12543,6 +12555,9 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.hitdef.damage, 40);
     assert_eq!(projectile.anim, 10);
     assert_eq!(projectile.accel, manato_core::Vec2::new(1.0, -2.0));
+    assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 3.0));
+    assert_eq!(projectile.clsn_angle, 45.0);
+    assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));
 
     // An explicit id that matches nothing leaves projectiles untouched.
     let id = projectile.id;

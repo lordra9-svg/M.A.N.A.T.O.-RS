@@ -302,11 +302,13 @@ fn layer_scissor(layer: &manato_formats::stage::BgLayer) -> Option<[u32; 4]> {
     if x2 <= x1 || y2 <= y1 {
         return None;
     }
+    let left = x1.max(0.0);
+    let top = y1.max(0.0);
     Some([
-        x1.max(0.0) as u32,
-        y1.max(0.0) as u32,
-        (x2 - x1).max(0.0) as u32,
-        (y2 - y1).max(0.0) as u32,
+        left as u32,
+        top as u32,
+        (x2 - left).max(0.0) as u32,
+        (y2 - top).max(0.0) as u32,
     ])
 }
 
@@ -596,9 +598,26 @@ pub fn projectile_draw_order(
     order
 }
 
+/// `projwindow` clip rect in screen pixels, if declared.
+fn projectile_scissor(window: Option<[f32; 4]>) -> Option<[u32; 4]> {
+    let [x1, y1, x2, y2] = window?;
+    if x2 <= x1 || y2 <= y1 {
+        return None;
+    }
+    let left = x1.max(0.0);
+    let top = y1.max(0.0);
+    Some([
+        left as u32,
+        top as u32,
+        (x2 - left).max(0.0) as u32,
+        (y2 - top).max(0.0) as u32,
+    ])
+}
+
 fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, foreground: bool) {
     for index in projectile_draw_order(&sim.projectiles, foreground) {
         let projectile = &sim.projectiles[index];
+        painter.set_scissor(projectile_scissor(projectile.window));
         let char = &sim.assets.characters[sim.fighters[projectile.owner].char_id];
         let Some(anim) = char.animation(projectile.anim) else {
             continue;
@@ -693,6 +712,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
             angle,
         );
     }
+    painter.set_scissor(None);
 }
 
 fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
@@ -2138,6 +2158,20 @@ mod tests {
     use manato_sim::ProjectionMode;
 
     #[test]
+    fn projectile_scissor_clamps_and_rejects_empty() {
+        assert_eq!(
+            projectile_scissor(Some([10.0, 20.0, 30.0, 50.0])),
+            Some([10, 20, 20, 30])
+        );
+        assert_eq!(
+            projectile_scissor(Some([-5.0, -5.0, 5.0, 5.0])),
+            Some([0, 0, 5, 5])
+        );
+        assert_eq!(projectile_scissor(Some([10.0, 10.0, 10.0, 20.0])), None);
+        assert_eq!(projectile_scissor(None), None);
+    }
+
+    #[test]
     fn bg_layer_transform_reads_overrides() {
         let mut state =
             manato_sim::StageLayerState::from_layer(&manato_formats::stage::BgLayer::default());
@@ -2485,6 +2519,9 @@ mod tests {
             angle: 0.0,
             x_angle: 0.0,
             y_angle: 0.0,
+            clsn_scale: Vec2::new(1.0, 1.0),
+            clsn_angle: 0.0,
+            window: None,
             x_shear: 0.0,
             projection: ProjectionMode::Orthographic,
             focal_length: 1024.0,

@@ -88,7 +88,9 @@ Rules:
 - Projectiles honor `projscale`, `projangle`, `projxangle`/`projyangle`,
   `projxshear`, and `projprojection`/`projfocallength` in the same way as
   explods; an orthographic, unsheared, unrotated projectile uses the fast
-  sprite path.
+  sprite path. `projwindow` clips drawing to a screen-space rect, and
+  `projclsnscale`/`projclsnangle` scale/rotate collision boxes (rotated boxes
+  use axis-aligned bounds).
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.
