@@ -3636,6 +3636,14 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     };
     let (vx, vy, vz) = triplet(control, "velocity");
     let (ax, ay, az) = triplet(control, "accel");
+    let velmul = {
+        let (x, y, z) = triplet(control, "velmul");
+        if control.get("velmul").is_some() {
+            [x, y, z]
+        } else {
+            [1.0, 1.0, 1.0]
+        }
+    };
     let facing = sim.fighters[who].facing;
     let mut hitdef = HitDef::from_controller_for(
         control,
@@ -3739,6 +3747,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         pos,
         vel: Vec2::new(vx * facing as f32, vy),
         accel: Vec2::new(ax * facing as f32, ay),
+        velmul,
         z,
         vel_z: vz,
         accel_z: az,
@@ -3858,6 +3867,7 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         .get("velocity")
         .map(|_| triplet(control, "velocity"));
     let accel = control.get("accel").map(|_| triplet(control, "accel"));
+    let velmul = control.get("velmul").map(|_| triplet(control, "velmul"));
     let remove_time = int_param(sim, who, control, "projremovetime")
         .or_else(|| int_param(sim, who, control, "removetime"));
     let hits =
@@ -3921,6 +3931,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         if let Some((x, y, z)) = accel {
             projectile.accel = Vec2::new(x * facing as f32, y);
             projectile.accel_z = z;
+        }
+        if let Some((x, y, z)) = velmul {
+            projectile.velmul = [x, y, z];
         }
         if let Some(remove_time) = remove_time {
             projectile.remove_time = remove_time;

@@ -90,7 +90,8 @@ Rules:
   explods; an orthographic, unsheared, unrotated projectile uses the fast
   sprite path. `projwindow` clips drawing to a screen-space rect, and
   `projclsnscale`/`projclsnangle` scale/rotate collision boxes (rotated boxes
-  use axis-aligned bounds).
+  use axis-aligned bounds). `velmul` multiplies each velocity component after
+  acceleration every tick (default `1,1,1`).
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.

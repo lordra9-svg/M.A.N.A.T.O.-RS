@@ -2511,6 +2511,7 @@ mod tests {
             pos: Vec2::ZERO,
             vel: Vec2::ZERO,
             accel: Vec2::ZERO,
+            velmul: [1.0; 3],
             z: 0.0,
             vel_z: 0.0,
             accel_z: 0.0,

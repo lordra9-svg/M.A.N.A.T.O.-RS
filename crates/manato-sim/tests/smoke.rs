@@ -6137,6 +6137,37 @@ fn helper_var_reports_helper_metadata() {
 }
 
 #[test]
+fn projectile_velmul_scales_velocity() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("id".into(), "11".into()),
+            ("pos".into(), "-120, -120".into()),
+            ("velocity".into(), "8, 0, 0".into()),
+            ("velmul".into(), "0.5, 1, 1".into()),
+            ("projremovetime".into(), "10".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "ProjVar(11, 0, velmul.x)"),
+        0.5
+    );
+    assert_eq!(sim.projectiles[0].vel.x, 8.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles[0].vel.x, 4.0);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.projectiles[0].vel.x, 2.0);
+}
+
+#[test]
 fn proj_var_reports_active_projectile_fields() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -12293,6 +12324,7 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         pos: sim.fighters[1].pos,
         vel: manato_core::Vec2::ZERO,
         accel: manato_core::Vec2::ZERO,
+        velmul: [1.0; 3],
         z: 0.0,
         vel_z: 0.0,
         accel_z: 0.0,
@@ -12541,6 +12573,7 @@ fn modify_projectile_updates_live_projectile() {
             ("damage".into(), "40".into()),
             ("projanim".into(), "10".into()),
             ("accel".into(), "1, -2".into()),
+            ("velmul".into(), "2, 1, 1".into()),
             ("projclsnscale".into(), "2, 3".into()),
             ("projclsnangle".into(), "45".into()),
             ("projwindow".into(), "5, 6, 300, 200".into()),
@@ -12555,6 +12588,7 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.hitdef.damage, 40);
     assert_eq!(projectile.anim, 10);
     assert_eq!(projectile.accel, manato_core::Vec2::new(1.0, -2.0));
+    assert_eq!(projectile.velmul, [2.0, 1.0, 1.0]);
     assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 3.0));
     assert_eq!(projectile.clsn_angle, 45.0);
     assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));

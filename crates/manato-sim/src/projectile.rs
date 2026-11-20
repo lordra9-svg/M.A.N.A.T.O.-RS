@@ -22,6 +22,8 @@ pub struct Projectile {
     pub pos: Vec2,
     pub vel: Vec2,
     pub accel: Vec2,
+    /// Per-tick velocity multiplier applied after acceleration.
+    pub velmul: [f32; 3],
     /// Depth position (`offset` third component; follows the owner's `z`).
     pub z: f32,
     pub vel_z: f32,
@@ -183,9 +185,9 @@ impl Projectile {
         self.pos.x += self.vel.x;
         self.pos.y += self.vel.y;
         self.z += self.vel_z;
-        self.vel.x += self.accel.x;
-        self.vel.y += self.accel.y;
-        self.vel_z += self.accel_z;
+        self.vel.x = (self.vel.x + self.accel.x) * self.velmul[0];
+        self.vel.y = (self.vel.y + self.accel.y) * self.velmul[1];
+        self.vel_z = (self.vel_z + self.accel_z) * self.velmul[2];
         // Ikemen decrements the countdown after the frame's contact checks.
         if self.remove_time > 0 {
             self.remove_time -= 1;
