@@ -348,9 +348,10 @@ missing redirect targets make the trigger false.
   `ReversalDefAttr = attr` (matches the active `ReversalDef` attr).
   `MoveCountered` is set when the current hit connected while the defender
   was attacking (`MoveType = A`) and is cleared by `MoveHitReset`.
-  `MoveHitVar(playerid|id|playerno|uniqhit)` reports the last unique target
-  (1-based; `id` is the deprecated alias) or the unique-target count; the
-  cornerpush/spark/power/frame/overridden fields are unmodeled and read 0.
+  `MoveHitVar` reports the last unique target (`playerid`/`id`, 1-based),
+  `playerno`, `uniqhit`, the applied `cornerpush.veloff`, the current-frame
+  `frame` flag, gained `power`, and `sparkx`/`sparky` from the last connected
+  hit. `overridden` remains false.
 - Commands: `Command` (reads the active state bank's command list),
   `SelfCommand` (always reads the fighter's own command list even when a
   borrowed state bank is active)

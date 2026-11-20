@@ -479,6 +479,12 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                     Value::Int(target.map(|index| index as i32 + 1).unwrap_or(0))
                 }
                 "uniqhit" => Value::Int(sim.fighters[who].hit.hit_targets.len() as i32),
+                "cornerpush.veloff" => Value::Float(sim.fighters[who].mhv_cornerpush_veloff),
+                "frame" => Value::Bool(sim.fighters[who].mhv_frame),
+                "overridden" => Value::Bool(false),
+                "power" => Value::Float(sim.fighters[who].mhv_power),
+                "sparkx" => Value::Float(sim.fighters[who].mhv_spark.x),
+                "sparky" => Value::Float(sim.fighters[who].mhv_spark.y),
                 _ => Value::Int(0),
             }
         }

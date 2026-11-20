@@ -1307,7 +1307,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(22u32, self.asset_id(), self))
+        bincode::serialize(&(23u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1326,7 +1326,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 22 {
+        if version != 23 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1761,6 +1761,8 @@ impl SimState {
             }
             // AssertSpecial and AssertInput are per-tick assertions.
             fighter.assert_flags = 0;
+            fighter.mhv_frame = false;
+            fighter.mhv_power = 0.0;
             fighter.asserted_input = PlayerInput::default();
             fighter.analog_axes = [0.0; 6];
             // `Depth`/`DepthBound` are per-tick; shaders expire after `time`.
@@ -3200,6 +3202,10 @@ impl SimState {
             fighter.z = 0.0;
             fighter.vel_z = 0.0;
             fighter.air_jump_count = 0;
+            fighter.mhv_cornerpush_veloff = 0.0;
+            fighter.mhv_frame = false;
+            fighter.mhv_power = 0.0;
+            fighter.mhv_spark = Vec2::ZERO;
             fighter.depth_player = [0.0, 0.0];
             fighter.depth_edge = [0.0, 0.0];
             fighter.depth_bound = false;
@@ -4385,6 +4391,11 @@ impl SimState {
             h.write_f32(f.z);
             h.write_f32(f.vel_z);
             h.write_i32(f.air_jump_count);
+            h.write_f32(f.mhv_cornerpush_veloff);
+            h.write_bool(f.mhv_frame);
+            h.write_f32(f.mhv_power);
+            h.write_f32(f.mhv_spark.x);
+            h.write_f32(f.mhv_spark.y);
             h.write_f32(f.depth_player[0]);
             h.write_f32(f.depth_player[1]);
             h.write_f32(f.depth_edge[0]);

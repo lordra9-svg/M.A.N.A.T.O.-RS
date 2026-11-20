@@ -805,10 +805,26 @@ fn corner_push_adds_velocity_near_the_stage_edge() {
     // defender away from a right-facing attacker (screen +X).
     push.ground_velocity = manato_core::Vec2::new(-4.0, 0.0);
     push.ground_cornerpush = -8.0;
+    push.getpower = (15, 5);
+    push.sparkxy = manato_core::Vec2::new(-12.0, -30.0);
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &push, false, origin, 1, true);
     // Corner push is world-space, so it cancels the +4 pushback.
     assert_eq!(sim.fighters[1].hit.vars.x_vel, -4.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "MoveHitVar(cornerpush.veloff)"),
+        -8.0
+    );
+    assert!(manato_sim::trigger::flag(&sim, 0, "MoveHitVar(frame)"));
+    assert_eq!(manato_sim::trigger::num(&sim, 0, "MoveHitVar(power)"), 15.0);
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "MoveHitVar(sparkx)"),
+        -12.0
+    );
+    assert_eq!(
+        manato_sim::trigger::num(&sim, 0, "MoveHitVar(sparky)"),
+        -30.0
+    );
 
     // Away from the corner the push does not apply.
     sim.fighters[1].pos.x = 0.0;

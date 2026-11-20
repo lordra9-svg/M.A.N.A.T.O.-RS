@@ -248,6 +248,11 @@ pub struct Fighter {
     pub vel_z: f32,
     /// Built-in air jumps consumed since leaving the ground.
     pub air_jump_count: i32,
+    /// Last-hit attacker variables (`MoveHitVar`).
+    pub mhv_cornerpush_veloff: f32,
+    pub mhv_frame: bool,
+    pub mhv_power: f32,
+    pub mhv_spark: Vec2,
     pub facing: i32,
 
     pub state_no: i32,
@@ -542,6 +547,10 @@ impl Fighter {
             z: 0.0,
             vel_z: 0.0,
             air_jump_count: 0,
+            mhv_cornerpush_veloff: 0.0,
+            mhv_frame: false,
+            mhv_power: 0.0,
+            mhv_spark: Vec2::ZERO,
             facing,
             state_no: 0,
             prev_state_no: 0,

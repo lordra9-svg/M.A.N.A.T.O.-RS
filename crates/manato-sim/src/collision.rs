@@ -824,6 +824,10 @@ pub fn apply_hit_at(
     };
     let attacker_power = &mut sim.fighters[attacker];
     attacker_power.power = (attacker_power.power + getpower as f32).min(crate::MAX_POWER);
+    attacker_power.mhv_cornerpush_veloff = corner_push;
+    attacker_power.mhv_frame = true;
+    attacker_power.mhv_power = getpower as f32;
+    attacker_power.mhv_spark = hitdef.sparkxy;
     let defender_power = &mut sim.fighters[defender];
     defender_power.power = (defender_power.power + givepower as f32).min(crate::MAX_POWER);
 
