@@ -93,7 +93,9 @@ Rules:
   use axis-aligned bounds). `velmul` multiplies each velocity component after
   acceleration every tick (default `1,1,1`). `projreflection > 0` draws a
   stage-styled reflection; negative values draw one only when the projectile
-  also has a shadow color.
+  also has a shadow color. `shader.name`/`shader.param0..15` and
+  `shader.tex1.*`/`shader.tex2.*` bind a custom shader, its indexed params,
+  and referenced textures for the projectile.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.

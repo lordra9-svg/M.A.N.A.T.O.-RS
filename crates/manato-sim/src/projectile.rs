@@ -41,6 +41,13 @@ pub struct Projectile {
     pub clsn_angle: f32,
     /// `projwindow` screen-space clip rect.
     pub window: Option<[f32; 4]>,
+    /// `shader.*` custom shader overrides.
+    pub shader: Option<String>,
+    pub shader_params: Option<[f32; 16]>,
+    pub tex1_anim: Option<i32>,
+    pub tex1_spr: Option<(i32, i32)>,
+    pub tex2_anim: Option<i32>,
+    pub tex2_spr: Option<(i32, i32)>,
     /// `projxshear` applied to the sprite.
     pub x_shear: f32,
     /// `projprojection` perspective mode.

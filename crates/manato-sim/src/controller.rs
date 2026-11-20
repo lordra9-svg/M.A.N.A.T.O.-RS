@@ -3690,6 +3690,33 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
             Some(rect)
         }
     });
+    let shader = control
+        .get("shader.name")
+        .map(|raw| {
+            let name = raw.trim().trim_matches('"').to_string();
+            if name.is_empty() || name.eq_ignore_ascii_case("none") {
+                None
+            } else {
+                Some(name)
+            }
+        })
+        .unwrap_or(None);
+    let mut shader_params = [0.0f32; 16];
+    let mut has_shader_params = false;
+    for (index, slot) in shader_params.iter_mut().enumerate() {
+        if let Some(raw) = control.get(&format!("shader.param{index}")) {
+            *slot = trigger::num(sim, who, raw);
+            has_shader_params = true;
+        }
+    }
+    let tex1_anim = int_param(sim, who, control, "shader.tex1.anim");
+    let tex1_spr = control
+        .get_pair("shader.tex1.spr")
+        .map(|(group, index)| (group as i32, index as i32));
+    let tex2_anim = int_param(sim, who, control, "shader.tex2.anim");
+    let tex2_spr = control
+        .get_pair("shader.tex2.spr")
+        .map(|(group, index)| (group as i32, index as i32));
     let x_shear = num_param(sim, who, control, "projxshear").unwrap_or(0.0);
     let projection = str_param(control, "projprojection")
         .map(crate::ProjectionMode::parse)
@@ -3759,6 +3786,12 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         clsn_scale: Vec2::new(clsn_scale.0, clsn_scale.1),
         clsn_angle,
         window,
+        shader,
+        shader_params: has_shader_params.then_some(shader_params),
+        tex1_anim,
+        tex1_spr,
+        tex2_anim,
+        tex2_spr,
         x_shear,
         projection,
         focal_length,
@@ -3888,6 +3921,14 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
             .collect();
         (parts.len() >= 4).then(|| [parts[0], parts[1], parts[2], parts[3]])
     });
+    let shader = control.get("shader.name").map(|raw| {
+        let name = raw.trim().trim_matches('"').to_string();
+        if name.is_empty() || name.eq_ignore_ascii_case("none") {
+            None
+        } else {
+            Some(name)
+        }
+    });
     let x_shear = num_param(sim, who, control, "projxshear");
     let projection = str_param(control, "projprojection").map(crate::ProjectionMode::parse);
     let focal_length = num_param(sim, who, control, "projfocallength").map(|v| v.max(1.0));
@@ -3971,6 +4012,9 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if let Some(window) = window {
             projectile.window = Some(window);
+        }
+        if let Some(shader) = &shader {
+            projectile.shader = shader.clone();
         }
         if let Some(x_shear) = x_shear {
             projectile.x_shear = x_shear;

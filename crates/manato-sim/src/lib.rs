@@ -1307,7 +1307,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(24u32, self.asset_id(), self))
+        bincode::serialize(&(25u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1326,7 +1326,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 24 {
+        if version != 25 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -4197,6 +4197,42 @@ impl SimState {
             if let Some(window) = p.window {
                 for value in window {
                     h.write_f32(value);
+                }
+            }
+            match &p.shader {
+                Some(name) => {
+                    h.write_bool(true);
+                    h.write_u32(name.len() as u32);
+                    h.write_bytes(name.as_bytes());
+                }
+                None => h.write_bool(false),
+            }
+            match p.shader_params {
+                Some(params) => {
+                    h.write_bool(true);
+                    for value in params {
+                        h.write_f32(value);
+                    }
+                }
+                None => h.write_bool(false),
+            }
+            for pair in [p.tex1_anim, p.tex2_anim] {
+                match pair {
+                    Some(value) => {
+                        h.write_bool(true);
+                        h.write_i32(value);
+                    }
+                    None => h.write_bool(false),
+                }
+            }
+            for pair in [p.tex1_spr, p.tex2_spr] {
+                match pair {
+                    Some((group, index)) => {
+                        h.write_bool(true);
+                        h.write_i32(group);
+                        h.write_i32(index);
+                    }
+                    None => h.write_bool(false),
                 }
             }
         }

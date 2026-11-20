@@ -6213,6 +6213,11 @@ fn proj_var_reports_active_projectile_fields() {
             ("projclsnscale".into(), "2, 0.5".into()),
             ("projclsnangle".into(), "15".into()),
             ("projwindow".into(), "10, 20, 300, 200".into()),
+            ("shader.name".into(), "glow".into()),
+            ("shader.param0".into(), "0.5".into()),
+            ("shader.param3".into(), "2.0".into()),
+            ("shader.tex1.anim".into(), "1500".into()),
+            ("shader.tex2.spr".into(), "5, 6".into()),
             ("projxshear".into(), "0.25".into()),
             ("projlayerno".into(), "1".into()),
             ("projsprpriority".into(), "4".into()),
@@ -6306,6 +6311,12 @@ fn proj_var_reports_active_projectile_fields() {
     assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 0.5));
     assert_eq!(projectile.clsn_angle, 15.0);
     assert_eq!(projectile.window, Some([10.0, 20.0, 300.0, 200.0]));
+    assert_eq!(projectile.shader.as_deref(), Some("glow"));
+    let params = projectile.shader_params.expect("shader params");
+    assert!((params[0] - 0.5).abs() < 1e-5);
+    assert!((params[3] - 2.0).abs() < 1e-5);
+    assert_eq!(projectile.tex1_anim, Some(1500));
+    assert_eq!(projectile.tex2_spr, Some((5, 6)));
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
@@ -12363,6 +12374,12 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         clsn_scale: manato_core::Vec2::new(1.0, 1.0),
         clsn_angle: 0.0,
         window: None,
+        shader: None,
+        shader_params: None,
+        tex1_anim: None,
+        tex1_spr: None,
+        tex2_anim: None,
+        tex2_spr: None,
         x_shear: 0.0,
         projection: manato_sim::ProjectionMode::Orthographic,
         focal_length: 1024.0,
@@ -12604,6 +12621,7 @@ fn modify_projectile_updates_live_projectile() {
             ("projclsnscale".into(), "2, 3".into()),
             ("projclsnangle".into(), "45".into()),
             ("projwindow".into(), "5, 6, 300, 200".into()),
+            ("shader.name".into(), "sparkle".into()),
         ],
         line: 0,
     };
@@ -12619,6 +12637,7 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 3.0));
     assert_eq!(projectile.clsn_angle, 45.0);
     assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));
+    assert_eq!(projectile.shader.as_deref(), Some("sparkle"));
 
     // An explicit id that matches nothing leaves projectiles untouched.
     let id = projectile.id;

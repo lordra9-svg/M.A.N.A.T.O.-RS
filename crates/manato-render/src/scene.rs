@@ -614,11 +614,47 @@ fn projectile_scissor(window: Option<[f32; 4]>) -> Option<[u32; 4]> {
     ])
 }
 
+/// Resolves a projectile `shader.texN` reference from its animation or sprite
+/// pair.
+fn projectile_tex_sprite(
+    character: &manato_formats::Character,
+    anim: Option<i32>,
+    spr: Option<(i32, i32)>,
+    time: i32,
+) -> Option<(i32, i32)> {
+    if let Some(anim_no) = anim {
+        let animation = character.animation(anim_no)?;
+        let interpolated = animation.pose_at(time)?;
+        let frame = animation.frames.get(interpolated.frame)?;
+        Some((frame.group, frame.index))
+    } else {
+        spr
+    }
+}
+
 fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, foreground: bool) {
     for index in projectile_draw_order(&sim.projectiles, foreground) {
         let projectile = &sim.projectiles[index];
         painter.set_scissor(projectile_scissor(projectile.window));
         let char = &sim.assets.characters[sim.fighters[projectile.owner].char_id];
+        painter.set_shader(projectile.shader.clone());
+        painter.set_shader_params(projectile.shader_params);
+        let bank = bank::CHARACTER_BASE + projectile.owner as u8;
+        let tex1 = projectile_tex_sprite(
+            char,
+            projectile.tex1_anim,
+            projectile.tex1_spr,
+            projectile.time,
+        )
+        .map(|(group, index)| (bank, group, index));
+        let tex2 = projectile_tex_sprite(
+            char,
+            projectile.tex2_anim,
+            projectile.tex2_spr,
+            projectile.time,
+        )
+        .map(|(group, index)| (bank, group, index));
+        painter.set_shader_textures(tex1, tex2);
         let Some(anim) = char.animation(projectile.anim) else {
             continue;
         };
@@ -2614,6 +2650,12 @@ mod tests {
             clsn_scale: Vec2::new(1.0, 1.0),
             clsn_angle: 0.0,
             window: None,
+            shader: None,
+            shader_params: None,
+            tex1_anim: None,
+            tex1_spr: None,
+            tex2_anim: None,
+            tex2_spr: None,
             x_shear: 0.0,
             projection: ProjectionMode::Orthographic,
             focal_length: 1024.0,
