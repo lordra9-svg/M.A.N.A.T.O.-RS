@@ -635,7 +635,9 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
         let bank = bank::CHARACTER_BASE + projectile.owner as u8;
         let color = global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.all_pal);
 
-        if projectile.x_shear != 0.0
+        if projectile.x_angle != 0.0
+            || projectile.y_angle != 0.0
+            || projectile.x_shear != 0.0
             || projectile.projection != manato_sim::ProjectionMode::Orthographic
         {
             let Some(atlas_sprite) = atlas.get(bank, sprite.group, sprite.index) else {
@@ -655,8 +657,8 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
             let corners = project_quad(
                 dest,
                 angle,
-                0.0,
-                0.0,
+                projectile.x_angle,
+                projectile.y_angle,
                 projectile.x_shear,
                 projectile.projection,
                 focal,
@@ -2481,6 +2483,8 @@ mod tests {
             facing: 1,
             scale: Vec2::new(1.0, 1.0),
             angle: 0.0,
+            x_angle: 0.0,
+            y_angle: 0.0,
             x_shear: 0.0,
             projection: ProjectionMode::Orthographic,
             focal_length: 1024.0,

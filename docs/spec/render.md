@@ -85,9 +85,10 @@ Rules:
   disabled before the next pass.
 - `assertspecial = invisible` hides the owning fighter and its shadows but
   not its explods.
-- Projectiles honor `projscale`, `projangle`, `projxshear`, and
-  `projprojection`/`projfocallength` in the same way as explods; an
-  orthographic, unsheared projectile uses the fast sprite path.
+- Projectiles honor `projscale`, `projangle`, `projxangle`/`projyangle`,
+  `projxshear`, and `projprojection`/`projfocallength` in the same way as
+  explods; an orthographic, unsheared, unrotated projectile uses the fast
+  sprite path.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.

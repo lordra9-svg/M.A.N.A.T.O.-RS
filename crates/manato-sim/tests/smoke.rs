@@ -6154,6 +6154,8 @@ fn proj_var_reports_active_projectile_fields() {
             ("projremovetime".into(), "50".into()),
             ("projscale".into(), "2, 0.5".into()),
             ("projangle".into(), "15".into()),
+            ("projxangle".into(), "10".into()),
+            ("projyangle".into(), "-5".into()),
             ("projxshear".into(), "0.25".into()),
             ("projlayerno".into(), "1".into()),
             ("projsprpriority".into(), "4".into()),
@@ -6242,6 +6244,8 @@ fn proj_var_reports_active_projectile_fields() {
     assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.x)"), 4.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.y)"), -5.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, remvelocity.z)"), 6.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, angle.x)"), 10.0);
+    assert_eq!(num(&sim, "ProjVar(7, 0, angle.y)"), -5.0);
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
@@ -12289,6 +12293,8 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         facing: 1,
         scale: manato_core::Vec2::new(1.0, 1.0),
         angle: 0.0,
+        x_angle: 0.0,
+        y_angle: 0.0,
         x_shear: 0.0,
         projection: manato_sim::ProjectionMode::Orthographic,
         focal_length: 1024.0,

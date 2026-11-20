@@ -31,6 +31,9 @@ pub struct Projectile {
     pub scale: Vec2,
     /// `projangle` added to the frame angle in degrees.
     pub angle: f32,
+    /// `projxangle`/`projyangle` perspective rotation.
+    pub x_angle: f32,
+    pub y_angle: f32,
     /// `projxshear` applied to the sprite.
     pub x_shear: f32,
     /// `projprojection` perspective mode.
