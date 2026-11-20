@@ -144,8 +144,13 @@ impl Renderer {
     /// Creates a renderer without a window surface. Used for screenshots and
     /// tests.
     pub fn new_offscreen() -> anyhow::Result<Self> {
+        Self::new_offscreen_with_backend(wgpu::Backends::PRIMARY)
+    }
+
+    /// Creates an offscreen renderer with an explicit backend mask.
+    pub fn new_offscreen_with_backend(backends: wgpu::Backends) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY,
+            backends,
             ..Default::default()
         });
         Self::new_with_instance(instance, None, GAME_FORMAT)
@@ -171,6 +176,13 @@ impl Renderer {
             force_fallback_adapter: false,
         }))
         .context("no suitable GPU adapter found")?;
+        let info = adapter.get_info();
+        log::info!(
+            "GPU adapter: {} (backend {:?}, type {:?})",
+            info.name,
+            info.backend,
+            info.device_type
+        );
 
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("manato device"),

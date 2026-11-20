@@ -49,8 +49,8 @@ glibc shared objects, so use the glibc build for GPU rendering.
 Requirements:
 
 - Rust 1.84 or newer
-- A GPU/backend supported by `wgpu` (Vulkan on Linux is what this was developed
-  against)
+- A GPU/backend supported by `wgpu` (Vulkan is the default; `--backend gl`
+  forces OpenGL, and `auto` allows any compiled backend with fallback)
 - PulseAudio or PipeWire's Pulse server for audio output; the engine falls back
   to silence when neither is available
 - `libudev` development headers on Linux for gamepad support
@@ -121,6 +121,7 @@ Modes:
   --synctest <n>      Run n ticks through GGRS rollback verification
   --screenshot <png>  Save the final frame (headless)
   --scale <n>         Window integer scale (default 3)
+  --backend <name>    auto (default), vulkan, gl, metal, or dx12
 ```
 
 Relative `--p1`, `--p2`, and `--stage` paths are resolved against `--root`.

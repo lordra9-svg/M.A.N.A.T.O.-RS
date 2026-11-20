@@ -166,7 +166,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | I-01 | Keyboard input | Required | Required | Verified | Window run |
-| I-02 | Gamepad input | Required | Required | Partial | gilrs backend, d-pad/stick/buttons mapped; hardware matrix pending |
+| I-02 | Gamepad input | Required | Required | Partial | gilrs backend, d-pad/stick/buttons mapped, `--backend auto|vulkan|gl|metal|dx12` with adapter logging; hardware matrix pending |
 | I-03 | Remapping | Required | Required | Partial | TOML keyboard bindings; gamepad remap pending |
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |

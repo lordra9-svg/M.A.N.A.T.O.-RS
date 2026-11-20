@@ -61,6 +61,7 @@ struct Options {
     turn_key: Option<String>,
     turn_realm: Option<String>,
     scale: u32,
+    backend: Option<String>,
     menu: bool,
     menu_screen: String,
     p1_keys: KeyBindings,
@@ -107,6 +108,7 @@ impl Default for Options {
             turn_key: None,
             turn_realm: None,
             scale: 3,
+            backend: None,
             menu: false,
             menu_screen: "title".into(),
             p1_keys: KeyBindings::default(),
@@ -511,6 +513,12 @@ impl Options {
                     opts.scale = value(i)?.parse::<u32>()?.max(1);
                     i += 2;
                 }
+                "--backend" => {
+                    let backend = value(i)?.to_ascii_lowercase();
+                    backend_mask(Some(&backend))?;
+                    opts.backend = Some(backend);
+                    i += 2;
+                }
                 "-h" | "--help" => {
                     print_help();
                     std::process::exit(0);
@@ -600,6 +608,7 @@ Content:
   --ai <level>        CPU level for slot 2, 0 = human (default 6)
   --rounds <n>        Rounds needed to win (default 2)
   --round-time <s>    Round timer in seconds (default 99)
+  --backend <name>    GPU backend: auto (default), vulkan, gl, metal, dx12
 
 Modes:
   --menu              Start at the title screen (front end)
@@ -962,6 +971,21 @@ fn load_match(opts: &Options) -> anyhow::Result<SimState> {
     ))
 }
 
+/// Maps `--backend` to a wgpu backend mask; `auto` allows every compiled
+/// backend so the adapter request can fall back (e.g. Vulkan then GL).
+fn backend_mask(value: Option<&str>) -> anyhow::Result<wgpu::Backends> {
+    match value.map(|value| value.to_ascii_lowercase()).as_deref() {
+        None | Some("auto") => Ok(wgpu::Backends::all()),
+        Some("vulkan") | Some("vk") => Ok(wgpu::Backends::VULKAN),
+        Some("gl") | Some("gles") | Some("opengl") => Ok(wgpu::Backends::GL),
+        Some("metal") => Ok(wgpu::Backends::METAL),
+        Some("dx12") | Some("d3d12") => Ok(wgpu::Backends::DX12),
+        Some(other) => {
+            anyhow::bail!("unknown backend {other}; expected auto, vulkan, gl, metal, or dx12")
+        }
+    }
+}
+
 fn headless_inputs(sim: &SimState, ai_level: i32) -> [PlayerInput; 2] {
     if ai_level > 0 {
         [
@@ -981,7 +1005,8 @@ fn run_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
         return run_frontend_headless(opts, frames);
     }
     let mut sim = load_match(opts)?;
-    let mut renderer = Renderer::new_offscreen()?;
+    let mut renderer =
+        Renderer::new_offscreen_with_backend(backend_mask(opts.backend.as_deref())?)?;
     renderer.load_assets(&sim);
 
     for _ in 0..frames {
@@ -1016,7 +1041,8 @@ fn run_storyboard_headless(
     let storyboard = manato_formats::storyboard::Storyboard::load(&path)
         .with_context(|| format!("failed to load storyboard {}", path.display()))?;
     let mut player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
-    let mut renderer = Renderer::new_offscreen()?;
+    let mut renderer =
+        Renderer::new_offscreen_with_backend(backend_mask(opts.backend.as_deref())?)?;
     renderer.load_storyboard(&storyboard);
     let audio = AudioEngine::new();
     let mut music_scene = usize::MAX;
@@ -1108,7 +1134,8 @@ fn run_frontend_headless(opts: &Options, frames: u32) -> anyhow::Result<()> {
             FrontendScreen::Fight | FrontendScreen::Continue => {}
         }
     }
-    let mut renderer = Renderer::new_offscreen()?;
+    let mut renderer =
+        Renderer::new_offscreen_with_backend(backend_mask(opts.backend.as_deref())?)?;
     renderer.load_frontend(Some(&frontend.screenpack), &frontend.faces);
     match frontend.screen {
         FrontendScreen::Select => {
@@ -1796,7 +1823,7 @@ fn run_window(opts: Options) -> anyhow::Result<()> {
         None
     };
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::PRIMARY,
+        backends: backend_mask(opts.backend.as_deref())?,
         ..Default::default()
     });
     let event_loop = EventLoop::new()?;
@@ -2989,6 +3016,21 @@ fn player_input(keys: &HashSet<KeyCode>, bindings: &KeyBindings) -> PlayerInput 
 mod tests {
     #![allow(clippy::field_reassign_with_default)]
     use super::*;
+
+    #[test]
+    fn backend_selection_masks_are_explicit() {
+        assert_eq!(backend_mask(None).expect("auto"), wgpu::Backends::all());
+        assert_eq!(
+            backend_mask(Some("vulkan")).expect("vulkan"),
+            wgpu::Backends::VULKAN
+        );
+        assert_eq!(backend_mask(Some("GL")).expect("gl"), wgpu::Backends::GL);
+        assert_eq!(
+            backend_mask(Some("metal")).expect("metal"),
+            wgpu::Backends::METAL
+        );
+        assert!(backend_mask(Some("bogus")).is_err());
+    }
 
     #[test]
     fn gamepad_maps_buttons_and_dpad() {
