@@ -6191,6 +6191,39 @@ fn projectile_velmul_scales_velocity() {
 }
 
 #[test]
+fn projectile_afterimage_emits_and_expires() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].facing = 1;
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "1500".into()),
+            ("id".into(), "12".into()),
+            ("pos".into(), "-120, -120".into()),
+            ("velocity".into(), "4, 0".into()),
+            ("afterimage.time".into(), "3".into()),
+            ("afterimage.length".into(), "2".into()),
+            ("afterimage.timegap".into(), "1".into()),
+            ("projremovetime".into(), "20".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(!sim.projectiles[0].after_images.is_empty());
+
+    // Ghosts age out after their length, and emission stops at `time`.
+    for _ in 0..6 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.projectiles[0].after_images.is_empty());
+    assert!(sim.projectiles[0].after_image.is_none());
+}
+
+#[test]
 fn projectile_supermovetime_advances_during_pause() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -6257,6 +6290,10 @@ fn proj_var_reports_active_projectile_fields() {
             ("shader.afterimage".into(), "1".into()),
             ("ownpal".into(), "1".into()),
             ("remappal".into(), "3, 4".into()),
+            ("afterimage.time".into(), "6".into()),
+            ("afterimage.length".into(), "4".into()),
+            ("afterimage.timegap".into(), "2".into()),
+            ("afterimage.trans".into(), "add".into()),
             ("projxshear".into(), "0.25".into()),
             ("projlayerno".into(), "1".into()),
             ("projsprpriority".into(), "4".into()),
@@ -6364,6 +6401,11 @@ fn proj_var_reports_active_projectile_fields() {
     assert_eq!(projectile.remap_pal, Some((3, 4)));
     assert_eq!(num(&sim, "ProjVar(7, 0, drawpal.group)"), 3.0);
     assert_eq!(num(&sim, "ProjVar(7, 0, drawpal.index)"), 4.0);
+    let after = projectile.after_image.as_ref().expect("afterimage");
+    assert_eq!(after.time, 6);
+    assert_eq!(after.life, 4);
+    assert_eq!(after.interval, 2);
+    assert!(after.add);
     assert_eq!(
         manato_sim::trigger::int(&sim, 0, "ProjVar(7, 0, teamside)"),
         sim.fighters[0].side as i32 + 1
@@ -12435,6 +12477,8 @@ fn projectile_hit_limit_consumes_hits_and_expires() {
         shader_afterimage: false,
         own_pal: false,
         remap_pal: None,
+        after_image: None,
+        after_images: Vec::new(),
         x_shear: 0.0,
         projection: manato_sim::ProjectionMode::Orthographic,
         focal_length: 1024.0,
@@ -12681,6 +12725,7 @@ fn modify_projectile_updates_live_projectile() {
             ("projclsnangle".into(), "45".into()),
             ("projwindow".into(), "5, 6, 300, 200".into()),
             ("shader.name".into(), "sparkle".into()),
+            ("afterimage.time".into(), "5".into()),
         ],
         line: 0,
     };
@@ -12697,6 +12742,7 @@ fn modify_projectile_updates_live_projectile() {
     assert_eq!(projectile.pause_move_time, 3);
     assert!(projectile.own_pal);
     assert_eq!(projectile.remap_pal, Some((5, 6)));
+    assert!(projectile.after_image.is_some());
     assert_eq!(projectile.clsn_scale, manato_core::Vec2::new(2.0, 3.0));
     assert_eq!(projectile.clsn_angle, 45.0);
     assert_eq!(projectile.window, Some([5.0, 6.0, 300.0, 200.0]));

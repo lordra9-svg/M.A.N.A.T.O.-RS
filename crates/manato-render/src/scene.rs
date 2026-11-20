@@ -697,6 +697,10 @@ fn draw_projectile_shadow(
     );
 }
 
+fn projectile_ghost_tint(ghost: &manato_sim::projectile::ProjectileGhost) -> [f32; 4] {
+    [1.0, 1.0, 1.0, ghost.alpha]
+}
+
 fn draw_projectiles(
     painter: &mut Painter,
     atlas: &SpriteAtlas,
@@ -758,6 +762,46 @@ fn draw_projectiles(
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
+        for ghost in &projectile.after_images {
+            let Some(ghost_pose) = anim.pose_at(ghost.anim_time) else {
+                continue;
+            };
+            let Some(ghost_frame) = anim.frames.get(ghost_pose.frame) else {
+                continue;
+            };
+            let Some(ghost_sprite) = char.sprites.get(ghost_frame.group, ghost_frame.index) else {
+                continue;
+            };
+            let ghost_pose = Pose::from_pose(ghost_frame, &ghost_pose);
+            let ghost_bank = projectile_bank(sim, banks, projectile, ghost_sprite);
+            let restore = painter.depth();
+            if ghost.z != 0.0 {
+                painter.set_depth((0.5 + ghost.z * 0.001).clamp(0.05, 0.95));
+            }
+            if let Some(state) = &projectile.after_image {
+                painter.set_palfx([0.0; 3], state.color, state.hue, state.invert);
+            }
+            draw_sprite(
+                painter,
+                atlas,
+                ghost_bank,
+                ghost_sprite,
+                sim.screen_pos(ghost.pos),
+                ghost_pose.offset,
+                ghost.facing,
+                Vec2::new(
+                    projectile.scale.x * ghost_pose.scale.x * sim.camera.scale,
+                    projectile.scale.y * ghost_pose.scale.y * sim.camera.scale,
+                ),
+                ghost_pose.flip_h,
+                ghost_pose.flip_v,
+                if ghost.add { Blend::Add } else { Blend::Normal },
+                global_tint(projectile_ghost_tint(ghost), &sim.all_pal),
+                ghost_pose.angle,
+            );
+            painter.reset_palfx();
+            painter.set_depth(restore);
+        }
         if projectile_shadow_shader(projectile) {
             painter.set_shader(projectile.shader.clone());
             painter.set_shader_params(projectile.shader_params);
@@ -2399,6 +2443,21 @@ mod tests {
     use manato_sim::ProjectionMode;
 
     #[test]
+    fn projectile_ghost_tint_uses_alpha() {
+        use manato_sim::projectile::ProjectileGhost;
+        let ghost = ProjectileGhost {
+            pos: Vec2::ZERO,
+            z: 0.0,
+            anim_time: 3,
+            facing: 1,
+            life: 4,
+            alpha: 0.4,
+            add: true,
+        };
+        assert_eq!(projectile_ghost_tint(&ghost), [1.0, 1.0, 1.0, 0.4]);
+    }
+
+    #[test]
     fn projectile_shadow_shader_requires_name_and_flag() {
         let mut projectile = test_projectile(0, 0);
         projectile.shader = None;
@@ -2814,6 +2873,8 @@ mod tests {
             shader_afterimage: false,
             own_pal: false,
             remap_pal: None,
+            after_image: None,
+            after_images: Vec::new(),
             x_shear: 0.0,
             projection: ProjectionMode::Orthographic,
             focal_length: 1024.0,

@@ -3733,6 +3733,44 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
             .unwrap_or(0);
         (group >= 0).then_some((group, index))
     });
+    let after_image = control.get("afterimage.time").map(|_| {
+        let time = int_param(sim, who, control, "afterimage.time").unwrap_or(1);
+        let interval = int_param(sim, who, control, "afterimage.timegap")
+            .unwrap_or(1)
+            .max(1);
+        let life = int_param(sim, who, control, "afterimage.length")
+            .unwrap_or(10)
+            .max(1);
+        let add = str_param(control, "afterimage.trans")
+            .map(|value| {
+                let value = value.to_ascii_lowercase();
+                value == "add" || value == "add1"
+            })
+            .unwrap_or(false);
+        let color = num_param(sim, who, control, "afterimage.palcolor")
+            .map(|value| (value / 256.0).clamp(0.0, 1.0))
+            .unwrap_or(1.0);
+        let hue = num_param(sim, who, control, "afterimage.palhue")
+            .map(|value| (value / 512.0).clamp(-0.5, 0.5))
+            .unwrap_or(0.0);
+        let invert = int_param(sim, who, control, "afterimage.palinvertall")
+            .map(|value| value != 0)
+            .unwrap_or(false)
+            || int_param(sim, who, control, "afterimage.palinvertblend")
+                .map(|value| value.abs() >= 2)
+                .unwrap_or(false);
+        crate::projectile::ProjectileAfterImage {
+            time,
+            interval,
+            tick: 0,
+            life,
+            alpha: 0.45,
+            add,
+            color,
+            hue,
+            invert,
+        }
+    });
     let cleared = shader_time == 0;
     let shader = if cleared { None } else { shader };
     let shader_params = if cleared {
@@ -3827,6 +3865,8 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         shader_afterimage,
         own_pal,
         remap_pal,
+        after_image,
+        after_images: Vec::new(),
         x_shear,
         projection,
         focal_length,
@@ -3971,6 +4011,10 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let shader_reflection = int_param(sim, who, control, "shader.reflection").map(|v| v != 0);
     let shader_afterimage = int_param(sim, who, control, "shader.afterimage").map(|v| v != 0);
     let own_pal = int_param(sim, who, control, "ownpal").map(|v| v != 0);
+    let afterimage_time = int_param(sim, who, control, "afterimage.time");
+    let afterimage_length = int_param(sim, who, control, "afterimage.length");
+    let afterimage_timegap = int_param(sim, who, control, "afterimage.timegap");
+    let afterimage_trans = str_param(control, "afterimage.trans");
     let remap_pal = control.get("remappal").and_then(|raw| {
         let mut parts = raw.split(',');
         let group = parts.next().map(|part| trigger::int(sim, who, part))?;
@@ -4098,6 +4142,46 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
         }
         if remap_pal.is_some() {
             projectile.remap_pal = remap_pal;
+        }
+        if afterimage_time.is_some()
+            || afterimage_length.is_some()
+            || afterimage_timegap.is_some()
+            || afterimage_trans.is_some()
+        {
+            let mut clear_afterimage = false;
+            let state =
+                projectile
+                    .after_image
+                    .get_or_insert(crate::projectile::ProjectileAfterImage {
+                        time: 1,
+                        interval: 1,
+                        tick: 0,
+                        life: 10,
+                        alpha: 0.45,
+                        add: false,
+                        color: 1.0,
+                        hue: 0.0,
+                        invert: false,
+                    });
+            if let Some(value) = afterimage_time {
+                state.time = value;
+            }
+            if afterimage_time == Some(0) {
+                clear_afterimage = true;
+            }
+            if let Some(value) = afterimage_length {
+                state.life = value.max(1);
+            }
+            if let Some(value) = afterimage_timegap {
+                state.interval = value.max(1);
+            }
+            if let Some(value) = &afterimage_trans {
+                let value = value.to_ascii_lowercase();
+                state.add = value == "add" || value == "add1";
+            }
+            if clear_afterimage {
+                projectile.after_image = None;
+            }
         }
         if let Some(x_shear) = x_shear {
             projectile.x_shear = x_shear;

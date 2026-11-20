@@ -15,6 +15,30 @@ pub enum ProjectileStatus {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProjectileAfterImage {
+    pub time: i32,
+    pub interval: i32,
+    pub tick: i32,
+    pub life: i32,
+    pub alpha: f32,
+    pub add: bool,
+    pub color: f32,
+    pub hue: f32,
+    pub invert: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProjectileGhost {
+    pub pos: Vec2,
+    pub z: f32,
+    pub anim_time: i32,
+    pub facing: i32,
+    pub life: i32,
+    pub alpha: f32,
+    pub add: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Projectile {
     pub owner: usize,
     pub id: i32,
@@ -57,6 +81,9 @@ pub struct Projectile {
     pub shader_shadow: bool,
     pub shader_reflection: bool,
     pub shader_afterimage: bool,
+    /// `afterimage.*` ghost trail.
+    pub after_image: Option<ProjectileAfterImage>,
+    pub after_images: Vec<ProjectileGhost>,
     /// `ownpal` and `remappal` palette selection.
     pub own_pal: bool,
     /// `remappal` destination `(group, index)`.
@@ -220,6 +247,38 @@ impl Projectile {
         }
     }
 
+    fn tick_afterimage(&mut self) {
+        for ghost in &mut self.after_images {
+            ghost.life -= 1;
+        }
+        self.after_images.retain(|ghost| ghost.life > 0);
+        let Some(state) = &mut self.after_image else {
+            return;
+        };
+        if state.time == 0 {
+            return;
+        }
+        state.tick += 1;
+        if state.tick >= state.interval.max(1) {
+            state.tick = 0;
+            self.after_images.push(ProjectileGhost {
+                pos: self.pos,
+                z: self.z,
+                anim_time: self.time,
+                facing: self.facing,
+                life: state.life.max(1),
+                alpha: state.alpha,
+                add: state.add,
+            });
+        }
+        if state.time > 0 {
+            state.time -= 1;
+            if state.time == 0 {
+                self.after_image = None;
+            }
+        }
+    }
+
     pub fn advance(&mut self) {
         self.time += 1;
         self.pos.x += self.vel.x;
@@ -238,5 +297,6 @@ impl Projectile {
         if self.remove_time > 0 {
             self.remove_time -= 1;
         }
+        self.tick_afterimage();
     }
 }
