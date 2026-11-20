@@ -66,6 +66,10 @@ struct Options {
     menu_screen: String,
     p1_keys: KeyBindings,
     p2_keys: KeyBindings,
+    #[cfg(feature = "gamepad")]
+    pad1: PadBindings,
+    #[cfg(feature = "gamepad")]
+    pad2: PadBindings,
 }
 
 impl Default for Options {
@@ -113,6 +117,10 @@ impl Default for Options {
             menu_screen: "title".into(),
             p1_keys: KeyBindings::default(),
             p2_keys: KeyBindings::player_two(),
+            #[cfg(feature = "gamepad")]
+            pad1: PadBindings::default(),
+            #[cfg(feature = "gamepad")]
+            pad2: PadBindings::default(),
         }
     }
 }
@@ -216,6 +224,115 @@ struct KeyFile {
 struct InputFile {
     p1: Option<KeyFile>,
     p2: Option<KeyFile>,
+}
+
+#[cfg(feature = "gamepad")]
+#[derive(Debug, Clone, Copy)]
+struct PadBindings {
+    up: gilrs::Button,
+    down: gilrs::Button,
+    left: gilrs::Button,
+    right: gilrs::Button,
+    buttons: [gilrs::Button; 6],
+    start: gilrs::Button,
+}
+
+#[cfg(feature = "gamepad")]
+impl Default for PadBindings {
+    fn default() -> Self {
+        Self {
+            up: gilrs::Button::DPadUp,
+            down: gilrs::Button::DPadDown,
+            left: gilrs::Button::DPadLeft,
+            right: gilrs::Button::DPadRight,
+            buttons: [
+                gilrs::Button::South,
+                gilrs::Button::East,
+                gilrs::Button::North,
+                gilrs::Button::West,
+                gilrs::Button::LeftTrigger,
+                gilrs::Button::RightTrigger,
+            ],
+            start: gilrs::Button::Start,
+        }
+    }
+}
+
+#[cfg(feature = "gamepad")]
+impl PadBindings {
+    fn apply(&mut self, file: &PadFile) {
+        let assign = |slot: &mut gilrs::Button, name: &Option<String>, label: &str| {
+            if let Some(name) = name {
+                match parse_pad_button(name) {
+                    Some(button) => *slot = button,
+                    None => log::warn!("unknown gamepad button {name:?} for {label}"),
+                }
+            }
+        };
+        assign(&mut self.up, &file.up, "pad.up");
+        assign(&mut self.down, &file.down, "pad.down");
+        assign(&mut self.left, &file.left, "pad.left");
+        assign(&mut self.right, &file.right, "pad.right");
+        assign(&mut self.start, &file.start, "pad.start");
+        for (index, (label, name)) in [
+            ("x", &file.x),
+            ("y", &file.y),
+            ("z", &file.z),
+            ("a", &file.a),
+            ("b", &file.b),
+            ("c", &file.c),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assign(&mut self.buttons[index], name, label);
+        }
+    }
+}
+
+#[cfg(feature = "gamepad")]
+#[derive(Debug, Default, serde::Deserialize)]
+struct PadFile {
+    up: Option<String>,
+    down: Option<String>,
+    left: Option<String>,
+    right: Option<String>,
+    x: Option<String>,
+    y: Option<String>,
+    z: Option<String>,
+    a: Option<String>,
+    b: Option<String>,
+    c: Option<String>,
+    start: Option<String>,
+}
+
+#[cfg(feature = "gamepad")]
+fn parse_pad_button(name: &str) -> Option<gilrs::Button> {
+    match name
+        .trim()
+        .to_ascii_lowercase()
+        .replace(['-', ' '], "_")
+        .as_str()
+    {
+        "up" | "dpad_up" | "dpadup" => Some(gilrs::Button::DPadUp),
+        "down" | "dpad_down" | "dpaddown" => Some(gilrs::Button::DPadDown),
+        "left" | "dpad_left" | "dpadleft" => Some(gilrs::Button::DPadLeft),
+        "right" | "dpad_right" | "dpadright" => Some(gilrs::Button::DPadRight),
+        "x" | "south" | "a_cross" => Some(gilrs::Button::South),
+        "y" | "east" | "b_circle" => Some(gilrs::Button::East),
+        "z" | "north" | "y_triangle" => Some(gilrs::Button::North),
+        "a" | "west" | "x_square" => Some(gilrs::Button::West),
+        "b" | "l1" | "lb" | "left_bumper" | "left_trigger" => Some(gilrs::Button::LeftTrigger),
+        "c" | "r1" | "rb" | "right_bumper" | "right_trigger" => Some(gilrs::Button::RightTrigger),
+        "l2" | "lt" | "left_trigger2" => Some(gilrs::Button::LeftTrigger2),
+        "r2" | "rt" | "right_trigger2" => Some(gilrs::Button::RightTrigger2),
+        "l3" | "left_thumb" | "left_stick" => Some(gilrs::Button::LeftThumb),
+        "r3" | "right_thumb" | "right_stick" => Some(gilrs::Button::RightThumb),
+        "select" | "back" | "share" => Some(gilrs::Button::Select),
+        "start" | "options" | "menu" => Some(gilrs::Button::Start),
+        "mode" | "guide" | "home" => Some(gilrs::Button::Mode),
+        _ => None,
+    }
 }
 
 fn parse_key(name: &str) -> Option<KeyCode> {
@@ -338,6 +455,10 @@ struct FileConfig {
     round_time: Option<i32>,
     scale: Option<u32>,
     input: Option<InputFile>,
+    #[cfg(feature = "gamepad")]
+    pad1: Option<PadFile>,
+    #[cfg(feature = "gamepad")]
+    pad2: Option<PadFile>,
 }
 
 impl Options {
@@ -571,6 +692,15 @@ impl Options {
             }
             if let Some(p2) = &input.p2 {
                 self.p2_keys.apply(p2);
+            }
+        }
+        #[cfg(feature = "gamepad")]
+        {
+            if let Some(pad) = &file.pad1 {
+                self.pad1.apply(pad);
+            }
+            if let Some(pad) = &file.pad2 {
+                self.pad2.apply(pad);
             }
         }
         Ok(())
@@ -2468,7 +2598,7 @@ impl App {
         let Some((_, pad)) = gilrs.gamepads().next() else {
             return;
         };
-        let current = pad_nav(pad_input(&pad));
+        let current = pad_nav(pad_input(&pad, &self.opts.pad1));
         let previous = self.pad_nav;
         self.pad_nav = current;
         for key in nav_edges(previous, current) {
@@ -2487,7 +2617,12 @@ impl App {
                 return pads;
             };
             for (index, (_, pad)) in gilrs.gamepads().enumerate().take(2) {
-                pads[index] = pad_input(&pad);
+                let bindings = if index == 0 {
+                    &self.opts.pad1
+                } else {
+                    &self.opts.pad2
+                };
+                pads[index] = pad_input(&pad, bindings);
             }
             pads
         }
@@ -2945,25 +3080,25 @@ fn pad_input_from(dpad: [bool; 4], stick: (f32, f32), buttons: [bool; 7]) -> Pla
 }
 
 #[cfg(feature = "gamepad")]
-fn pad_input(pad: &gilrs::Gamepad<'_>) -> PlayerInput {
+fn pad_input(pad: &gilrs::Gamepad<'_>, bindings: &PadBindings) -> PlayerInput {
     let dpad = [
-        pad.is_pressed(gilrs::Button::DPadUp),
-        pad.is_pressed(gilrs::Button::DPadDown),
-        pad.is_pressed(gilrs::Button::DPadLeft),
-        pad.is_pressed(gilrs::Button::DPadRight),
+        pad.is_pressed(bindings.up),
+        pad.is_pressed(bindings.down),
+        pad.is_pressed(bindings.left),
+        pad.is_pressed(bindings.right),
     ];
     let stick = (
         pad.value(gilrs::Axis::LeftStickX),
         pad.value(gilrs::Axis::LeftStickY),
     );
     let buttons = [
-        pad.is_pressed(gilrs::Button::South),
-        pad.is_pressed(gilrs::Button::East),
-        pad.is_pressed(gilrs::Button::North),
-        pad.is_pressed(gilrs::Button::West),
-        pad.is_pressed(gilrs::Button::LeftTrigger),
-        pad.is_pressed(gilrs::Button::RightTrigger),
-        pad.is_pressed(gilrs::Button::Start),
+        pad.is_pressed(bindings.buttons[0]),
+        pad.is_pressed(bindings.buttons[1]),
+        pad.is_pressed(bindings.buttons[2]),
+        pad.is_pressed(bindings.buttons[3]),
+        pad.is_pressed(bindings.buttons[4]),
+        pad.is_pressed(bindings.buttons[5]),
+        pad.is_pressed(bindings.start),
     ];
     pad_input_from(dpad, stick, buttons)
 }
@@ -3030,6 +3165,26 @@ mod tests {
             wgpu::Backends::METAL
         );
         assert!(backend_mask(Some("bogus")).is_err());
+    }
+
+    #[cfg(feature = "gamepad")]
+    #[test]
+    fn gamepad_bindings_apply_toml_names() {
+        let file = PadFile {
+            up: Some("dpad_down".into()),
+            x: Some("west".into()),
+            y: Some("l2".into()),
+            start: Some("select".into()),
+            ..Default::default()
+        };
+        let mut bindings = PadBindings::default();
+        bindings.apply(&file);
+        assert_eq!(bindings.up, gilrs::Button::DPadDown);
+        assert_eq!(bindings.buttons[0], gilrs::Button::West);
+        assert_eq!(bindings.buttons[1], gilrs::Button::LeftTrigger2);
+        assert_eq!(bindings.start, gilrs::Button::Select);
+        assert_eq!(bindings.down, gilrs::Button::DPadDown, "unchanged");
+        assert!(parse_pad_button("bogus").is_none());
     }
 
     #[test]

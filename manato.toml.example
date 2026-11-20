@@ -58,3 +58,33 @@ a = "numpad4"
 b = "numpad5"
 c = "numpad6"
 start = "numpad0"
+
+# Optional gamepad remapping per player slot. Names accept common aliases:
+# dpad_up/down/left/right, south/east/north/west (or x/y/z/a),
+# l1/lb, r1/rb, l2/lt, r2/rt, l3, r3, select/back, start/options, mode/guide.
+# Omitted buttons keep the defaults (d-pad, face buttons, triggers, Start).
+[pad1]
+up = "dpad_up"
+down = "dpad_down"
+left = "dpad_left"
+right = "dpad_right"
+x = "south"
+y = "east"
+z = "north"
+a = "west"
+b = "l1"
+c = "r1"
+start = "start"
+
+[pad2]
+up = "dpad_up"
+down = "dpad_down"
+left = "dpad_left"
+right = "dpad_right"
+x = "south"
+y = "east"
+z = "north"
+a = "west"
+b = "l1"
+c = "r1"
+start = "start"

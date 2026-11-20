@@ -167,7 +167,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | --- | --- | --- | --- | --- | --- |
 | I-01 | Keyboard input | Required | Required | Verified | Window run |
 | I-02 | Gamepad input | Required | Required | Partial | gilrs backend, d-pad/stick/buttons mapped, `--backend auto|vulkan|gl|metal|dx12` with adapter logging; hardware matrix pending |
-| I-03 | Remapping | Required | Required | Partial | TOML keyboard bindings; gamepad remap pending |
+| I-03 | Remapping | Required | Required | Verified | TOML keyboard bindings plus per-player gamepad bindings (`[pad1]`/`[pad2]`) with button-name aliases and tests |
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
 | N-02 | P2P input exchange | Required | Required | Partial | Localhost GGRS loopback test; internet/latency matrix pending |
