@@ -101,9 +101,10 @@ Rules:
   shadow/afterimage pass. `supermovetime` lets a projectile keep moving
   during a global super pause until the timer expires (`0` or `< -1` freezes,
   `-1` moves forever); `pausemovetime` is tracked alongside it. `ownpal` and
-  `remappal` are parsed and reported through `ProjVar(drawpal.group/index)`;
-  projectile sprites still draw from the owner character bank, so the
-  selected palette is not recolored per projectile.
+  `remappal` are parsed and reported through `ProjVar(drawpal.group/index)`.
+  Characters with palettes get dedicated recolored atlas banks (192–223) for
+  projectile drawing: `remappal` selects its destination palette, `ownpal`
+  selects the sprite's own palette, otherwise the owner bank is used.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,
   `focallength`, `projection`) through the projected-quad path; `window` is
   parsed but not modeled as a per-fighter scissor.

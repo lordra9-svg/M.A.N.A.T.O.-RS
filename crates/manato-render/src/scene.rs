@@ -15,6 +15,8 @@ pub struct SceneDeps<'a> {
     pub screen_fonts: &'a std::collections::BTreeMap<u32, crate::screenfont::ScreenFont>,
     /// Atlas banks for in-match overlay scene backgrounds.
     pub overlay_bg_banks: &'a std::collections::HashMap<(usize, usize), u8>,
+    /// Atlas banks holding per-character palette recolors for projectiles.
+    pub projectile_banks: &'a std::collections::HashMap<(usize, (i32, i32)), u8>,
 }
 
 #[derive(Clone, Copy)]
@@ -123,7 +125,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     painter.set_global_palfx(sim.all_pal.color, sim.all_pal.hue, sim.all_pal.invert);
 
     if !hide_bg {
-        draw_reflections(painter, deps.atlas, sim);
+        draw_reflections(painter, deps.atlas, deps.projectile_banks, sim);
     }
     draw_shadows(painter, sim);
 
@@ -163,7 +165,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     }
 
     painter.set_depth(0.45);
-    draw_projectiles(painter, deps.atlas, sim, false);
+    draw_projectiles(painter, deps.atlas, deps.projectile_banks, sim, false);
 
     painter.set_depth(0.1);
     painter.set_global_palfx(sim.bg_pal.color, sim.bg_pal.hue, sim.bg_pal.invert);
@@ -186,7 +188,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
 
     // Projectiles with `projlayerno > 0` draw over the stage foreground.
     painter.set_depth(0.08);
-    draw_projectiles(painter, deps.atlas, sim, true);
+    draw_projectiles(painter, deps.atlas, deps.projectile_banks, sim, true);
 
     painter.set_depth(0.06);
     let mut front: Vec<&Effect> = sim.effects.iter().filter(|e| !e.behind).collect();
@@ -632,7 +634,30 @@ fn projectile_tex_sprite(
     }
 }
 
-fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, foreground: bool) {
+/// Chooses the sprite bank for a projectile: an explicit `remappal` bank, or
+/// the sprite's own palette bank when `ownpal` is set, else the owner bank.
+fn projectile_bank(
+    sim: &SimState,
+    banks: &std::collections::HashMap<(usize, (i32, i32)), u8>,
+    projectile: &manato_sim::projectile::Projectile,
+    sprite: &manato_formats::Sprite,
+) -> u8 {
+    let palette = projectile
+        .remap_pal
+        .or_else(|| projectile.own_pal.then_some(sprite.palette_key).flatten());
+    let char_id = sim.fighters[projectile.owner].char_id;
+    palette
+        .and_then(|key| banks.get(&(char_id, key)).copied())
+        .unwrap_or(bank::CHARACTER_BASE + projectile.owner as u8)
+}
+
+fn draw_projectiles(
+    painter: &mut Painter,
+    atlas: &SpriteAtlas,
+    banks: &std::collections::HashMap<(usize, (i32, i32)), u8>,
+    sim: &SimState,
+    foreground: bool,
+) {
     for index in projectile_draw_order(&sim.projectiles, foreground) {
         let projectile = &sim.projectiles[index];
         painter.set_scissor(projectile_scissor(projectile.window));
@@ -687,7 +712,7 @@ fn draw_projectiles(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState, 
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
-        let bank = bank::CHARACTER_BASE + projectile.owner as u8;
+        let bank = projectile_bank(sim, banks, projectile, sprite);
         let color = global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.all_pal);
 
         if projectile.x_angle != 0.0
@@ -758,7 +783,12 @@ fn projectile_reflects(projectile: &manato_sim::projectile::Projectile) -> bool 
         || (projectile.reflection < 0 && projectile.shadow.iter().any(|value| *value != 0))
 }
 
-fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) {
+fn draw_reflections(
+    painter: &mut Painter,
+    atlas: &SpriteAtlas,
+    banks: &std::collections::HashMap<(usize, (i32, i32)), u8>,
+    sim: &SimState,
+) {
     let reflection = &sim.assets.stage.reflection;
     for (who, fighter) in sim
         .fighters
@@ -890,7 +920,7 @@ fn draw_reflections(painter: &mut Painter, atlas: &SpriteAtlas, sim: &SimState) 
         if projectile.z != 0.0 {
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
-        let bank = bank::CHARACTER_BASE + projectile.owner as u8;
+        let bank = projectile_bank(sim, banks, projectile, sprite);
         let shader_active = projectile.shader_reflection && projectile.shader.is_some();
         if shader_active {
             painter.set_shader(projectile.shader.clone());

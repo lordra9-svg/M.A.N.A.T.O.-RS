@@ -86,6 +86,8 @@ pub struct Renderer {
     overlay_signature: Vec<(usize, String)>,
     /// Atlas bank for each `(overlay storyboard pointer, scene index)` bg.
     overlay_bg_banks: HashMap<(usize, usize), u8>,
+    /// Atlas banks holding per-character palette recolors for projectiles.
+    projectile_banks: HashMap<(usize, (i32, i32)), u8>,
     model_pipeline: wgpu::RenderPipeline,
     model_bgl: wgpu::BindGroupLayout,
     model_sampler: wgpu::Sampler,
@@ -650,6 +652,7 @@ impl Renderer {
             status_line: None,
             overlay_signature: Vec::new(),
             overlay_bg_banks: HashMap::new(),
+            projectile_banks: HashMap::new(),
             shader_textures: HashMap::new(),
             model_pipeline,
             model_bgl,
@@ -675,6 +678,32 @@ impl Renderer {
     /// loading a match (or when the assets change).
     pub fn load_assets(&mut self, sim: &SimState) {
         let assets = &sim.assets;
+        // Materialize per-character palette copies for projectile ownpal/remappal.
+        const PROJECTILE_BANK_BASE: u8 = 192;
+        const PROJECTILE_BANK_LIMIT: u8 = 224;
+        let mut palettes: HashMap<(usize, (i32, i32)), u8> = HashMap::new();
+        let mut palette_files: Vec<(u8, manato_formats::SffFile)> = Vec::new();
+        let mut next_bank = PROJECTILE_BANK_BASE;
+        for (i, character) in assets.characters.iter().enumerate() {
+            let mut keys: Vec<(i32, i32)> = character.palettes.keys().copied().collect();
+            keys.sort();
+            for key in keys {
+                if next_bank >= PROJECTILE_BANK_LIMIT {
+                    break;
+                }
+                let palette = &character.palettes[&key];
+                let mut file = character.sprites.clone();
+                for sprite in &mut file.sprites {
+                    if let Some(rgba) = sprite.recolor_rgba(palette) {
+                        sprite.rgba = rgba;
+                    }
+                }
+                palettes.insert((i, key), next_bank);
+                palette_files.push((next_bank, file));
+                next_bank += 1;
+            }
+        }
+        self.projectile_banks = palettes;
         let mut banks: Vec<(u8, &manato_formats::SffFile)> =
             vec![(bank::STAGE, &assets.stage.sprites)];
         for (i, character) in assets.characters.iter().enumerate() {
@@ -683,6 +712,9 @@ impl Renderer {
         banks.push((bank::EFFECTS, &assets.effects.sprites));
         if let Some(screenpack) = &assets.screenpack {
             banks.push((bank::SCREENPACK, &screenpack.sprites));
+        }
+        for (index, file) in &palette_files {
+            banks.push((*index, file));
         }
         self.atlas = SpriteAtlas::build(&self.device, &self.queue, &self.sprite_bgl, &banks);
         self.overlay_signature.clear();
@@ -1064,6 +1096,7 @@ impl Renderer {
             font: &self.font,
             screen_fonts: &self.screen_fonts,
             overlay_bg_banks: &self.overlay_bg_banks,
+            projectile_banks: &self.projectile_banks,
         };
         scene::build(&mut self.painter, sim, &deps);
         if let Some(line) = self.status_line.as_deref() {
@@ -1277,6 +1310,7 @@ impl Renderer {
             font: &self.font,
             screen_fonts: &self.screen_fonts,
             overlay_bg_banks: &self.overlay_bg_banks,
+            projectile_banks: &self.projectile_banks,
         };
         scene::draw_storyboard(&mut self.painter, &deps, storyboard, player);
         self.present();
@@ -2128,6 +2162,44 @@ void main() {
         renderer.screenshot(&path).expect("screenshot");
         assert!(std::fs::metadata(&path).expect("file").len() > 1000);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn projectile_palette_banks_materialize_when_gpu_available() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let config = manato_sim::MatchConfig {
+            mugen_root: root.clone(),
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut sim = manato_sim::SimState::load(&config).expect("sim");
+        {
+            let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+            assets.characters[0]
+                .palettes
+                .insert((1, 2), vec![[255, 0, 0, 255]; 256]);
+        }
+        renderer.load_assets(&sim);
+        assert!(
+            !renderer.projectile_banks.is_empty(),
+            "character palettes should materialize projectile banks"
+        );
+        assert!(renderer
+            .projectile_banks
+            .values()
+            .all(|bank| (192..224).contains(bank)));
     }
 
     #[test]
