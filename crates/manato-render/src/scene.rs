@@ -651,6 +651,11 @@ fn projectile_bank(
         .unwrap_or(bank::CHARACTER_BASE + projectile.owner as u8)
 }
 
+/// True when the projectile's custom shader should also shade its shadow.
+fn projectile_shadow_shader(projectile: &manato_sim::projectile::Projectile) -> bool {
+    projectile.shader_shadow && projectile.shader.is_some()
+}
+
 /// True when `projshadow` requests a projectile shadow.
 fn projectile_shadow_visible(projectile: &manato_sim::projectile::Projectile) -> bool {
     projectile.shadow.iter().any(|value| *value != 0)
@@ -753,7 +758,32 @@ fn draw_projectiles(
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
+        if projectile_shadow_shader(projectile) {
+            painter.set_shader(projectile.shader.clone());
+            painter.set_shader_params(projectile.shader_params);
+            let shadow_bank = bank::CHARACTER_BASE + projectile.owner as u8;
+            let tex1 = projectile_tex_sprite(
+                char,
+                projectile.tex1_anim,
+                projectile.tex1_spr,
+                projectile.time,
+            )
+            .map(|(group, index)| (shadow_bank, group, index));
+            let tex2 = projectile_tex_sprite(
+                char,
+                projectile.tex2_anim,
+                projectile.tex2_spr,
+                projectile.time,
+            )
+            .map(|(group, index)| (shadow_bank, group, index));
+            painter.set_shader_textures(tex1, tex2);
+        }
         draw_projectile_shadow(painter, sim, projectile, sprite, scale);
+        if projectile_shadow_shader(projectile) {
+            painter.set_shader(None);
+            painter.set_shader_params(None);
+            painter.set_shader_textures(None, None);
+        }
         let bank = projectile_bank(sim, banks, projectile, sprite);
         let color = global_tint([1.0, 1.0, 1.0, pose.alpha], &sim.all_pal);
 
@@ -2367,6 +2397,19 @@ pub fn draw_storyboard(
 mod tests {
     use super::*;
     use manato_sim::ProjectionMode;
+
+    #[test]
+    fn projectile_shadow_shader_requires_name_and_flag() {
+        let mut projectile = test_projectile(0, 0);
+        projectile.shader = None;
+        projectile.shader_shadow = true;
+        assert!(!projectile_shadow_shader(&projectile));
+        projectile.shader = Some("glow".into());
+        projectile.shader_shadow = false;
+        assert!(!projectile_shadow_shader(&projectile));
+        projectile.shader_shadow = true;
+        assert!(projectile_shadow_shader(&projectile));
+    }
 
     #[test]
     fn projectile_shadow_condition() {

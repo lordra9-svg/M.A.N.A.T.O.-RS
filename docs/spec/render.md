@@ -97,8 +97,9 @@ Rules:
   `shader.tex1.*`/`shader.tex2.*` bind a custom shader, its indexed params,
   and referenced textures for the projectile. `shader.time = 0` clears the
   shader; `shader.reflection` applies it to the projectile reflection.
-  `shader.shadow`/`shader.afterimage` are stored but have no projectile
-  shadow/afterimage pass. `supermovetime` lets a projectile keep moving
+  `shader.shadow` applies the custom shader when drawing the projectile's
+  shadow; `shader.afterimage` is stored but no projectile afterimage pass
+  exists. `supermovetime` lets a projectile keep moving
   during a global super pause until the timer expires (`0` or `< -1` freezes,
   `-1` moves forever); `pausemovetime` is tracked alongside it. `ownpal` and
   `remappal` are parsed and reported through `ProjVar(drawpal.group/index)`.
