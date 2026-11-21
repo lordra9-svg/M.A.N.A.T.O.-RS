@@ -106,9 +106,13 @@ Rules:
   during a global super pause until the timer expires (`0` or `< -1` freezes,
   `-1` moves forever); `pausemovetime` is tracked alongside it. `ownpal` and
   `remappal` are parsed and reported through `ProjVar(drawpal.group/index)`.
-  Characters with palettes get dedicated recolored atlas banks (192–223) for
-  projectile drawing: `remappal` selects its destination palette, `ownpal`
-  selects the sprite's own palette, otherwise the owner bank is used.
+  Characters with palettes get dedicated recolored atlas banks (192–255, 64
+  combos shared across all characters) for projectile drawing: `remappal`
+  selects its destination palette, `ownpal` selects the sprite's own palette,
+  otherwise the owner bank is used. Banks are only exhausted after 64
+  character/palette combinations; the reassigned sprite files are retained so
+  in-match overlay atlas rebuilds keep the palette banks resident. Overlay
+  sprite and overlay-background banks are capped below the palette region.
   Non-zero `projshadow` draws a grounded ellipse whose color is the shadow
   RGB and whose alpha fades with height.
 - Fighters honor the per-tick `TransformSprite` subset (`xshear`,

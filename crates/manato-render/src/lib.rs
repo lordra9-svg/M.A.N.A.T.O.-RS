@@ -91,6 +91,9 @@ pub struct Renderer {
     overlay_bg_banks: HashMap<(usize, usize), u8>,
     /// Atlas banks holding per-character palette recolors for projectiles.
     projectile_banks: HashMap<(usize, (i32, i32)), u8>,
+    /// Recolored sprite files backing `projectile_banks`, retained so overlay
+    /// atlas rebuilds keep the palette banks resident.
+    projectile_palette_files: Vec<(u8, manato_formats::SffFile)>,
     model_pipeline: wgpu::RenderPipeline,
     model_bgl: wgpu::BindGroupLayout,
     model_sampler: wgpu::Sampler,
@@ -685,6 +688,7 @@ impl Renderer {
             overlay_signature: Vec::new(),
             overlay_bg_banks: HashMap::new(),
             projectile_banks: HashMap::new(),
+            projectile_palette_files: Vec::new(),
             shader_textures: HashMap::new(),
             model_pipeline,
             model_bgl,
@@ -711,16 +715,21 @@ impl Renderer {
     pub fn load_assets(&mut self, sim: &SimState) {
         let assets = &sim.assets;
         // Materialize per-character palette copies for projectile ownpal/remappal.
-        const PROJECTILE_BANK_BASE: u8 = 192;
-        const PROJECTILE_BANK_LIMIT: u8 = 224;
+        // The region is shared by every character/palette combo and only falls
+        // back to the owner bank once all 64 slots are occupied.
         let mut palettes: HashMap<(usize, (i32, i32)), u8> = HashMap::new();
         let mut palette_files: Vec<(u8, manato_formats::SffFile)> = Vec::new();
-        let mut next_bank = PROJECTILE_BANK_BASE;
+        let mut next_bank = bank::PROJECTILE_PALETTE_BASE as u16;
+        let limit = bank::PROJECTILE_PALETTE_BASE as u16 + bank::PROJECTILE_PALETTE_COUNT as u16;
         for (i, character) in assets.characters.iter().enumerate() {
             let mut keys: Vec<(i32, i32)> = character.palettes.keys().copied().collect();
             keys.sort();
             for key in keys {
-                if next_bank >= PROJECTILE_BANK_LIMIT {
+                if next_bank >= limit {
+                    log::warn!(
+                        "projectile palette banks exhausted at {} combos; falling back to owner banks",
+                        palette_files.len()
+                    );
                     break;
                 }
                 let palette = &character.palettes[&key];
@@ -730,12 +739,13 @@ impl Renderer {
                         sprite.rgba = rgba;
                     }
                 }
-                palettes.insert((i, key), next_bank);
-                palette_files.push((next_bank, file));
+                palettes.insert((i, key), next_bank as u8);
+                palette_files.push((next_bank as u8, file));
                 next_bank += 1;
             }
         }
         self.projectile_banks = palettes;
+        self.projectile_palette_files = palette_files.clone();
         let mut banks: Vec<(u8, &manato_formats::SffFile)> =
             vec![(bank::STAGE, &assets.stage.sprites)];
         for (i, character) in assets.characters.iter().enumerate() {
@@ -1070,10 +1080,17 @@ impl Renderer {
         if let Some(screenpack) = &assets.screenpack {
             banks.push((bank::SCREENPACK, &screenpack.sprites));
         }
+        for (index, file) in &self.projectile_palette_files {
+            banks.push((*index, file));
+        }
         for (index, overlay) in sim.storyboards.iter().enumerate() {
             let id = bank::OVERLAY_BASE as usize + index;
-            if id <= u8::MAX as usize {
+            if id < bank::OVERLAY_END as usize {
                 banks.push((id as u8, &overlay.storyboard.sprites));
+            } else if index == (bank::OVERLAY_END - bank::OVERLAY_BASE) as usize {
+                log::warn!(
+                    "storyboard overlay sprite banks exhausted; extra overlays are not baked"
+                );
             }
         }
         self.overlay_bg_banks.clear();
@@ -1084,7 +1101,8 @@ impl Renderer {
                 let Some(stage) = &scene.bg else {
                     continue;
                 };
-                if next_bg > u8::MAX as usize {
+                if next_bg >= bank::OVERLAY_BG_END as usize {
+                    log::warn!("storyboard overlay background banks exhausted");
                     break;
                 }
                 banks.push((next_bg as u8, &stage.sprites));
@@ -2303,7 +2321,61 @@ void main() {
         assert!(renderer
             .projectile_banks
             .values()
-            .all(|bank| (192..224).contains(bank)));
+            .all(|bank| (192..=255).contains(bank)));
+    }
+
+    #[test]
+    fn projectile_palette_banks_exceed_32_combos_when_gpu_available() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let config = manato_sim::MatchConfig {
+            mugen_root: root,
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let mut sim = manato_sim::SimState::load(&config).expect("sim");
+        {
+            let assets = std::sync::Arc::get_mut(&mut sim.assets).expect("unique assets");
+            for slot in 0..2.min(assets.characters.len()) {
+                for index in 0..40 {
+                    assets.characters[slot]
+                        .palettes
+                        .insert((10 + slot as i32, index), vec![[255, 0, 0, 255]; 256]);
+                }
+            }
+        }
+        renderer.load_assets(&sim);
+        let palette_count = renderer
+            .projectile_banks
+            .keys()
+            .filter(|(slot, key)| *slot < 2 && key.0 >= 10)
+            .count();
+        assert!(
+            palette_count > 32,
+            "expected more than 32 dedicated palette banks, got {palette_count}"
+        );
+        let mut banks: Vec<u8> = renderer.projectile_banks.values().copied().collect();
+        let total = banks.len();
+        banks.sort_unstable();
+        banks.dedup();
+        assert_eq!(banks.len(), total, "each palette combo needs a unique bank");
+        assert!(banks.iter().all(|bank| (192..=255).contains(bank)));
+        assert_eq!(
+            renderer.projectile_palette_files.len(),
+            total,
+            "palette files must be retained for overlay atlas rebuilds"
+        );
     }
 
     #[test]

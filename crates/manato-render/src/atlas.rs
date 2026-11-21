@@ -26,6 +26,15 @@ pub mod bank {
     pub const OVERLAY_BG_BASE: u8 = 128;
     /// Character sprites are stored at `CHARACTER_BASE + char_id`.
     pub const CHARACTER_BASE: u8 = 16;
+    /// Per-character palette recolors for projectiles start here. The region
+    /// runs to `u8::MAX`, giving 64 banks before falling back to the owner.
+    pub const PROJECTILE_PALETTE_BASE: u8 = 192;
+    /// End of the overlay sprite region (exclusive).
+    pub const OVERLAY_END: u8 = 128;
+    /// End of the overlay scene-background region (exclusive).
+    pub const OVERLAY_BG_END: u8 = PROJECTILE_PALETTE_BASE;
+    /// Number of available projectile palette banks.
+    pub const PROJECTILE_PALETTE_COUNT: u8 = u8::MAX - PROJECTILE_PALETTE_BASE + 1;
 }
 
 #[derive(Debug, Clone, Copy)]
