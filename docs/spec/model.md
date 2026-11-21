@@ -46,12 +46,14 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - `KHR_materials_refraction` uses `iorFactor` for the dielectric F0
   (`((ior-1)/(ior+1))^2`) and scales transmitted light by the complement of
   the Schlick Fresnel reflectance; its `transmissionFactor` raises the
-  material transmission. Transmissive surfaces also sample the previous-frame
-  grab texture with a per-vertex UV offset proportional to the view-space
-  normal, `iorFactor - 1`, and transmission, mixing the grab behind the base
-  colour (`0.02` max UV strength). This is a screen-space approximation: it
-  reads the previous frame, not the current one, and does not refract
-  geometry behind the surface per-pixel.
+  material transmission. Models render in a post-scene pass: the scene color
+  is copied after opaque/transparent scene quads (before the HUD), and
+  transmissive surfaces sample that current-frame copy with a per-vertex UV
+  offset proportional to the view-space normal, `iorFactor - 1`, and
+  transmission, mixing it behind the base colour (`0.02` max UV strength).
+  Depth is preserved across passes, so scene geometry occludes models and the
+  HUD remains on top. This is still a screen-space approximation: it does not
+  ray-trace geometry behind the surface per-pixel.
 - `KHR_materials_dispersion` spreads the IOR per RGB channel
   (`dispersionFactor`, Cauchy-style approximation), producing chromatic F0 and
   Fresnel-transmission fringing. It requires a refractive IOR and is inert
@@ -106,9 +108,9 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Per-pixel ray-traced refraction, current-frame refraction, and physically
-  split dispersion rays (refraction reads the previous-frame grab texture;
-  dispersion is a per-channel tint approximation).
+- Per-pixel ray-traced refraction and physically split dispersion rays
+  (refraction samples the current-frame scene copy; dispersion is a
+  per-channel tint approximation).
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation

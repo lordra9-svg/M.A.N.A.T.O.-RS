@@ -76,7 +76,7 @@ fn global_tint(color: [f32; 4], pal: &manato_sim::GlobalPalFx) -> [f32; 4] {
     ]
 }
 
-pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
+pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) -> usize {
     painter.clear();
     let stage = &sim.assets.stage;
     let hide_bg = sim.background_hidden();
@@ -202,6 +202,9 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     draw_storyboard_overlays(painter, deps, sim);
 
     // Fight-screen HUD is closest to the viewer and is not palette-filtered.
+    // Models render between this boundary and the HUD so they sample the
+    // current scene while staying behind HUD/motif layers.
+    let hud_start = painter.ranges.len();
     painter.reset_global_palfx();
     painter.set_depth(0.02);
     if let Some(screenpack) = &sim.assets.screenpack {
@@ -229,6 +232,7 @@ pub fn build(painter: &mut Painter, sim: &SimState, deps: &SceneDeps) {
     } else {
         draw_hud(painter, deps.font, sim);
     }
+    hud_start
 }
 
 /// Draws `Text` objects. Negative `layerno` values go behind the fighters.

@@ -56,6 +56,9 @@ pub struct Renderer {
     /// Previous frame copy bound as `bgl_RenderedTexture` for grab shaders.
     grab_texture: wgpu::Texture,
     grab_view: wgpu::TextureView,
+    /// Current-frame scene copy sampled by model refraction.
+    refraction_texture: wgpu::Texture,
+    refraction_view: wgpu::TextureView,
     /// Clamped sampler for screen-space grab reads (model refraction).
     grab_sampler: wgpu::Sampler,
     depth_view: wgpu::TextureView,
@@ -499,6 +502,21 @@ impl Renderer {
             view_formats: &[],
         });
         let grab_view = grab_texture.create_view(&Default::default());
+        let refraction_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("manato refraction target"),
+            size: wgpu::Extent3d {
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: GAME_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let refraction_view = refraction_texture.create_view(&Default::default());
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &grab_texture,
@@ -645,6 +663,8 @@ impl Renderer {
             game_view,
             grab_texture,
             grab_view,
+            refraction_texture,
+            refraction_view,
             grab_sampler,
             depth_view,
             sprite_bgl,
@@ -1110,7 +1130,7 @@ impl Renderer {
             overlay_bg_banks: &self.overlay_bg_banks,
             projectile_banks: &self.projectile_banks,
         };
-        scene::build(&mut self.painter, sim, &deps);
+        let hud_start = scene::build(&mut self.painter, sim, &deps);
         if let Some(line) = self.status_line.as_deref() {
             self.painter
                 .text(&self.font, line, 4.0, 4.0, 1.0, [1.0, 1.0, 1.0, 0.9]);
@@ -1127,7 +1147,7 @@ impl Renderer {
         for name in names {
             self.ensure_custom_shader(sim, &name);
         }
-        self.present();
+        self.present(hud_start);
     }
 
     /// Loads and bakes a static glTF model for the current scene/stage.
@@ -1217,7 +1237,7 @@ impl Renderer {
                             },
                             wgpu::BindGroupEntry {
                                 binding: 4,
-                                resource: wgpu::BindingResource::TextureView(&self.grab_view),
+                                resource: wgpu::BindingResource::TextureView(&self.refraction_view),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 5,
@@ -1325,7 +1345,7 @@ impl Renderer {
             projectile_banks: &self.projectile_banks,
         };
         scene::draw_storyboard(&mut self.painter, &deps, storyboard, player);
-        self.present();
+        self.present(usize::MAX);
     }
 
     /// Draws the high-score table.
@@ -1377,7 +1397,7 @@ impl Renderer {
             1.0,
             [0.7, 0.7, 0.7, 1.0],
         );
-        self.present();
+        self.present(usize::MAX);
     }
 
     /// Draws the arcade continue screen (countdown, credits, score).
@@ -1428,7 +1448,7 @@ impl Renderer {
             1.0,
             [0.7, 0.7, 0.7, 1.0],
         );
-        self.present();
+        self.present(usize::MAX);
     }
 
     /// Draws a front-end title or select frame into the internal target.
@@ -1445,7 +1465,7 @@ impl Renderer {
         };
         self.painter.clear();
         frontend::draw_title(&mut self.painter, &deps, screenpack, states, view);
-        self.present();
+        self.present(usize::MAX);
     }
 
     /// Draws a front-end select frame into the internal target.
@@ -1462,7 +1482,7 @@ impl Renderer {
         };
         self.painter.clear();
         frontend::draw_select(&mut self.painter, &deps, screenpack, states, view);
-        self.present();
+        self.present(usize::MAX);
     }
 
     /// Draws the built-in options overlay on top of the title background.
@@ -1479,7 +1499,7 @@ impl Renderer {
         };
         self.painter.clear();
         frontend::draw_options(&mut self.painter, &deps, screenpack, states, view);
-        self.present();
+        self.present(usize::MAX);
     }
 
     fn ensure_shader_texture(&mut self, sim: &SimState, key: (u8, i32, i32)) {
@@ -1541,7 +1561,7 @@ impl Renderer {
     }
 
     /// Uploads the accumulated vertices and records the frame commands.
-    fn present(&mut self) {
+    fn present(&mut self, hud_start: usize) {
         let bytes = cast_slice(&self.painter.vertices);
         if bytes.len() as u64 > self.vertex_capacity {
             let size = (bytes.len() as u64).next_power_of_two().max(4096);
@@ -1649,9 +1669,73 @@ impl Renderer {
                 depth_or_array_layers: 1,
             },
         );
+        let draw_range_set =
+            |pass: &mut wgpu::RenderPass<'_>, ranges: &[draw::DrawRange], offset: usize| {
+                if ranges.is_empty() {
+                    return;
+                }
+                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                for (local, range) in ranges.iter().enumerate() {
+                    let range_index = offset + local;
+                    let custom = if range.mask {
+                        None
+                    } else {
+                        range
+                            .shader
+                            .as_ref()
+                            .and_then(|name| self.custom_shaders.get(name))
+                    };
+                    let pipeline = if let Some(custom) = custom {
+                        match range.blend {
+                            Blend::Normal => &custom[0],
+                            Blend::Add => &custom[1],
+                            Blend::Sub => &custom[2],
+                        }
+                    } else {
+                        let pipelines = if range.mask {
+                            &self.pipelines_mask
+                        } else {
+                            &self.pipelines
+                        };
+                        match range.blend {
+                            Blend::Normal => &pipelines[0],
+                            Blend::Add => &pipelines[1],
+                            Blend::Sub => &pipelines[2],
+                        }
+                    };
+                    let bind_group = match range.tex {
+                        TexRef::Atlas(page) => self.atlas.page_bind_group(page),
+                        TexRef::Font => &self.font.bind_group,
+                        TexRef::ScreenFont(font, page) => self
+                            .screen_fonts
+                            .get(&font)
+                            .map(|font| font.page_bind_group(page))
+                            .unwrap_or(&self.font.bind_group),
+                        TexRef::Solid => &self.solid,
+                        TexRef::Shadow => &self.shadow,
+                    };
+                    if let Some([x, y, w, h]) = range.scissor {
+                        let x = x.min(GAME_WIDTH.saturating_sub(1));
+                        let y = y.min(GAME_HEIGHT.saturating_sub(1));
+                        let w = w.min(GAME_WIDTH.saturating_sub(x)).max(1);
+                        let h = h.min(GAME_HEIGHT.saturating_sub(y)).max(1);
+                        pass.set_scissor_rect(x, y, w, h);
+                    } else {
+                        pass.set_scissor_rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                    }
+                    pass.set_pipeline(pipeline);
+                    if let Some(Some((_, custom_bind_group))) = custom_bindings.get(range_index) {
+                        pass.set_bind_group(0, custom_bind_group, &[]);
+                    } else {
+                        pass.set_bind_group(0, bind_group, &[]);
+                    }
+                    pass.draw(range.start..range.start + range.count, 0..1);
+                }
+            };
+        let scene_end = hud_start.min(ranges.len());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("manato game pass"),
+                label: Some("manato scene pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &self.game_view,
                     resolve_target: None,
@@ -1664,6 +1748,79 @@ impl Renderer {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            draw_range_set(&mut pass, &ranges[..scene_end], 0);
+        }
+        // The current scene is now available for transmissive model sampling.
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.game_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.refraction_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT,
+                depth_or_array_layers: 1,
+            },
+        );
+        if !self.model_draws.is_empty() {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("manato model pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.game_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(&self.model_pipeline);
+            for (buffer, count, bind_group) in &self.model_draws {
+                pass.set_bind_group(0, bind_group, &[]);
+                pass.set_vertex_buffer(0, buffer.slice(..));
+                pass.draw(0..*count, 0..1);
+            }
+        }
+        if scene_end < ranges.len() {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("manato hud pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.game_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Discard,
                     }),
                     stencil_ops: None,
@@ -1671,72 +1828,7 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            if !self.model_draws.is_empty() {
-                pass.set_pipeline(&self.model_pipeline);
-                for (buffer, count, bind_group) in &self.model_draws {
-                    pass.set_bind_group(0, bind_group, &[]);
-                    pass.set_vertex_buffer(0, buffer.slice(..));
-                    pass.draw(0..*count, 0..1);
-                }
-            }
-            if !ranges.is_empty() {
-                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            }
-            for (range_index, range) in ranges.iter().enumerate() {
-                let custom = if range.mask {
-                    None
-                } else {
-                    range
-                        .shader
-                        .as_ref()
-                        .and_then(|name| self.custom_shaders.get(name))
-                };
-                let pipeline = if let Some(custom) = custom {
-                    match range.blend {
-                        Blend::Normal => &custom[0],
-                        Blend::Add => &custom[1],
-                        Blend::Sub => &custom[2],
-                    }
-                } else {
-                    let pipelines = if range.mask {
-                        &self.pipelines_mask
-                    } else {
-                        &self.pipelines
-                    };
-                    match range.blend {
-                        Blend::Normal => &pipelines[0],
-                        Blend::Add => &pipelines[1],
-                        Blend::Sub => &pipelines[2],
-                    }
-                };
-                let bind_group = match range.tex {
-                    TexRef::Atlas(page) => self.atlas.page_bind_group(page),
-                    TexRef::Font => &self.font.bind_group,
-                    TexRef::ScreenFont(font, page) => self
-                        .screen_fonts
-                        .get(&font)
-                        .map(|font| font.page_bind_group(page))
-                        .unwrap_or(&self.font.bind_group),
-                    TexRef::Solid => &self.solid,
-                    TexRef::Shadow => &self.shadow,
-                };
-                if let Some([x, y, w, h]) = range.scissor {
-                    let x = x.min(GAME_WIDTH.saturating_sub(1));
-                    let y = y.min(GAME_HEIGHT.saturating_sub(1));
-                    let w = w.min(GAME_WIDTH.saturating_sub(x)).max(1);
-                    let h = h.min(GAME_HEIGHT.saturating_sub(y)).max(1);
-                    pass.set_scissor_rect(x, y, w, h);
-                } else {
-                    pass.set_scissor_rect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-                }
-                pass.set_pipeline(pipeline);
-                if let Some(Some((_, custom_bind_group))) = custom_bindings.get(range_index) {
-                    pass.set_bind_group(0, custom_bind_group, &[]);
-                } else {
-                    pass.set_bind_group(0, bind_group, &[]);
-                }
-                pass.draw(range.start..range.start + range.count, 0..1);
-            }
+            draw_range_set(&mut pass, &ranges[scene_end..], scene_end);
         }
         self.queue.submit([encoder.finish()]);
     }
@@ -2483,6 +2575,44 @@ void main() {
         renderer.screenshot(&path).expect("screenshot");
         assert!(std::fs::metadata(&path).expect("file").len() > 1000);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scene_reports_hud_boundary_for_model_pass() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = root.join("content/chars/kaen/kaen.def");
+        if !source.exists() {
+            return;
+        }
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let config = manato_sim::MatchConfig {
+            mugen_root: root,
+            p1: source,
+            p2: std::path::PathBuf::from("content/chars/nival/nival.def"),
+            stage: std::path::PathBuf::from("content/stages/training/stage1.def"),
+            screenpack: None,
+            rounds_to_win: 1,
+            round_time: 99,
+        };
+        let sim = manato_sim::SimState::load(&config).expect("sim");
+        renderer.load_assets(&sim);
+        let deps = SceneDeps {
+            atlas: &renderer.atlas,
+            font: &renderer.font,
+            screen_fonts: &renderer.screen_fonts,
+            overlay_bg_banks: &renderer.overlay_bg_banks,
+            projectile_banks: &renderer.projectile_banks,
+        };
+        let mut painter = Painter::default();
+        let hud_start = scene::build(&mut painter, &sim, &deps);
+        assert!(hud_start > 0, "scene ranges should precede the HUD");
+        assert!(
+            hud_start <= painter.ranges.len(),
+            "HUD boundary must be within the recorded ranges"
+        );
     }
 
     #[test]
