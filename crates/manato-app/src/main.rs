@@ -62,6 +62,8 @@ struct Options {
     turn_realm: Option<String>,
     scale: u32,
     backend: Option<String>,
+    gamepads: bool,
+    gamepad_probe: Option<u64>,
     menu: bool,
     menu_screen: String,
     p1_keys: KeyBindings,
@@ -113,6 +115,8 @@ impl Default for Options {
             turn_realm: None,
             scale: 3,
             backend: None,
+            gamepads: false,
+            gamepad_probe: None,
             menu: false,
             menu_screen: "title".into(),
             p1_keys: KeyBindings::default(),
@@ -640,6 +644,16 @@ impl Options {
                     opts.backend = Some(backend);
                     i += 2;
                 }
+                "--gamepads" => {
+                    opts.gamepads = true;
+                    if args.get(i + 1).is_some_and(|arg| !arg.starts_with("--")) {
+                        opts.gamepad_probe = Some(value(i)?.parse::<u64>()?);
+                        i += 2;
+                    } else {
+                        opts.gamepad_probe = Some(0);
+                        i += 1;
+                    }
+                }
                 "-h" | "--help" => {
                     print_help();
                     std::process::exit(0);
@@ -739,6 +753,7 @@ Content:
   --rounds <n>        Rounds needed to win (default 2)
   --round-time <s>    Round timer in seconds (default 99)
   --backend <name>    GPU backend: auto (default), vulkan, gl, metal, dx12
+  --gamepads [secs]   List controllers; with secs, print live mapped input
 
 Modes:
   --menu              Start at the title screen (front end)
@@ -1003,6 +1018,11 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let mut opts = Options::parse()?;
 
+    #[cfg(feature = "gamepad")]
+    if opts.gamepads {
+        return gamepad_report(&opts);
+    }
+
     if let Some(target) = opts.matchmake.clone() {
         let target: std::net::SocketAddr = target.parse()?;
         let lobbies = manato_net::discovery::Matchmaker::discover(target, Duration::from_secs(1))?;
@@ -1099,6 +1119,74 @@ fn load_match(opts: &Options) -> anyhow::Result<SimState> {
             ai_sides: [opts.ai_level > 0; 2],
         },
     ))
+}
+
+/// Lists detected controllers and optionally prints live mapped input for
+/// `probe_secs` seconds so a physical pad can be verified against `[pad1]`.
+#[cfg(feature = "gamepad")]
+fn gamepad_report(opts: &Options) -> anyhow::Result<()> {
+    use gilrs::EventType;
+
+    let mut gilrs = gilrs::Gilrs::new()
+        .map_err(|error| anyhow::anyhow!("gamepad backend unavailable: {error:?}"))?;
+    let pads: Vec<(gilrs::GamepadId, String, [u8; 16], String)> = gilrs
+        .gamepads()
+        .map(|(id, pad)| {
+            (
+                id,
+                pad.name().to_owned(),
+                pad.uuid(),
+                format!("{:?}", pad.mapping_source()),
+            )
+        })
+        .collect();
+    if pads.is_empty() {
+        println!("no controllers detected");
+        return Ok(());
+    }
+    for (index, (_, name, uuid, mapping)) in pads.iter().enumerate() {
+        let uuid = uuid
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        println!("gamepad {index}: {name} (uuid {uuid}, mapping {mapping})");
+    }
+    let Some(seconds) = opts.gamepad_probe.filter(|seconds| *seconds > 0) else {
+        return Ok(());
+    };
+    println!("probing mapped input for {seconds}s (Ctrl-C to stop)");
+    let deadline = Instant::now() + Duration::from_secs(seconds);
+    let mut last: Vec<(gilrs::GamepadId, u8, u16)> = Vec::new();
+    while Instant::now() < deadline {
+        if let Some(event) = gilrs.next_event_blocking(Some(Duration::from_millis(50))) {
+            match event.event {
+                EventType::ButtonPressed(button, _) => println!("  event: press {button:?}"),
+                EventType::ButtonReleased(button, _) => println!("  event: release {button:?}"),
+                EventType::Connected => println!("  event: connected"),
+                EventType::Disconnected => println!("  event: disconnected"),
+                _ => {}
+            }
+        }
+        let ids: Vec<gilrs::GamepadId> = gilrs.gamepads().map(|(id, _)| id).collect();
+        let mut states = Vec::new();
+        for (index, id) in ids.into_iter().enumerate() {
+            let pad = gilrs.gamepad(id);
+            let bindings = if index == 0 { &opts.pad1 } else { &opts.pad2 };
+            let input = pad_input(&pad, bindings);
+            states.push((id, input.dir, input.buttons));
+            if !last.iter().any(|(seen, dir, buttons)| {
+                *seen == id && *dir == input.dir && *buttons == input.buttons
+            }) {
+                println!(
+                    "  pad {index}: dir={:#06b} buttons={:#09b}",
+                    input.dir, input.buttons
+                );
+            }
+        }
+        last = states;
+    }
+    println!("probe finished");
+    Ok(())
 }
 
 /// Maps `--backend` to a wgpu backend mask; `auto` allows every compiled

@@ -660,6 +660,11 @@ fn projectile_shadow_shader(projectile: &manato_sim::projectile::Projectile) -> 
     projectile.shader_shadow && projectile.shader.is_some()
 }
 
+/// True when the projectile's custom shader should also shade its afterimages.
+fn projectile_afterimage_shader(projectile: &manato_sim::projectile::Projectile) -> bool {
+    projectile.shader_afterimage && projectile.shader.is_some()
+}
+
 /// True when `projshadow` requests a projectile shadow.
 fn projectile_shadow_visible(projectile: &manato_sim::projectile::Projectile) -> bool {
     projectile.shadow.iter().any(|value| *value != 0)
@@ -766,6 +771,13 @@ fn draw_projectiles(
             painter.set_depth((0.5 + projectile.z * 0.001).clamp(0.05, 0.95));
         }
         let angle = pose.angle + projectile.angle * projectile.facing as f32;
+        // Ghosts only inherit the custom shader when `shader.afterimage` is set;
+        // otherwise they use the plain sprite pipeline.
+        if !projectile_afterimage_shader(projectile) {
+            painter.set_shader(None);
+            painter.set_shader_params(None);
+            painter.set_shader_textures(None, None);
+        }
         for ghost in &projectile.after_images {
             let Some(ghost_pose) = anim.pose_at(ghost.anim_time) else {
                 continue;
@@ -806,6 +818,10 @@ fn draw_projectiles(
             painter.reset_palfx();
             painter.set_depth(restore);
         }
+        // Restore the projectile's own shader for the shadow and main sprite.
+        painter.set_shader(projectile.shader.clone());
+        painter.set_shader_params(projectile.shader_params);
+        painter.set_shader_textures(tex1, tex2);
         if projectile_shadow_shader(projectile) {
             painter.set_shader(projectile.shader.clone());
             painter.set_shader_params(projectile.shader_params);
@@ -2459,6 +2475,53 @@ mod tests {
             add: true,
         };
         assert_eq!(projectile_ghost_tint(&ghost), [1.0, 1.0, 1.0, 0.4]);
+    }
+
+    #[test]
+    fn afterimage_shader_gate_controls_ghost_ranges() {
+        let mut projectile = test_projectile(0, 0);
+        projectile.shader = Some("glow".into());
+        let mut painter = Painter::default();
+        let quad = |painter: &mut Painter| {
+            painter.quad(
+                TexRef::Solid,
+                Blend::Normal,
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.0, 1.0, 1.0],
+                false,
+                false,
+                [1.0; 4],
+            );
+        };
+
+        projectile.shader_afterimage = false;
+        painter.set_shader(projectile.shader.clone());
+        if !projectile_afterimage_shader(&projectile) {
+            painter.set_shader(None);
+        }
+        quad(&mut painter);
+        assert!(painter.ranges[0].shader.is_none());
+
+        projectile.shader_afterimage = true;
+        painter.set_shader(projectile.shader.clone());
+        if !projectile_afterimage_shader(&projectile) {
+            painter.set_shader(None);
+        }
+        quad(&mut painter);
+        assert_eq!(painter.ranges[1].shader.as_deref(), Some("glow"));
+    }
+
+    #[test]
+    fn projectile_afterimage_shader_requires_name_and_flag() {
+        let mut projectile = test_projectile(0, 0);
+        projectile.shader = None;
+        projectile.shader_afterimage = true;
+        assert!(!projectile_afterimage_shader(&projectile));
+        projectile.shader = Some("glow".into());
+        projectile.shader_afterimage = false;
+        assert!(!projectile_afterimage_shader(&projectile));
+        projectile.shader_afterimage = true;
+        assert!(projectile_afterimage_shader(&projectile));
     }
 
     #[test]

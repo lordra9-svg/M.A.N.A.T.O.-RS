@@ -123,6 +123,7 @@ Modes:
   --screenshot <png>  Save the final frame (headless)
   --scale <n>         Window integer scale (default 3)
   --backend <name>    auto (default), vulkan, gl, metal, or dx12
+  --gamepads [secs]   List controllers; with secs, print live mapped input
 ```
 
 Relative `--p1`, `--p2`, and `--stage` paths are resolved against `--root`.

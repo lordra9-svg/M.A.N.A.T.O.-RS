@@ -99,8 +99,10 @@ Rules:
   shader; `shader.reflection` applies it to the projectile reflection.
   `shader.shadow` applies the custom shader when drawing the projectile's
   shadow. `afterimage.time/length/timegap/trans` emit a fading ghost trail
-  drawn with the projectile's selected palette bank; `shader.afterimage` is
-  still stored without a separate shader pass for ghosts. `supermovetime` lets a projectile keep moving
+  drawn with the projectile's selected palette bank. `shader.afterimage`
+  applies the projectile's custom shader (with its params and `tex1`/`tex2`
+  bindings) to those ghosts; without the flag ghosts use the plain sprite
+  pipeline. `supermovetime` lets a projectile keep moving
   during a global super pause until the timer expires (`0` or `< -1` freezes,
   `-1` moves forever); `pausemovetime` is tracked alongside it. `ownpal` and
   `remappal` are parsed and reported through `ProjVar(drawpal.group/index)`.
