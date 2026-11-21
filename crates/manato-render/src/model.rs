@@ -27,8 +27,10 @@ pub struct ModelVertex {
     pub specular: [f32; 3],
     /// Fresnel F0.
     pub f0: [f32; 3],
-    /// Screen-space refraction offset in UV units.
-    pub refraction: [f32; 2],
+    /// Refractive index used for per-pixel screen-space refraction.
+    pub refraction_ior: f32,
+    /// Per-channel dispersion spread for the refraction sample.
+    pub dispersion: f32,
     /// Transmission mix for the screen-space grab sample.
     pub transmission: f32,
 }
@@ -540,11 +542,11 @@ impl ModelAsset {
                         out.brdf_uv = shaded.brdf_uv;
                         out.specular = shaded.specular.to_array();
                         out.f0 = shaded.f0.to_array();
-                        // Screen-space refraction: bend the grab sample by the
-                        // view-space normal scaled by transmission and IOR.
+                        // Screen-space refraction is evaluated per fragment
+                        // from the interpolated normal and these material terms.
                         out.transmission = draw.transmission;
-                        out.refraction =
-                            refraction_uv(normal, draw.refraction_ior, draw.transmission);
+                        out.refraction_ior = draw.refraction_ior;
+                        out.dispersion = draw.dispersion;
                         if let Some(map) = &draw.emissive_map {
                             let texel = sample_texture(map, vertex.uv);
                             for channel in 0..3 {
@@ -843,11 +845,27 @@ fn iridescence_tint(n_dot_v: f32, ior: f32, thickness: [f32; 2]) -> Vec3 {
     Vec3::from_array(channels)
 }
 
-/// Screen-space grab UV offset for a transmissive surface. Proportions the
-/// view-space normal by transmission and the IOR spread.
+/// Screen-space grab UV offset for a transmissive surface. This mirrors the
+/// per-fragment WGSL expression and is kept for the render tests; the shader
+/// evaluates the same formula per pixel from the interpolated normal.
+#[cfg(test)]
 fn refraction_uv(normal: Vec3, ior: f32, transmission: f32) -> [f32; 2] {
     let strength = (ior.max(1.0) - 1.0) * 0.02 * transmission.clamp(0.0, 1.0);
     [normal.x * strength, normal.y * strength]
+}
+
+/// Per-channel refraction strengths used by the fragment shader. Red and blue
+/// shift with dispersion while green stays at the base IOR.
+#[cfg(test)]
+fn refraction_strengths(ior: f32, dispersion: f32, transmission: f32) -> [f32; 3] {
+    let transmission = transmission.clamp(0.0, 1.0);
+    let spread = dispersion.max(0.0) * 0.15;
+    let strength = |scaled: f32| (scaled.max(1.0001) - 1.0) * 0.02 * transmission;
+    [
+        strength(ior * (1.0 + spread)),
+        (ior.max(1.0) - 1.0) * 0.02 * transmission,
+        strength(ior * (1.0 - spread)),
+    ]
 }
 
 /// Beer-Lambert transmittance through a volume of the given thickness.
@@ -1318,7 +1336,8 @@ pub fn load(path: &std::path::Path) -> anyhow::Result<ModelAsset> {
                         brdf_uv: [0.0, 0.0],
                         specular: [0.0; 3],
                         f0: [0.0; 3],
-                        refraction: [0.0; 2],
+                        refraction_ior: 0.0,
+                        dispersion: 0.0,
                         transmission: 0.0,
                     })
                 })
@@ -1658,8 +1677,10 @@ struct VsIn {
     @location(3) brdf_uv: vec2<f32>,
     @location(4) specular: vec3<f32>,
     @location(5) f0: vec3<f32>,
-    @location(6) refraction: vec2<f32>,
-    @location(7) transmission: f32,
+    @location(6) refraction_ior: f32,
+    @location(7) dispersion: f32,
+    @location(8) transmission: f32,
+    @location(9) normal: vec3<f32>,
 };
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
@@ -1668,8 +1689,10 @@ struct VsOut {
     @location(2) brdf_uv: vec2<f32>,
     @location(3) specular: vec3<f32>,
     @location(4) f0: vec3<f32>,
-    @location(5) refraction: vec2<f32>,
-    @location(6) transmission: f32,
+    @location(5) transmission: f32,
+    @location(6) normal: vec3<f32>,
+    @location(7) refraction_ior: f32,
+    @location(8) dispersion: f32,
 };
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
@@ -1685,8 +1708,10 @@ fn vs_main(in: VsIn) -> VsOut {
     out.brdf_uv = in.brdf_uv;
     out.specular = in.specular;
     out.f0 = in.f0;
-    out.refraction = in.refraction;
     out.transmission = in.transmission;
+    out.normal = in.normal;
+    out.refraction_ior = in.refraction_ior;
+    out.dispersion = in.dispersion;
     return out;
 }
 @group(0) @binding(0) var base_color: texture_2d<f32>;
@@ -1706,9 +1731,27 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         return vec4<f32>(lit, base.a);
     }
     let size = vec2<f32>(textureDimensions(grab));
-    let scene_uv = clamp(in.pos.xy / size + in.refraction, vec2<f32>(0.0), vec2<f32>(1.0));
-    let behind = textureSample(grab, grab_samp, scene_uv);
-    let mixed = mix(lit, behind.rgb * base.rgb, clamp(in.transmission, 0.0, 1.0));
+    let base_uv = in.pos.xy / size;
+    let normal = normalize(in.normal);
+    let transmission = clamp(in.transmission, 0.0, 1.0);
+    let strength = (max(in.refraction_ior, 1.0) - 1.0) * 0.02 * transmission;
+    // Per-pixel screen-space refraction: the interpolated view-space normal
+    // bends the grab sample independently at each fragment. Dispersion moves
+    // the red and blue samples along that direction for a chromatic fringe.
+    let spread = max(in.dispersion, 0.0) * 0.15;
+    let ior_r = max(in.refraction_ior * (1.0 + spread), 1.0001);
+    let ior_b = max(in.refraction_ior * (1.0 - spread), 1.0001);
+    let strength_r = (ior_r - 1.0) * 0.02 * transmission;
+    let strength_b = (ior_b - 1.0) * 0.02 * transmission;
+    let uv_r = clamp(base_uv + normal.xy * strength_r, vec2<f32>(0.0), vec2<f32>(1.0));
+    let uv_g = clamp(base_uv + normal.xy * strength, vec2<f32>(0.0), vec2<f32>(1.0));
+    let uv_b = clamp(base_uv + normal.xy * strength_b, vec2<f32>(0.0), vec2<f32>(1.0));
+    let behind = vec3<f32>(
+        textureSample(grab, grab_samp, uv_r).r,
+        textureSample(grab, grab_samp, uv_g).g,
+        textureSample(grab, grab_samp, uv_b).b,
+    );
+    let mixed = mix(lit, behind * base.rgb, transmission);
     return vec4<f32>(mixed, base.a);
 }
 "#
@@ -1763,12 +1806,22 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
                     wgpu::VertexAttribute {
                         offset: 104,
                         shader_location: 6,
-                        format: wgpu::VertexFormat::Float32x2,
+                        format: wgpu::VertexFormat::Float32,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 108,
+                        shader_location: 7,
+                        format: wgpu::VertexFormat::Float32,
                     },
                     wgpu::VertexAttribute {
                         offset: 112,
-                        shader_location: 7,
+                        shader_location: 8,
                         format: wgpu::VertexFormat::Float32,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 60,
+                        shader_location: 9,
+                        format: wgpu::VertexFormat::Float32x3,
                     },
                 ],
             }],
@@ -1809,6 +1862,8 @@ pub fn upload_model(device: &wgpu::Device, vertices: &[ModelVertex]) -> wgpu::Bu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Renderer;
+    use std::collections::HashMap;
 
     #[test]
     fn brdf_lut_texture_data_is_populated() {
@@ -1940,6 +1995,17 @@ mod tests {
         let mirrored = refraction_uv(Vec3::new(1.0, 0.0, 0.0), 2.0, 1.0);
         assert!(mirrored[0] > 0.0);
         assert_eq!(mirrored[1], 0.0);
+    }
+
+    #[test]
+    fn dispersion_splits_channel_refraction_strengths() {
+        let none = refraction_strengths(1.5, 0.0, 1.0);
+        assert!((none[0] - none[1]).abs() < 1e-6);
+        assert!((none[2] - none[1]).abs() < 1e-6);
+        let split = refraction_strengths(1.5, 0.5, 1.0);
+        assert!(split[0] > split[1], "red bends furthest");
+        assert!(split[1] > split[2], "blue bends least");
+        assert_eq!(refraction_strengths(1.5, 0.5, 0.0), [0.0, 0.0, 0.0]);
     }
 
     #[test]
@@ -2217,10 +2283,81 @@ mod tests {
         assert_eq!(draw.transmission, 0.3, "explicit transmission wins");
         let sampled = asset.sample(0.0, &Default::default());
         assert!((sampled[0][0].transmission - 0.3).abs() < 1e-6);
-        let offset = sampled[0][0].refraction;
-        assert!((offset[0] * offset[0] + offset[1] * offset[1]).sqrt() > 0.0);
+        assert_eq!(sampled[0][0].refraction_ior, 1.7);
+        assert_eq!(sampled[0][0].dispersion, 0.4);
+        let offset = refraction_uv(Vec3::new(0.0, 1.0, 0.0), 1.7, 0.3);
+        assert_eq!(offset[0], 0.0);
+        assert!(offset[1] > 0.0);
         assert_eq!(sample_texture(texture, [0.5, 0.5]), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(asset.sample(0.0, &Default::default())[0].len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn transmissive_gltf_model_renders_with_per_pixel_refraction() {
+        let Ok(mut renderer) = Renderer::new_offscreen() else {
+            eprintln!("skipping: no GPU adapter");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("manato-refract-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let model = dir.join("glass.gltf");
+        std::fs::write(
+            &model,
+            r#"{
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_materials_transmission", "KHR_materials_refraction", "KHR_materials_dispersion"],
+  "buffers": [{"uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAEAAAAAA", "byteLength": 36}],
+  "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36, "target": 34962}],
+  "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [-1,0,0], "max": [1,2,0]}],
+  "materials": [{
+    "pbrMetallicRoughness": {"baseColorFactor": [1,1,1,1]},
+    "extensions": {
+      "KHR_materials_transmission": {"transmissionFactor": 1.0},
+      "KHR_materials_refraction": {"iorFactor": 1.5, "transmissionFactor": 1.0},
+      "KHR_materials_dispersion": {"dispersionFactor": 0.5}
+    }
+  }],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0, "mode": 4}]}],
+  "nodes": [{"mesh": 0}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0
+}"#,
+        )
+        .expect("model");
+        renderer.load_model(&model, None, None, &[]);
+        assert_eq!(renderer.model_draws.len(), 1);
+        let asset = renderer.model_asset.as_ref().expect("model asset");
+        assert!(asset.draws[0].transmission > 0.9);
+        assert_eq!(asset.draws[0].refraction_ior, 1.5);
+        assert_eq!(asset.draws[0].dispersion, 0.5);
+        let storyboard = manato_formats::storyboard::Storyboard {
+            path: dir.join("story.def"),
+            name: "glass".into(),
+            author: String::new(),
+            start_scene: 0,
+            sprites: manato_formats::SffFile::default(),
+            animations: HashMap::new(),
+            scenes: vec![manato_formats::storyboard::StoryboardScene {
+                name: "Scene 0".into(),
+                end_time: 10,
+                ..Default::default()
+            }],
+            font_files: std::collections::BTreeMap::new(),
+            sounds: manato_formats::SoundBank::default(),
+            lua_source: None,
+            model: Some(model),
+            model_anim: None,
+            model_env: None,
+            model_lights: Vec::new(),
+        };
+        let player = manato_formats::storyboard::StoryboardPlayer::new(&storyboard);
+        renderer.load_storyboard(&storyboard);
+        renderer.render_storyboard(&storyboard, &player);
+        let path = dir.join("glass.png");
+        renderer.screenshot(&path).expect("screenshot");
+        assert!(std::fs::metadata(&path).expect("file").len() > 1000);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

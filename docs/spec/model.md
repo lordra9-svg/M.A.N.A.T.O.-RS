@@ -48,16 +48,19 @@ and the first node animation are loaded and rendered behind the 2D scene.
   the Schlick Fresnel reflectance; its `transmissionFactor` raises the
   material transmission. Models render in a post-scene pass: the scene color
   is copied after opaque/transparent scene quads (before the HUD), and
-  transmissive surfaces sample that current-frame copy with a per-vertex UV
-  offset proportional to the view-space normal, `iorFactor - 1`, and
-  transmission, mixing it behind the base colour (`0.02` max UV strength).
+  transmissive surfaces sample that current-frame copy with a **per-fragment**
+  UV offset computed from the interpolated view-space normal, `iorFactor - 1`,
+  and transmission, mixing it behind the base colour (`0.02` max UV strength).
   Depth is preserved across passes, so scene geometry occludes models and the
   HUD remains on top. This is still a screen-space approximation: it does not
-  ray-trace geometry behind the surface per-pixel.
+  ray-trace geometry behind the surface.
 - `KHR_materials_dispersion` spreads the IOR per RGB channel
   (`dispersionFactor`, Cauchy-style approximation), producing chromatic F0 and
-  Fresnel-transmission fringing. It requires a refractive IOR and is inert
-  otherwise; it does not split rays or sample per-wavelength environment
+  Fresnel-transmission fringing. The refraction sample is taken three times,
+  with red and blue offset by scaled IORs along the refraction direction and
+  green at the base IOR, so the screen-space refraction shows a chromatic
+  fringe. It requires a refractive IOR and is inert otherwise; it does not
+  trace geometric rays or sample a per-wavelength environment
   colors.
 - Lighting is computed per vertex before upload using a metallic-roughness
   Cook-Torrance BRDF: GGX/Trowbridge-Reitz normal distribution, Smith-Schlick
@@ -108,9 +111,9 @@ and the first node animation are loaded and rendered behind the 2D scene.
 - Morph targets: `TARGET_POSITION` deltas are blended by node/mesh default
   weights or by the first clip's `weights` channel.
 
-- Per-pixel ray-traced refraction and physically split dispersion rays
-  (refraction samples the current-frame scene copy; dispersion is a
-  per-channel tint approximation).
+- Ray-traced refraction and physically split geometric dispersion rays
+  (refraction is per-fragment screen-space sampling of the current-frame copy;
+  dispersion offsets each color channel in screen space).
 - `ModifyBGCtrl3D` also targets 3D model nodes: `ctrlid` is the glTF node index
   (`-1` = all nodes), and `value = z[, xscale[, yscale]]` scales the node's
   baked screen extent around the model center and offsets its depth. Animation
