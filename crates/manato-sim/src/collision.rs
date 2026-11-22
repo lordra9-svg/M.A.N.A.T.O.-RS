@@ -1025,6 +1025,18 @@ pub fn apply_hit_at(
             priority: 0,
             low_priority: false,
         });
+        sim.play_sound_channel(
+            attacker,
+            sound_group,
+            sound_index,
+            100.0,
+            0.0,
+            -1,
+            false,
+            0,
+            false,
+            1.0,
+        );
     }
 
     // Camera kick for heavy hits.

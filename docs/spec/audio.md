@@ -27,7 +27,7 @@ source: Character(owner) | FightFx | Common
 group: i32
 index: i32
 channel: i32        // -1 = one-shot, >=0 = managed channel
-volume: f32         // 0..1, 0 means "default"
+volume: f32         // 0..100, 0 means "default"
 pan: f32            // -1..1
 loop: bool
 priority: i32       // higher wins channel contention
@@ -51,13 +51,22 @@ after the simulation step, so they are rollback-safe.
 Helpers use their owner's channel namespace (`Character(root_owner)`), so a
 helper and its owner cannot fight over the same channel.
 
+The simulation also keeps a deterministic registry of managed channels
+(`SoundChannelState`) for `SoundVar`. It records the decoded SND sample rate
+and length, advances a sample position once per 60 Hz tick, and stops a
+one-shot when the position reaches its length; looping channels stay active
+until `StopSnd`. `PlaySnd channel = -1` picks the first free managed channel.
+Because actual playback is asynchronous, `SoundVar` describes sim-side channel
+state rather than mixer timing (as with Ikemen, it is not network-safe for
+gameplay decisions).
+
 ## 4. PlaySnd
 
 ```
 [State ...]
 type = PlaySnd
 value = group, index
-volume = 100
+volumescale = 100   ; `volume` is accepted as an alias
 channel = 0
 pan = 0
 loop = 0
@@ -66,7 +75,8 @@ lowpriority = 0
 
 - `value` selects the sound; a `F`/`S` prefix selects FightFx/Common banks
   where content uses it.
-- `volume`: 0–100; 0 means the default full volume.
+- `volumescale`/`volume`: 0–100; omitted means full volume.
+- `freqmul`: playback frequency multiplier (default 1).
 - `channel`: -1 by default.
 - `pan`: -100..100, scaled to -1..1.
 - `loop`: repeat until stopped.
@@ -102,7 +112,8 @@ loop = 0
 
 - Replaces the sound on a channel without restarting it if the group/index is
   unchanged; otherwise stops and starts the new sound.
-- `volume`, `pan`, and `loop` update the live voice when possible.
+- `volume`, `pan`, `freqmul`, and `loop` update the live voice when possible.
+- `volume` uses percent (0–100) and is divided by 100 for the mixer.
 
 ## 7. Pause behavior
 

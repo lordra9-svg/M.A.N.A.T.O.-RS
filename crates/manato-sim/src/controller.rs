@@ -4248,7 +4248,10 @@ fn play_snd(sim: &mut SimState, who: usize, control: &Controller) {
         .next()
         .and_then(|v| trigger::int(sim, who, v).into())
         .unwrap_or(0);
-    let volume = num_param(sim, who, control, "volume").unwrap_or(0.0);
+    let volume = num_param(sim, who, control, "volumescale")
+        .or_else(|| num_param(sim, who, control, "volume"))
+        .unwrap_or(100.0);
+    let freq_mul = num_param(sim, who, control, "freqmul").unwrap_or(1.0);
     let pan = (num_param(sim, who, control, "pan").unwrap_or(0.0) / 100.0).clamp(-1.0, 1.0);
     let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
     let loop_sound = int_param(sim, who, control, "loop").unwrap_or(0) != 0;
@@ -4265,6 +4268,18 @@ fn play_snd(sim: &mut SimState, who: usize, control: &Controller) {
         priority,
         low_priority,
     });
+    sim.play_sound_channel(
+        who,
+        group,
+        index,
+        volume,
+        pan,
+        channel,
+        loop_sound,
+        priority,
+        low_priority,
+        freq_mul,
+    );
 }
 
 fn stop_snd(sim: &mut SimState, who: usize, control: &Controller) {
@@ -4273,18 +4288,20 @@ fn stop_snd(sim: &mut SimState, who: usize, control: &Controller) {
         source: SoundSource::Character(who),
         channel,
     });
+    sim.stop_sound_channel(who, channel);
 }
 
 fn snd_pan(sim: &mut SimState, who: usize, control: &Controller) {
     let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
     let pan = num_param(sim, who, control, "pan").map(|value| (value / 100.0).clamp(-1.0, 1.0));
-    let volume = num_param(sim, who, control, "volume").map(|value| value.clamp(0.0, 1.0));
+    let volume_scale = num_param(sim, who, control, "volume").map(|value| value.clamp(0.0, 100.0));
     sim.sound_commands.push(crate::SoundCommand::Pan {
         source: SoundSource::Character(who),
         channel,
         pan,
-        volume,
+        volume: volume_scale.map(|value| value / 100.0),
     });
+    sim.pan_sound_channel(who, channel, pan, volume_scale);
 }
 
 fn modify_snd(sim: &mut SimState, who: usize, control: &Controller) {
@@ -4302,17 +4319,28 @@ fn modify_snd(sim: &mut SimState, who: usize, control: &Controller) {
         .unwrap_or(0);
     let channel = int_param(sim, who, control, "channel").unwrap_or(-1);
     let pan = num_param(sim, who, control, "pan").map(|value| (value / 100.0).clamp(-1.0, 1.0));
-    let volume = num_param(sim, who, control, "volume").map(|value| value.clamp(0.0, 1.0));
+    let volume_scale = num_param(sim, who, control, "volume").map(|value| value.clamp(0.0, 100.0));
     let loop_sound = int_param(sim, who, control, "loop").map(|value| value != 0);
+    let freq_mul = num_param(sim, who, control, "freqmul");
     sim.sound_commands.push(crate::SoundCommand::Modify {
         source: SoundSource::Character(who),
         channel,
         group,
         index,
-        volume,
+        volume: volume_scale.map(|value| value / 100.0),
         pan,
         loop_sound,
     });
+    sim.modify_sound_channel(
+        who,
+        group,
+        index,
+        channel,
+        volume_scale,
+        pan,
+        loop_sound,
+        freq_mul,
+    );
 }
 
 fn hit_def(sim: &mut SimState, who: usize, control: &Controller) {

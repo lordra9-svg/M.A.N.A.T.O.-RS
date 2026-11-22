@@ -1726,6 +1726,149 @@ fn sound_controllers_emit_channel_events() {
 }
 
 #[test]
+fn sound_var_reads_managed_channels() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let (group, index) = {
+        let sound = sim.assets.characters[0]
+            .sounds
+            .sounds
+            .first()
+            .expect("bundled character sound");
+        (sound.group, sound.index)
+    };
+    let play = manato_formats::Controller {
+        kind: "playsnd".into(),
+        params: vec![
+            ("type".into(), "PlaySnd".into()),
+            ("value".into(), format!("{group}, {index}")),
+            ("channel".into(), "3".into()),
+            ("volumescale".into(), "80".into()),
+            ("freqmul".into(), "1.5".into()),
+            ("pan".into(), "-50".into()),
+            ("priority".into(), "7".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &play, &assets);
+
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+    let num = |sim: &SimState, text: &str| manato_sim::trigger::num(sim, 0, text);
+    assert_eq!(int(&sim, "SoundVar(3, isplaying)"), 1);
+    assert_eq!(int(&sim, "SoundVar(3, group)"), group);
+    assert_eq!(int(&sim, "SoundVar(3, number)"), index);
+    assert_eq!(int(&sim, "SoundVar(3, priority)"), 7);
+    assert_eq!(int(&sim, "SoundVar(3, length)"), {
+        let sound = &sim.assets.characters[0].sounds.sounds[0];
+        (sound.samples.len() / sound.channels.max(1) as usize) as i32
+    });
+    assert!((num(&sim, "SoundVar(3, volumescale)") - 80.0).abs() < 0.001);
+    assert!((num(&sim, "SoundVar(3, freqmul)") - 1.5).abs() < 0.001);
+    assert!((num(&sim, "SoundVar(3, pan)") + 0.5).abs() < 0.001);
+    assert!(num(&sim, "SoundVar(3, samplerate)") > 0.0);
+    assert_eq!(int(&sim, "SoundVar(3, position)"), 0);
+    assert_eq!(int(&sim, "SoundVar(3, startposition)"), 0);
+
+    // `-1` selects the first playing channel.
+    assert_eq!(int(&sim, "SoundVar(-1, isplaying)"), 1);
+
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(num(&sim, "SoundVar(3, position)") > 0.0);
+
+    // ModifySnd updates the registry fields without stopping the channel.
+    let modify = manato_formats::Controller {
+        kind: "modifysnd".into(),
+        params: vec![
+            ("type".into(), "ModifySnd".into()),
+            ("value".into(), format!("{group}, {index}")),
+            ("channel".into(), "3".into()),
+            ("volume".into(), "40".into()),
+            ("pan".into(), "25".into()),
+            ("freqmul".into(), "0.75".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &modify, &assets);
+    assert!((num(&sim, "SoundVar(3, volumescale)") - 40.0).abs() < 0.001);
+    assert!((num(&sim, "SoundVar(3, pan)") - 0.25).abs() < 0.001);
+    assert!((num(&sim, "SoundVar(3, freqmul)") - 0.75).abs() < 0.001);
+
+    let stop = manato_formats::Controller {
+        kind: "stopsnd".into(),
+        params: vec![
+            ("type".into(), "StopSnd".into()),
+            ("channel".into(), "3".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &stop, &assets);
+    assert_eq!(int(&sim, "SoundVar(3, isplaying)"), 0);
+    assert_eq!(int(&sim, "SoundVar(3, group)"), group, "data is retained");
+}
+
+#[test]
+fn sound_var_shows_one_shot_expiry() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let (group, index) = {
+        let sound = sim.assets.characters[0]
+            .sounds
+            .sounds
+            .first()
+            .expect("bundled character sound");
+        (sound.group, sound.index)
+    };
+    let play = manato_formats::Controller {
+        kind: "playsnd".into(),
+        params: vec![
+            ("value".into(), format!("{group}, {index}")),
+            ("channel".into(), "4".into()),
+            ("volumescale".into(), "100".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &play, &assets);
+    let int = |sim: &SimState, text: &str| manato_sim::trigger::int(sim, 0, text);
+    assert_eq!(int(&sim, "SoundVar(4, isplaying)"), 1);
+
+    let length = int(&sim, "SoundVar(4, length)");
+    let sample_rate = manato_sim::trigger::num(&sim, 0, "SoundVar(4, samplerate)") as i32;
+    let ticks = length / (sample_rate / 60).max(1) + 2;
+    for _ in 0..ticks {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(int(&sim, "SoundVar(4, isplaying)"), 0);
+    assert_eq!(int(&sim, "SoundVar(4, position)"), length);
+
+    // Looping channels keep playing until stopped.
+    let looped = manato_formats::Controller {
+        kind: "playsnd".into(),
+        params: vec![
+            ("value".into(), format!("{group}, {index}")),
+            ("channel".into(), "5".into()),
+            ("loop".into(), "1".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &looped, &assets);
+    for _ in 0..(ticks + 2) {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(int(&sim, "SoundVar(5, isplaying)"), 1);
+    let stop = manato_formats::Controller {
+        kind: "stopsnd".into(),
+        params: vec![("channel".into(), "5".into())],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &stop, &assets);
+    assert_eq!(int(&sim, "SoundVar(5, isplaying)"), 0);
+}
+
+#[test]
 fn explod_parses_transparency_binding_and_projection() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",
@@ -2032,11 +2175,12 @@ fn ikemen_zero_fallbacks_and_win_types() {
     assert_eq!(int(&sim, "GameOption(Options.GameSpeed)"), 0);
     assert_eq!(int(&sim, "GameOption(Config.RoundTime)"), 0);
 
-    // No persistent sound channels: numeric fields read 0, isplaying false.
-    assert_eq!(int(&sim, "SoundVar(0, group)"), 0);
-    assert_eq!(int(&sim, "SoundVar(0, number)"), 0);
+    // No channel is registered: group/number report -1 like Ikemen.
+    assert_eq!(int(&sim, "SoundVar(0, group)"), -1);
+    assert_eq!(int(&sim, "SoundVar(0, number)"), -1);
     assert_eq!(int(&sim, "SoundVar(0, volumescale)"), 0);
     assert_eq!(int(&sim, "SoundVar(0, isplaying)"), 0);
+    assert_eq!(int(&sim, "SoundVar(0, freqmul)"), 1);
 }
 
 #[test]

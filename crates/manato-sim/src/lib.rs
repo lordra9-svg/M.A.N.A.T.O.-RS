@@ -15,8 +15,11 @@ pub mod expr;
 pub mod fighter;
 pub mod hitdef;
 pub mod projectile;
+pub mod sound;
 pub mod text;
 pub mod trigger;
+
+pub use sound::SoundChannelState;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -992,6 +995,9 @@ pub struct SimState {
     pub projectiles: Vec<crate::projectile::Projectile>,
     pub sounds: Vec<SoundEvent>,
     pub sound_commands: Vec<SoundCommand>,
+    /// Per-character managed sound channels (`PlaySnd channel`, `SoundVar`).
+    #[serde(default)]
+    pub sound_channels: Vec<Vec<SoundChannelState>>,
     /// Output from debug clipboard controllers (cleared each tick).
     #[serde(skip, default)]
     pub debug_output: Vec<String>,
@@ -1135,6 +1141,7 @@ impl SimState {
             projectiles: Vec::new(),
             sounds: Vec::new(),
             sound_commands: Vec::new(),
+            sound_channels: Vec::new(),
             debug_output: Vec::new(),
             bg_time: 0.0,
             env_shake: EnvShake::default(),
@@ -1307,7 +1314,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(29u32, self.asset_id(), self))
+        bincode::serialize(&(30u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1326,7 +1333,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 29 {
+        if version != 30 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1594,6 +1601,8 @@ impl SimState {
             }
         }
         self.projectiles.retain(|p| !p.is_expired());
+        self.sound_channels.resize(self.fighters.len(), Vec::new());
+        self.tick_sound_channels();
     }
 
     /// Initial logic-speed fraction during KO slow-motion, ramping to 1.0 as
@@ -3126,6 +3135,7 @@ impl SimState {
             }
         }
         self.fighters.truncate(2);
+        self.sound_channels = vec![Vec::new(); self.fighters.len()];
         self.tag_transitions = [None, None];
         self.model_nodes.clear();
         for team in &mut self.teams {
@@ -4629,6 +4639,18 @@ impl SimState {
             h.write_f32(overlay.scale.y);
             h.write_i32(overlay.facing);
             h.write_bool(overlay.screen_space);
+        }
+        h.write_u32(self.sound_channels.len() as u32);
+        for channels in &self.sound_channels {
+            h.write_u32(channels.len() as u32);
+            for channel in channels {
+                h.write_i32(channel.channel);
+                h.write_i32(channel.group);
+                h.write_i32(channel.index);
+                h.write_i32(channel.position);
+                h.write_bool(channel.playing);
+                h.write_bool(channel.loop_sound);
+            }
         }
         h.write_u8(self.team_modes[0] as u8);
         h.write_u8(self.team_modes[1] as u8);

@@ -13,7 +13,7 @@ Decode M.U.G.E.N/Ikemen-GO `.snd` banks into playable PCM:
 - Mono and multi-channel WAV
 - Multiple sounds keyed by `(group, index)`
 
-Out of scope: BGM, sound channels, looping, panning, and playback scheduling.
+Out of scope: BGM, looping, panning, and playback scheduling; sim-side channel state is specified in `audio.md`.
 
 ## 2. Header
 

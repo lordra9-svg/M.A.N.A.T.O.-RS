@@ -395,8 +395,13 @@ missing redirect targets make the trigger false.
   false because special/hyper finishes are not classified. `GameOption(key)`
   reads false for every key: there is no external engine config (`mugen.cfg`)
   to query, matching Ikemen's `GetValue` error path. `SoundVar(channel, field)`
-  reads 0 for numeric fields and false for `isplaying` because the engine
-  queues one-shot sound events without a persistent channel registry.
+  reads the sim-side sound-channel registry populated by `PlaySnd channel`:
+  `group`, `number`, `freqmul`, `isplaying`, `length` (sample frames),
+  `pan`, `position`, `priority`, `samplerate`, and `volumescale`;
+  `loopcount`/`loopstart`/`loopend`/`startposition` read 0 because loop
+  metadata is not parsed. A negative channel selects the first playing
+  channel, and an unregistered channel reports `group`/`number` as -1,
+  `freqmul` as 1, and everything else as 0/false (Ikemen semantics).
 - Screenpack: `MotifVar(info.name|info.author|info.localcoord.x|info.localcoord.y)`
   reads `system.def`; other keys read `0`. `MotifState(field)` is false for
   every field because no front-end motif screen is active during a fight.

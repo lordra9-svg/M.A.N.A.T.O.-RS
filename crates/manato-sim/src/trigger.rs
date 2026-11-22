@@ -1529,11 +1529,30 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
             }
         }
         "soundvar" => {
+            let channel = arg_i32(sim, who, args, 0);
             let field = key_at(sim, who, args, 1).to_ascii_lowercase();
-            if field == "isplaying" {
-                Value::Bool(false)
-            } else {
-                Value::Int(0)
+            let Some(state) = sim.sound_channel(who, channel) else {
+                return match field.as_str() {
+                    "group" | "number" => Value::Int(-1),
+                    "freqmul" => Value::Float(1.0),
+                    "isplaying" => Value::Bool(false),
+                    "pan" | "samplerate" | "volumescale" => Value::Float(0.0),
+                    _ => Value::Int(0),
+                };
+            };
+            match field.as_str() {
+                "group" => Value::Int(state.group),
+                "number" => Value::Int(state.index),
+                "freqmul" => Value::Float(state.freq_mul),
+                "isplaying" => Value::Bool(state.playing),
+                "length" => Value::Int(state.length),
+                "loopcount" | "loopstart" | "loopend" | "startposition" => Value::Int(0),
+                "pan" => Value::Float(state.pan),
+                "position" => Value::Int(state.position),
+                "priority" => Value::Int(state.priority),
+                "samplerate" => Value::Float(state.sample_rate as f32),
+                "volumescale" => Value::Float(state.volume_scale),
+                _ => Value::Int(0),
             }
         }
         // `FightScreenVar(field)` reads the fight-screen motif (fight.def)
