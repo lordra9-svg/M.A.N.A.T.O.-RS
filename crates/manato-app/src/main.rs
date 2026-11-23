@@ -1453,6 +1453,7 @@ struct Frontend {
     options_music: u32,
     options_fullscreen: bool,
     team_modes: [manato_sim::TeamMode; 2],
+    team_rules: manato_formats::screenpack::TeamModeRules,
     partners: [[Option<usize>; MAX_PARTNERS]; 2],
     result_timer: i32,
     result_resolved: bool,
@@ -1570,6 +1571,7 @@ impl Frontend {
                     .collect(),
                 stages: Vec::new(),
                 arcade: Default::default(),
+                team: Default::default(),
             },
         };
         let names = roster
@@ -1647,6 +1649,7 @@ impl Frontend {
         if !stages.iter().any(|stage| stage == &opts.stage) {
             stages.push(opts.stage.clone());
         }
+        let team_rules = roster.team.clone();
         let p2_start = if roster.entries.len() > 1 { 1 } else { 0 };
         let title_layers = screen_layer_states(&screenpack.title_bg);
         let select_layers = screen_layer_states(&screenpack.select_bg);
@@ -1676,6 +1679,7 @@ impl Frontend {
             options_music: 100,
             options_fullscreen: false,
             team_modes: [manato_sim::TeamMode::Single; 2],
+            team_rules,
             partners: [
                 [Some(p2_start), Some(0), Some(0)],
                 [Some(0), Some(p2_start), Some(0)],
@@ -1772,12 +1776,19 @@ impl Frontend {
         if side >= 2 {
             return;
         }
-        let modes = [
+        let modes: Vec<manato_sim::TeamMode> = [
             manato_sim::TeamMode::Single,
             manato_sim::TeamMode::Turns,
             manato_sim::TeamMode::Tag,
             manato_sim::TeamMode::Simul,
-        ];
+        ]
+        .into_iter()
+        .filter(|mode| self.team_mode_allowed(*mode))
+        .collect();
+        if modes.is_empty() {
+            self.team_modes[side] = manato_sim::TeamMode::Single;
+            return;
+        }
         let current = modes
             .iter()
             .position(|mode| *mode == self.team_modes[side])
@@ -1802,13 +1813,24 @@ impl Frontend {
         self.partners[side][slot] = Some(next as usize);
     }
 
+    fn team_mode_allowed(&self, mode: manato_sim::TeamMode) -> bool {
+        match mode {
+            manato_sim::TeamMode::Single => true,
+            manato_sim::TeamMode::Turns => self.team_rules.turns,
+            manato_sim::TeamMode::Tag => self.team_rules.tag,
+            manato_sim::TeamMode::Simul => self.team_rules.simul,
+        }
+    }
+
     /// Team modes after applying select.def single-only rules for the chosen
-    /// leaders. A single-only leader forces Single mode for its side.
+    /// leaders and the `[Options]` mode enable flags.
     fn effective_team_modes(&self) -> [manato_sim::TeamMode; 2] {
         let mut modes = self.team_modes;
         for (side, mode) in modes.iter_mut().enumerate() {
             let cell = if side == 0 { self.p1 } else { self.p2 };
-            if chosen_entry(self, cell).is_some_and(|entry| entry.single) {
+            if chosen_entry(self, cell).is_some_and(|entry| entry.single)
+                || !self.team_mode_allowed(*mode)
+            {
                 *mode = manato_sim::TeamMode::Single;
             }
         }
@@ -3359,6 +3381,7 @@ mod tests {
             options_music: 100,
             options_fullscreen: false,
             team_modes: [manato_sim::TeamMode::Single; 2],
+            team_rules: Default::default(),
             partners: [[None; MAX_PARTNERS]; 2],
             result_timer: 0,
             result_resolved: false,
@@ -3456,6 +3479,16 @@ mod tests {
         assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Single);
         frontend.cycle_team(0, -1);
         assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Simul);
+
+        // select.def [Options] flags limit the cycle (Single is always on).
+        frontend.team_modes[0] = manato_sim::TeamMode::Single;
+        frontend.team_rules.turns = false;
+        frontend.team_rules.simul = false;
+        frontend.cycle_team(0, 1);
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Tag);
+        frontend.cycle_team(0, 1);
+        assert_eq!(frontend.team_modes[0], manato_sim::TeamMode::Single);
+        frontend.team_rules = Default::default();
 
         for slot in 0..MAX_PARTNERS {
             let first = frontend.partners[0][slot];

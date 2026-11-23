@@ -897,6 +897,26 @@ pub struct Roster {
     pub stages: Vec<String>,
     /// `[Arcade]` ordering configuration.
     pub arcade: ArcadeOrderConfig,
+    /// `[Options]` team-mode enable flags (`turns`, `tagmode`, `simul`).
+    pub team: TeamModeRules,
+}
+
+/// Which team modes `select.def [Options]` allows. Absent keys allow all.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TeamModeRules {
+    pub turns: bool,
+    pub tag: bool,
+    pub simul: bool,
+}
+
+impl Default for TeamModeRules {
+    fn default() -> Self {
+        Self {
+            turns: true,
+            tag: true,
+            simul: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -926,7 +946,9 @@ impl Roster {
         let mut in_characters = false;
         let mut in_stages = false;
         let mut in_arcade = false;
+        let mut in_options = false;
         let mut arcade = ArcadeOrderConfig::default();
+        let mut team = TeamModeRules::default();
         for line in raw.lines() {
             let line = crate::text::strip_comment(line).trim();
             if line.is_empty() {
@@ -937,6 +959,22 @@ impl Roster {
                 in_characters = header.eq_ignore_ascii_case("characters");
                 in_stages = header.eq_ignore_ascii_case("extrastages");
                 in_arcade = header.eq_ignore_ascii_case("arcade");
+                in_options = header.eq_ignore_ascii_case("options");
+                continue;
+            }
+            if in_options {
+                if let Some((key, value)) = line.split_once('=') {
+                    let enabled = matches!(
+                        value.trim().trim_matches('"').to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "on"
+                    );
+                    match key.trim().to_ascii_lowercase().as_str() {
+                        "turns" => team.turns = enabled,
+                        "tag" | "tagmode" => team.tag = enabled,
+                        "simul" => team.simul = enabled,
+                        _ => {}
+                    }
+                }
                 continue;
             }
             if in_arcade {
@@ -1031,6 +1069,7 @@ impl Roster {
             entries,
             stages,
             arcade,
+            team,
         }
     }
 
@@ -1676,7 +1715,8 @@ mod tests {
              randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg\n\
              chars/solo/solo.def, , , single = 1\n\
              [Arcade]\norder = random\nspecial = chars/subboss/subboss.def\n\
-             finalboss = chars/boss/boss.def\n",
+             finalboss = chars/boss/boss.def\n\
+             [Options]\nturns = 1\ntagmode = 0\nsimul = 1\n",
         );
         assert_eq!(roster.entries.len(), 4);
         assert_eq!(roster.entries[0].def, "chars/kaen/kaen.def");

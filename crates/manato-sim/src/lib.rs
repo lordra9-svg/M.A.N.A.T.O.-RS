@@ -230,6 +230,8 @@ pub struct TagTransition {
     pub state: Option<i32>,
     pub ctrl: bool,
     pub timer: i32,
+    /// Engine default fade when no outgoing state is supplied.
+    pub fade: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
@@ -826,6 +828,8 @@ pub const CLUTCH_THRESHOLD: f32 = 0.10;
 pub const TAG_TRANSITION_TICKS: i32 = 20;
 /// Fallback tag-in invulnerability length without a readable incoming animation.
 pub const TAG_INVULN_TICKS: i32 = 20;
+/// Ticks for the engine's default tag fade when content supplies no states.
+pub const TAG_FADE_TICKS: i32 = 12;
 
 /// Delayed ("mid") bar fill state (`docs/spec/render.md` §6.1–§6.3).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1320,7 +1324,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(31u32, self.asset_id(), self))
+        bincode::serialize(&(32u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1339,7 +1343,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 31 {
+        if version != 32 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1607,6 +1611,13 @@ impl SimState {
             }
         }
         self.projectiles.retain(|p| !p.is_expired());
+        for fighter in &mut self.fighters {
+            if fighter.tag_fade_in > 0 {
+                fighter.tag_fade_in -= 1;
+                fighter.tag_alpha =
+                    (1.0 - fighter.tag_fade_in as f32 / TAG_FADE_TICKS as f32).clamp(0.0, 1.0);
+            }
+        }
         self.sound_channels.resize(self.fighters.len(), Vec::new());
         self.tick_sound_channels();
     }
@@ -2894,6 +2905,12 @@ impl SimState {
         let swapped = self.tag_swap(who, incoming_state, ctrl);
         if swapped {
             self.arm_tag_invuln(who, incoming_state);
+            if incoming_state.is_none() {
+                if let Some(fighter) = self.fighters.get_mut(who) {
+                    fighter.tag_alpha = 0.0;
+                    fighter.tag_fade_in = TAG_FADE_TICKS;
+                }
+            }
         }
         swapped
     }
@@ -2924,7 +2941,23 @@ impl SimState {
             return false;
         }
         let Some(state) = outgoing_state.filter(|state| *state >= 0) else {
-            return self.tag_swap(who, incoming_state, ctrl);
+            if incoming_state.is_some() {
+                return self.tag_swap(who, incoming_state, ctrl);
+            }
+            let active = self.teams[side].active;
+            let member = (active + 1) % self.teams[side].members.len();
+            if let Some(fighter) = self.fighters.get_mut(who) {
+                fighter.ctrl = false;
+                fighter.tag_alpha = 1.0;
+            }
+            self.tag_transitions[side] = Some(TagTransition {
+                member,
+                state: incoming_state,
+                ctrl,
+                timer: TAG_FADE_TICKS,
+                fade: true,
+            });
+            return true;
         };
         let char_id = self.fighters[who].char_id;
         if self.assets.characters[char_id].state(state).is_none() {
@@ -2942,6 +2975,7 @@ impl SimState {
             state: incoming_state,
             ctrl,
             timer,
+            fade: false,
         });
         true
     }
@@ -2971,17 +3005,30 @@ impl SimState {
             let Some(mut transition) = self.tag_transitions[side].take() else {
                 continue;
             };
-            transition.timer -= 1;
-            if transition.timer > 0 {
-                self.tag_transitions[side] = Some(transition);
-                continue;
-            }
             let who = self
                 .fighters
                 .iter()
                 .position(|fighter| fighter.owner.is_none() && fighter.side.min(1) == side)
                 .unwrap_or(side);
+            if transition.fade {
+                if let Some(fighter) = self.fighters.get_mut(who) {
+                    fighter.tag_alpha =
+                        (transition.timer as f32 / TAG_FADE_TICKS as f32).clamp(0.0, 1.0);
+                }
+            }
+            transition.timer -= 1;
+            if transition.timer > 0 {
+                self.tag_transitions[side] = Some(transition);
+                continue;
+            }
+            let fade = transition.fade;
             self.complete_tag(who, transition.member, transition.state, transition.ctrl);
+            if fade {
+                if let Some(fighter) = self.fighters.get_mut(who) {
+                    fighter.tag_alpha = 0.0;
+                    fighter.tag_fade_in = TAG_FADE_TICKS;
+                }
+            }
         }
     }
 
@@ -4414,6 +4461,8 @@ impl SimState {
             h.write_bool(f.reversal.is_some());
             h.write_i32(f.reversal_time);
             h.write_f32(f.trans_alpha);
+            h.write_f32(f.tag_alpha);
+            h.write_i32(f.tag_fade_in);
             h.write_i32(f.trans_alpha_source);
             h.write_i32(f.trans_alpha_dest);
             h.write_bool(f.after_image.is_some());

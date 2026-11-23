@@ -29,6 +29,11 @@ not ticked, drawn, or collided.
   length, so simul sizes beyond the front-end's single partner selection are
   available programmatically. Manual tag control during simul is not modeled.
 
+`select.def [Options]` may disable team modes: `turns = 0`, `tagmode = 0`
+(or `tag = 0`), and `simul = 0`. Missing keys allow the mode; Single is always
+available. `single = 1` on a roster entry still forces Single for that side
+and removes the entry from partner selection.
+
 The title Options screen exposes `P1 TEAM`, `P2 TEAM`, and three partner
 slots per side (`P1 PARTNER`, `P1 PARTNER 2`, `P1 PARTNER 3`, and the same for
 P2): team mode cycles Single → Turns → Tag → Simul, and each partner slot

@@ -4320,6 +4320,42 @@ fn tag_team_roster_and_tagout_tagin_swap_members() {
 }
 
 #[test]
+fn tagout_without_state_fades_before_swap() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let kaen = sim.fighters[0].char_id;
+    let nival = sim.fighters[1].char_id;
+    sim.assign_team(0, &[kaen, nival]);
+    let tag_out = manato_formats::Controller {
+        kind: "tagout".into(),
+        params: Vec::new(),
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &tag_out, &assets);
+    assert_eq!(sim.fighters[0].char_id, kaen, "swap waits for the fade");
+    assert!(sim.tag_transitions[0].is_some());
+    assert!(!sim.fighters[0].ctrl);
+    let start = sim.fighters[0].tag_alpha;
+    sim.tick([PlayerInput::default(); 2]);
+    sim.tick([PlayerInput::default(); 2]);
+    assert!(sim.fighters[0].tag_alpha < start, "outgoing member fades");
+    for _ in 0..manato_sim::TAG_FADE_TICKS {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[0].char_id, nival);
+    assert!(
+        sim.fighters[0].tag_alpha < 1.0,
+        "incoming member starts faded"
+    );
+    for _ in 0..manato_sim::TAG_FADE_TICKS {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(sim.fighters[0].tag_alpha > 0.99, "incoming member fades in");
+}
+
+#[test]
 fn tagout_state_animation_delays_the_swap() {
     let Some(mut sim) = fight_phase() else {
         return;

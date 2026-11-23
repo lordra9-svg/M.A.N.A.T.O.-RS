@@ -421,6 +421,10 @@ pub struct Fighter {
     pub pal_time: i32,
     /// Destination alpha used by rendering (0..1).
     pub trans_alpha: f32,
+    /// Extra render alpha for the engine's default tag fade (0..1).
+    pub tag_alpha: f32,
+    /// Remaining ticks of a tag fade-in; 0 when not fading.
+    pub tag_fade_in: i32,
     /// Raw trans source/destination alpha bytes reported by
     /// `Alpha.Source`/`Alpha.Dest` (0..255).
     pub trans_alpha_source: i32,
@@ -668,6 +672,8 @@ impl Fighter {
             pal_invert: false,
             pal_time: 0,
             trans_alpha: 1.0,
+            tag_alpha: 1.0,
+            tag_fade_in: 0,
             trans_alpha_source: 255,
             trans_alpha_dest: 0,
             reversal: None,
