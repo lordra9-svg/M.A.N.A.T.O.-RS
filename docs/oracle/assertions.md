@@ -47,6 +47,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-26 | Guarding state 3000's blasts costs 15 guard damage; the defender remains in guard state 150 and reports the projectile guard timer with no hit timer. The upper blast passes above the guard hurt box. | `kaen_super_guard` capture: contact frame 246, `p2_life` 1000 -> 985, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-27 | Nival state 3000 opens with a 30-tick SuperPause and then its single blast hits for 90 damage (state 5000). Contact lands 38 ticks after entry, versus ~6 for the plain projectile. | `nival_super` capture: contact frame 247, `p2_life` 1000 -> 910, `p2_state` 5000, `p1_projHit` 0. |
 | O-28 | Guarding Nival's super blast costs 20 guard damage and leaves the defender in guard state 150 with the projectile guard timer set. | `nival_super_guard` capture: contact frame 247, `p2_life` 1000 -> 980, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
+| O-31 | Kaen state 2100 spawns helper 2100 in state 2101; the helper's normal HitDef contacts 4 ticks after injection for 30 damage and puts the defender in state 5000. The helper self-destroys at time 20. | `kaen_helper` capture: injection frame 209, contact frame 213 (+4), `p2_life` 1000 -> 970, `p2_state` 5000. Encoded by `kaen_helper_hit_matches_oracle`; helper ownership is covered by the existing helper HitDef/projectile tests. |
 | O-30 | Kaen state 800 grabs an idle KFM 5 ticks after entry: P1 enters 810, P2 enters 820, and the target is bound at `p1.x + 28`, `p1.y - 40`. At 25 ticks after the grab `TargetLifeAdd` deals 80 damage, and at +27 the target is released into state 5050 while still at the bound position. | `kaen_throw` capture: injection frame 209, grab frame 214, P1 life 1000 / P2 1000 -> 920 at frame 239, P2 state 5050 at frame 241, P2 position (12, -40) with P1 at (-16, 0). Encoded by `kaen_state_800_throw_matches_oracle_flow`. |
 | O-29 | `HitPauseTime` reports the attacker's remaining self-pause. KFM state 400 (`pausetime = 10, 11`) reports 10 on the contact frame, then 9, 8, ... 0 on successive frozen ticks. The defender, frozen by its hit shake for the second value, reports 0 throughout. | `kfm_crouch_attack` capture: injection frame 209, contact frame 213, `p1_hitPause` 10 at contact and one lower each frame through 0 at frame 223; `p2_hitPause` 0 for the whole hit. State 200 (`pausetime = 8, 8`) shows the same pattern starting at 8. |
 | O-20 | **Negative result:** a persistent `numhits = 2` HitDef does **not** stop repeat hits after the juggle budget reaches 0. The first fall hit consumes all 15 points, then repeat contacts continue until KO (100 hits in the capture). The expected same-activation rejection was not observed with this construct. | `kfm_multihit` capture: `p2_juggle` 15 -> 0 on the first fall hit, then life continues dropping from 990 to 0 with `hits = 100`. Fixture: `tools/oracle/oracle-char/oracle.cns`. |
@@ -74,6 +75,7 @@ instead of forcing `offscreen`). Results reproduced the recorded values:
 - `kfm_juggle`: second hit 38 damage into state 5020, juggle 15 → 8 → 4.
 - `kfm_juggle_exhaust`: third hit 63 damage into state 5000, juggle 8 → 3.
 - `kfm_crouch_attack`: attacker `HitPauseTime` 10 at contact, defending side 0.
+- `kaen_helper` (O-31): helper HitDef contacts +4 for 30 damage into state 5000.
 - `kaen_throw` (O-30): grab at +5, state 820, bind (12,-40), 80 damage at +25, release to 5050 at +27.
 - Projectile scenarios O-21..O-28: Kaen 55 damage / 12 guard, Nival 45 / 10,
   Ordan 60 / 14, all at +6 or +7 ticks with state 5000 or 150 and the matching
@@ -101,6 +103,7 @@ Raw CSVs and screenshots remain in temporary directories.
 | O-21..O-28 | Encoded by `bundled_projectile_hits`/`bundled_projectile_can_be_guarded`, `nival_projectile_hit_and_guard`, `ordan_projectile_hit_and_guard`, `state_3000_low_blast_hits_for_65`, `state_3000_blasts_are_guarded_for_15`, `nival_super_pauses_then_hits_for_90`, and `nival_super_guard_takes_20`. |
 | O-29 | Encoded by `hit_pause_time_reports_self_pause_only`; run `IKEMEN_ORACLE_SCENARIO=kfm_crouch_attack`. |
 | O-30 | Encoded by `kaen_state_800_throw_matches_oracle_flow`; run `IKEMEN_ORACLE_SCENARIO=kaen_throw --p1 kaen`. |
+| O-31 | Encoded by `kaen_helper_hit_matches_oracle`; run `IKEMEN_ORACLE_SCENARIO=kaen_helper --p1 kaen`. |
 | O-20 | Kept as a documented negative oracle finding; the engine gate remains unit-tested and is not changed to match this anomalous persistent-HitDef construct. |
 
 These assertions remain subject to revision if a later oracle run contradicts

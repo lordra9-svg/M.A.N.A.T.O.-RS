@@ -108,7 +108,8 @@ combined damage, and the owner's projectile contact/hit/guard timers.
 `kfm_crouch_attack` injects KFM state 400 (`pausetime = 10, 11`) to capture
 `HitPauseTime` for an asymmetric pause; O-29 covers the attacker/defender
 distinction. `kaen_throw` injects Kaen state 800 to capture target-bind
-timing, position, damage, and release (O-30).
+timing, position, damage, and release (O-30). `kaen_helper` injects Kaen state
+2100 to capture helper HitDef timing, damage, and reaction state (O-31).
 
 ## O-20 negative finding
 

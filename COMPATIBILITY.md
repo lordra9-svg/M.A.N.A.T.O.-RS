@@ -122,7 +122,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | K-04 | Juggle/air hit/fall states | Required | Required | Verified | air.juggle gate + HitFallSet + fall velocity/landing/lethal KO + GroundLevelOffset tests; O-17..O-19 juggle consumption (15→8→4→3) revalidated |
 | K-05 | Throws/target bind | Required | Required | Verified | Throw/bind/drop + Ordan slam + p1/p2 facing/sprpriority tests; Kaen state 800 oracle flow (grab +5, state 810/820, bind 28/-40, 80 damage, release to 5050) revalidated 2026-11-23 |
 | K-06 | Projectile collision | Required | Required | Verified | Hit/guard oracle O-21..O-28 revalidated 2026-11-23 (Kaen/Nival/Ordan hit+guard and supers match) + hits-limit removal; the Kaen state 3000 divergence was traced to invalid `pos`/`removetime` content parameters and corrected to `offset`/`projremovetime`, so both engines now hit for 65 |
-| K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
+| K-07 | Helper collision | Required | Required | Verified | Helper HitDef + helper-owned projectile owner/damage tests; O-31 helper oracle (contact +4, 30 damage, state 5000, self-destroy at +20) revalidated 2026-11-23 |
 | K-08 | Corner push/pushboxes | Required | Required | Partial | Ground/air corner-push offsets, threshold, guard + PlayerPush separation |
 | K-09 | Guard crush/dizzy/guard points | N/A | Ikemen | Partial | Guard points + GuardPointsAdd/Set + GuardBreakSet + TargetGuardPointsAdd/Set + GetHitVar(guardpoints) + 60-tick regen cooldown/+2 regen + 20-tick guard-crush no-guard window + dizzy points/1.8x hit loss/60-tick stun + DizzyPointsAdd/Set + TargetDizzyPointsAdd/Set + DizzySet + GetHitVar(dizzypoints) + ModifyPlayer maxima + Dizzy triggers; custom guard-break/dizzy states entered from `StateGuardBreakHit`/`StateGuardBreakRecover`/`StateDizzy` constants, with content-driven effects |
 
@@ -185,7 +185,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | N/A | Clean-room policy forbids M.U.G.E.N binary analysis; Ikemen-GO is the only oracle |
-| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification (O-01..O-08), KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29), and projectile scenarios O-21..O-28 and the Kaen throw O-30 revalidated 2026-11-22/23 in `docs/oracle/`; other subsystem reruns pending |
+| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification (O-01..O-08), KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29), and projectile scenarios O-21..O-28 and the Kaen throw O-30 and helper O-31 revalidated 2026-11-22/23 in `docs/oracle/`; other subsystem reruns pending |
 
 ## 11. Proposed rewrite order
 

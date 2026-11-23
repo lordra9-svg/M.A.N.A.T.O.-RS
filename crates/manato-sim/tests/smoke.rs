@@ -776,6 +776,47 @@ fn hitdef() -> manato_sim::hitdef::HitDef {
 }
 
 #[test]
+fn kaen_helper_hit_matches_oracle() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(2100, &assets.characters[0], false);
+    eprintln!(
+        "kfm state 5000 exists: {}",
+        sim.assets.characters[sim.fighters[1].char_id]
+            .state(5000)
+            .is_some()
+    );
+    let life = sim.fighters[1].life;
+    let mut contact = None;
+    let mut contact_state = 0;
+    let mut helper_seen = false;
+    for tick in 1..=40 {
+        sim.tick([PlayerInput::default(); 2]);
+        helper_seen |= manato_sim::trigger::int(&sim, 0, "NumHelper(2100)") > 0;
+        eprintln!(
+            "tick {tick} p2 state {} life {} p1 state {}",
+            sim.fighters[1].state_no, sim.fighters[1].life, sim.fighters[0].state_no
+        );
+        if contact.is_none() && sim.fighters[1].life < life {
+            contact = Some(tick);
+            contact_state = sim.fighters[1].state_no;
+        }
+    }
+    // Oracle `kaen_helper`: helper HitDef contacts +4, deals 30, state 5000.
+    assert_eq!(contact, Some(4));
+    assert!(helper_seen, "helper 2100 exists");
+    assert_eq!(sim.fighters[1].life, life - 30);
+    assert_eq!(contact_state, 5000);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "NumHelper(2100)"), 0);
+}
+
+#[test]
 fn kaen_state_800_throw_matches_oracle_flow() {
     let Some(mut sim) = stock_kfm_match("content/chars/kaen/kaen.def") else {
         return;
