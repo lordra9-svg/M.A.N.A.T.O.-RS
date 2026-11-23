@@ -10324,6 +10324,51 @@ fn hitdef_forcecrouch_forces_crouching_reaction() {
 }
 
 #[test]
+fn guard_points_regen_after_cooldown() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let f = &mut sim.fighters[1];
+    f.guard_max = 100;
+    f.guard_points = 50;
+    f.guard_cooldown = 60;
+    f.guard_crush_timer = 0;
+    for _ in 0..60 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].guard_cooldown, 0);
+    assert_eq!(
+        sim.fighters[1].guard_points, 52,
+        "+2 on the tick cooldown ends"
+    );
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].guard_points, 54);
+}
+
+#[test]
+fn dizzy_stun_lasts_sixty_ticks_and_resets() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let f = &mut sim.fighters[1];
+    f.dizzy_max = 100;
+    f.dizzy_points = 0;
+    f.dizzy_timer = 60;
+    f.dizzy_flag = true;
+    f.ctrl = false;
+    for _ in 0..59 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].dizzy_timer, 1);
+    assert!(sim.fighters[1].dizzy_flag);
+    sim.tick([PlayerInput::default(); 2]);
+    assert_eq!(sim.fighters[1].dizzy_timer, 0);
+    assert!(!sim.fighters[1].dizzy_flag);
+    assert_eq!(sim.fighters[1].dizzy_points, 100);
+    assert!(sim.fighters[1].ctrl);
+}
+
+#[test]
 fn guard_crush_triggers_and_blocks_guarding() {
     let Some(mut sim) = fight_phase() else {
         return;
