@@ -1567,6 +1567,7 @@ impl Frontend {
                         music: None,
                         random: false,
                         single: false,
+                        arcadepath: None,
                     })
                     .collect(),
                 stages: Vec::new(),
@@ -1887,6 +1888,77 @@ fn team_name(mode: manato_sim::TeamMode) -> String {
     .into()
 }
 
+/// Resolves `launchFight{p2char=...}` entries to roster indices. Unknown
+/// names fall back to a deterministic roster pick, so a path never blocks the
+/// run. Entries already in the roster are excluded from random picks.
+fn arcade_path_ladder(
+    roster: &[RosterEntry],
+    p1: usize,
+    fights: &[manato_formats::arcade_path::ArcadePathFight],
+    seed: u64,
+) -> Vec<usize> {
+    let mut ladder = Vec::with_capacity(fights.len());
+    let mut state = seed | 1;
+    for fight in fights {
+        let excluded = |index: usize| {
+            index == p1
+                || fight.exclude.iter().any(|name| {
+                    roster
+                        .get(index)
+                        .is_some_and(|entry| name_matches(&entry.def, name))
+                })
+        };
+        let chosen = fight.p2char.iter().find_map(|name| {
+            roster
+                .iter()
+                .position(|entry| !entry.random && name_matches(&entry.def, name))
+                .filter(|index| !excluded(*index))
+        });
+        let opponent = chosen.unwrap_or_else(|| {
+            let candidates: Vec<usize> = (0..roster.len())
+                .filter(|index| !roster[*index].random && !excluded(*index))
+                .collect();
+            if candidates.is_empty() {
+                p1
+            } else {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                candidates[(state >> 33) as usize % candidates.len()]
+            }
+        });
+        ladder.push(opponent);
+    }
+    if ladder.is_empty() {
+        ladder.push(p1);
+    }
+    ladder
+}
+
+fn name_matches(def: &str, wanted: &str) -> bool {
+    let normalize = |value: &str| {
+        value
+            .trim()
+            .trim_matches('"')
+            .replace('\\', "/")
+            .to_ascii_lowercase()
+    };
+    let def = normalize(def);
+    let wanted = normalize(wanted);
+    if def == wanted {
+        return true;
+    }
+    let stem = |value: &str| {
+        value
+            .rsplit('/')
+            .next()
+            .unwrap_or(value)
+            .trim_end_matches(".def")
+            .to_string()
+    };
+    stem(&def) == stem(&wanted)
+}
+
 fn roster_index_by_def(roster: &[RosterEntry], def: &str) -> Option<usize> {
     let normalize = |value: &str| {
         value
@@ -2188,14 +2260,37 @@ impl App {
                     .as_deref()
                     .and_then(|def| roster_index_by_def(&frontend.roster, def));
                 let shuffle = frontend.arcade_order == ArcadeOrderMode::Random;
-                let ladder = manato_sim::arcade::build_ladder_ordered(
-                    &random_flags,
-                    p1,
-                    seed,
-                    special,
-                    boss,
-                    shuffle,
-                );
+                let path_ladder = frontend
+                    .roster
+                    .get(p1)
+                    .and_then(|entry| entry.arcadepath.as_deref())
+                    .and_then(|path| {
+                        let path = if Path::new(path).is_absolute() {
+                            PathBuf::from(path)
+                        } else {
+                            self.opts.root.join(path)
+                        };
+                        match manato_formats::arcade_path::load(&path) {
+                            Ok(fights) if !fights.is_empty() => {
+                                Some(arcade_path_ladder(&frontend.roster, p1, &fights, seed))
+                            }
+                            Ok(_) => None,
+                            Err(error) => {
+                                log::warn!("arcadepath {}: {error:#}", path.display());
+                                None
+                            }
+                        }
+                    });
+                let ladder = path_ladder.unwrap_or_else(|| {
+                    manato_sim::arcade::build_ladder_ordered(
+                        &random_flags,
+                        p1,
+                        seed,
+                        special,
+                        boss,
+                        shuffle,
+                    )
+                });
                 let survival = frontend.mode == Mode::Survival;
                 let config = ArcadeConfig {
                     credits: if survival { 1 } else { 3 },
@@ -3345,6 +3440,7 @@ mod tests {
             music: None,
             random: false,
             single: false,
+            arcadepath: None,
         };
         Frontend {
             screen: FrontendScreen::Title,
@@ -3464,6 +3560,37 @@ mod tests {
         assert_eq!(frontend.menu_index, 0);
         frontend.move_menu(-1);
         assert_eq!(frontend.menu_index, 1);
+    }
+
+    #[test]
+    fn arcadepath_resolves_named_rival_and_excludes() {
+        let entry = |def: &str| RosterEntry {
+            def: def.into(),
+            stage: None,
+            music: None,
+            random: false,
+            single: false,
+            arcadepath: None,
+        };
+        let roster = vec![
+            entry("chars/kaen/kaen.def"),
+            entry("chars/nival/nival.def"),
+            entry("chars/rival/rival.def"),
+        ];
+        let fights = vec![
+            manato_formats::arcade_path::ArcadePathFight {
+                p2char: vec!["Rival".into()],
+                ..Default::default()
+            },
+            manato_formats::arcade_path::ArcadePathFight {
+                exclude: vec!["rival.def".into()],
+                ..Default::default()
+            },
+        ];
+        let ladder = arcade_path_ladder(&roster, 0, &fights, 7);
+        assert_eq!(ladder[0], 2, "named rival becomes the mid-run opponent");
+        assert_ne!(ladder[1], 0, "player is excluded");
+        assert_ne!(ladder[1], 2, "excluded rival is not picked");
     }
 
     #[test]

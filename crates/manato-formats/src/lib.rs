@@ -5,6 +5,7 @@
 //! is logged and skipped rather than aborting a match.
 
 pub mod air;
+pub mod arcade_path;
 pub mod character;
 pub mod cmd;
 pub mod cns;

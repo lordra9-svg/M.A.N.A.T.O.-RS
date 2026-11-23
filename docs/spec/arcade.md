@@ -44,6 +44,22 @@ Each ladder match uses that opponent's `select.def` stage when one is assigned
 opponents by `arcade::build_ladder(flags, p1, seed)`; the ladder keeps roster
 order for fixed entries and fills random slots deterministically for the run.
 
+### Arcade paths
+
+A character can set `arcadepath = path.lua` in `select.def`. The file is run in
+a sandbox (`manato-formats/arcade_path`) exposing Lua string/table/math plus
+the path helpers `launchFight`, `launchStoryboard`, `matchNo`, `continued`,
+`getConsecutiveWins`, and `setMatchNo`. Each `launchFight{...}` becomes one
+ladder entry; `p2char` names are matched against roster DEF paths and file
+stems, so a path can insert a rival or mid-run challenger. `exclude` removes
+names from deterministic random picks, and `order` limits the fallback pool.
+Loops, `matchNo()` branches, and `if not launchFight{} then return end` follow
+the Ikemen examples.
+
+Limitations: `launchStoryboard` is accepted but not played; per-fight
+`stage`, `music`, `time`, `ai`, `p2teammode`, and `p2numchars` overrides are
+parsed but not applied to the match; only the resolved opponent is consumed.
+
 The engine also reads an optional `[Arcade]` section:
 
 ```ini
@@ -74,5 +90,7 @@ returns to the title. The title menu's **SCORES** entry renders the table.
 
 ## 4. Not modeled
 
-- Per-character `arcadepath` overrides and mid-run challenger interruptions;
-  the boss/special slots are configured through the roster's `[Arcade]`.
+- Arcade-path storyboards and per-fight stage/music/team-size overrides; the
+  path’s opponent sequence, excludes, and rival/challenger entries are used.
+- The dedicated challenger interruption screen; challengers are represented
+  as explicit arcade-path fights instead.

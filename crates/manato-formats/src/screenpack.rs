@@ -929,6 +929,8 @@ pub struct RosterEntry {
     /// `single = 1`: the character may only be used in Single team mode and
     /// cannot be chosen as a team partner.
     pub single: bool,
+    /// `arcadepath = file.lua`: per-character arcade path override.
+    pub arcadepath: Option<String>,
 }
 
 impl Roster {
@@ -1024,6 +1026,7 @@ impl Roster {
                     music: None,
                     random: true,
                     single: false,
+                    arcadepath: None,
                 });
                 continue;
             }
@@ -1033,6 +1036,7 @@ impl Roster {
             let mut stage = None;
             let mut music = None;
             let mut single = false;
+            let mut arcadepath = None;
             for part in parts.iter().skip(1) {
                 let part = part.trim();
                 if part.is_empty() {
@@ -1046,6 +1050,8 @@ impl Roster {
                             value.to_ascii_lowercase().as_str(),
                             "1" | "true" | "yes" | "on"
                         );
+                    } else if key == "arcadepath" && !value.is_empty() {
+                        arcadepath = Some(value.to_string());
                     }
                     continue;
                 }
@@ -1063,6 +1069,7 @@ impl Roster {
                 music,
                 random: false,
                 single,
+                arcadepath,
             });
         }
         Self {
@@ -1712,7 +1719,7 @@ mod tests {
     fn roster_parses_lines_and_random() {
         let roster = Roster::parse_str(
             "[Characters]\nchars/kaen/kaen.def, stages/a.def\n\
-             randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg\n\
+             randomselect\n\n; comment\nchars/nival/nival.def, stage.def, theme.ogg, arcadepath = arcade/nival.lua\n\
              chars/solo/solo.def, , , single = 1\n\
              [Arcade]\norder = random\nspecial = chars/subboss/subboss.def\n\
              finalboss = chars/boss/boss.def\n\
