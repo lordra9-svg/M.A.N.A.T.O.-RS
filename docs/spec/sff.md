@@ -152,10 +152,10 @@ node's `flags` bit 0 selects `tdata` (1) or `ldata` (0).
 
 If `data_length == 0`, copy the palette at `link_index`.
 
-Otherwise data is at `ldata_offset + data_offset`, `color_count` entries of BGRA
-(4 bytes each), capped at 256 entries and bounded by `data_length / 4`.
-
-Convert BGRA to RGBA. Alpha rules:
+Otherwise data is at `ldata_offset + data_offset`, `color_count` RGBA entries
+(4 bytes each: red, green, blue, alpha), capped at 256 entries and bounded by
+`data_length / 4`. The bytes are used as-is; Ikemen-GO uploads the same order,
+so no channel swap is applied. Alpha rules:
 
 - `verlo2 == 0`: force index 0 alpha to 0, all others to 255.
 - `verlo2 != 0`: keep the stored alpha.

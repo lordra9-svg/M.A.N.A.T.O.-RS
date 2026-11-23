@@ -181,7 +181,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | X-02 | Training Grid | N/A | N/A | Verified | Bundled tests |
 | X-03 | Stock KFM | Required | Required | Partial | Stock tests |
 | X-04 | Stock Ryu | Required | Required | Partial | Content load |
-| X-05 | Stock stages | Required | Required | Partial | kfm/stage0/stage0-720/stage1 load tests; render oracle pending |
+| X-05 | Stock stages | Required | Required | Verified | kfm/stage0/stage0-720/stage1 load tests plus an Ikemen-GO render oracle (320x240, AI 0, 120 fight ticks; stage-band mean RGB within ±40); the oracle exposed and fixed the SFF v2 palette byte order (RGBA, not BGRA) |
 | X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | N/A | Clean-room policy forbids M.U.G.E.N binary analysis; Ikemen-GO is the only oracle |

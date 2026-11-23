@@ -395,7 +395,10 @@ impl Painter {
 
 pub fn create_sprite_shader(device: &wgpu::Device, mask: bool) -> wgpu::ShaderModule {
     let fragment = if mask {
-        "let texel = textureSample(tex, samp, in.uv);\n    let rgb = pal_apply(texel, in.color, in.fx, in.fx2);\n    return vec4<f32>(rgb, 1.0);"
+        // `mask = 1` means sprite colour zero is transparent. Force drawn
+        // pixels opaque, but discard transparent texels instead of turning
+        // their RGB opaque (which filled stage windows with palette colour 0).
+        "let texel = textureSample(tex, samp, in.uv);\n    if (texel.a < 0.5) { discard; }\n    let rgb = pal_apply(texel, in.color, in.fx, in.fx2);\n    return vec4<f32>(rgb, 1.0);"
     } else {
         "let texel = textureSample(tex, samp, in.uv);\n    let rgb = pal_apply(texel, in.color, in.fx, in.fx2);\n    return vec4<f32>(rgb, texel.a * in.color.a);"
     };

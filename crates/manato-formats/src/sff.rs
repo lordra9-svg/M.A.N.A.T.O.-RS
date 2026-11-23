@@ -426,7 +426,10 @@ fn parse_v2_palettes(
             if minor2 == 0 {
                 alpha = if c == 0 { 0 } else { 255 };
             }
-            palette.push([p[2], p[1], p[0], alpha]);
+            // SFF v2 palette nodes store RGBA bytes; Ikemen-GO uploads them
+            // unchanged, so swapping to BGRA tints stock stages (e.g. the
+            // Mountainside Temple wall and stage0-720 turn blue in the oracle).
+            palette.push([p[0], p[1], p[2], alpha]);
         }
         by_key.insert((group, index), palette.clone());
         palettes[i] = Some(palette);
@@ -942,7 +945,7 @@ mod tests {
         let sff = SffFile::from_bytes(&data).expect("parse sff");
         let sprite = sff.get(0, 0).expect("sprite");
         assert_eq!((sprite.width, sprite.height), (2, 2));
-        assert_eq!(sprite.rgba, [10, 20, 30, 255].repeat(4));
+        assert_eq!(sprite.rgba, [30, 20, 10, 255].repeat(4));
     }
 
     #[test]
@@ -1233,7 +1236,7 @@ mod tests {
                     data[node + 12..node + 16].copy_from_slice(&bytes.to_le_bytes());
                     for color in colors {
                         data[colors_at..colors_at + 4]
-                            .copy_from_slice(&[color[2], color[1], color[0], color[3]]);
+                            .copy_from_slice(&[color[0], color[1], color[2], color[3]]);
                         colors_at += 4;
                     }
                 }

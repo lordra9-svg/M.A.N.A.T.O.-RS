@@ -139,9 +139,17 @@ IKEMEN_ORACLE_SCENARIO=nival_super_guard tools/oracle/run_frame_capture.sh
 ```
 
 The guard scenario uses the public Lua `changeState(150)` debug API to force a
-block, so it does not depend on AI decision-making. Other subsystems still rely
-on the provisional assertions in the frozen specs and should be added here as
-the harness grows.
+block, so it does not depend on AI decision-making.
+
+Stock-stage rendering (X-05) uses a throwaway runtime copy with the pinned
+`Ikemen_GO-v1.0.0-linux.zip` data and stock `mugen-1.1b1` stage files under
+unique names. `save/config.ini` sets `GameWidth`/`GameHeight` and
+`WindowWidth`/`WindowHeight` to 320x240, points `ScreenshotFolder` at a temp
+directory, and adds a `Common.Lua1` hook that calls `screenshot()` 120 ticks
+after `roundState() == 2`. Our engine renders the same stage after 165 ticks
+with AI 0. Only derived stage-band mean colours are committed; raw PNGs stay
+in the temp directory. The render test is
+`stock_stage_render_matches_ikemen_oracle` in `manato-render`.
 
 Note: Ikemen's `-rounds` command-line flag means "total rounds to play", not
 "rounds needed to win". Use `-rounds 1` and inspect the per-round `Rounds`

@@ -50,6 +50,12 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-29 | `HitPauseTime` reports the attacker's remaining self-pause. KFM state 400 (`pausetime = 10, 11`) reports 10 on the contact frame, then 9, 8, ... 0 on successive frozen ticks. The defender, frozen by its hit shake for the second value, reports 0 throughout. | `kfm_crouch_attack` capture: injection frame 209, contact frame 213, `p1_hitPause` 10 at contact and one lower each frame through 0 at frame 223; `p2_hitPause` 0 for the whole hit. State 200 (`pausetime = 8, 8`) shows the same pattern starting at 8. |
 | O-20 | **Negative result:** a persistent `numhits = 2` HitDef does **not** stop repeat hits after the juggle budget reaches 0. The first fall hit consumes all 15 points, then repeat contacts continue until KO (100 hits in the capture). The expected same-activation rejection was not observed with this construct. | `kfm_multihit` capture: `p2_juggle` 15 -> 0 on the first fall hit, then life continues dropping from 990 to 0 with `hits = 100`. Fixture: `tools/oracle/oracle-char/oracle.cns`. |
 
+| X-05a | The stock KFM stage renders as a warm wooden interior: the mean RGB of the stage band (y=45..225, HUD excluded) is (113, 92, 65). | Ikemen-GO v1.0.0 runtime, `955a2f2` build, 320x240, KFM vs KFM AI 0, screenshot 120 ticks after the first Fight tick. Our renderer: (105, 82, 52), same family. |
+| X-05b | The stock stage0 renders blue: stage-band mean (16, 44, 152). | Same run. Our renderer: (17, 44, 153). |
+| X-05c | The stock stage0-720 renders blue: stage-band mean (34, 61, 159). | Same run. Our renderer: (8, 34, 134). The difference is layer/camera composition, not palette. |
+| X-05d | The stock stage1 renders blue-grey: stage-band mean (93, 125, 169). | Same run. Our renderer: (93, 125, 168). |
+| X-05e | SFF v2 palette nodes store RGBA bytes; swapping them to BGRA tints stock stages incorrectly. | Before the fix our stage0-720 rendered red-brown and the KFM wall blue, while Ikemen rendered stage0-720 blue and the wall brown. `parse_v2_palettes` now keeps RGBA; the render oracle above fails under the old order. |
+
 ## Mapping to M.A.N.A.T.O.-RS
 
 | Oracle | Engine |

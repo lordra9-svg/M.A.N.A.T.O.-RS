@@ -2650,6 +2650,89 @@ void main() {
     }
 
     #[test]
+    fn stock_stage_render_matches_ikemen_oracle() {
+        // Oracle: Ikemen-GO v1.0.0 runtime data, locally built at commit
+        // 955a2f2, 320x240, KFM vs KFM, AI 0, screenshot 120 ticks after the
+        // first Fight tick. Values are the mean RGB of y=45..225 (HUD band
+        // excluded). See docs/oracle/assertions.md X-05.
+        let root = std::env::var_os("MANATO_MUGEN_ROOT")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
+        let kfm = root.join("mugen-1.1b1/chars/kfm/kfm.def");
+        if !kfm.exists() {
+            eprintln!(
+                "skipping: stock KFM content not found at {}",
+                root.display()
+            );
+            return;
+        }
+        let cases = [
+            ("kfm", "mugen-1.1b1/stages/kfm.def", [113i32, 92, 65]),
+            ("stage0", "mugen-1.1b1/stages/stage0.def", [16, 44, 152]),
+            (
+                "stage0-720",
+                "mugen-1.1b1/stages/stage0-720.def",
+                [34, 61, 159],
+            ),
+            ("stage1", "mugen-1.1b1/stages/stage1.def", [93, 125, 169]),
+        ];
+        let dir = std::env::temp_dir().join(format!("manato-x05-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        for (name, stage, oracle) in cases {
+            let stage = root.join(stage);
+            if !stage.exists() {
+                continue;
+            }
+            let Ok(mut renderer) = Renderer::new_offscreen() else {
+                eprintln!("skipping: no GPU adapter");
+                let _ = std::fs::remove_dir_all(&dir);
+                return;
+            };
+            let config = manato_sim::MatchConfig {
+                mugen_root: root.clone(),
+                p1: kfm.clone(),
+                p2: kfm.clone(),
+                stage,
+                screenpack: None,
+                rounds_to_win: 1,
+                round_time: 99,
+            };
+            let mut sim = manato_sim::SimState::load(&config).expect("sim");
+            for _ in 0..165 {
+                sim.tick([manato_core::PlayerInput::default(); 2]);
+            }
+            assert_eq!(sim.round.phase, manato_sim::RoundPhase::Fight);
+            renderer.load_assets(&sim);
+            renderer.render(&sim);
+            let path = dir.join(format!("{name}.png"));
+            renderer.screenshot(&path).expect("screenshot");
+            let image = image::open(&path).expect("png").to_rgba8();
+            assert_eq!(image.dimensions(), (GAME_WIDTH, GAME_HEIGHT));
+            let mut sums = [0u64; 3];
+            let mut count = 0u64;
+            for y in 45..225 {
+                for x in 0..GAME_WIDTH {
+                    let px = image.get_pixel(x, y);
+                    for channel in 0..3 {
+                        sums[channel] += px[channel] as u64;
+                    }
+                    count += 1;
+                }
+            }
+            for channel in 0..3 {
+                let mean = (sums[channel] / count) as i32;
+                assert!(
+                    (mean - oracle[channel]).abs() <= 40,
+                    "{name} stage mean channel {channel} = {mean}, oracle {}",
+                    oracle[channel]
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn scene_reports_hud_boundary_for_model_pass() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let source = root.join("content/chars/kaen/kaen.def");
