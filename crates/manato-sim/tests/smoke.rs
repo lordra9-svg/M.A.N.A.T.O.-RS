@@ -776,6 +776,38 @@ fn hitdef() -> manato_sim::hitdef::HitDef {
 }
 
 #[test]
+fn kaen_state_800_throw_matches_oracle_flow() {
+    let Some(mut sim) = stock_kfm_match("content/chars/kaen/kaen.def") else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    sim.fighters[0].pos.x = -16.0;
+    sim.fighters[0].facing = 1;
+    sim.fighters[1].pos.x = 16.0;
+    sim.fighters[1].facing = -1;
+    sim.fighters[0].enter_state(800, &assets.characters[0], false);
+    let life = sim.fighters[1].life;
+    let mut grab = None;
+    for tick in 1..=40 {
+        sim.tick([PlayerInput::default(); 2]);
+        if grab.is_none() && sim.fighters[1].state_no == 820 {
+            grab = Some(tick);
+            assert_eq!(sim.fighters[0].state_no, 810, "attacker enters 810 too");
+        }
+        if grab.is_some() && sim.fighters[1].state_no == 5050 {
+            break;
+        }
+    }
+    // Oracle: contact +5, bound to p1.pos.x + 28 / p1.pos.y - 40,
+    // TargetLifeAdd -80 while in 820, release to 5050.
+    assert_eq!(grab, Some(5));
+    assert_eq!(sim.fighters[1].pos.x, 12.0);
+    assert_eq!(sim.fighters[1].pos.y, -40.0);
+    assert_eq!(sim.fighters[1].life, life - 80);
+    assert_eq!(sim.fighters[1].state_no, 5050);
+}
+
+#[test]
 fn throw_hitdef_enters_throw_states_and_binds() {
     let Some(mut sim) = load(
         "content/chars/kaen/kaen.def",

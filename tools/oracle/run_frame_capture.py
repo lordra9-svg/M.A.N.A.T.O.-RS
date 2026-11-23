@@ -75,7 +75,7 @@ def summarize(path: Path) -> dict:
     if not rows:
         raise SystemExit("capture is empty")
     injection = next(
-        (row for row in rows if int(row["p1_state"]) in (200, 400, 440, 7000, 1000, 3000)), None
+        (row for row in rows if int(row["p1_state"]) in (200, 400, 440, 7000, 1000, 3000, 800, 810)), None
     )
     if injection is None:
         raise SystemExit("scenario never entered a scripted KFM attack state")
