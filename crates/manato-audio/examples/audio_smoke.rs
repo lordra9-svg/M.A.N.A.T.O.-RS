@@ -32,6 +32,7 @@ fn main() -> anyhow::Result<()> {
             round_time: 99,
             ai_level: 6,
             ai_sides: [true, true],
+            netplay: false,
         },
     );
 

@@ -246,6 +246,10 @@ pub struct MatchOptions {
     pub ai_level: i32,
     /// Slots whose AI is enabled. `AILevel` reports 0 for every other slot.
     pub ai_sides: [bool; 2],
+    /// True for a network/replay session. `IsHost` follows Ikemen's rule:
+    /// the first human player (side 0) is the host; local play has none.
+    #[serde(default)]
+    pub netplay: bool,
 }
 
 impl Default for MatchOptions {
@@ -255,6 +259,7 @@ impl Default for MatchOptions {
             round_time: DEFAULT_ROUND_TIME,
             ai_level: 4,
             ai_sides: [true, true],
+            netplay: false,
         }
     }
 }
@@ -1065,6 +1070,7 @@ impl SimState {
                 round_time: config.round_time,
                 ai_level: 0,
                 ai_sides: [false, false],
+                netplay: false,
             },
         ))
     }
@@ -1314,7 +1320,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(30u32, self.asset_id(), self))
+        bincode::serialize(&(31u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1333,7 +1339,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 30 {
+        if version != 31 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {

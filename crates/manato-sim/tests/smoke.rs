@@ -2171,9 +2171,20 @@ fn ikemen_zero_fallbacks_and_win_types() {
     assert_eq!(int(&sim, "WinSpecial"), 0);
     assert_eq!(int(&sim, "WinHyper"), 0);
 
-    // No engine config file: every GameOption query is undefined (false).
+    // GameOption exposes match options; unknown keys stay undefined.
+    assert_eq!(
+        int(&sim, "GameOption(Options.Time)"),
+        sim.options.round_time
+    );
+    assert_eq!(
+        int(&sim, "GameOption(Options.Match.Wins)"),
+        sim.options.rounds_to_win as i32
+    );
+    assert_eq!(
+        int(&sim, "GameOption(Options.Difficulty)"),
+        sim.options.ai_level
+    );
     assert_eq!(int(&sim, "GameOption(Options.GameSpeed)"), 0);
-    assert_eq!(int(&sim, "GameOption(Config.RoundTime)"), 0);
 
     // No channel is registered: group/number report -1 like Ikemen.
     assert_eq!(int(&sim, "SoundVar(0, group)"), -1);
@@ -7276,6 +7287,7 @@ fn oracle_round_timer_is_sixty_ticks_per_second() {
             round_time: 5,
             ai_level: 0,
             ai_sides: [false, false],
+            netplay: false,
         },
     );
     assert_eq!(sim.round.timer, 5 * 60);
@@ -17416,9 +17428,13 @@ fn ikemen_firstattack_identity_and_depth_triggers() {
     assert_eq!(manato_sim::trigger::int(&claimed, 0, "FirstAttack"), 0);
     assert_eq!(manato_sim::trigger::int(&claimed, 1, "FirstAttack"), 0);
 
-    // Local play has no host and the engine runs versus matches.
+    // Local play has no host; a network session uses side 0 as host.
     assert_eq!(manato_sim::trigger::int(&sim, 0, "IsHost"), 0);
     assert_eq!(manato_sim::trigger::int(&sim, 1, "IsHost"), 0);
+    sim.options.netplay = true;
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "IsHost"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 1, "IsHost"), 0);
+    sim.options.netplay = false;
     assert_eq!(
         manato_sim::trigger::eval_str(&sim, 0, "GameMode").as_str(),
         "versus"

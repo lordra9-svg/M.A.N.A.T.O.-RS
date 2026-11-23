@@ -1502,10 +1502,21 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
         // `MotifState(field)` describes the front-end motif screens. During a
         // fight none of them are active, so every field reads false.
         "motifstate" => Value::Bool(false),
-        // `GameOption(key)` reads engine configuration (mugen.cfg) values.
-        // This engine has no external config file, so every query is
-        // undefined and reads false, matching Ikemen's `GetValue` error path.
-        "gameoption" => Value::Bool(false),
+        // `GameOption(key)` reads engine configuration values. There is no
+        // mugen.cfg, but match options are exposed under the keys content
+        // commonly queries; unknown keys stay undefined/false.
+        "gameoption" => {
+            let key = key_at(sim, who, args, 0).to_ascii_lowercase();
+            match key.as_str() {
+                "options.time" | "config.roundtime" => Value::Int(sim.options.round_time),
+                "options.difficulty" => Value::Int(sim.options.ai_level),
+                "options.match.wins" | "config.roundswintomatch" => {
+                    Value::Int(sim.options.rounds_to_win as i32)
+                }
+                "options.life" | "config.life" => Value::Int(1000),
+                _ => Value::Bool(false),
+            }
+        }
         // `SoundVar(channel, field)` reads a persistent sound channel. The
         // engine queues one-shot sound events without a channel registry, so
         // no channel exists: numeric fields read 0 and `isplaying` is false.
@@ -2053,8 +2064,9 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "localcoordy" => Value::Int(sim.assets.characters[f.char_id].localcoord().1 as i32),
         "playerno" => Value::Int(f.slot as i32 + 1),
         "firstattack" => Value::Bool(sim.first_attack == Some(f.side)),
-        // Local play has no netplay host (`Char.isHost` returns false).
-        "ishost" => Value::Bool(false),
+        // Ikemen treats the first human player as host in network sessions;
+        // local play has no host.
+        "ishost" => Value::Bool(sim.options.netplay && f.side == 0),
         // The engine models a versus-style match.
         "gamemode" => Value::Str("versus".to_string()),
         // The renderer is 2D; stage depth (z) bounds are always zero, so the

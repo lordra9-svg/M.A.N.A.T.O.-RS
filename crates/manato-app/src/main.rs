@@ -1117,6 +1117,7 @@ fn load_match(opts: &Options) -> anyhow::Result<SimState> {
             round_time: opts.round_time,
             ai_level: opts.ai_level,
             ai_sides: [opts.ai_level > 0; 2],
+            netplay: opts.netplay.is_some(),
         },
     ))
 }
@@ -2294,6 +2295,7 @@ impl App {
                 round_time,
                 ai_level: if mode == Mode::Versus { 0 } else { ai.max(1) },
                 ai_sides: [false, mode != Mode::Versus],
+                netplay: false,
             },
         );
         if team_modes != [manato_sim::TeamMode::Single; 2] {

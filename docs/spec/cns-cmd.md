@@ -390,11 +390,15 @@ missing redirect targets make the trigger false.
   hit of the current round. Guarded contacts do not claim it, later hits
   from the other side do not steal it, and it resets at the start of each
   round (and on `restart_match`); it is part of the rollback checksum.
-- Identity: `IsHost` (false; local play has no netplay host) and `GameMode`
-  (`"versus"`, the engine's match type). `WinSpecial`/`WinHyper` are always
-  false because special/hyper finishes are not classified. `GameOption(key)`
-  reads false for every key: there is no external engine config (`mugen.cfg`)
-  to query, matching Ikemen's `GetValue` error path. `SoundVar(channel, field)`
+- Identity: `IsHost` is true for side 0's characters in a network session and
+  false for local play and side 1, matching Ikemen's first-human-player rule;
+  `GameMode` is `"versus"`, the engine's match type. `WinSpecial`/`WinHyper`
+  are always false because special/hyper finishes are not classified.
+  `GameOption(key)` exposes `Options.Time`, `Options.Difficulty`,
+  `Options.Match.Wins`, `Options.Life`, `Config.RoundTime`, and
+  `Config.RoundsWinToMatch` from the active match options; there is no
+  `mugen.cfg`, so unknown keys read false like Ikemen's `GetValue` error path.
+  `SoundVar(channel, field)`
   reads the sim-side sound-channel registry populated by `PlaySnd channel`:
   `group`, `number`, `freqmul`, `isplaying`, `length` (sample frames),
   `pan`, `position`, `priority`, `samplerate`, and `volumescale`;
