@@ -73,6 +73,10 @@ instead of forcing `offscreen`). Results reproduced the recorded values:
 - `kfm_juggle`: second hit 38 damage into state 5020, juggle 15 → 8 → 4.
 - `kfm_juggle_exhaust`: third hit 63 damage into state 5000, juggle 8 → 3.
 - `kfm_crouch_attack`: attacker `HitPauseTime` 10 at contact, defending side 0.
+- Projectile scenarios O-21..O-28: Kaen 55 damage / 12 guard, Nival 45 / 10,
+  Ordan 60 / 14, all at +6 or +7 ticks with state 5000 or 150 and the matching
+  projectile contact/hit/guard timers; Kaen super combines both blasts for 120
+  damage / 15 guard at +37 ticks; Nival super hits for 90 / 20 at +38 ticks.
 
 The capture summaries are deterministic across repeated `kfm_guard` runs.
 Raw CSVs and screenshots remain in temporary directories.
