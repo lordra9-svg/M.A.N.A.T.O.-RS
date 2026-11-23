@@ -18973,6 +18973,21 @@ fn old_style_timemod_trigger_compares_state_time_remainder() {
 }
 
 #[test]
+fn fixed_2d_axes_and_scale_z_are_constants() {
+    let Some(sim) = fight_phase() else {
+        return;
+    };
+    let num = |text: &str| manato_sim::trigger::num(&sim, 0, text);
+    let int = |text: &str| manato_sim::trigger::int(&sim, 0, text);
+    // The renderer is 2D: perspective angles read 0 and the z scale is 1.
+    assert_eq!(num("XAngle"), 0.0);
+    assert_eq!(num("YAngle"), 0.0);
+    assert_eq!(num("Scale.Z"), 1.0);
+    // A bare TimeMod has no divisor; only the comparison form rewrites it.
+    assert_eq!(int("TimeMod"), 0);
+}
+
+#[test]
 fn identity_and_team_triggers() {
     let Some(mut sim) = fight_phase() else {
         return;
