@@ -166,7 +166,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
 | I-01 | Keyboard input | Required | Required | Verified | Window run |
-| I-02 | Gamepad input | Required | Required | Verified | gilrs backend with SDL mappings; hardware-verified on an 8BitDo Ultimate 2C via `--gamepads`: d-pad directions, South/East/North/West → X/Y/Z/A, L1/R1 → B/C, and stick click reported; Start/Select not captured in this session and other devices remain untested |
+| I-02 | Gamepad input | Required | Required | Verified | gilrs backend with SDL mappings; hardware-verified on an 8BitDo Ultimate 2C via `--gamepads`: d-pad directions, South/East/North/West → X/Y/Z/A, L1/R1 → B/C, Start → START (bit 6), stick click, and a raw Select press/release (unbound by default); other devices remain untested |
 | I-03 | Remapping | Required | Required | Verified | TOML keyboard bindings plus per-player gamepad bindings (`[pad1]`/`[pad2]`) with button-name aliases and tests |
 | I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
 | N-01 | Rollback determinism | Required | Required | Partial | SyncTest |
