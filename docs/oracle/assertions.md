@@ -56,6 +56,27 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | X-05d | The stock stage1 renders blue-grey: stage-band mean (93, 125, 169). | Same run. Our renderer: (93, 125, 168). |
 | X-05e | SFF v2 palette nodes store RGBA bytes; swapping them to BGRA tints stock stages incorrectly. | Before the fix our stage0-720 rendered red-brown and the KFM wall blue, while Ikemen rendered stage0-720 blue and the wall brown. `parse_v2_palettes` now keeps RGBA; the render oracle above fails under the old order. |
 
+## Revalidation (2026-11-22)
+
+The same pinned Ikemen-GO `v1.0.0` runtime (`955a2f2`) was rerun through the
+harness on Wayland (the scripts now honor an existing `SDL_VIDEODRIVER`
+instead of forcing `offscreen`). Results reproduced the recorded values:
+
+- Round scenarios O-01..O-08: `ko_full` and `ko_clutch_10` are KO/perfect or
+  clutch, `ko_clutch_over` is not clutch, `time_over_full` is time-over/perfect,
+  `time_over_draw` has `win_side=-1`, and elapsed timers are 1 or 60 ticks.
+- `kfm_attack`: contact frame 213 (+4), 23 damage, state 5000 → 5001 after 9
+  ticks, push 15.899.
+- `kfm_guard`: guard contact 213, guard state 150 / anim 140, 0 guard damage,
+  push 14.834, 14 guard ticks.
+- `kfm_launch`: contact +10, 72 damage, state 5070 → 5071 after 13 ticks.
+- `kfm_juggle`: second hit 38 damage into state 5020, juggle 15 → 8 → 4.
+- `kfm_juggle_exhaust`: third hit 63 damage into state 5000, juggle 8 → 3.
+- `kfm_crouch_attack`: attacker `HitPauseTime` 10 at contact, defending side 0.
+
+The capture summaries are deterministic across repeated `kfm_guard` runs.
+Raw CSVs and screenshots remain in temporary directories.
+
 ## Mapping to M.A.N.A.T.O.-RS
 
 | Oracle | Engine |

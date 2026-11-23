@@ -226,7 +226,7 @@ def main() -> int:
             prepare_stage(root)
             added = patch_main(root)
             env = os.environ.copy()
-            env["SDL_VIDEODRIVER"] = "offscreen"
+            env.setdefault("SDL_VIDEODRIVER", "offscreen")
             env["IKEMEN_ORACLE_OUT"] = str(capture)
             env["IKEMEN_ORACLE_SCENARIO"] = args.scenario
             lib_paths = [str(root / "lib")]

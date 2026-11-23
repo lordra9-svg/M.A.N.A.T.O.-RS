@@ -37,7 +37,10 @@ python3 tools/oracle/run_round_oracle.py --json     # machine-readable
 
 `run_round_oracle.py` starts one headless match per scenario, reads Ikemen's
 `-log` table dump from a temporary directory, prints a compact summary, and
-deletes the raw log. Useful environment:
+deletes the raw log. The harness defaults `SDL_VIDEODRIVER` to `offscreen`,
+but respects an inherited value; on a desktop session use
+`SDL_VIDEODRIVER=wayland` (or `x11`) when the offscreen GL context is
+unavailable. Useful environment:
 
 - `IKEMEN_BIN` overrides the binary path.
 - `--keep` keeps raw logs in a temp directory for debugging.

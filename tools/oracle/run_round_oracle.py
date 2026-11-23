@@ -95,7 +95,7 @@ def run_case(
         str(log),
     ]
     env = os.environ.copy()
-    env["SDL_VIDEODRIVER"] = "offscreen"
+    env.setdefault("SDL_VIDEODRIVER", "offscreen")
     lib_paths = [str(root / "lib")]
     if env.get("LD_LIBRARY_PATH"):
         lib_paths.append(env["LD_LIBRARY_PATH"])

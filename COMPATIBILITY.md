@@ -116,10 +116,10 @@ next candidates are the oracle/hardware comparison rows and remaining
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| K-01 | Clsn1/Clsn2 transforms | Required | Required | Partial | Mirror/normalize/translate box test + KFM 200 hit flow |
-| K-02 | Hit/guard flags and priorities | Required | Required | Partial | Guard flags/M + p1/p2 sprpriority + guard.velocity + F gate; KFM guard oracle |
-| K-03 | Hit pause/super pause | Required | Required | Partial | Freeze + air hit + reaction-state selection (5010/5020/5030/5070); attacker/defender pausetime split (O-29); KFM oracle |
-| K-04 | Juggle/air hit/fall states | Required | Required | Partial | air.juggle gate + HitFallSet semantics + fall velocity/landing + lethal fall KO + GroundLevelOffset plane/landing/clamp tests |
+| K-01 | Clsn1/Clsn2 transforms | Required | Required | Verified | Mirror/normalize/translate box tests + KFM state 200 oracle flow (contact +4, 23 damage, 5000→5001) revalidated on the pinned Ikemen runtime |
+| K-02 | Hit/guard flags and priorities | Required | Required | Verified | Guard flags/M + p1/p2 sprpriority + guard.velocity + F gate tests; KFM guard oracle (state 150/anim 140, 0 damage, 14.8px push) revalidated |
+| K-03 | Hit pause/super pause | Required | Required | Verified | Freeze + air hit + reaction-state tests; O-29 attacker/defender pause split and KFM attack/launch flows revalidated on the pinned runtime |
+| K-04 | Juggle/air hit/fall states | Required | Required | Verified | air.juggle gate + HitFallSet + fall velocity/landing/lethal KO + GroundLevelOffset tests; O-17..O-19 juggle consumption (15→8→4→3) revalidated |
 | K-05 | Throws/target bind | Required | Required | Partial | Throw/bind/drop + Ordan slam + p1/p2 facing/sprpriority application |
 | K-06 | Projectile collision | Required | Required | Partial | Hit/guard oracle O-21..O-28 + hits-limit removal; state 3000 upper blast 1px box margin |
 | K-07 | Helper collision | Required | Required | Partial | Helper HitDef + helper-owned projectile owner/damage tests; oracle pending |
@@ -185,7 +185,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | N/A | Clean-room policy forbids M.U.G.E.N binary analysis; Ikemen-GO is the only oracle |
-| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification oracle in `docs/oracle/`; other subsystems pending |
+| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification (O-01..O-08) and KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29) revalidated 2026-11-22 in `docs/oracle/`; projectile and other subsystem reruns pending |
 
 ## 11. Proposed rewrite order
 

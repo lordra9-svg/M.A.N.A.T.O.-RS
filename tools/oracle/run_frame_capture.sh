@@ -94,7 +94,7 @@ fi
 set +e
 (
     cd "$root"
-    SDL_VIDEODRIVER=offscreen \
+    SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-offscreen}" \
     LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:$root/lib" \
     IKEMEN_ORACLE_OUT="$capture" \
     IKEMEN_ORACLE_SCENARIO="$scenario" \
