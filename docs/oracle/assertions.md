@@ -43,7 +43,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-22 | Guarding the projectile (P2 in guard state 150) contacts 7 ticks after entry, deals 12 guard damage, keeps the defender in guard state 150, and reports the projectile guard timer with no hit timer. | `kaen_projectile_guard` capture: contact frame 216, `p2_life` 1000 -> 988, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-23 | Nival's projectile hits an idle opponent 6 ticks after entry for 45 damage (state 5000), and a guarded contact 7 ticks after entry costs 10 guard damage in state 150. | `nival_projectile[_guard]` captures: 45/state 5000/`projHit` 0; 10/state 150/`projGuarded` 0. |
 | O-24 | Ordan's projectile hits an idle opponent 6 ticks after entry for 60 damage (state 5000), and a guarded contact 7 ticks after entry costs 14 guard damage in state 150. | `ordan_projectile[_guard]` captures: 60/state 5000/`projHit` 0; 14/state 150/`projGuarded` 0. |
-| O-25 | Kaen state 3000 fires two blasts; at close range both connect on the same frame for combined 120 damage (65 + 55) and put the defender in state 5000. | `kaen_super` capture: contact frame 246, `p2_life` 1000 -> 880, `p2_state` 5000, `p1_projHit` 0. Our engine connects the low blast only (65). At the contact frame the upper blast overlaps KFM's narrow head box vertically only by a 1px margin (blast bottom y=-94 vs hurt-box top y=-93), and that head box is also horizontally offset; integer pushbox separation widens the gap by 2px. Ikemen's float positions and overlap handling still count the hit. Exact parity needs per-projectile position capture (not exposed by the current CSV). |
+| O-25 | Kaen state 3000 fires two offset blasts; the low blast hits for 65 and puts the defender in state 5000. The upper blast (`offset = 0,-58`, `velocity = 6,-2`) passes above the idle hurt box and does not connect. | Revalidated `kaen_super` capture: contact +37, `p2_life` 1000 -> 935, `p2_state` 5000, `p1_projHit` 0. The earlier 120-damage observation was an artifact: Kaen's content used non-Projectile parameter names (`pos`, `removetime`), which Ikemen warned about and ignored, so both blasts spawned at y=0. The content now uses `offset`/`projremovetime`, and Ikemen and our engine both report 65. |
 | O-26 | Guarding state 3000's blasts costs 15 guard damage; the defender remains in guard state 150 and reports the projectile guard timer with no hit timer. The upper blast passes above the guard hurt box. | `kaen_super_guard` capture: contact frame 246, `p2_life` 1000 -> 985, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-27 | Nival state 3000 opens with a 30-tick SuperPause and then its single blast hits for 90 damage (state 5000). Contact lands 38 ticks after entry, versus ~6 for the plain projectile. | `nival_super` capture: contact frame 247, `p2_life` 1000 -> 910, `p2_state` 5000, `p1_projHit` 0. |
 | O-28 | Guarding Nival's super blast costs 20 guard damage and leaves the defender in guard state 150 with the projectile guard timer set. | `nival_super_guard` capture: contact frame 247, `p2_life` 1000 -> 980, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
@@ -75,8 +75,9 @@ instead of forcing `offscreen`). Results reproduced the recorded values:
 - `kfm_crouch_attack`: attacker `HitPauseTime` 10 at contact, defending side 0.
 - Projectile scenarios O-21..O-28: Kaen 55 damage / 12 guard, Nival 45 / 10,
   Ordan 60 / 14, all at +6 or +7 ticks with state 5000 or 150 and the matching
-  projectile contact/hit/guard timers; Kaen super combines both blasts for 120
-  damage / 15 guard at +37 ticks; Nival super hits for 90 / 20 at +38 ticks.
+  projectile contact/hit/guard timers; Kaen super's low blast hits for 65 at
+  +37 ticks (the upper offset blast passes overhead; see O-25), with 15 guard
+  damage; Nival super hits for 90 / 20 at +38 ticks.
 
 The capture summaries are deterministic across repeated `kfm_guard` runs.
 Raw CSVs and screenshots remain in temporary directories.

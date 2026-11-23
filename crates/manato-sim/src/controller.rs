@@ -3624,16 +3624,9 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
         log::warn!("projectile uses missing animation {anim}");
         return;
     }
-    let (px, py, pz) = {
-        let (x, y, z) = triplet(control, "pos");
-        let (ox, oy, oz) = triplet(control, "offset");
-        let (x, y) = if control.get("pos").is_some() {
-            (x, y)
-        } else {
-            (ox, oy)
-        };
-        (x, y, if control.get("pos").is_some() { z } else { oz })
-    };
+    // M.U.G.E.N/Ikemen projectiles use `offset`; `pos` belongs to other
+    // entities and is ignored here (Ikemen warns about it).
+    let (px, py, pz) = triplet(control, "offset");
     let (vx, vy, vz) = triplet(control, "velocity");
     let (ax, ay, az) = triplet(control, "accel");
     let velmul = {
@@ -3658,9 +3651,7 @@ fn projectile(sim: &mut SimState, who: usize, control: &Controller, assets: &cra
     // Projectile sparks sit at the impact point, not at a body offset.
     hitdef.sparkxy = Vec2::ZERO;
     // Both the plain and `proj*`-prefixed aliases are accepted.
-    let remove_time = int_param(sim, who, control, "projremovetime")
-        .or_else(|| int_param(sim, who, control, "removetime"))
-        .unwrap_or(-1);
+    let remove_time = int_param(sim, who, control, "projremovetime").unwrap_or(-1);
     let hits = int_param(sim, who, control, "projhits")
         .or_else(|| int_param(sim, who, control, "hits"))
         .unwrap_or(1)
@@ -3978,8 +3969,7 @@ fn modify_projectile(sim: &mut SimState, who: usize, control: &Controller, asset
     let velmul = control.get("velmul").map(|_| triplet(control, "velmul"));
     let super_move_time = int_param(sim, who, control, "supermovetime");
     let pause_move_time = int_param(sim, who, control, "pausemovetime");
-    let remove_time = int_param(sim, who, control, "projremovetime")
-        .or_else(|| int_param(sim, who, control, "removetime"));
+    let remove_time = int_param(sim, who, control, "projremovetime");
     let hits =
         int_param(sim, who, control, "projhits").or_else(|| int_param(sim, who, control, "hits"));
     let priority = int_param(sim, who, control, "projpriority");

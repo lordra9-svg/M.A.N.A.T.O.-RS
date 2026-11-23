@@ -840,7 +840,7 @@ type=Projectile
 trigger1 = AnimElem = 2
 projanim = 1500
 velocity = 4.5,-1.5
-removetime = 120
+projremovetime = 120
 damage = 60, 14
 hitflag = MAF
 guardflag = MA

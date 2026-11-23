@@ -6230,6 +6230,33 @@ fn text_depth_velocity_and_accel() {
 }
 
 #[test]
+fn projectile_ignores_nonstandard_pos_and_removetime() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = manato_formats::Controller {
+        kind: "projectile".into(),
+        params: vec![
+            ("projanim".into(), "0".into()),
+            ("pos".into(), "-200, -100".into()),
+            ("removetime".into(), "2".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &spawn, &assets);
+    let projectile = sim.projectiles.last().expect("projectile");
+    assert_eq!(
+        projectile.pos.y, sim.fighters[0].pos.y,
+        "pos is not a Projectile parameter"
+    );
+    assert_eq!(
+        projectile.remove_time, -1,
+        "removetime is not a Projectile parameter"
+    );
+}
+
+#[test]
 fn projmiss_tracks_expired_projectiles() {
     let Some(mut sim) = fight_phase() else {
         return;
@@ -12867,7 +12894,7 @@ fn modify_projectile_updates_live_projectile() {
         kind: "modifyprojectile".into(),
         params: vec![
             ("velocity".into(), "0, 0".into()),
-            ("removetime".into(), "3".into()),
+            ("projremovetime".into(), "3".into()),
             ("hits".into(), "2".into()),
             ("damage".into(), "40".into()),
             ("projanim".into(), "10".into()),
@@ -17115,8 +17142,8 @@ fn projectile_postype_controls_spawn_anchor() {
         let mut params = vec![
             ("projanim".to_string(), "1500".to_string()),
             ("velocity".to_string(), "0, 0".to_string()),
-            ("pos".to_string(), pos.to_string()),
-            ("removetime".to_string(), "30".to_string()),
+            ("offset".to_string(), pos.to_string()),
+            ("projremovetime".to_string(), "30".to_string()),
         ];
         if let Some(postype) = postype {
             params.push(("postype".to_string(), postype.to_string()));
@@ -23878,7 +23905,7 @@ fn projectile_removetime_zero_and_countdown() {
             params: vec![
                 ("projanim".into(), "1500".into()),
                 ("velocity".into(), "0, 0".into()),
-                ("removetime".into(), remove_time.to_string()),
+                ("projremovetime".into(), remove_time.to_string()),
                 ("id".into(), id.to_string()),
             ],
             line: 0,
@@ -23920,7 +23947,7 @@ fn projectile_removetime_minus_two_expires_at_animation_loop_end() {
             params: vec![
                 ("projanim".into(), anim.to_string()),
                 ("velocity".into(), "0, 0".into()),
-                ("removetime".into(), "-2".into()),
+                ("projremovetime".into(), "-2".into()),
                 ("id".into(), id.to_string()),
             ],
             line: 0,
@@ -23958,7 +23985,7 @@ fn projectile_removetime_minus_two_expires_at_animation_loop_end() {
         kind: "modifyprojectile".into(),
         params: vec![
             ("id".into(), "3".into()),
-            ("removetime".into(), "-1".into()),
+            ("projremovetime".into(), "-1".into()),
         ],
         line: 0,
     };
@@ -24923,7 +24950,7 @@ fn projectile_remvelocity_replaces_velocity_on_removal() {
             ("projanim".into(), "1500".into()),
             ("velocity".into(), "5, 0".into()),
             ("remvelocity".into(), "3, -1".into()),
-            ("removetime".into(), "1".into()),
+            ("projremovetime".into(), "1".into()),
             ("projremanim".into(), "1500".into()),
         ],
         line: 0,
@@ -24961,7 +24988,7 @@ fn projectile_remvelocity_replaces_velocity_on_removal() {
         params: vec![
             ("projanim".into(), "1500".into()),
             ("velocity".into(), "5, 0".into()),
-            ("removetime".into(), "1".into()),
+            ("projremovetime".into(), "1".into()),
             ("projremanim".into(), "1500".into()),
         ],
         line: 0,

@@ -133,6 +133,10 @@ Required controller families for the approved matrix:
 
 - `HitDef`, `ReversalDef`
 - `Projectile`, `ModifyProjectile`
+  Projectiles use `offset` and `projremovetime`. `pos` and `removetime` are
+  not Projectile parameters (Ikemen warns and ignores them), so bundled
+  content uses the standard names; this was the source of the earlier Kaen
+  super oracle divergence.
 - `NotHitBy`, `HitBy`, `HitOverride`
 - `HitVelSet`, `HitFallSet`, `HitFallVel`, `HitFallDamage`
 - `TargetBind`, `TargetState`, `TargetFacing`, `TargetLifeAdd`,

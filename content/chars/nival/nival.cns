@@ -840,7 +840,7 @@ type=Projectile
 trigger1 = AnimElem = 2
 projanim = 1500
 velocity = 4.5,0
-removetime = 120
+projremovetime = 120
 damage = 45, 10
 hitflag = MAF
 guardflag = MA
@@ -952,13 +952,13 @@ type=Projectile
 trigger1 = AnimElem = 2
 projanim = 1500
 velocity = 3,0
-removetime = 120
+projremovetime = 120
 damage = 90, 20
 hitflag = MAF
 guardflag = MA
 pausetime = 8,8
 attr = S, HA
-pos = 0,-45
+offset = 0,-45
 
 persistent = 0
 [State 3000, End]
