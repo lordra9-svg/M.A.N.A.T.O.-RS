@@ -770,7 +770,10 @@ pub fn apply_hit_at(
             f.guard_cooldown = 60;
             let before = f.guard_points;
             if f.assert_flags & crate::fighter::ASSERT_NOGUARDPOINTSDAMAGE == 0 {
-                f.guard_points = (f.guard_points - damage).max(0);
+                // Ikemen derives the point cost from the raw life damage
+                // (`default.lifetoguardpointsmul = 1.5`), not guard damage.
+                let cost = (hitdef.damage as f32 * 1.5).round() as i32;
+                f.guard_points = (f.guard_points - cost).max(0);
             }
             if before > 0 && f.guard_points == 0 {
                 f.guard_crush_timer = 20;

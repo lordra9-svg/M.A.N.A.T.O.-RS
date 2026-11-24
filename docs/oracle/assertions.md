@@ -47,6 +47,8 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-26 | Guarding state 3000's blasts costs 15 guard damage; the defender remains in guard state 150 and reports the projectile guard timer with no hit timer. The upper blast passes above the guard hurt box. | `kaen_super_guard` capture: contact frame 246, `p2_life` 1000 -> 985, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-27 | Nival state 3000 opens with a 30-tick SuperPause and then its single blast hits for 90 damage (state 5000). Contact lands 38 ticks after entry, versus ~6 for the plain projectile. | `nival_super` capture: contact frame 247, `p2_life` 1000 -> 910, `p2_state` 5000, `p1_projHit` 0. |
 | O-28 | Guarding Nival's super blast costs 20 guard damage and leaves the defender in guard state 150 with the projectile guard timer set. | `nival_super_guard` capture: contact frame 247, `p2_life` 1000 -> 980, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
+| O-33 | With `Options.GuardBreak = 1`, a fixture defender with 20 guard points loses 15 per guarded hit whose raw life damage is 10 (`default.lifetoguardpointsmul = 1.5`): 20 -> 5 -> 0. Reaching 0 starts the 20-tick guard-crush window; after its 60-tick cooldown the meter regains +2 on the first regen tick. | `guard_crush_probe` capture: first guard frame 214, `p2_guardPoints` 20 -> 5; second guard frame 234 -> 0; regen tick frame 294 -> 2. Encoded by `guard_and_dizzy_point_rates_match_oracle` and `guard_hits_drain_guard_points`. |
+| O-34 | With `Options.Dizzy = 1`, a fixture defender with 100 dizzy points loses 36 per unguarded 20-damage hit (`default.lifetodizzypointsmul = 1.8`): 100 -> 64 -> 28 -> 0, then the 60-tick dizzy stun resets the meter. | `dizzy_probe` capture: hits at frames 214/234/254, `p2_dizzyPoints` 100 -> 64 -> 28 -> 0; meter returns to 100 after the stun. Encoded by `guard_and_dizzy_point_rates_match_oracle` and `dizzy_stun_lasts_sixty_ticks_and_resets`. |
 | O-32 | KFM state 200's PowerAdd gives P1 10 power before contact; the hit then adds 16 to the attacker and 13 to the defender using Ikemen's omitted-getpower/givepower defaults. | `kfm_attack` capture: frame 210 `p1_power` 0 -> 10, contact frame 214 `p1_power` 10 -> 26 and `p2_power` 0 -> 13. Encoded by `oracle_kfm_state_200_hits_idle`; no content-defined points involved. |
 | O-31 | Kaen state 2100 spawns helper 2100 in state 2101; the helper's normal HitDef contacts 4 ticks after injection for 30 damage and puts the defender in state 5000. The helper self-destroys at time 20. | `kaen_helper` capture: injection frame 209, contact frame 213 (+4), `p2_life` 1000 -> 970, `p2_state` 5000. Encoded by `kaen_helper_hit_matches_oracle`; helper ownership is covered by the existing helper HitDef/projectile tests. |
 | O-30 | Kaen state 800 grabs an idle KFM 5 ticks after entry: P1 enters 810, P2 enters 820, and the target is bound at `p1.x + 28`, `p1.y - 40`. At 25 ticks after the grab `TargetLifeAdd` deals 80 damage, and at +27 the target is released into state 5050 while still at the bound position. | `kaen_throw` capture: injection frame 209, grab frame 214, P1 life 1000 / P2 1000 -> 920 at frame 239, P2 state 5050 at frame 241, P2 position (12, -40) with P1 at (-16, 0). Encoded by `kaen_state_800_throw_matches_oracle_flow`. |
@@ -77,6 +79,8 @@ instead of forcing `offscreen`). Results reproduced the recorded values:
 - `kfm_juggle_exhaust`: third hit 63 damage into state 5000, juggle 8 → 3.
 - `kfm_crouch_attack`: attacker `HitPauseTime` 10 at contact, defending side 0.
 - `kaen_helper` (O-31): helper HitDef contacts +4 for 30 damage into state 5000.
+- `guard_crush_probe` (O-33): guard points 20 -> 5 -> 0 at 15 per 10-damage hit, then +2 after cooldown.
+- `dizzy_probe` (O-34): dizzy points 100 -> 64 -> 28 -> 0 at 36 per 20-damage hit.
 - `kaen_throw` (O-30): grab at +5, state 820, bind (12,-40), 80 damage at +25, release to 5050 at +27.
 - Projectile scenarios O-21..O-28: Kaen 55 damage / 12 guard, Nival 45 / 10,
   Ordan 60 / 14, all at +6 or +7 ticks with state 5000 or 150 and the matching
@@ -106,6 +110,8 @@ Raw CSVs and screenshots remain in temporary directories.
 | O-30 | Encoded by `kaen_state_800_throw_matches_oracle_flow`; run `IKEMEN_ORACLE_SCENARIO=kaen_throw --p1 kaen`. |
 | O-31 | Encoded by `kaen_helper_hit_matches_oracle`; run `IKEMEN_ORACLE_SCENARIO=kaen_helper --p1 kaen`. |
 | O-32 | Encoded by `oracle_kfm_state_200_hits_idle`; run `IKEMEN_ORACLE_SCENARIO=kfm_attack`. |
+| O-33 | Encoded by `guard_and_dizzy_point_rates_match_oracle` / `guard_hits_drain_guard_points`; run `IKEMEN_ORACLE_SCENARIO=guard_crush_probe --p1 oracle --p2 oracle` with `Options.GuardBreak = 1`. |
+| O-34 | Encoded by `guard_and_dizzy_point_rates_match_oracle` / `dizzy_stun_lasts_sixty_ticks_and_resets`; run `IKEMEN_ORACLE_SCENARIO=dizzy_probe --p1 oracle --p2 oracle` with `Options.Dizzy = 1`. |
 | O-20 | Kept as a documented negative oracle finding; the engine gate remains unit-tested and is not changed to match this anomalous persistent-HitDef construct. |
 
 These assertions remain subject to revision if a later oracle run contradicts

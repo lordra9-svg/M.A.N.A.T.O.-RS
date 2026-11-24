@@ -41,3 +41,51 @@ type = VelSet
 trigger1 = 1
 x = 0
 y = 0
+
+; Guard-damage probe (K-09). Requires Options.GuardBreak = 1.
+[Statedef 7002]
+type = S
+movetype = A
+physics = S
+anim = 200
+ctrl = 0
+
+[State 7002, Guard damage]
+type = HitDef
+trigger1 = Time = 0
+attr = S, NA
+damage = 10, 10
+guardflag = MA
+hitflag = MAF
+pausetime = 0, 0
+
+; Dizzy probe. Requires Options.Dizzy = 1.
+
+[State 7002, End]
+type = ChangeState
+trigger1 = Time >= 8
+value = 0
+ctrl = 1
+
+[Statedef 7003]
+type = S
+movetype = A
+physics = S
+anim = 200
+ctrl = 0
+
+[State 7003, Dizzy damage]
+type = HitDef
+trigger1 = Time = 0
+attr = S, NA
+damage = 20
+guardflag = MA
+hitflag = MAF
+pausetime = 0, 0
+
+[State 7003, End]
+type = ChangeState
+trigger1 = Time >= 8
+value = 0
+ctrl = 1
+

@@ -69,13 +69,39 @@ def prepare_stage(root: Path) -> None:
     shutil.copy(source, stages / "oracle.sff")
 
 
+
+def prepare_oracle_char(root: Path) -> None:
+    """Installs the purpose-built oracle character with guard/dizzy data."""
+    source = root / "chars/kfm"
+    target = root / "chars/oracle"
+    if not source.is_dir():
+        return
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(source, target)
+    for candidate in target.glob("*.def"):
+        if candidate.name.lower() == "kfm.def":
+            candidate.rename(target / "oracle.def")
+    script = target / "oracle.def"
+    text = script.read_text(encoding="utf-8", errors="replace")
+    if "oracle.cns" not in text:
+        text = text.replace("stcommon = common1.cns", "stcommon = common1.cns\nst2     = oracle.cns", 1)
+        script.write_text(text, encoding="utf-8")
+    shutil.copy(ROOT / "tools/oracle/oracle-char/oracle.cns", target / "oracle.cns")
+    cns = target / "kfm.cns"
+    if cns.is_file():
+        data = cns.read_text(encoding="utf-8", errors="replace")
+        if "guardpoints" not in data:
+            data = data.replace("volume = 0", "volume = 0\nguardpoints = 20\ndizzypoints = 100", 1)
+            cns.write_text(data, encoding="utf-8")
+
 def summarize(path: Path) -> dict:
     with path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     if not rows:
         raise SystemExit("capture is empty")
     injection = next(
-        (row for row in rows if int(row["p1_state"]) in (200, 400, 440, 7000, 1000, 3000, 800, 810, 2100)), None
+        (row for row in rows if int(row["p1_state"]) in (200, 400, 440, 7000, 1000, 3000, 800, 810, 2100, 7002, 7003)), None
     )
     if injection is None:
         raise SystemExit("scenario never entered a scripted KFM attack state")
@@ -224,6 +250,7 @@ def main() -> int:
         try:
             shutil.copy(ROOT / "tools/oracle/capture.lua", root / "external/mods/zz-oracle.lua")
             prepare_stage(root)
+            prepare_oracle_char(root)
             added = patch_main(root)
             env = os.environ.copy()
             env.setdefault("SDL_VIDEODRIVER", "offscreen")

@@ -10244,13 +10244,15 @@ fn guard_hits_drain_guard_points() {
     hit.guard_damage_set = true;
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
-    assert_eq!(sim.fighters[1].guard_points, 95);
+    // O-32: default.lifetoguardpointsmul = 1.5 × raw life damage (20), not
+    // the 5-point guard damage.
+    assert_eq!(sim.fighters[1].guard_points, 70);
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
-    assert_eq!(sim.fighters[1].guard_points, 90);
+    assert_eq!(sim.fighters[1].guard_points, 40);
 
     // Unguarded hits do not consume guard points.
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
-    assert_eq!(sim.fighters[1].guard_points, 90);
+    assert_eq!(sim.fighters[1].guard_points, 40);
 }
 
 #[test]
@@ -10325,6 +10327,49 @@ fn hitdef_forcecrouch_forces_crouching_reaction() {
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, false, origin, 1, true);
     assert_eq!(sim.fighters[1].state_no, 5010);
+}
+
+#[test]
+fn guard_and_dizzy_point_rates_match_oracle() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    // O-32 guard: 20 points, 10 guard damage at 1.5x = 15 per hit.
+    sim.fighters[1].guard_max = 20;
+    sim.fighters[1].guard_points = 20;
+    let mut guard = hitdef();
+    guard.damage = 10;
+    guard.guard_damage = 10;
+    guard.guard_damage_set = true;
+    let origin = sim.fighters[0].pos;
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &guard, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_points, 5);
+    assert_eq!(sim.fighters[1].guard_crush_timer, 0);
+    manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &guard, true, origin, 1, true);
+    assert_eq!(sim.fighters[1].guard_points, 0);
+    assert_eq!(sim.fighters[1].guard_crush_timer, 20);
+    // 60-tick cooldown then +2 regen.
+    sim.fighters[1].guard_crush_timer = 0;
+    sim.fighters[1].guard_cooldown = 60;
+    for _ in 0..60 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_eq!(sim.fighters[1].guard_points, 2);
+
+    // O-33 dizzy: 20 damage at 1.8x = 36 points; 100 -> 64 -> 28 -> 0.
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    sim.fighters[1].dizzy_max = 100;
+    sim.fighters[1].dizzy_points = 100;
+    let mut dizzy = hitdef();
+    dizzy.damage = 20;
+    let origin = sim.fighters[0].pos;
+    for (expected, timer) in [(64, 0), (28, 0), (0, 60)] {
+        manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &dizzy, false, origin, 1, true);
+        assert_eq!(sim.fighters[1].dizzy_points, expected);
+        assert_eq!(sim.fighters[1].dizzy_timer, timer);
+    }
 }
 
 #[test]
@@ -10625,9 +10670,10 @@ fn get_hitvar_guardpoints_reports_live_meter() {
     hit.guard_damage_set = true;
     let origin = sim.fighters[0].pos;
     manato_sim::collision::apply_hit_at(&mut sim, 0, 1, &hit, true, origin, 1, true);
+    // O-33: cost is 1.5 × raw damage (20), not the 5-point guard damage.
     assert_eq!(
         manato_sim::trigger::int(&sim, 1, "GetHitVar(guardpoints)"),
-        37
+        12
     );
 }
 

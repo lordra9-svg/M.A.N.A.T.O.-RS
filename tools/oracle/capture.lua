@@ -1,5 +1,8 @@
 -- Per-frame Ikemen-GO state capture for the M.A.N.A.T.O.-RS oracle harness.
 -- This file is installed into a throwaway runtime copy and is not committed.
+modifyGameOption('Options.GuardBreak', true)
+modifyGameOption('Options.Dizzy', true)
+
 local out_path = os.getenv("IKEMEN_ORACLE_OUT")
 local scenario = os.getenv("IKEMEN_ORACLE_SCENARIO") or "idle"
 local last_frame = -1
@@ -136,6 +139,22 @@ function oracle_capture()
         player(1)
         changeState(2100)
         injected = true
+    elseif scenario == "guard_crush_probe" and num(safe(roundState)) == 2 then
+        player(2)
+        if num(guardPoints()) > 0 then
+            changeState(150)
+        end
+        player(1)
+        if num(stateNo()) == 0 and frame - last_inject >= 20 then
+            changeState(7002)
+            last_inject = frame
+        end
+    elseif scenario == "dizzy_probe" and num(safe(roundState)) == 2 then
+        player(1)
+        if num(stateNo()) == 0 and frame - last_inject >= 20 then
+            changeState(7003)
+            last_inject = frame
+        end
     elseif scenario == "kaen_throw" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(800)

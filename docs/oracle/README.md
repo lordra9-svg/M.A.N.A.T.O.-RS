@@ -110,6 +110,9 @@ combined damage, and the owner's projectile contact/hit/guard timers.
 distinction. `kaen_throw` injects Kaen state 800 to capture target-bind
 timing, position, damage, and release (O-30). `kaen_helper` injects Kaen state
 2100 to capture helper HitDef timing, damage, and reaction state (O-31).
+`guard_crush_probe`/`dizzy_probe` install the `oracle` fixture (guard/dizzy
+data and probe HitDefs) and enable the guard/stun bars via `modifyGameOption`,
+then capture O-33/O-34 point drain and regen.
 
 ## O-20 negative finding
 
