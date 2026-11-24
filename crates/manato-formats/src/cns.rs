@@ -356,6 +356,29 @@ value = 20
     }
 
     #[test]
+    fn later_state_files_override_states_and_constants() {
+        let base = StateFile::from_text(
+            &TextFile::parse_str(
+                "[Data]\nlife = 1000\n\n[Statedef 200]\ntype = S\n\n[State 200, base]\ntype = VelSet\n",
+            ),
+            "base.cns",
+        );
+        let extra = StateFile::from_text(
+            &TextFile::parse_str(
+                "[Data]\nlife = 900\n\n[Statedef 200]\ntype = S\n\n[State 200, extra]\ntype = VarSet\n",
+            ),
+            "st1.cns",
+        );
+        let mut merged = base;
+        merged.merge(extra);
+        let state = merged.state(200).expect("state");
+        assert_eq!(state.controllers.len(), 1);
+        assert_eq!(state.controllers[0].kind, "varset");
+        assert_eq!(merged.constants.get("life"), Some(900.0));
+        assert_eq!(merged.states.len(), 1);
+    }
+
+    #[test]
     fn controllers_belong_to_the_enclosing_statedef() {
         // `[State 300]` inside `[Statedef -2]` is a label, not state 300.
         let tf = TextFile::parse_str(
