@@ -15709,6 +15709,42 @@ fn stage_bg_controllers_drive_layers() {
     assert_eq!(states[0].sin_y, [4.0, 5.0, 6.0]);
     assert_eq!(states[0].cos_x, [7.0, 8.0, 9.0]);
     assert_eq!(states[0].cos_y, [10.0, 11.0, 12.0]);
+
+    // Static `palfx`/`shaderset` BGCtrls apply layer palette and shader state.
+    let mut states = vec![manato_sim::StageLayerState::from_layer(&layer)];
+    let fx = [ctrl(
+        "palfx",
+        vec![
+            ("add", "10, 20, 30"),
+            ("mul", "128, 256, 64"),
+            ("color", "128"),
+            ("hue", "256"),
+            ("invertblend", "2"),
+            ("sinadd", "1, 2, 3, 4"),
+            ("sinmul", "64, 128, 256, 8"),
+            ("sincolor", "128, 16"),
+            ("sinhue", "256, 32"),
+        ],
+        "1",
+    )];
+    manato_sim::update_bg_states(&fx, &mut states, 0, 1, 0);
+    assert_eq!(states[0].pal_add, [10.0, 20.0, 30.0]);
+    assert_eq!(states[0].pal_mul, [0.5, 1.0, 0.25]);
+    assert_eq!(states[0].pal_color, 0.5);
+    assert_eq!(states[0].pal_hue, 0.5);
+    assert!(states[0].pal_invert);
+    assert_eq!(states[0].pal_sin_add, [1.0, 2.0, 3.0]);
+    assert_eq!(states[0].pal_sin_add_period, 4);
+    assert_eq!(states[0].pal_sin_mul, [0.25, 0.5, 1.0]);
+    assert_eq!(states[0].pal_sin_mul_period, 8);
+    assert_eq!(states[0].pal_sin_color, 0.5);
+    assert_eq!(states[0].pal_sin_color_period, 16);
+    assert_eq!(states[0].pal_sin_hue, 0.5);
+    assert_eq!(states[0].pal_sin_hue_period, 32);
+
+    let shader = [ctrl("shaderset", vec![("name", "wave")], "1")];
+    manato_sim::update_bg_states(&shader, &mut states, 0, 1, 0);
+    assert_eq!(states[0].shader.as_deref(), Some("wave"));
 }
 
 #[test]

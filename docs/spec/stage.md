@@ -263,9 +263,10 @@ Required controller types:
 - `posset`, `posadd`
 - `velset`, `veladd`
 - `sinx`, `siny`
-- `palfx`
-- `remappal`
-- `shadercolor` (parsed, deferred)
+- `palfx`: add/mul, color/hue, invertall/invertblend, and the
+  sinadd/sinmul/sincolor/sinhue oscillations
+- `shaderset`: select a per-layer custom shader
+- `remappal`, `shadercolor`: parsed, deferred
 
 Triggers use the same expression engine as characters. Controllers run once per
 tick per matching layer.

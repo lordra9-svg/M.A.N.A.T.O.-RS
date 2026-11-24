@@ -4835,6 +4835,26 @@ fn stage_num(control: &manato_formats::Controller, key: &str) -> Option<f32> {
     control.get(key).and_then(|value| value.trim().parse().ok())
 }
 
+fn stage_pair(control: &manato_formats::Controller, key: &str) -> Option<(f32, i32)> {
+    let value = control.get(key)?;
+    let mut parts = value.split(',');
+    let first: f32 = parts.next()?.trim().parse().ok()?;
+    let second: i32 = parts.next()?.trim().parse().ok()?;
+    Some((first, second))
+}
+
+fn stage_quad(control: &manato_formats::Controller, key: &str) -> Option<([f32; 3], i32)> {
+    let value = control.get(key)?;
+    let mut parts = value.split(',');
+    let rgb = [
+        parts.next()?.trim().parse().ok()?,
+        parts.next()?.trim().parse().ok()?,
+        parts.next()?.trim().parse().ok()?,
+    ];
+    let period = parts.next()?.trim().parse().ok()?;
+    Some((rgb, period))
+}
+
 fn stage_triple(control: &manato_formats::Controller, key: &str) -> Option<[f32; 3]> {
     let value = control.get(key)?;
     let mut parts = value.split(',');
@@ -4912,6 +4932,55 @@ fn apply_stage_controller(layer: &mut StageLayerState, control: &manato_formats:
         "cosy" => {
             if let Some(value) = stage_triple(control, "value") {
                 layer.cos_y = value;
+            }
+        }
+        "palfx" => {
+            if let Some(value) = stage_triple(control, "add") {
+                layer.pal_add = value;
+            }
+            if let Some(value) = stage_triple(control, "mul") {
+                layer.pal_mul = [value[0] / 256.0, value[1] / 256.0, value[2] / 256.0];
+            }
+            if let Some(value) = stage_num(control, "color") {
+                layer.pal_color = (value / 256.0).clamp(0.0, 1.0);
+            }
+            if let Some(value) = stage_num(control, "hue") {
+                layer.pal_hue = (value / 512.0).clamp(-0.5, 0.5);
+            }
+            if let Some(value) = stage_num(control, "invertall") {
+                layer.pal_invert = value != 0.0;
+            }
+            if control
+                .get("invertblend")
+                .map(|value| value.trim().parse::<f32>().unwrap_or(0.0).abs() >= 2.0)
+                .unwrap_or(false)
+            {
+                layer.pal_invert = true;
+            }
+            if let Some((value, period)) = stage_quad(control, "sinadd") {
+                layer.pal_sin_add = [value[0], value[1], value[2]];
+                layer.pal_sin_add_period = period;
+            }
+            if let Some((value, period)) = stage_quad(control, "sinmul") {
+                layer.pal_sin_mul = [value[0] / 256.0, value[1] / 256.0, value[2] / 256.0];
+                layer.pal_sin_mul_period = period;
+            }
+            if let Some((value, period)) = stage_pair(control, "sincolor") {
+                layer.pal_sin_color = value / 256.0;
+                layer.pal_sin_color_period = period;
+            }
+            if let Some((value, period)) = stage_pair(control, "sinhue") {
+                layer.pal_sin_hue = value / 512.0;
+                layer.pal_sin_hue_period = period;
+            }
+        }
+        "shaderset" => {
+            if let Some(name) = control
+                .get("name")
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+            {
+                layer.shader = Some(name.to_string());
             }
         }
         _ => {}
