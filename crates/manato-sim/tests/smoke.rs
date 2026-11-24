@@ -11456,6 +11456,34 @@ fn round_time_controllers_set_and_clamp_ticks() {
 }
 
 #[test]
+fn pause_controller_freezes_opponent_animation() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let pause = manato_formats::Controller {
+        kind: "pause".into(),
+        params: vec![
+            ("time".into(), "10".into()),
+            ("movetime".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &pause, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    let frozen = sim.fighters[1].anim_time;
+    // O-38: Ikemen's Pause freezes the defender's animation for 10 ticks.
+    for _ in 0..9 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.fighters[1].anim_time, frozen);
+    }
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_ne!(sim.fighters[1].anim_time, frozen, "animation resumes");
+}
+
+#[test]
 fn prev_state_and_move_type_triggers_track_last_change() {
     let Some(mut sim) = fight_phase() else {
         return;

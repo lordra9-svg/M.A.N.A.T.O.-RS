@@ -132,3 +132,23 @@ type = ChangeState
 trigger1 = Time >= 2
 value = 0
 ctrl = 1
+
+; Pause probe (X-08/O-38).
+[Statedef 7007]
+type = S
+movetype = I
+physics = S
+anim = 0
+ctrl = 0
+
+[State 7007, Pause]
+type = Pause
+trigger1 = Time = 0
+time = 10
+movetime = 0
+
+[State 7007, End]
+type = ChangeState
+trigger1 = Time >= 2
+value = 0
+ctrl = 1
