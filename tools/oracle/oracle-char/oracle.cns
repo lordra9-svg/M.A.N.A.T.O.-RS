@@ -89,3 +89,46 @@ trigger1 = Time >= 8
 value = 0
 ctrl = 1
 
+
+; MakeDust + GameMakeAnim probe (C-12).
+[Statedef 7004]
+type = S
+movetype = I
+physics = S
+anim = 0
+ctrl = 0
+
+[State 7004, Dust]
+type = MakeDust
+trigger1 = Time = 0
+pos = 0, 0
+pos2 = 20, 0
+spacing = 1
+
+
+[State 7004, End]
+type = ChangeState
+trigger1 = Time >= 2
+value = 0
+ctrl = 1
+
+; GameMakeAnim-only probe.
+[Statedef 7005]
+type = S
+movetype = I
+physics = S
+anim = 0
+ctrl = 0
+
+[State 7005, Game anim]
+type = GameMakeAnim
+trigger1 = Time = 0
+anim = 120
+pos = 30, 0
+postype = p1
+
+[State 7005, End]
+type = ChangeState
+trigger1 = Time >= 2
+value = 0
+ctrl = 1

@@ -47,7 +47,7 @@ of the character DEF paths and stage name) or format version differs. Requests
 are serviced at the same tick boundary as `SaveState`/`LoadState`. Relative
 paths resolve against the executing character's DEF directory.
 
-The format is versioned with a single integer (currently `33`); any struct
+The format is versioned with a single integer (currently `34`); any struct
 change requires bumping it. Snapshot files are not portable across content roots.
 
 Security: files larger than 64 MiB are rejected and decoding uses fixint

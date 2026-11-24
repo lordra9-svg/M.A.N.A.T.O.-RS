@@ -1836,6 +1836,7 @@ fn game_make_anim(sim: &mut SimState, who: usize, control: &Controller) {
         id: int_param(sim, who, control, "id").unwrap_or(0),
         owner: who,
         behind: false,
+        num_explod: true,
         ..Effect::default()
     });
 }
@@ -4798,6 +4799,7 @@ fn explod(sim: &mut SimState, who: usize, control: &Controller, assets: &crate::
     sim.effects.push(Effect {
         source,
         anim,
+        num_explod: true,
         pos: Vec2::new(base.x + bind_offset.x, base.y + bind_offset.y),
         vel: Vec2::new(vx * facing_f, vy),
         accel: Vec2::new(ax * facing_f, ay),

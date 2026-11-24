@@ -455,6 +455,9 @@ pub struct Effect {
     pub id: i32,
     pub owner: usize,
     pub behind: bool,
+    /// Whether this effect counts toward `NumExplod`. Dust, hit sparks, and
+    /// other implicit effects stay outside the explod list.
+    pub num_explod: bool,
     /// Remaining bind ticks; `-1` binds forever.
     pub bind_time: i32,
     /// Anchor entity while bound.
@@ -519,6 +522,7 @@ impl Default for Effect {
             id: 0,
             owner: 0,
             behind: false,
+            num_explod: false,
             bind_time: 0,
             bind_target: None,
             bind_offset: Vec2::ZERO,
@@ -1324,7 +1328,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(33u32, self.asset_id(), self))
+        bincode::serialize(&(34u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1343,7 +1347,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 33 {
+        if version != 34 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -4008,6 +4012,7 @@ impl SimState {
             h.write_i32(e.duration);
             h.write_i32(e.bind_time);
             h.write_bool(e.bound);
+            h.write_bool(e.num_explod);
             h.write_f32(e.alpha);
             h.write_f32(e.angle);
             h.write_f32(e.x_angle);

@@ -8118,6 +8118,11 @@ fn game_make_anim_spawns_fightfx_effect() {
     assert_eq!(effect.sprite_priority, 3);
     assert!((effect.pos.x - (p2.x + 10.0)).abs() < 0.001);
     assert!((effect.pos.y - (p2.y - 20.0)).abs() < 0.001);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "NumExplod"),
+        1,
+        "GameMakeAnim is counted by NumExplod (O-37)"
+    );
 }
 
 #[test]
@@ -8138,7 +8143,13 @@ fn make_dust_spawns_behind_owner() {
     assert_eq!(effect.anim, 120);
     assert!(effect.behind);
     assert_eq!(effect.owner, 0);
+    assert!(!effect.num_explod);
     assert!((effect.pos.x - (owner_x + 6.0)).abs() < 0.001);
+    assert_eq!(
+        manato_sim::trigger::int(&sim, 0, "NumExplod"),
+        0,
+        "MakeDust stays outside NumExplod (O-37)"
+    );
 }
 
 #[test]

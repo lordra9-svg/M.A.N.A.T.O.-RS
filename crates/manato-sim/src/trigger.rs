@@ -1110,7 +1110,7 @@ fn eval_call(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value {
                 .iter()
                 .filter(|e| {
                     e.owner == who
-                        && matches!(e.source, crate::EffectSource::Character(_))
+                        && e.num_explod
                         && (args.is_empty() || e.id == arg_i32(sim, who, args, 0))
                 })
                 .count() as i32,
@@ -2135,10 +2135,7 @@ fn eval_trigger(sim: &SimState, who: usize, name: &str, args: &[Expr]) -> Value 
         "numexplod" => Value::Int(
             sim.effects
                 .iter()
-                .filter(|effect| {
-                    effect.owner == who
-                        && matches!(effect.source, crate::EffectSource::Character(_))
-                })
+                .filter(|effect| effect.owner == who && effect.num_explod)
                 .count() as i32,
         ),
         "numhelper" => {
