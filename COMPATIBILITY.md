@@ -155,7 +155,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| A-01 | SND playback | Required | Required | Partial | SND + channels/priority; oracle pending |
+| A-01 | SND playback | Required | Required | Verified | SND parser/channel tests plus the offline mixer tests rendering decoded samples, equal-power pan, volume, managed-channel priority, looping, and stop without audio hardware; no hardware playback oracle exists |
 | A-02 | Character/effect sounds | Required | Required | Verified | Roster + hit/guard sound events and silent group -1 |
 | A-03 | BGM/music | Required | Required | Verified | Symphonia decode + looping mixer + PlayBGM/ModifyBGM controllers + live BgmVar position/length/samplerate feedback + non-loop playback/startposition/freqmul/loopcount and live loop points |
 | A-04 | Pan/volume/channels | Required | Required | Verified | Channel priority, pan, master/music volume, tests |

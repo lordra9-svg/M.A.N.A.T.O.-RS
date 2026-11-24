@@ -16,6 +16,88 @@ use std::sync::{Arc, Mutex};
 use manato_formats::{Sound, SoundBank};
 use manato_sim::{SimState, SoundCommand, SoundSource};
 
+/// Offline mixer for deterministic playback tests and tools.
+pub struct OfflineMixer {
+    mixer: Mixer,
+    output_rate: u32,
+}
+
+impl OfflineMixer {
+    pub fn new(sample_rate: u32, output_channels: u16) -> Self {
+        Self {
+            output_rate: sample_rate.max(1),
+            mixer: Mixer {
+                pending: VecDeque::new(),
+                channels: std::collections::HashMap::new(),
+                music: None,
+                output_channels: output_channels.max(1) as usize,
+                volume: 1.0,
+                music_volume: 1.0,
+                music_base: 1.0,
+            },
+        }
+    }
+
+    /// Plays a decoded sound once (no managed channel).
+    pub fn play(&mut self, sound: &Sound, volume: f32, pan: f32) {
+        if let Some(voice) = Voice::new(sound, self.output_rate, volume, pan) {
+            self.mixer.pending.push_back(voice);
+        }
+    }
+
+    /// Plays a sound at an explicit output rate.
+    pub fn play_at(&mut self, sound: &Sound, output_rate: u32, volume: f32, pan: f32) {
+        if let Some(voice) = Voice::new(sound, output_rate.max(1), volume, pan) {
+            self.mixer.pending.push_back(voice);
+        }
+    }
+
+    /// Plays on a managed channel, honoring priority / low-priority rules.
+    #[allow(clippy::too_many_arguments)]
+    pub fn play_channel(
+        &mut self,
+        channel: i32,
+        sound: &Sound,
+        output_rate: u32,
+        volume: f32,
+        pan: f32,
+        priority: i32,
+        low_priority: bool,
+    ) {
+        let Some(mut voice) = Voice::new(sound, output_rate.max(1), volume, pan) else {
+            return;
+        };
+        voice.priority = priority;
+        self.mixer
+            .play_channel((0, 0, channel), voice, low_priority);
+    }
+
+    pub fn stop_channel(&mut self, channel: i32) {
+        self.mixer.channels.remove(&(0, 0, channel));
+    }
+
+    pub fn set_looping(&mut self, channel: i32, looping: bool) {
+        if let Some(voice) = self.mixer.channels.get_mut(&(0, 0, channel)) {
+            voice.set_loop(looping);
+        }
+    }
+
+    /// Renders `frames` interleaved f32 samples (`-1..1`).
+    pub fn fill(&mut self, frames: usize) -> Vec<f32> {
+        let mut out = vec![0.0; frames.saturating_mul(self.mixer.output_channels)];
+        self.mixer.fill(&mut out);
+        out
+    }
+
+    /// Renders `frames` interleaved i16 samples.
+    pub fn fill_i16(&mut self, frames: usize) -> Vec<i16> {
+        self.fill(frames)
+            .into_iter()
+            .map(|sample| (sample.clamp(-1.0, 1.0) * 32767.0).round() as i16)
+            .collect()
+    }
+}
+
 #[cfg(target_os = "linux")]
 mod pulse;
 
@@ -1216,5 +1298,78 @@ mod tests {
             .unwrap()
             .position;
         assert!(after > during);
+    }
+
+    fn test_sound(samples: Vec<i16>, rate: u32, channels: u16) -> Sound {
+        Sound {
+            group: 0,
+            index: 0,
+            sample_rate: rate,
+            channels,
+            samples,
+        }
+    }
+
+    #[test]
+    fn offline_mixer_renders_decoded_samples_and_volume() {
+        let sound = test_sound(vec![16384, -16384, 8192, -8192], 44_100, 1);
+        let mut mixer = OfflineMixer::new(44_100, 2);
+        mixer.play_at(&sound, 44_100, 1.0, 0.0);
+        let out = mixer.fill(4);
+        assert_eq!(out.len(), 8);
+        // Equal-power centre pan is ~0.707 per channel.
+        assert!((out[0] - 0.5 * 0.70710677).abs() < 1e-4);
+        assert!((out[1] - 0.5 * 0.70710677).abs() < 1e-4);
+        assert!((out[2] + 0.5 * 0.70710677).abs() < 1e-4);
+
+        let mut half = OfflineMixer::new(44_100, 2);
+        half.play_at(&sound, 44_100, 0.5, 0.0);
+        let half_out = half.fill(4);
+        assert!((half_out[0] - out[0] * 0.5).abs() < 1e-4);
+        let zero = OfflineMixer::new(44_100, 2).fill(1);
+        assert_eq!(zero, vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn offline_mixer_pans_and_resamples() {
+        let sound = test_sound(vec![16384, 16384, 16384, 16384], 22_050, 1);
+        let mut left = OfflineMixer::new(44_100, 2);
+        left.play_at(&sound, 44_100, 1.0, -1.0);
+        let out = left.fill(2);
+        assert!(out[0] > 0.4, "left channel should carry the voice");
+        assert!(out[1].abs() < 1e-4, "right channel should be silent");
+        let mut right = OfflineMixer::new(44_100, 2);
+        right.play_at(&sound, 44_100, 1.0, 1.0);
+        let out = right.fill(2);
+        assert!(out[0].abs() < 1e-4);
+        assert!(out[1] > 0.4);
+    }
+
+    #[test]
+    fn offline_mixer_honors_channel_priority_and_looping() {
+        let low = test_sound(vec![16384; 8], 44_100, 1);
+        let high = test_sound(vec![-16384; 8], 44_100, 1);
+        let mut mixer = OfflineMixer::new(44_100, 2);
+        mixer.play_channel(3, &low, 44_100, 1.0, 0.0, 5, false);
+        mixer.play_channel(3, &high, 44_100, 1.0, 0.0, 1, true);
+        let out = mixer.fill(2);
+        assert!(
+            out[0] > 0.0,
+            "low-priority voice cannot interrupt a higher one"
+        );
+
+        let looped = test_sound(vec![1000, -1000], 44_100, 1);
+        let mut mixer = OfflineMixer::new(44_100, 1);
+        mixer.play_channel(4, &looped, 44_100, 1.0, 0.0, 0, false);
+        mixer.set_looping(4, true);
+        let out = mixer.fill(6);
+        assert!(out.iter().any(|sample| sample.abs() > 0.0));
+        assert!(
+            out[4].abs() > 0.0 && out[5].abs() > 0.0,
+            "loop keeps producing samples"
+        );
+        mixer.stop_channel(4);
+        let silent = mixer.fill(2);
+        assert_eq!(silent, vec![0.0; 2]);
     }
 }
