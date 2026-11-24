@@ -7800,6 +7800,10 @@ fn oracle_kfm_state_200_hits_idle() {
     assert_eq!(state, 5000);
     assert_eq!(sim.fighters[1].received_damage, 23);
     assert_eq!(sim.fighters[1].received_hits, 1);
+    // Oracle O-32: KFM's omitted getpower/givepower use Ikemen defaults.
+    // Before contact the state's PowerAdd gives P1 10; contact adds 16/13.
+    assert_eq!(sim.fighters[0].power, 26.0);
+    assert_eq!(sim.fighters[1].power, 13.0);
     let contact_x = sim.fighters[1].pos.x;
     let mut transition = None;
     let mut min_life = sim.fighters[1].life;

@@ -185,7 +185,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | N/A | Clean-room policy forbids M.U.G.E.N binary analysis; Ikemen-GO is the only oracle |
-| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification (O-01..O-08), KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29), and projectile scenarios O-21..O-28 and the Kaen throw O-30 and helper O-31 revalidated 2026-11-22/23 in `docs/oracle/`; other subsystem reruns pending |
+| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification (O-01..O-08), KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29), and projectile scenarios O-21..O-28 and the Kaen throw O-30, helper O-31 and KFM power O-32 revalidated 2026-11-22/23 in `docs/oracle/`; other subsystem reruns pending |
 
 ## 11. Proposed rewrite order
 

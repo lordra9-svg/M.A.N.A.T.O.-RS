@@ -47,6 +47,7 @@ All use `kfm` versus `kfm`, AI level 0, `-rounds 1`, `-nosound -nomusic
 | O-26 | Guarding state 3000's blasts costs 15 guard damage; the defender remains in guard state 150 and reports the projectile guard timer with no hit timer. The upper blast passes above the guard hurt box. | `kaen_super_guard` capture: contact frame 246, `p2_life` 1000 -> 985, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
 | O-27 | Nival state 3000 opens with a 30-tick SuperPause and then its single blast hits for 90 damage (state 5000). Contact lands 38 ticks after entry, versus ~6 for the plain projectile. | `nival_super` capture: contact frame 247, `p2_life` 1000 -> 910, `p2_state` 5000, `p1_projHit` 0. |
 | O-28 | Guarding Nival's super blast costs 20 guard damage and leaves the defender in guard state 150 with the projectile guard timer set. | `nival_super_guard` capture: contact frame 247, `p2_life` 1000 -> 980, `p2_state` 150, `p1_projGuarded` 0, `p1_projHit` -1. |
+| O-32 | KFM state 200's PowerAdd gives P1 10 power before contact; the hit then adds 16 to the attacker and 13 to the defender using Ikemen's omitted-getpower/givepower defaults. | `kfm_attack` capture: frame 210 `p1_power` 0 -> 10, contact frame 214 `p1_power` 10 -> 26 and `p2_power` 0 -> 13. Encoded by `oracle_kfm_state_200_hits_idle`; no content-defined points involved. |
 | O-31 | Kaen state 2100 spawns helper 2100 in state 2101; the helper's normal HitDef contacts 4 ticks after injection for 30 damage and puts the defender in state 5000. The helper self-destroys at time 20. | `kaen_helper` capture: injection frame 209, contact frame 213 (+4), `p2_life` 1000 -> 970, `p2_state` 5000. Encoded by `kaen_helper_hit_matches_oracle`; helper ownership is covered by the existing helper HitDef/projectile tests. |
 | O-30 | Kaen state 800 grabs an idle KFM 5 ticks after entry: P1 enters 810, P2 enters 820, and the target is bound at `p1.x + 28`, `p1.y - 40`. At 25 ticks after the grab `TargetLifeAdd` deals 80 damage, and at +27 the target is released into state 5050 while still at the bound position. | `kaen_throw` capture: injection frame 209, grab frame 214, P1 life 1000 / P2 1000 -> 920 at frame 239, P2 state 5050 at frame 241, P2 position (12, -40) with P1 at (-16, 0). Encoded by `kaen_state_800_throw_matches_oracle_flow`. |
 | O-29 | `HitPauseTime` reports the attacker's remaining self-pause. KFM state 400 (`pausetime = 10, 11`) reports 10 on the contact frame, then 9, 8, ... 0 on successive frozen ticks. The defender, frozen by its hit shake for the second value, reports 0 throughout. | `kfm_crouch_attack` capture: injection frame 209, contact frame 213, `p1_hitPause` 10 at contact and one lower each frame through 0 at frame 223; `p2_hitPause` 0 for the whole hit. State 200 (`pausetime = 8, 8`) shows the same pattern starting at 8. |
@@ -68,7 +69,7 @@ instead of forcing `offscreen`). Results reproduced the recorded values:
   clutch, `ko_clutch_over` is not clutch, `time_over_full` is time-over/perfect,
   `time_over_draw` has `win_side=-1`, and elapsed timers are 1 or 60 ticks.
 - `kfm_attack`: contact frame 213 (+4), 23 damage, state 5000 → 5001 after 9
-  ticks, push 15.899.
+  ticks, push 15.899, power 10 → 26 on the attacker and 13 on the defender.
 - `kfm_guard`: guard contact 213, guard state 150 / anim 140, 0 guard damage,
   push 14.834, 14 guard ticks.
 - `kfm_launch`: contact +10, 72 damage, state 5070 → 5071 after 13 ticks.
@@ -104,6 +105,7 @@ Raw CSVs and screenshots remain in temporary directories.
 | O-29 | Encoded by `hit_pause_time_reports_self_pause_only`; run `IKEMEN_ORACLE_SCENARIO=kfm_crouch_attack`. |
 | O-30 | Encoded by `kaen_state_800_throw_matches_oracle_flow`; run `IKEMEN_ORACLE_SCENARIO=kaen_throw --p1 kaen`. |
 | O-31 | Encoded by `kaen_helper_hit_matches_oracle`; run `IKEMEN_ORACLE_SCENARIO=kaen_helper --p1 kaen`. |
+| O-32 | Encoded by `oracle_kfm_state_200_hits_idle`; run `IKEMEN_ORACLE_SCENARIO=kfm_attack`. |
 | O-20 | Kept as a documented negative oracle finding; the engine gate remains unit-tested and is not changed to match this anomalous persistent-HitDef construct. |
 
 These assertions remain subject to revision if a later oracle run contradicts
