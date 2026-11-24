@@ -201,7 +201,11 @@ framed relay: it registers (optionally authenticated), sends serialized GGRS
 messages to the configured destination id, and accepts messages from the
 expected source id using a synthetic remote address. `Netplay::from_relay`
 builds a session on it. A loopback test runs two GGRS sessions through
-`MultiRelay` to matching frames/checksums.
+`MultiRelay` to matching frames/checksums. A second loopback test inserts a
+deterministic UDP proxy with 12–30 ms delay/jitter and 1-in-17 packet loss
+before the handshake completes; it converges at 90 frames with matching
+checksums. Real internet/router/NAT behavior still requires a hardware network
+matrix.
 
 ### Window netplay
 
