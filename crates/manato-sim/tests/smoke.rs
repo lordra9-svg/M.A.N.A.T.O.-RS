@@ -11456,6 +11456,34 @@ fn round_time_controllers_set_and_clamp_ticks() {
 }
 
 #[test]
+fn superpause_freezes_opponent_animation() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let pause = manato_formats::Controller {
+        kind: "superpause".into(),
+        params: vec![
+            ("time".into(), "15".into()),
+            ("movetime".into(), "0".into()),
+        ],
+        line: 0,
+    };
+    manato_sim::controller::execute(&mut sim, 0, &pause, &assets);
+    sim.tick([PlayerInput::default(); 2]);
+    let frozen = sim.fighters[1].anim_time;
+    // O-39: SuperPause time=15 freezes the defender through the pause window.
+    for _ in 0..14 {
+        sim.tick([PlayerInput::default(); 2]);
+        assert_eq!(sim.fighters[1].anim_time, frozen);
+    }
+    for _ in 0..4 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert_ne!(sim.fighters[1].anim_time, frozen, "animation resumes");
+}
+
+#[test]
 fn pause_controller_freezes_opponent_animation() {
     let Some(mut sim) = fight_phase() else {
         return;

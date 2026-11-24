@@ -171,6 +171,10 @@ function oracle_capture()
         player(1)
         changeState(7007)
         injected = true
+    elseif scenario == "superpause_probe" and not injected and num(safe(roundState)) == 2 then
+        player(1)
+        changeState(7008)
+        injected = true
     elseif scenario == "kaen_throw" and not injected and num(safe(roundState)) == 2 then
         player(1)
         changeState(800)

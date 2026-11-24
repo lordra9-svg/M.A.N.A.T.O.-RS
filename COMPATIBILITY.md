@@ -185,7 +185,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
 | X-07 | M.U.G.E.N 1.1 oracle assertions | Required | N/A | N/A | Clean-room policy forbids M.U.G.E.N binary analysis; Ikemen-GO is the only oracle |
-| X-08 | Ikemen-GO oracle assertions | N/A | Required | Partial | Round classification (O-01..O-08), KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29), and projectile scenarios O-21..O-28 and the Kaen throw O-30, helper O-31, KFM power O-32, guard/dizzy O-33/O-34, push O-35 and camera O-36 revalidated 2026-11-22/23 in `docs/oracle/`; other subsystem reruns pending |
+| X-08 | Ikemen-GO oracle assertions | N/A | Required | Verified | Round classification (O-01..O-08), KFM hit/guard/launch/juggle/pause flows (O-09..O-19, O-29), and projectile scenarios O-21..O-28 and the Kaen throw O-30, helper O-31, KFM power O-32, guard/dizzy O-33/O-34, push O-35, camera O-36, dust O-37, pause O-38 and superpause O-39 revalidated 2026-11-22/24 in `docs/oracle/`. Completion criteria: every live Required/Required engine row has deterministic tests, and the oracle harness covers each gameplay category (round flow, KFM state/combat, projectiles, throws/helpers, guard/dizzy/power/push, camera/pause/superpause, dust/anim, stock-stage render via X-05); documented limitations and hardware-only matrices are excluded |
 
 ## 11. Proposed rewrite order
 
