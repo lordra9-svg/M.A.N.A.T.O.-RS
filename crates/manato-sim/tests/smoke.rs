@@ -7845,10 +7845,12 @@ fn oracle_kfm_state_200_hits_idle() {
     assert_eq!(sim.fighters[0].power, 26.0);
     assert_eq!(sim.fighters[1].power, 13.0);
     let contact_x = sim.fighters[1].pos.x;
+    let mut max_x = contact_x;
     let mut transition = None;
     let mut min_life = sim.fighters[1].life;
     for tick in 0..30 {
         sim.tick([PlayerInput::default(); 2]);
+        max_x = max_x.max(sim.fighters[1].pos.x);
         min_life = min_life.min(sim.fighters[1].life);
         if transition.is_none() && sim.fighters[1].state_no >= 5001 {
             transition = Some(tick + 1);
@@ -7864,6 +7866,13 @@ fn oracle_kfm_state_200_hits_idle() {
         sim.fighters[1].pos.x > contact_x + 8.0,
         "defender should be pushed away, x={}",
         sim.fighters[1].pos.x
+    );
+    // O-35: KFM state 200 push is 15.899 px from x=16. Our float/tick
+    // integration lands within 2 px (14.332), documented as a residual.
+    assert!(
+        ((max_x - 16.0) - 15.899).abs() < 2.0,
+        "hit push {:.3} should be within 2px of the oracle 15.899",
+        max_x - 16.0
     );
 }
 
@@ -7930,9 +7939,11 @@ fn oracle_kfm_guard_flow() {
     assert_eq!(defender.received_damage, 0);
     assert!(!sim.fighters[0].attack.move_hit);
     let start_x = defender.pos.x;
+    let mut max_x = start_x;
     let mut transition = None;
     for tick in 0..12 {
         sim.tick([PlayerInput::default(), guard_input]);
+        max_x = max_x.max(sim.fighters[1].pos.x);
         if transition.is_none() && sim.fighters[1].state_no >= 151 {
             transition = Some(tick + 1);
         }
@@ -7944,6 +7955,13 @@ fn oracle_kfm_guard_flow() {
         sim.fighters[1].pos.x > start_x + 2.0,
         "guarded defender should slide away, x={}",
         sim.fighters[1].pos.x
+    );
+    // O-35: guarded KFM state 200 push is 14.834 px from x=16. Our value is
+    // within 2 px (16.227), documented as a residual.
+    assert!(
+        ((max_x - 16.0) - 14.834).abs() < 2.0,
+        "guard push {:.3} should be within 2px of the oracle 14.834",
+        max_x - 16.0
     );
 }
 
