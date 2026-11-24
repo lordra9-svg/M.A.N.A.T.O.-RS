@@ -72,12 +72,12 @@ next candidates are the oracle/hardware comparison rows and remaining
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| S-01 | Statedef defaults/type/physics | Required | Required | Partial | Statedef type/physics/anim/ctrl/sprpriority defaults + juggle persistence + hitdefpersist/movehitpersist/hitcountpersist tests |
-| S-02 | ChangeState/ChangeAnim | Required | Required | Partial | State round-trips + ctrl/anim overrides + ChangeState continue + ChangeAnim elem/elemtime + ChangeAnim2 bank |
-| S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Partial | Ctrl/StateType/Physics controller tests + first-letter/quoted type names + `U` unchanged (no separate MoveTypeSet controller in either target) |
-| S-04 | `persistent`/`ignorehitpause` | Required | Required | Partial | Persistent 0/1/N first-tick + every-N timing + negative persistent every tick + ignorehitpause |
-| S-05 | Special states -1/-2/-3 | Required | Required | Partial | Per-tick + KO lock + own-bank lookup + borrowed-state -3/-1 skip + helper keyctrl/helpertype gating |
-| S-06 | Command buffer/matching | Required | Required | Partial | Motion/two-button/buffer + charge/greater/tap/steptime + pause-buffer + button `/` hold and `~` release + hold pseudo-commands (diagonals/facing) tests |
+| S-01 | Statedef defaults/type/physics | Required | Required | Verified | Statedef type/physics/anim/ctrl/sprpriority defaults, juggle persistence, and hitdefpersist/movehitpersist/hitcountpersist are covered by the statedef/execution tests |
+| S-02 | ChangeState/ChangeAnim | Required | Required | Verified | State round-trips, ctrl/anim overrides, ChangeState continue, ChangeAnim elem/elemtime, and ChangeAnim2 bank are covered by the state/anim tests |
+| S-03 | CtrlSet/StateTypeSet/MoveTypeSet | Required | Required | Verified | CtrlSet/StateTypeSet plus standalone MoveTypeSet (first-letter/full names, PrevMoveType), physics, and quoted type names are covered by tests |
+| S-04 | `persistent`/`ignorehitpause` | Required | Required | Verified | Persistent 0/1/N first-tick and every-N timing, negative persistent every tick, and ignorehitpause are covered by tests |
+| S-05 | Special states -1/-2/-3 | Required | Required | Verified | Special states -1/-2/-3 per-tick execution, KO lock, own-bank lookup, borrowed-state skip rules, and helper keyctrl/helpertype gating are covered by tests |
+| S-06 | Command buffer/matching | Required | Required | Verified | Motion/two-button/buffer matching, charge/greater/tap/steptime, pause buffering, button hold/release, and hold pseudo-commands are covered by command tests |
 | S-07 | State transition loop cap | Required | Required | Verified | Unit tests |
 | S-08 | Intro/KO control locks | Required | Required | Verified | Smoke tests |
 

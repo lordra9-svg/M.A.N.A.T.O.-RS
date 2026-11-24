@@ -11481,6 +11481,16 @@ fn prev_state_and_move_type_triggers_track_last_change() {
     assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveType = H"), 1);
     assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevMoveType = A"), 1);
 
+    // Standalone MoveTypeSet accepts first letters and full names.
+    let idle = manato_formats::Controller {
+        kind: "movetypeset".into(),
+        params: vec![("value".into(), "Idle".into())],
+        line: 0,
+    };
+    set(&mut sim, &idle);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "MoveType = I"), 1);
+    assert_eq!(manato_sim::trigger::int(&sim, 0, "PrevMoveType = H"), 1);
+
     // Entering a state records the type that was active beforehand.
     sim.fighters[0].state_type = manato_sim::fighter::StateType::Liedown;
     sim.fighters[0].move_type = manato_sim::fighter::MoveType::Idle;

@@ -76,6 +76,7 @@ pub fn execute(sim: &mut SimState, who: usize, control: &Controller, assets: &cr
             sim.fighters[who].ctrl = value;
         }
         "statetypeset" => state_type_set(sim, who, control),
+        "movetypeset" => move_type_set(sim, who, control),
         "defencemulset" => {
             let value = num_param(sim, who, control, "value").unwrap_or(1.0);
             sim.fighters[who].defence_mul = value;
@@ -784,6 +785,30 @@ fn state_type_set(sim: &mut SimState, who: usize, control: &Controller) {
         if let Some(v) = parsed {
             sim.fighters[who].physics = v;
         }
+    }
+}
+
+fn move_type_set(sim: &mut SimState, who: usize, control: &Controller) {
+    use crate::fighter::MoveType;
+    // M.U.G.E.N 1.1 `MoveTypeSet` takes `value = A/I/H`; accept full words.
+    let Some(raw) = param(control, "value") else {
+        return;
+    };
+    let letter = raw
+        .trim()
+        .trim_matches('"')
+        .chars()
+        .next()
+        .map(|c| c.to_ascii_uppercase());
+    let parsed = match letter {
+        Some('I') => Some(MoveType::Idle),
+        Some('A') => Some(MoveType::Attack),
+        Some('H') => Some(MoveType::Hit),
+        _ => None,
+    };
+    if let Some(value) = parsed {
+        sim.fighters[who].prev_move_type = sim.fighters[who].move_type;
+        sim.fighters[who].move_type = value;
     }
 }
 
