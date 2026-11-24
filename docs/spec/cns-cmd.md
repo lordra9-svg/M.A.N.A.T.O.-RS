@@ -234,7 +234,8 @@ Required controller families for the approved matrix:
 - `MakeDust`, `GameMakeAnim`
 - `AfterImage`, `AfterImageTime`
   `AfterImage` ghosts record the fighter's sprite frames and fade by `length`
-  and `timegap`. The palette options are modeled: `palbright`/`palcontrast`
+  and `timegap`; `framegap` requires the animation frame to advance by that
+  many frames before another ghost is recorded. The palette options are modeled: `palbright`/`palcontrast`
   set each ghost's base add/multiply, `paladd`/`palmul` step older ghosts,
   `palpostbright` applies after the first step, and `palcolor`, `palhue`,
   `palinvertall`, and `palinvertblend` drive the shader palette filter.

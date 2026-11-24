@@ -2720,6 +2720,7 @@ mod tests {
             time: 10,
             interval: 1,
             tick: 0,
+            framegap: 1,
             life: 10,
             alpha: 0.45,
             add: true,

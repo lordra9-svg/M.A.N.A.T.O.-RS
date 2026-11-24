@@ -850,6 +850,7 @@ fn trans(sim: &mut SimState, who: usize, control: &Controller) {
 fn after_image(sim: &mut SimState, who: usize, control: &Controller) {
     let time = int_param(sim, who, control, "time").unwrap_or(1);
     let interval = int_param(sim, who, control, "timegap").unwrap_or(1).max(1);
+    let framegap = int_param(sim, who, control, "framegap").unwrap_or(1).max(1);
     let life = int_param(sim, who, control, "length").unwrap_or(10).max(1);
     let add = str_param(control, "trans")
         .map(|value| {
@@ -921,6 +922,7 @@ fn after_image(sim: &mut SimState, who: usize, control: &Controller) {
         time,
         interval,
         tick: 0,
+        framegap,
         life,
         alpha: 0.45,
         add,

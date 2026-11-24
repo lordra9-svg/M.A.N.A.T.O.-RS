@@ -1324,7 +1324,7 @@ impl SimState {
     /// Serializes the simulation (version, asset id, state) for files or
     /// spectator streaming.
     pub fn encode_snapshot(&self) -> Result<Vec<u8>> {
-        bincode::serialize(&(32u32, self.asset_id(), self))
+        bincode::serialize(&(33u32, self.asset_id(), self))
             .context("failed to encode state snapshot")
     }
 
@@ -1343,7 +1343,7 @@ impl SimState {
         let (version, asset_id, mut state): (u32, u64, SimState) = decoder
             .deserialize(bytes)
             .context("failed to decode state snapshot")?;
-        if version != 32 {
+        if version != 33 {
             anyhow::bail!("unsupported state file version {version}");
         }
         if asset_id != self.asset_id() {
@@ -1974,7 +1974,7 @@ impl SimState {
                     state.time -= 1;
                 }
                 state.tick += 1;
-                if state.tick >= state.interval {
+                if state.tick >= state.interval.saturating_mul(state.framegap.max(1)) {
                     state.tick = 0;
                     fighter.after_images.push(crate::fighter::AfterImageFrame {
                         pos: fighter.pos,
@@ -4470,6 +4470,7 @@ impl SimState {
                 h.write_i32(after.time);
                 h.write_i32(after.interval);
                 h.write_i32(after.life);
+                h.write_i32(after.framegap);
                 for value in after.pal_add {
                     h.write_f32(value);
                 }

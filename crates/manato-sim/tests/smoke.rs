@@ -399,6 +399,46 @@ fn afterimage_and_palfx_execute() {
 }
 
 #[test]
+fn afterimage_framegap_limits_ghost_cadence() {
+    let Some(mut sim) = fight_phase() else {
+        return;
+    };
+    let assets = sim.assets.clone();
+    let spawn = |sim: &mut SimState, frames: &str| {
+        let control = manato_formats::Controller {
+            kind: "afterimage".into(),
+            params: vec![
+                ("time".into(), "20".into()),
+                ("timegap".into(), "1".into()),
+                ("length".into(), "30".into()),
+                ("framegap".into(), frames.into()),
+            ],
+            line: 0,
+        };
+        manato_sim::controller::execute(sim, 0, &control, &assets);
+    };
+    spawn(&mut sim, "1000");
+    sim.fighters[0].after_images.clear();
+    for _ in 0..10 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        sim.fighters[0].after_images.is_empty(),
+        "a huge framegap suppresses emission"
+    );
+
+    spawn(&mut sim, "1");
+    sim.fighters[0].after_images.clear();
+    for _ in 0..20 {
+        sim.tick([PlayerInput::default(); 2]);
+    }
+    assert!(
+        !sim.fighters[0].after_images.is_empty(),
+        "framegap 1 keeps sampling ghosts"
+    );
+}
+
+#[test]
 fn afterimage_palette_parameters_parse() {
     let Some(mut sim) = fight_phase() else {
         return;

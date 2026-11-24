@@ -182,6 +182,9 @@ pub struct AfterImageState {
     pub time: i32,
     pub interval: i32,
     pub tick: i32,
+    /// Minimum animation-frame delta between recorded ghosts (Ikemen
+    /// `framegap`; 1 records every sampled frame).
+    pub framegap: i32,
     pub life: i32,
     pub alpha: f32,
     pub add: bool,
