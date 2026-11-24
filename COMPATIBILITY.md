@@ -130,12 +130,12 @@ next candidates are the oracle/hardware comparison rows and remaining
 
 | ID | Area | M.U.G.E.N 1.1 | Ikemen-GO | manato | Verification |
 | --- | --- | --- | --- | --- | --- |
-| R-01 | Intro/Fight/KO/Over | Required | Required | Partial | Phase sequence/control locks + round reset power carry/helper removal |
-| R-02 | Timer/KO/draw/best-of-three | Required | Required | Partial | Best-of-N/draw + RoundsWon/LoseKO/LoseTime + timer freeze/clamp |
-| R-03 | Win poses/quotes | Required | Required | Partial | Win pose (state 180) entry + RoundNotOver delay + Win/WinKO/WinTime/WinPerfect/WinClutch/DecisiveRound triggers + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
+| R-01 | Intro/Fight/KO/Over | Required | Required | Verified | Phase sequence/control locks + round reset power carry/helper removal |
+| R-02 | Timer/KO/draw/best-of-three | Required | Required | Verified | Best-of-N/draw + RoundsWon/LoseKO/LoseTime + timer freeze/clamp |
+| R-03 | Win poses/quotes | Required | Required | Verified | Win pose (state 180) entry + RoundNotOver delay + Win/WinKO/WinTime/WinPerfect/WinClutch/DecisiveRound triggers + `[Quotes]` parsing + VictoryQuote selection + `[WinQuote]` display tests |
 | R-04 | Turns/team/tag modes | Required | Ikemen | Verified | Team rosters with active/standby members, `TagIn`/`TagOut` swaps with life/power snapshots and content `stateno`/`partnerstateno` animations, an engine fade-out/in default when no tag states are supplied, `Turns` auto-advance, `Simul` arbitrary roster members, front-end mode/partner selection, `select.def [Options]` `turns`/`tagmode`/`simul` enable flags, `single = 1` leader/partner rules, synced life, partner lifebars, tag invulnerability, `assign_team`, and team triggers; the select screen caps partners at three per side |
 | R-05 | Continue/survival/arcade | Required | Required | Verified | `ArcadeSession` ladder/complete/game-over flow, credit-based continue countdown, arcade/survival scoring with streaks, app ladder progression, rendered continue/credits/score screen, roster/random ordering, `[Arcade]` special/final-boss placement, per-opponent select.def stages and music, survival rotation/menu entry, a persisted top-five SCORES table, and sandboxed per-character `arcadepath` files (loops/branches, fixed rivals/challengers, excludes); path storyboards and per-fight stage/mode/time overrides are not applied |
-| R-06 | Match restart/round time controllers | Required | Ikemen | Partial | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + MatchRestart controller + SaveFile/LoadFile + `restart_match` API and R-key reset |
+| R-06 | Match restart/round time controllers | Required | Ikemen | Verified | RoundTime/NoKOSlow/NoKO flags + RoundTimeAdd/RoundTimeSet tick controllers + MatchRestart controller + SaveFile/LoadFile + `restart_match` API and R-key reset |
 
 ## 7. Rendering
 
