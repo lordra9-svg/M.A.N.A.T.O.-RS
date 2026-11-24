@@ -168,7 +168,7 @@ next candidates are the oracle/hardware comparison rows and remaining
 | I-01 | Keyboard input | Required | Required | Verified | Window run |
 | I-02 | Gamepad input | Required | Required | Verified | gilrs backend with SDL mappings; hardware-verified on an 8BitDo Ultimate 2C via `--gamepads`: d-pad directions, South/East/North/West → X/Y/Z/A, L1/R1 → B/C, Start → START (bit 6), stick click, and a raw Select press/release (unbound by default); other devices remain untested |
 | I-03 | Remapping | Required | Required | Verified | TOML keyboard bindings plus per-player gamepad bindings (`[pad1]`/`[pad2]`) with button-name aliases and tests |
-| I-04 | Deterministic CPU AI | Required | Required | Partial | Smoke tests |
+| I-04 | Deterministic CPU AI | Required | Required | Verified | AI input uses simulation state and the seeded RNG; AI-vs-AI, AI level, helper AI-level, and deterministic replay/rollback tests pass |
 | N-01 | Rollback determinism | Required | Required | Verified | GGRS SyncTest run (`--synctest 300`: checksum cabb7db7f2d864f1, life 1000/940) plus rollback/snapshot tests |
 | N-02 | P2P input exchange | Required | Required | Verified | GGRS localhost loopback plus a deterministic UDP proxy with 12–30 ms delay/jitter and 1-in-17 packet loss; peers converge at 90 frames with matching checksums. Real internet/router/NAT hardware matrix remains unexecuted |
 | N-03 | Spectators/lobby | N/A | Ikemen | Verified | Lobby state (roles, capacity, ready/start, host transfer), bincode protocol incl. Welcome/State snapshots and chunked Snapshot streaming (1 KiB chunks, 256 KiB cap, stale/duplicate/oversize rejection) with host `snapshot_messages` serialization and `SpectatorSnapshotReceiver` restore + checksum verification, LobbyServer routing, a non-blocking UDP relay with localhost tests, spectator frame/lag sync, and a direct continuous `SnapshotBroadcaster`/`SpectatorClient` with app --broadcast/--spectate and a status-line UI; LAN discovery, STUN address discovery, ranked spectator matchmaking, and player-slot join/ready/start coordination plus Starting-lobby GGRS handoff, headless auto-entry, windowed netplay input, lobby-to-window auto-entry, best-effort NAT punching, two-peer and framed multi-peer UDP relays, shared-secret and long-term credential relay auth, GGRS relay-tunneled netplay, and automatic punch-to-relay selection implemented; full STUN/TURN wire protocol not modeled |
@@ -179,8 +179,8 @@ next candidates are the oracle/hardware comparison rows and remaining
 | --- | --- | --- | --- | --- | --- |
 | X-01 | Kaen, Nival, Ordan | N/A | N/A | Verified | Bundled tests |
 | X-02 | Training Grid | N/A | N/A | Verified | Bundled tests |
-| X-03 | Stock KFM | Required | Required | Partial | Stock tests |
-| X-04 | Stock Ryu | Required | Required | Partial | Content load |
+| X-03 | Stock KFM | Required | Required | Verified | Stock KFM load/mirror/hit/guard/throw flows plus the KFM oracle captures and render tests |
+| X-04 | Stock Ryu | Required | Required | Partial | Blocked: no stock Ryu character is present in either content root, so only the shared DEF/CNS/AIR/SFF loaders can be exercised |
 | X-05 | Stock stages | Required | Required | Verified | kfm/stage0/stage0-720/stage1 load tests plus an Ikemen-GO render oracle (320x240, AI 0, 120 fight ticks; stage-band mean RGB within ±40); the oracle exposed and fixed the SFF v2 palette byte order (RGBA, not BGRA) |
 | X-06 | Ikemen-GO test content | N/A | Required | N/A | Not shipped; Ikemen-GO is used only as the runtime oracle |
 | X-09 | Manato Grid screenpack | N/A | N/A | Verified | Bundled generated art; title/select/fight screenshots |
