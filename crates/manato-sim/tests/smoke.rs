@@ -7911,6 +7911,17 @@ fn kfm_close_match() -> Option<SimState> {
 }
 
 #[test]
+fn camera_start_matches_oracle() {
+    let Some(sim) = kfm_close_match() else {
+        return;
+    };
+    // O-36: the close oracle stage starts at x=0, y=0, zoom=1.
+    assert!((sim.camera.x - 0.0).abs() < 0.001);
+    assert!((sim.camera.y - 0.0).abs() < 0.001);
+    assert!((sim.camera.scale - 1.0).abs() < 0.001);
+}
+
+#[test]
 fn oracle_kfm_guard_flow() {
     let Some(mut sim) = kfm_close_match() else {
         return;

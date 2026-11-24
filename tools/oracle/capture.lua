@@ -59,6 +59,9 @@ local function snap()
         num(safe(hitPauseTime)),
         num(safe(numProj)), num(safe(projContactTime, -1)),
         num(safe(projHitTime, -1)), num(safe(projGuardedTime, -1)),
+        string.format("%.4f", num(safe(cameraPosX))),
+        string.format("%.4f", num(safe(cameraPosY))),
+        string.format("%.4f", num(safe(cameraZoom))),
     }, ",")
 end
 
@@ -68,6 +71,7 @@ local HEADER = "frame,gameTime,roundState,roundTime,"
     .. "p1_hitCount,p1_uniqHitCount,p1_guardPoints,p1_dizzyPoints,"
     .. "p1_hitDamage,p1_hitTime,p1_moveContact,p1_moveHit,p1_moveGuarded,p1_hitPause,"
     .. "p1_numProj,p1_projContact,p1_projHit,p1_projGuarded,"
+    .. "camera_x,camera_y,camera_zoom,"
     .. "p2_life,p2_lifeMax,p2_power,p2_redLife,p2_state,p2_anim,p2_animTime,"
     .. "p2_x,p2_y,p2_vx,p2_vy,p2_facing,p2_ctrl,p2_stateType,p2_moveType,"
     .. "p2_hitCount,p2_uniqHitCount,p2_guardPoints,p2_dizzyPoints,"
