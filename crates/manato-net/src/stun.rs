@@ -47,6 +47,33 @@ pub const ATTR_SOFTWARE: u16 = 0x8022;
 pub const ATTR_FINGERPRINT: u16 = 0x8028;
 
 pub const DEFAULT_LIFETIME: u32 = 600;
+/// Upper bound on simultaneously open TCP/TLS TURN clients.
+pub const MAX_TURN_CONNECTIONS: usize = 128;
+/// Upper bound on live relay allocations per UDP TURN server.
+pub const MAX_TURN_ALLOCATIONS: usize = 256;
+
+/// Generates a fresh TURN nonce. A constant nonce would let a captured
+/// authenticated request replay across server restarts.
+fn fresh_nonce() -> String {
+    use std::fmt::Write as _;
+
+    let mut bytes = [0u8; 16];
+    if getrandom::getrandom(&mut bytes).is_err() {
+        // Extremely unusual (no OS entropy). Fall back to time + pid rather
+        // than a constant; the value is still unique per process start.
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id() as u128;
+        bytes[..16].copy_from_slice(&(nanos ^ (pid << 64)).to_le_bytes()[..16]);
+    }
+    let mut nonce = String::with_capacity(32);
+    for byte in bytes {
+        let _ = write!(nonce, "{byte:02x}");
+    }
+    nonce
+}
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -149,12 +176,18 @@ impl Message {
         let mut copy = raw.to_vec();
         let mut offset = 20;
         let end = 20 + u16::from_be_bytes([raw[2], raw[3]]) as usize;
+        if end > copy.len() {
+            return false;
+        }
         while offset + 4 <= end {
             let ty = u16::from_be_bytes([copy[offset], copy[offset + 1]]);
             let len = u16::from_be_bytes([copy[offset + 2], copy[offset + 3]]) as usize;
             if ty == ATTR_MESSAGE_INTEGRITY && len == 20 {
-                copy[offset + 4..offset + 24].fill(0);
-                let mac = hmac_sha1(key, &copy[..end.min(copy.len())]);
+                let Some(value) = copy.get_mut(offset + 4..offset + 24) else {
+                    return false;
+                };
+                value.fill(0);
+                let mac = hmac_sha1(key, &copy[..end]);
                 return mac == integrity;
             }
             offset += 4 + len + ((4 - len % 4) % 4);
@@ -309,7 +342,7 @@ impl TurnServer {
         Ok(Self {
             socket,
             realm: realm.into(),
-            nonce: "manato-nonce".into(),
+            nonce: fresh_nonce(),
             users: users.into_iter().collect(),
             allocations: HashMap::new(),
         })
@@ -317,6 +350,11 @@ impl TurnServer {
 
     pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
         self.socket.local_addr()
+    }
+
+    /// Current TURN nonce; clients must echo it in authenticated requests.
+    pub fn nonce(&self) -> &str {
+        &self.nonce
     }
 
     fn authenticate(&self, message: &Message, raw: &[u8]) -> Option<String> {
@@ -334,6 +372,9 @@ impl TurnServer {
 
     /// Drains client, relay, and ChannelData traffic.
     pub fn poll(&mut self) -> std::io::Result<usize> {
+        let now = std::time::Instant::now();
+        self.allocations
+            .retain(|_, allocation| allocation.expires > now);
         let mut buffer = vec![0u8; 65536];
         let mut handled = 0;
         loop {
@@ -379,6 +420,16 @@ impl TurnServer {
                                 let _ = self.socket.send_to(&reply.encode(), source);
                                 continue;
                             };
+                            if !self.allocations.contains_key(&source)
+                                && self.allocations.len() >= MAX_TURN_ALLOCATIONS
+                            {
+                                let reply = Message::new(ALLOCATE_ERROR, message.transaction).with(
+                                    ATTR_ERROR_CODE,
+                                    error_code(508, "Insufficient Capacity"),
+                                );
+                                let _ = self.socket.send_to(&reply.encode(), source);
+                                continue;
+                            }
                             let relay = UdpSocket::bind("0.0.0.0:0")?;
                             relay.set_nonblocking(true)?;
                             let relay_addr = relay.local_addr()?;
@@ -556,7 +607,7 @@ impl TurnTcpServer {
         Ok(Self {
             listener,
             realm: realm.into(),
-            nonce: "manato-nonce".into(),
+            nonce: fresh_nonce(),
             users: users.into_iter().collect(),
             connections: Vec::new(),
             tls: None,
@@ -590,6 +641,11 @@ impl TurnTcpServer {
 
     pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
         self.listener.local_addr()
+    }
+
+    /// Current TURN nonce; clients must echo it in authenticated requests.
+    pub fn nonce(&self) -> &str {
+        &self.nonce
     }
 
     fn handle(
@@ -730,6 +786,12 @@ impl TurnTcpServer {
         loop {
             match self.listener.accept() {
                 Ok((tcp, peer)) => {
+                    if self.connections.len() >= MAX_TURN_CONNECTIONS {
+                        // Drop the socket instead of letting unauthenticated
+                        // clients exhaust file descriptors and memory.
+                        log::warn!("TURN connection limit reached; dropping {peer}");
+                        continue;
+                    }
                     tcp.set_nonblocking(true)?;
                     let stream: Box<dyn ReadWrite> = if let Some(config) = &self.tls {
                         let connection = rustls::ServerConnection::new(config.clone())
@@ -920,11 +982,12 @@ mod tests {
         peer.set_nonblocking(true).expect("nonblocking");
         let peer_addr = peer.local_addr().expect("peer addr");
         let key = long_term_key("alice", "manato", "secret");
+        let nonce = server.nonce().to_string();
         let auth = |message: Message| {
             message
                 .with(ATTR_USERNAME, b"alice".to_vec())
                 .with(ATTR_REALM, b"manato".to_vec())
-                .with(ATTR_NONCE, b"manato-nonce".to_vec())
+                .with(ATTR_NONCE, nonce.as_bytes().to_vec())
                 .encode_authenticated(&key)
         };
         let allocate = auth(
@@ -1060,11 +1123,12 @@ mod tests {
         peer.set_nonblocking(true).expect("nonblocking");
         let peer_addr = peer.local_addr().expect("peer addr");
         let key = long_term_key("alice", "manato", "secret");
+        let nonce = server.nonce().to_string();
         let auth = |message: Message| {
             message
                 .with(ATTR_USERNAME, b"alice".to_vec())
                 .with(ATTR_REALM, b"manato".to_vec())
-                .with(ATTR_NONCE, b"manato-nonce".to_vec())
+                .with(ATTR_NONCE, nonce.as_bytes().to_vec())
                 .encode_authenticated(&key)
         };
         write_all_retry(
@@ -1194,11 +1258,12 @@ mod tests {
         peer.set_nonblocking(true).expect("nonblocking");
         let peer_addr = peer.local_addr().expect("peer addr");
         let key = long_term_key("alice", "manato", "secret");
+        let nonce = server.nonce().to_string();
         let auth = |message: Message| {
             message
                 .with(ATTR_USERNAME, b"alice".to_vec())
                 .with(ATTR_REALM, b"manato".to_vec())
-                .with(ATTR_NONCE, b"manato-nonce".to_vec())
+                .with(ATTR_NONCE, nonce.as_bytes().to_vec())
                 .encode_authenticated(&key)
         };
         write_all_retry(
@@ -1300,7 +1365,7 @@ mod tests {
         let request = Message::new(ALLOCATE_REQUEST, TX)
             .with(ATTR_USERNAME, b"alice".to_vec())
             .with(ATTR_REALM, b"manato".to_vec())
-            .with(ATTR_NONCE, b"manato-nonce".to_vec())
+            .with(ATTR_NONCE, server.nonce().as_bytes().to_vec())
             .encode_authenticated(&wrong);
         client.send_to(&request, server_addr).expect("send");
         let started = Instant::now();

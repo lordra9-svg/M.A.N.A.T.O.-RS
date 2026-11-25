@@ -151,7 +151,9 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design,
 extension, and release guide for anyone making their own version;
 [`docs/FINDINGS.md`](docs/FINDINGS.md) consolidates what the Ikemen-GO oracle
 and allowed M.U.G.E.N sources taught us, including corrections and known
-residual gaps.
+residual gaps; [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md) records the
+dependency, parser, sandbox, and network security review and its residual
+risks.
 
 ## Audio
 
@@ -174,6 +176,36 @@ The three original characters have their own sound banks (`kaen.snd`,
 guard rings, throw impacts, and special-move effects. They are synthesized from
 scratch by [`tools/gen_sfx.py`](tools/gen_sfx.py) and can be regenerated at any
 time.
+
+## Netplay
+
+Rollback netcode uses [GGRS](https://github.com/gschup/ggrs) 0.13. `manato-net`
+implements `ggrs::Config` with `Input = PlayerInput` and `State = SimState`;
+assets stay shared behind `Arc`, so a rollback snapshot copies only mutable
+simulation state. The session uses two frames of input delay and reports
+GGRS `PredictionThreshold` as "skip this frame".
+
+```sh
+# Verify save/load/rollback determinism locally.
+cargo run -q -p manato-app -- --synctest 600
+
+# Direct two-player session (run on each machine with the peer's address).
+cargo run -q -p manato-app -- --netplay 203.0.113.10:7777 --netplay-player 0
+
+# NAT fallback: run a relay on a reachable host, then point both peers at it.
+cargo run -q -p manato-app -- --relay 0.0.0.0:7778
+cargo run -q -p manato-app -- --netplay <relay-address> --relay-fallback <relay-address>
+
+# Spectate a host streaming snapshots.
+cargo run -q -p manato-app -- --broadcast 0.0.0.0:7780
+cargo run -q -p manato-app -- --spectate <host>:7780
+```
+
+GGRS traffic is plaintext UDP. The relays are trusted forwarding paths, not
+encrypted anonymity networks, and there is no anti-cheat or peer
+authentication beyond the optional relay join credentials. See
+[`docs/spec/lobby.md`](docs/spec/lobby.md) for the lobby, relay, spectator, and
+STUN/TURN protocols.
 
 ## Tests
 

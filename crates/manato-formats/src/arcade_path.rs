@@ -36,8 +36,18 @@ pub struct ArcadePathFight {
 }
 
 const MAX_FIGHTS: usize = 64;
+const MAX_SCRIPT_BYTES: u64 = 1024 * 1024;
 
 pub fn load(path: &Path) -> anyhow::Result<Vec<ArcadePathFight>> {
+    let metadata = std::fs::metadata(path)
+        .with_context(|| format!("failed to stat arcade path {}", path.display()))?;
+    if metadata.len() > MAX_SCRIPT_BYTES {
+        anyhow::bail!(
+            "arcade path {} is too large ({} bytes)",
+            path.display(),
+            metadata.len()
+        );
+    }
     let source = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read arcade path {}", path.display()))?;
     run(&source).with_context(|| format!("arcade path {}", path.display()))
@@ -45,6 +55,9 @@ pub fn load(path: &Path) -> anyhow::Result<Vec<ArcadePathFight>> {
 
 /// Executes a restricted arcade path and returns the requested fights.
 pub fn run(source: &str) -> anyhow::Result<Vec<ArcadePathFight>> {
+    if source.len() as u64 > MAX_SCRIPT_BYTES {
+        anyhow::bail!("arcade path is too large ({} bytes)", source.len());
+    }
     run_lua(source).map_err(|error| anyhow::anyhow!("{error}"))
 }
 
@@ -53,6 +66,8 @@ fn run_lua(source: &str) -> mlua::Result<Vec<ArcadePathFight>> {
         StdLib::STRING | StdLib::TABLE | StdLib::MATH,
         LuaOptions::default(),
     )?;
+    // Bound script allocation just like the storyboard sandbox.
+    lua.set_memory_limit(4 * 1024 * 1024)?;
     let fights: std::rc::Rc<std::cell::RefCell<Vec<ArcadePathFight>>> =
         std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
 

@@ -2,6 +2,8 @@
 
 use std::net::{SocketAddr, UdpSocket};
 
+use bincode::Options as _;
+
 /// Forwards datagrams between the first two peers that send to it.
 ///
 /// Both peers configure the relay address as their netplay remote. The relay
@@ -391,7 +393,14 @@ impl ggrs::NonBlockingSocket<SocketAddr> for RelayGgrsSocket {
                     if source != self.peer_id {
                         continue;
                     }
-                    if let Ok(message) = bincode::deserialize::<ggrs::Message>(&buffer[2..len]) {
+                    // GGRS uses fixed-int bincode. Bound the decoder by the
+                    // datagram size so hostile length prefixes cannot trigger
+                    // a multi-gigabyte allocation.
+                    let payload = &buffer[2..len];
+                    let decoder = bincode::DefaultOptions::new()
+                        .with_fixint_encoding()
+                        .with_limit(payload.len() as u64);
+                    if let Ok(message) = decoder.deserialize::<ggrs::Message>(payload) {
                         out.push((self.remote, message));
                     }
                 }

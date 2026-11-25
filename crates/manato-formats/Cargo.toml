@@ -8,9 +8,7 @@ description = "M.U.G.E.N asset and script parsers (DEF/CNS/CMD/AIR/SFF/SND)"
 [dependencies]
 manato-core = { path = "../manato-core" }
 anyhow.workspace = true
-thiserror.workspace = true
 log.workspace = true
-image.workspace = true
 mlua.workspace = true
 png.workspace = true
 hound.workspace = true

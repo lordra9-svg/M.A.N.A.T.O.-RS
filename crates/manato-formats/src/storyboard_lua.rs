@@ -19,6 +19,8 @@ use std::path::Path;
 
 use mlua::{Lua, LuaOptions, StdLib};
 
+const MAX_SCRIPT_BYTES: u64 = 1024 * 1024;
+
 fn lua_error(error: mlua::Error) -> anyhow::Error {
     anyhow::anyhow!("storyboard lua: {error}")
 }
@@ -70,11 +72,24 @@ impl std::fmt::Debug for StoryboardLua {
 impl StoryboardLua {
     /// Loads a script file with the restricted library set.
     pub fn load_file(path: &Path) -> anyhow::Result<Self> {
+        let metadata = std::fs::metadata(path)?;
+        if metadata.len() > MAX_SCRIPT_BYTES {
+            anyhow::bail!(
+                "storyboard lua script is too large ({} bytes)",
+                metadata.len()
+            );
+        }
         let source = std::fs::read_to_string(path)?;
         Self::load(&source, &path.display().to_string())
     }
 
     pub fn load(source: &str, name: &str) -> anyhow::Result<Self> {
+        if source.len() as u64 > MAX_SCRIPT_BYTES {
+            anyhow::bail!(
+                "storyboard lua script is too large ({} bytes)",
+                source.len()
+            );
+        }
         let lua = Lua::new_with(
             StdLib::TABLE | StdLib::STRING | StdLib::MATH,
             LuaOptions::default(),

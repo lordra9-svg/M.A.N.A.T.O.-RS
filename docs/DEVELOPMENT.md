@@ -100,6 +100,33 @@ windows, or audio devices. It consumes `[PlayerInput; 2]` and emits state plus
 `Effect`/`SoundEvent` lists. That boundary is what makes snapshots cheap and
 rollback deterministic.
 
+### Netplay and GGRS
+
+[GGRS](https://github.com/gschup/ggrs) **0.13** provides rollback session
+management and transport abstraction; it does not contain game logic.
+`manato-net` owns the integration:
+
+| Piece | Contract |
+| --- | --- |
+| `ManatoConfig` | Implements `ggrs::Config` with `Input = PlayerInput` and `State = SimState` |
+| Save/load | Clones `SimState`; assets remain shared through `Arc` |
+| Input delay | Two frames |
+| `PredictionThreshold` | Treated as "skip this frame", not a fatal error |
+| `SyncTest` | Runs the real game through save/load/rollback with checksums |
+| `Netplay` | Two-player P2P wrapper with optional relay transport |
+| `RelayGgrsSocket` | Implements `ggrs::NonBlockingSocket<SocketAddr>` over the framed relay |
+
+GGRS itself persists via `bincode` and the `instant`/`paste` crates; keep that in
+mind when updating the dependency tree. The compatibility rows are N-01
+(rollback determinism), N-02 (P2P input exchange), and N-03 (spectators/lobby).
+Protocol details, handoff messages, and STUN/TURN behavior are specified in
+[`spec/lobby.md`](spec/lobby.md).
+
+GGRS netplay is plaintext UDP with no peer authentication or anti-cheat. The
+optional relay join credentials authenticate registration only, not the ensuing
+session. Treat direct netplay and relays as trusted paths and do not expose the
+spectator or relay ports to untrusted networks without a firewall or VPN.
+
 ## 4. Choose work from the compatibility matrix
 
 `COMPATIBILITY.md` is the project plan, not a marketing table. Every row names
@@ -258,6 +285,28 @@ stale package artifacts before assuming a logic bug:
 ```sh
 cargo clean -p manato-sim
 ```
+
+### Security checks
+
+Run the advisory scan whenever dependencies change:
+
+```sh
+cargo install cargo-audit --locked   # once
+cargo audit
+```
+
+The current audit, threat model, fixed findings, and accepted residual risks
+are in [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md). The important deployment
+constraints are:
+
+- Netplay, relays, and spectator traffic are plaintext and unauthenticated;
+  treat them as trusted-network features.
+- `SaveFile`/`LoadFile` are sandboxed to the character directory, but symlinks
+  inside that directory are not resolved specially.
+- Local content is trusted. Do not load arbitrary internet content without an
+  external sandbox.
+- Lua storyboards and arcade paths are library-restricted and memory-capped,
+  but they are content, not a security boundary for hostile native code.
 
 ## 9. Oracle harness
 

@@ -291,6 +291,10 @@ Trips and launches (O-15, O-16):
 - The simulation is fixed at 60 Hz and uses a seeded RNG inside `SimState`.
   Assets are immutable and shared through `Arc`; snapshots copy only mutable
   state, and snapshots are excluded from the rollback checksum.
+- GGRS 0.13 is the rollback session manager (`ggrs::Config` with
+  `Input = PlayerInput`, `State = SimState`), using two frames of input delay.
+  The engine supplies the deterministic simulation and snapshot boundary; GGRS
+  supplies rollback scheduling, prediction, and the transport trait.
 - GGRS `SyncTest` runs the real game through save/load/rollback cycles. The
   recorded check is `--synctest 300`: checksum `cabb7db7f2d864f1`, life
   1000/940.

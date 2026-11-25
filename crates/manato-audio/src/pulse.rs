@@ -65,8 +65,8 @@ impl Drop for PulseSink {
 
 /// Opens a PulseAudio playback stream and starts mixing into it.
 pub fn start(mixer: Arc<Mutex<Mixer>>, rate: u32, channels: usize) -> anyhow::Result<PulseSink> {
-    if channels == 0 {
-        bail!("audio channel count must be positive");
+    if channels == 0 || channels > u8::MAX as usize {
+        bail!("audio channel count must be between 1 and 255");
     }
 
     // Keep the library loaded for as long as the thread uses the symbols.

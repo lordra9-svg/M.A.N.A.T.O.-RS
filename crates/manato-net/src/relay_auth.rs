@@ -10,6 +10,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use bincode::Options as _;
 use hmac::{Hmac, Mac};
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
@@ -62,7 +63,13 @@ impl AuthRequest {
         if body.len() > 512 {
             return None;
         }
-        bincode::deserialize(body).ok()
+        // `encode` uses fixed-int bincode. Limit decoding to the frame size so
+        // a hostile length prefix cannot force a large allocation.
+        bincode::DefaultOptions::new()
+            .with_fixint_encoding()
+            .with_limit(body.len() as u64)
+            .deserialize(body)
+            .ok()
     }
 }
 
@@ -218,5 +225,12 @@ mod tests {
         assert!(!auth.validate(&AuthRequest::new("right", &long, 3)));
         assert!(AuthRequest::decode(b"not a join").is_none());
         assert!(AuthRequest::decode(b"MANATO_RELAY_AUTH_JOIN_V1:garbage").is_none());
+    }
+
+    #[test]
+    fn decode_rejects_oversized_length_prefix() {
+        let mut bytes = AUTH_JOIN.to_vec();
+        bytes.extend_from_slice(&u64::MAX.to_le_bytes());
+        assert!(AuthRequest::decode(&bytes).is_none());
     }
 }

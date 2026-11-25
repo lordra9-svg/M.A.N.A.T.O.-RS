@@ -11,6 +11,10 @@ use anyhow::{bail, Context};
 const MAX_DIMENSION: u32 = 8192;
 const MAX_SPRITES: usize = 65_535;
 const MAX_PALETTES: usize = 4096;
+/// Upper bound on decoded pixels across one sprite file. At RGBA8 this is
+/// 128 MiB, which keeps a hostile file from declaring thousands of maximum
+/// sized sprites and exhausting memory.
+const MAX_TOTAL_PIXELS: u64 = 32 * 1024 * 1024;
 
 /// Decoded sprite with straight RGBA8 pixels.
 #[derive(Debug, Clone)]
@@ -163,6 +167,7 @@ impl SffFile {
         let mut offset = u32_at(data, 24) as usize;
         let subheader = (u32_at(data, 28) as usize).max(32);
         let mut previous_palette: Option<Vec<[u8; 4]>> = None;
+        let mut decoded_pixels = 0u64;
 
         for _ in 0..count.min(MAX_SPRITES) {
             let Some(header) = slice(data, offset, 32) else {
@@ -204,6 +209,13 @@ impl SffFile {
             if payload.is_empty() {
                 self.push_link(group, index, axis_x, axis_y, link);
             } else {
+                if let Some((width, height)) = pcx_dimensions(payload) {
+                    let pixels = width as u64 * height as u64;
+                    decoded_pixels = decoded_pixels.saturating_add(pixels);
+                    if decoded_pixels > MAX_TOTAL_PIXELS {
+                        bail!("SFF v1 sprite data exceeds the decoded pixel budget");
+                    }
+                }
                 match decode_pcx(payload, same_palette.then_some(previous_palette.as_deref())) {
                     Ok((width, height, rgba, indices, palette)) => {
                         if let Some(palette) = palette {
@@ -253,6 +265,7 @@ impl SffFile {
         let (mut palettes, palette_keys, palette_map) =
             parse_v2_palettes(data, palette_offset, palette_count, ldata_offset, minor2);
         self.palettes = palette_map;
+        let mut decoded_pixels = 0u64;
 
         for i in 0..sprite_count.min(MAX_SPRITES) {
             let Some(node) = slice(data, sprite_offset + i * 28, 28) else {
@@ -279,6 +292,10 @@ impl SffFile {
             if width == 0 || height == 0 || width > MAX_DIMENSION || height > MAX_DIMENSION {
                 self.sprites.push(Sprite::empty(group, index));
                 continue;
+            }
+            decoded_pixels = decoded_pixels.saturating_add(width as u64 * height as u64);
+            if decoded_pixels > MAX_TOTAL_PIXELS {
+                bail!("SFF v2 sprite data exceeds the decoded pixel budget");
             }
 
             let base = if flags & 1 != 0 {
@@ -521,6 +538,24 @@ type PngPixels = (u32, u32, Vec<u8>, Option<Vec<u8>>);
 
 pub(crate) type DecodedPcx = (u32, u32, Vec<u8>, Vec<u8>, Option<Vec<[u8; 4]>>);
 
+/// Reads PCX dimensions without allocating the pixel buffer, so the caller
+/// can enforce a file-wide decoded-pixel budget before decoding.
+fn pcx_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    if data.len() < 12 || data[0] != 0x0A {
+        return None;
+    }
+    let x_min = u16_at(data, 4) as i32;
+    let y_min = u16_at(data, 6) as i32;
+    let x_max = u16_at(data, 8) as i32;
+    let y_max = u16_at(data, 10) as i32;
+    let width = x_max - x_min + 1;
+    let height = y_max - y_min + 1;
+    if width <= 0 || height <= 0 || width > MAX_DIMENSION as i32 || height > MAX_DIMENSION as i32 {
+        return None;
+    }
+    Some((width as u32, height as u32))
+}
+
 pub(crate) fn decode_pcx(
     data: &[u8],
     reuse_palette: Option<Option<&[[u8; 4]]>>,
@@ -624,39 +659,63 @@ fn default_palette() -> Vec<[u8; 4]> {
 fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<PngPixels> {
     use std::io::Cursor;
 
-    let decoder = png::Decoder::new(Cursor::new(raw));
+    let mut decoder = png::Decoder::new(Cursor::new(raw));
+    // The png crate defaults to 64 MiB; set it explicitly so a future default
+    // change cannot raise the ceiling silently.
+    decoder.set_limits(png::Limits {
+        bytes: 64 * 1024 * 1024,
+    });
     let mut reader = decoder.read_info()?;
     let mut buffer = vec![0u8; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buffer)?;
     let data = &buffer[..info.buffer_size()];
     let width = info.width;
     let height = info.height;
-    let mut rgba = vec![0u8; (width * height * 4) as usize];
+    if width == 0 || height == 0 || width > MAX_DIMENSION || height > MAX_DIMENSION {
+        bail!("PNG dimensions {width}x{height} exceed the supported range");
+    }
+    // SFF sprite deltas and palettes are 8-bit. Sixteen-bit PNGs would make
+    // the 8-bit writes below index out of bounds, so reject them explicitly.
+    if info.bit_depth != png::BitDepth::Eight {
+        bail!("unsupported PNG bit depth {:?}", info.bit_depth);
+    }
+    let count = width as usize * height as usize;
+    let expected = match info.color_type {
+        png::ColorType::Indexed => count,
+        png::ColorType::Rgba => count * 4,
+        png::ColorType::Rgb => count * 3,
+        png::ColorType::Grayscale => count,
+        png::ColorType::GrayscaleAlpha => count * 2,
+    };
+    if data.len() < expected {
+        bail!(
+            "PNG payload is truncated ({} bytes, expected {expected})",
+            data.len()
+        );
+    }
+    let mut rgba = vec![0u8; count * 4];
 
     let mut indices = None;
     match info.color_type {
         png::ColorType::Indexed => {
-            if info.bit_depth != png::BitDepth::Eight {
-                bail!("unsupported indexed PNG depth {:?}", info.bit_depth);
-            }
-            let mut decoded = vec![0u8; (width * height) as usize];
-            for i in 0..(width * height) as usize {
-                let index = data.get(i).copied().unwrap_or(0);
+            let mut decoded = vec![0u8; count];
+            for i in 0..count {
+                let index = data[i];
                 decoded[i] = index;
                 let color = palette.get(index as usize).copied().unwrap_or([0, 0, 0, 0]);
                 rgba[i * 4..i * 4 + 4].copy_from_slice(&color);
             }
             indices = Some(decoded);
         }
-        png::ColorType::Rgba => rgba.copy_from_slice(data),
+        png::ColorType::Rgba => rgba.copy_from_slice(&data[..expected]),
         png::ColorType::Rgb => {
-            for (i, pixel) in data.as_chunks::<3>().0.iter().enumerate() {
+            for (i, pixel) in data[..expected].as_chunks::<3>().0.iter().enumerate() {
                 rgba[i * 4..i * 4 + 3].copy_from_slice(pixel);
                 rgba[i * 4 + 3] = 255;
             }
         }
         png::ColorType::Grayscale => {
-            for (i, value) in data.iter().enumerate() {
+            for (i, value) in data[..expected].iter().enumerate() {
                 rgba[i * 4] = *value;
                 rgba[i * 4 + 1] = *value;
                 rgba[i * 4 + 2] = *value;
@@ -664,7 +723,7 @@ fn decode_png(raw: &[u8], palette: &[[u8; 4]]) -> anyhow::Result<PngPixels> {
             }
         }
         png::ColorType::GrayscaleAlpha => {
-            for (i, pixel) in data.as_chunks::<2>().0.iter().enumerate() {
+            for (i, pixel) in data[..expected].as_chunks::<2>().0.iter().enumerate() {
                 rgba[i * 4] = pixel[0];
                 rgba[i * 4 + 1] = pixel[0];
                 rgba[i * 4 + 2] = pixel[0];
@@ -996,6 +1055,45 @@ mod tests {
         assert_eq!((sprite.width, sprite.height), (2, 2));
         assert_eq!(sprite.rgba.len(), 16);
         assert_eq!(&sprite.rgba[4..8], &[40, 20, 30, 255]);
+    }
+
+    #[test]
+    fn v2_sixteen_bit_png_is_rejected_not_written_out_of_bounds() {
+        let mut raw = vec![0u8; 2 * 2 * 2];
+        raw[0..8].copy_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
+        let mut encoded = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut encoded, 2, 2);
+            encoder.set_color(png::ColorType::Grayscale);
+            encoder.set_depth(png::BitDepth::Sixteen);
+            let mut writer = encoder.write_header().unwrap();
+            writer.write_image_data(&raw).unwrap();
+        }
+        assert!(decode_png(&encoded, &[]).is_err());
+    }
+
+    #[test]
+    fn v2_sprite_budget_rejects_max_dimension_bomb() {
+        let mut data = vec![0u8; 512];
+        data[..12].copy_from_slice(b"ElecbyteSpr\0");
+        data[15] = 2;
+
+        let sprite_offset = 512usize;
+        let ldata_offset = sprite_offset + 28;
+        let total = ldata_offset + 1;
+        data.resize(total, 0);
+        data[36..40].copy_from_slice(&(sprite_offset as u32).to_le_bytes());
+        data[40..44].copy_from_slice(&1u32.to_le_bytes());
+        data[52..56].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
+        data[60..64].copy_from_slice(&(ldata_offset as u32).to_le_bytes());
+
+        let node = sprite_offset;
+        data[node + 4..node + 6].copy_from_slice(&8192u16.to_le_bytes());
+        data[node + 6..node + 8].copy_from_slice(&8192u16.to_le_bytes());
+        data[node + 20..node + 24].copy_from_slice(&1u32.to_le_bytes());
+
+        let error = SffFile::from_bytes(&data).expect_err("pixel budget");
+        assert!(error.to_string().contains("budget"), "{error}");
     }
 
     #[test]
