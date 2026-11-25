@@ -24,17 +24,18 @@ M.U.G.E.N assets are included.
 
 [`COMPATIBILITY.md`](COMPATIBILITY.md) tracks the M.U.G.E.N 1.1 / Ikemen-GO
 matrix. Every row is implemented at least partially; there are no `Missing`
-or unscoped `TBD` rows. Remaining `Partial` rows fall into three groups:
+or unscoped `TBD` rows. Only two rows remain `Partial`:
 
-- **Blocked subsystems:** text objects, palette remapping on decoded sprites,
-  projectile clashes, asset reload/save states, streaming BGM, 3D depth, and
-  debug-only helpers. These need a new subsystem or a scope decision.
-- **Oracle-only:** implemented and covered by engine tests, but not asserted
-  against a M.U.G.E.N binary because X-07 forbids it.
-- **Small edge cases:** listed in each row's Verification column.
+- **X-04 Stock Ryu** is blocked on content: neither content root contains a
+  stock Ryu character, so only the shared loaders can be exercised.
+- **C-13 Ikemen-only controllers** is out of scope by owner decision
+  (dialogue controllers and `RunState`).
 
-Frozen out of scope: storyboards, tag/team modes, continue/survival/arcade,
-custom shaders, and spectators/lobby.
+All other Required/Required rows are verified, with evidence and any hardware
+or residual caveats recorded in the matrix. `X-08` is verified against stated
+completion criteria (deterministic tests for every live Required/Required row
+plus per-category Ikemen-GO oracle coverage, excluding documented limitations
+and hardware-only matrices).
 
 ## Prebuilt binaries
 
@@ -146,6 +147,11 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design,
 [`CLEANROOM_SPEC.md`](CLEANROOM_SPEC.md) for the current clean-room process,
 [`COMPATIBILITY.md`](COMPATIBILITY.md) for the M.U.G.E.N/Ikemen-GO matrix, and
 [`PROVENANCE.md`](PROVENANCE.md) for provenance and licensing notes.
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is the end-to-end build, test,
+extension, and release guide for anyone making their own version;
+[`docs/FINDINGS.md`](docs/FINDINGS.md) consolidates what the Ikemen-GO oracle
+and allowed M.U.G.E.N sources taught us, including corrections and known
+residual gaps.
 
 ## Audio
 
@@ -181,7 +187,10 @@ M.U.G.E.N tests skip unless `MUGEN_ROOT` points at a stock installation.
 The Ikemen-GO oracle harness lives in [`tools/oracle/`](tools/oracle/) and its
 derived assertions in [`docs/oracle/`](docs/oracle/). It is opt-in: it needs a
 separate Ikemen-GO runtime and is not part of `cargo test`. Raw oracle logs and
-screenshots are never committed.
+screenshots are never committed. See
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full verification and
+release procedure, and [`docs/FINDINGS.md`](docs/FINDINGS.md) for the
+consolidated engine findings.
 
 ## License
 
